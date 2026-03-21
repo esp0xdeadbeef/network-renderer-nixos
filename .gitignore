@@ -1,0 +1,28 @@
+*.qcow2
+clab-fabric/*
+clab-fabric/
+
+# Python
+__pycache__/
+*.pyc
+# Nix
+result
+result-*
+
+# Python
+__pycache__/
+*.pyc
+
+# Containerlab artifacts
+clab-*/
+*.log
+
+# Security hygiene: never commit private keys
+clab-fabric/.tls/**/*.key
+**/*.key
+
+# signing the clab generated output now:
+output-compiler-signed.json
+output-solver-signed.json
+
+vib.sh
