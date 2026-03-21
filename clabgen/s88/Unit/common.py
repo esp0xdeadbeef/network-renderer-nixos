@@ -16,7 +16,6 @@ def _routing_mode() -> str:
     value = os.environ.get("CLABGEN_ROUTING_MODE", "static").strip().lower()
     if value not in {"static", "bgp"}:
         return "static"
-    print("Selected routing mode:", value)
     return value
 
 
