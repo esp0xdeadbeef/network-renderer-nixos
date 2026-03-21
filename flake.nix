@@ -34,47 +34,52 @@
       };
 
       packages.${system} = {
-        generate-nixos-config =
-          pkgs.writeShellApplication {
-            name = "generate-nixos-config";
+        generate-nixos-config = pkgs.writeShellApplication {
+          name = "generate-nixos-config";
 
-            runtimeInputs = [
-              pythonEnv
-              pkgs.jq
-            ];
+          runtimeInputs = [
+            pythonEnv
+            pkgs.jq
+            pkgs.coreutils
+          ];
 
-            text = ''
-              set -euo pipefail
+          text = ''
+            set -euo pipefail
 
-              if [ "$#" -lt 1 ]; then
-                echo "Usage: $0 <input.nix> [output-dir]" >&2
-                exit 1
-              fi
+            if [ "$#" -lt 1 ]; then
+              echo "Usage: $0 <input.nix> [output-dir]" >&2
+              exit 1
+            fi
 
-              INPUT_NIX="$1"
-              COMPILER_JSON="output-compiler-signed.json"
-              SOLVER_JSON="output-solver-signed.json"
-              OUTPUT_DIR="''${2:-work/nixos-output}"
+            INPUT_NIX="$(realpath "$1")"
+            OUTPUT_DIR="$(realpath -m "''${2:-work/nixos-output}")"
+            COMPILER_JSON="$(realpath -m ./output-compiler-signed.json)"
+            SOLVER_JSON="$(realpath -m ./output-forwarding-model-signed.json)"
 
-              echo "[*] Running compiler..."
-              nix run github:esp0xdeadbeef/network-compiler -- "$INPUT_NIX" "$COMPILER_JSON"
+            mkdir -p "$OUTPUT_DIR"
 
-              echo "[*] Running solver..."
-              nix run github:esp0xdeadbeef/network-compiler -- "$COMPILER_JSON" "$SOLVER_JSON"
+            echo "[*] Running compiler..."
+            nix run github:esp0xdeadbeef/network-compiler -- "$INPUT_NIX" > "$COMPILER_JSON"
 
-              echo "[*] Validating JSON..."
-              jq empty "$SOLVER_JSON"
+            echo "[*] Validating compiler JSON..."
+            jq empty "$COMPILER_JSON"
 
-              echo "[*] Generating NixOS modules..."
+            echo "[*] Running forwarding-model..."
+            nix run github:esp0xdeadbeef/network-forwarding-model -- "$COMPILER_JSON" > "$SOLVER_JSON"
 
-              export PYTHONPYCACHEPREFIX=/tmp/python-cache
-              export PYTHONDONTWRITEBYTECODE=1
-              PYTHONPATH="$(pwd)" \
-              ${pythonEnv}/bin/python3 ${rendererScript} \
-                "$SOLVER_JSON" \
-                --output-dir "$OUTPUT_DIR"
-            '';
-          };
+            echo "[*] Validating solver JSON..."
+            jq empty "$SOLVER_JSON"
+
+            echo "[*] Generating NixOS modules..."
+            export PYTHONPYCACHEPREFIX=/tmp/python-cache
+            export PYTHONDONTWRITEBYTECODE=1
+
+            PYTHONPATH="$(pwd)" \
+            ${pythonEnv}/bin/python3 ${rendererScript} \
+              "$SOLVER_JSON" \
+              "$OUTPUT_DIR"
+          '';
+        };
 
         default = self.packages.${system}.generate-nixos-config;
       };
@@ -89,7 +94,6 @@
         default = self.apps.${system}.generate-nixos-config;
       };
 
-      defaultPackage.${system} =
-        self.packages.${system}.generate-nixos-config;
+      defaultPackage.${system} = self.packages.${system}.generate-nixos-config;
     };
 }
