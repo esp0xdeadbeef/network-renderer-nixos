@@ -1,3 +1,4 @@
+# ./clabgen/s88/EM/default.py
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -127,15 +128,6 @@ def _via6(r: Dict[str, Any]) -> str | None:
 def _normalize_prefix(dst: str) -> str:
     if not isinstance(dst, str):
         return dst
-
-    if "." in dst and "/" in dst:
-        ip, prefix = dst.split("/", 1)
-        try:
-            p = int(prefix)
-            if p > 32:
-                return f"{ip}/32"
-        except Exception:
-            pass
 
     try:
         return str(ipaddress.ip_network(dst, strict=False))

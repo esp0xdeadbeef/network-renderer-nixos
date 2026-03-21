@@ -145,6 +145,7 @@ def _needs_frr(node: NodeModel) -> bool:
 def _nix_escape(value: str) -> str:
     return value.replace("${", "''${").replace("''", "'''")
 
+
 def _render_shell_script(cmds: List[str]) -> str:
     lines = ["set -euo pipefail"]
     lines.extend(cmds)
@@ -197,6 +198,29 @@ def render_node_module(
     )
 
 
+def render_node_wrapper_module(
+    generated_import: str,
+    extra_imports: List[str] | None = None,
+) -> str:
+    imports = [generated_import]
+    imports.extend(
+        value
+        for value in (extra_imports or [])
+        if isinstance(value, str) and value.strip()
+    )
+
+    body = "\n".join(f"    {item}" for item in imports)
+
+    return (
+        "{ ... }:\n"
+        "{\n"
+        "  imports = [\n"
+        f"{body}\n"
+        "  ];\n"
+        "}\n"
+    )
+
+
 def write_node_module(
     site: SiteModel,
     node_name: str,
@@ -212,6 +236,23 @@ def write_node_module(
             node_name=node_name,
             node=node,
             rendered_node_name=rendered_node_name,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def write_node_wrapper_module(
+    out_path: str | Path,
+    generated_import: str,
+    extra_imports: List[str] | None = None,
+) -> Path:
+    path = Path(out_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        render_node_wrapper_module(
+            generated_import=generated_import,
+            extra_imports=extra_imports,
         ),
         encoding="utf-8",
     )

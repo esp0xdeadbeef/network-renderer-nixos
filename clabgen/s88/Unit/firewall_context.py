@@ -31,7 +31,7 @@ def _members(obj: Any) -> List[str]:
         if isinstance(name, str):
             return [name]
 
-    if kind in {"external", "service"}:
+    if kind == "external":
         name = obj.get("name")
         if isinstance(name, str):
             return [name]
@@ -49,6 +49,24 @@ def _relation_objects(contract: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [r for r in relations if isinstance(r, dict)]
 
 
+def _service_objects(contract: Dict[str, Any]) -> List[Dict[str, Any]]:
+    services = contract.get("services", [])
+    if not isinstance(services, list):
+        return []
+    return [service for service in services if isinstance(service, dict)]
+
+
+def _service_map(contract: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    result: Dict[str, Dict[str, Any]] = {}
+
+    for service in _service_objects(contract):
+        name = service.get("name")
+        if isinstance(name, str) and name:
+            result[name] = dict(service)
+
+    return result
+
+
 def _contract_tenant_names(contract: Dict[str, Any]) -> List[str]:
     result: set[str] = set()
 
@@ -57,6 +75,14 @@ def _contract_tenant_names(contract: Dict[str, Any]) -> List[str]:
             endpoint = relation.get(side)
             if isinstance(endpoint, dict) and endpoint.get("kind") in {"tenant", "tenant-set"}:
                 result.update(_members(endpoint))
+
+    for service in _service_objects(contract):
+        providers = service.get("providers", [])
+        if not isinstance(providers, list):
+            continue
+        for provider in providers:
+            if isinstance(provider, dict) and provider.get("kind") in {"tenant", "tenant-set"}:
+                result.update(_members(provider))
 
     return sorted(result)
 
@@ -537,17 +563,61 @@ def _build_policy_interface_tags(
     return interface_tags
 
 
+def _service_provider_members(
+    contract: Dict[str, Any],
+    endpoint: Dict[str, Any],
+    known_tags: set[str],
+) -> List[str]:
+    service_name = endpoint.get("name")
+    if not isinstance(service_name, str) or not service_name:
+        return []
+
+    service = _service_map(contract).get(service_name, {})
+    providers = service.get("providers", [])
+
+    resolved: List[str] = []
+
+    if isinstance(providers, list):
+        for provider in providers:
+            if isinstance(provider, dict):
+                resolved.extend(_members(provider))
+            else:
+                resolved.extend(_members(provider))
+
+    resolved = [value for value in resolved if value in known_tags]
+    if resolved:
+        return sorted(set(resolved))
+
+    if "mgmt" in known_tags:
+        return ["mgmt"]
+
+    internal_tags = sorted(
+        value for value in known_tags
+        if value != "wan"
+    )
+    return internal_tags
+
+
+def _endpoint_members(
+    contract: Dict[str, Any],
+    endpoint: Any,
+    known_tags: set[str],
+) -> List[str]:
+    if endpoint == "any":
+        return sorted(known_tags)
+
+    if isinstance(endpoint, dict) and endpoint.get("kind") == "service":
+        return _service_provider_members(contract, endpoint, known_tags)
+
+    return [value for value in _members(endpoint) if value in known_tags]
+
+
 def _build_policy_rules(contract: Dict[str, Any], known_tags: set[str]):
     rules = []
 
     for relation in _relation_objects(contract):
-        src_members = _members(relation.get("from"))
-        dst = relation.get("to")
-
-        if dst == "any":
-            dst_members = sorted(known_tags)
-        else:
-            dst_members = _members(dst)
+        src_members = _endpoint_members(contract, relation.get("from"), known_tags)
+        dst_members = _endpoint_members(contract, relation.get("to"), known_tags)
 
         action = "accept" if relation.get("action") == "allow" else "drop"
         matches = relation.get("match") or []
