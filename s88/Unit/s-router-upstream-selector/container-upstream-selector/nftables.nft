@@ -1,0 +1,51 @@
+table inet filter {
+  chain input {
+    type filter hook input priority 0;
+    policy drop;
+
+    ct state established,related accept
+    ct state invalid drop
+
+    iifname "upstream-core" ip saddr {
+      10.0.0.0/8,
+      172.16.0.0/12,
+      192.168.0.0/16,
+      127.0.0.0/8
+    } drop
+
+    iifname "upstream-core" ip6 saddr fc00::/7 drop
+    iifname "upstream-core" meta l4proto ipv6-icmp accept
+
+    iif lo accept
+
+    accept
+  }
+
+  chain forward {
+    type filter hook forward priority 0;
+    policy drop;
+
+    ct state established,related accept
+    ct state invalid drop
+
+    iifname "upstream-core" ip saddr {
+      10.0.0.0/8,
+      172.16.0.0/12,
+      192.168.0.0/16,
+      127.0.0.0/8
+    } drop
+
+    iifname "upstream-core" ip6 saddr fc00::/7 drop
+
+    accept
+  }
+}
+
+table inet mangle {
+  chain forward {
+    type filter hook forward priority -150;
+    policy accept;
+
+    oifname "upstream-core" tcp flags syn tcp option maxseg size set rt mtu
+  }
+}

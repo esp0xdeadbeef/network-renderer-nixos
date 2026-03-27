@@ -1,99 +1,38 @@
 {
-  description = "NixOS network renderer";
+  description = "Shared NixOS network renderer helpers and router units";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/0182a361324364ae3f436a63005877674cf45efb";
-
-    network-control-plane-model.url =
-      "github:esp0xdeadbeef/network-control-plane-model";
-
-    network-compiler.url =
-      "github:esp0xdeadbeef/network-compiler";
-
-    network-control-plane-model.inputs.nixpkgs.follows = "nixpkgs";
-    network-compiler.inputs.nixpkgs.follows = "nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, network-control-plane-model, network-compiler }:
+  outputs = { self, nixpkgs, ... }:
     let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
+      lib = nixpkgs.lib;
 
-      pythonEnv = pkgs.python3.withPackages (ps: [
-        ps.pyyaml
-        ps.pandas
-      ]);
-
-      rendererScript = pkgs.writeText "generate-nixos-config.py"
-        (builtins.readFile ./generate-nixos-config.py);
+      mkUnit = path: {
+        inherit path;
+        module = import path;
+      };
     in
     {
-      nixosConfigurations.lab = nixpkgs.lib.nixosSystem {
-        inherit system;
-        modules = [ ./vm.nix ];
+      lib = {
+        queryBox = import ./lib/query-box.nix { inherit lib; };
       };
 
-      packages.${system} = {
-        generate-nixos-config = pkgs.writeShellApplication {
-          name = "generate-nixos-config";
-
-          runtimeInputs = [
-            pythonEnv
-            pkgs.jq
-            pkgs.coreutils
-          ];
-
-          text = ''
-            set -euo pipefail
-
-            if [ "$#" -lt 1 ]; then
-              echo "Usage: $0 <input.nix> [output-dir]" >&2
-              exit 1
-            fi
-
-            INPUT_NIX="$(realpath "$1")"
-            OUTPUT_DIR="$(realpath -m "''${2:-work/nixos-output}")"
-            COMPILER_JSON="$(realpath -m ./output-compiler-signed.json)"
-            SOLVER_JSON="$(realpath -m ./output-forwarding-model-signed.json)"
-
-            mkdir -p "$OUTPUT_DIR"
-
-            echo "[*] Running compiler..."
-            nix run github:esp0xdeadbeef/network-compiler -- "$INPUT_NIX" > "$COMPILER_JSON"
-
-            echo "[*] Validating compiler JSON..."
-            jq empty "$COMPILER_JSON"
-
-            echo "[*] Running forwarding-model..."
-            nix run github:esp0xdeadbeef/network-forwarding-model -- "$COMPILER_JSON" > "$SOLVER_JSON"
-
-            echo "[*] Validating solver JSON..."
-            jq empty "$SOLVER_JSON"
-
-            echo "[*] Generating NixOS modules..."
-            export PYTHONPYCACHEPREFIX=/tmp/python-cache
-            export PYTHONDONTWRITEBYTECODE=1
-
-            PYTHONPATH="$(pwd)" \
-            ${pythonEnv}/bin/python3 ${rendererScript} \
-              "$SOLVER_JSON" \
-              "$OUTPUT_DIR"
-          '';
+      s88 = {
+        Unit = {
+          "s-router-access" = mkUnit ./s88/Unit/s-router-access;
+          "s-router-core" = mkUnit ./s88/Unit/s-router-core;
+          "s-router-policy-only" = mkUnit ./s88/Unit/s-router-policy-only;
+          "s-router-upstream-selector" = mkUnit ./s88/Unit/s-router-upstream-selector;
         };
-
-        default = self.packages.${system}.generate-nixos-config;
       };
 
-      apps.${system} = {
-        generate-nixos-config = {
-          type = "app";
-          program =
-            "${self.packages.${system}.generate-nixos-config}/bin/generate-nixos-config";
-        };
-
-        default = self.apps.${system}.generate-nixos-config;
+      nixosModules = {
+        "s-router-access" = import ./s88/Unit/s-router-access;
+        "s-router-core" = import ./s88/Unit/s-router-core;
+        "s-router-policy-only" = import ./s88/Unit/s-router-policy-only;
+        "s-router-upstream-selector" = import ./s88/Unit/s-router-upstream-selector;
       };
-
-      defaultPackage.${system} = self.packages.${system}.generate-nixos-config;
     };
 }
