@@ -1,15 +1,20 @@
 {
   lib,
   pkgs,
+  outPath,
   controlPlaneOut,
   globalInventory,
+  rendererHostName,
+  runtimeUnitName,
   ...
 }:
 
 let
-  hostname = "s-router-policy-only";
+  hostname = runtimeUnitName;
 
   inventory = globalInventory;
+
+  runtimeContext = import "${outPath}/lib/runtime-context.nix" { inherit lib; };
 
   listInvariants = import ../lib/list-invariants.nix { inherit lib; };
   inherit (listInvariants) duplicates;
@@ -25,12 +30,12 @@ let
       builtins.head parts;
 
   containerNode =
-    if inventory ? realization && inventory.realization ? nodes && lib.hasAttr hostname inventory.realization.nodes then
-      inventory.realization.nodes.${hostname}
+    if inventory ? realization && inventory.realization ? nodes && lib.hasAttr rendererHostName inventory.realization.nodes then
+      inventory.realization.nodes.${rendererHostName}
     else
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: realization node missing in inventory.nix
@@ -42,109 +47,41 @@ let
     else
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: realization node ports missing
       '';
 
-  containerLinks = lib.sort builtins.lessThan (map (p: containerNodePorts.${p}.link) (builtins.attrNames containerNodePorts));
+  containerLinks =
+    lib.sort builtins.lessThan (map (p: containerNodePorts.${p}.link) (builtins.attrNames containerNodePorts));
 
-  cpmData = controlPlaneOut.control_plane_model.data or { };
-
-  siteEntries =
-    lib.concatMap (
-      enterpriseName:
-      let
-        enterprise = cpmData.${enterpriseName};
-      in
-      map (siteName: enterprise.${siteName}) (lib.sort builtins.lessThan (builtins.attrNames enterprise))
-    ) (lib.sort builtins.lessThan (builtins.attrNames cpmData));
-
-  runtimeTargets =
-    lib.foldl' (acc: site: acc // (site.runtimeTargets or { })) { } siteEntries;
-
-  runtimeTargetNames = lib.sort builtins.lessThan (builtins.attrNames runtimeTargets);
-
-  linkNamesForTarget =
-    target:
-    let
-      interfaces = target.effectiveRuntimeRealization.interfaces or { };
-    in
-    lib.sort builtins.lessThan (
-      lib.filter (x: x != null) (
-        map (
-          ifName:
-          let
-            iface = interfaces.${ifName};
-            backingRef = iface.backingRef or { };
-          in
-          if (backingRef.kind or null) == "link" then backingRef.name else null
-        ) (builtins.attrNames interfaces)
-      )
-    );
-
-  matchingRuntimeTargets = lib.filter (
-    targetName:
-    let
-      target = runtimeTargets.${targetName};
-    in
-    builtins.toJSON (linkNamesForTarget target) == builtins.toJSON containerLinks
-  ) runtimeTargetNames;
-
-  runtimeTargetName =
-    if builtins.length matchingRuntimeTargets == 1 then
-      builtins.elemAt matchingRuntimeTargets 0
-    else if builtins.length matchingRuntimeTargets == 0 then
-      abort ''
-        renderer/container/default.nix
-        hostname: ${hostname}
-        runtimeIfName: n/a
-        linkName: n/a
-        error: no runtime target matches container link set
-        containerLinks: ${builtins.toJSON containerLinks}
-      ''
-    else
-      abort ''
-        renderer/container/default.nix
-        hostname: ${hostname}
-        runtimeIfName: n/a
-        linkName: n/a
-        error: multiple runtime targets match container link set
-        matches: ${builtins.toJSON matchingRuntimeTargets}
-      '';
-
-  runtimeTarget = runtimeTargets.${runtimeTargetName};
-
-  selectedSiteMatches = lib.filter (site: builtins.hasAttr runtimeTargetName (site.runtimeTargets or { })) siteEntries;
-
-  selectedSite =
-    if builtins.length selectedSiteMatches == 1 then
-      builtins.head selectedSiteMatches
-    else if selectedSiteMatches == [ ] then
-      null
-    else
-      abort ''
-        renderer/container/default.nix
-        hostname: ${hostname}
-        runtimeIfName: n/a
-        linkName: n/a
-        error: multiple site entries contain runtime target
-        runtimeTargetName: ${runtimeTargetName}
-      '';
+  selectedSite = runtimeContext.siteEntryForUnit {
+    cpm = controlPlaneOut;
+    unitName = runtimeUnitName;
+    file = "s88/Unit/s-router-policy-only/container/default.nix";
+  };
 
   preferredSource4 =
-    if selectedSite != null
-      && selectedSite ? topology
-      && selectedSite.topology ? nodes
-      && builtins.isAttrs selectedSite.topology.nodes
-      && builtins.hasAttr runtimeTargetName selectedSite.topology.nodes
-      && selectedSite.topology.nodes.${runtimeTargetName} ? loopback
-      && selectedSite.topology.nodes.${runtimeTargetName}.loopback ? ipv4
+    if selectedSite.site ? topology
+      && builtins.isAttrs selectedSite.site.topology
+      && selectedSite.site.topology ? nodes
+      && builtins.isAttrs selectedSite.site.topology.nodes
+      && builtins.hasAttr runtimeUnitName selectedSite.site.topology.nodes
+      && selectedSite.site.topology.nodes.${runtimeUnitName} ? loopback
+      && selectedSite.site.topology.nodes.${runtimeUnitName}.loopback ? ipv4
     then
-      stripPrefix selectedSite.topology.nodes.${runtimeTargetName}.loopback.ipv4
+      stripPrefix selectedSite.site.topology.nodes.${runtimeUnitName}.loopback.ipv4
     else
       null;
+
+  runtimeTargetName = runtimeUnitName;
+
+  runtimeTarget = runtimeContext.runtimeTargetForUnit {
+    cpm = controlPlaneOut;
+    unitName = runtimeTargetName;
+    file = "s88/Unit/s-router-policy-only/container/default.nix";
+  };
 
   runtimeRealization =
     if runtimeTarget ? effectiveRuntimeRealization then
@@ -152,7 +89,7 @@ let
     else
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: effectiveRuntimeRealization missing
@@ -164,7 +101,7 @@ let
     else
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: runtime interfaces missing
@@ -176,7 +113,8 @@ let
 
   topoDetails =
     map
-      (name:
+      (
+        name:
         (topoIfaceForRuntime name runtimeIfaces.${name})
         // {
           inherit preferredSource4;
@@ -194,7 +132,7 @@ let
     if dup != [ ] then
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: duplicate runtime interface links
@@ -210,7 +148,7 @@ let
     if dup != [ ] then
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: duplicate rendered interface names
@@ -227,7 +165,7 @@ let
     if missingLinks != [ ] || extraLinks != [ ] then
       abort ''
         renderer/container/default.nix
-        hostname: ${hostname}
+        hostname: ${rendererHostName}
         runtimeIfName: n/a
         linkName: n/a
         error: runtime interface to realization node link coverage mismatch

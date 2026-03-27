@@ -126,6 +126,14 @@ in
           IPv6AcceptRA = ipv6AcceptRA;
           LinkLocalAddressing = linkLocalMode;
         };
+
+        dhcpV4Config = lib.optionalAttrs (!pppoeEnabled) {
+          UseGateway = true;
+          UseRoutes = false;
+          RoutesToDNS = false;
+          RoutesToNTP = false;
+          RouteMetric = 1024;
+        };
       };
     }
     // lib.optionalAttrs pppoeEnabled {

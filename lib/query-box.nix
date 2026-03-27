@@ -52,7 +52,7 @@ let
 
   repoRootFromOutPath =
     outPath:
-    builtins.dirOf (builtins.dirOf (builtins.dirOf outPath)));
+    builtins.dirOf (builtins.dirOf (builtins.dirOf outPath));
 
   fabricRootFromOutPath =
     outPath:

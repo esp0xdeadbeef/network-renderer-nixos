@@ -28,12 +28,6 @@ let
 
   hostName = hostname;
 
-  containerName =
-    if renderHostConfig ? containerName && builtins.isString renderHostConfig.containerName then
-      renderHostConfig.containerName
-    else
-      "${hostname}-container";
-
   inventory = globalInventory;
 
   containerNode =
@@ -48,7 +42,8 @@ let
     else
       abort "container-settings.nix: realization node '${hostname}' is missing ports";
 
-  containerLinks = lib.sort builtins.lessThan (map (p: containerNodePorts.${p}.link) (builtins.attrNames containerNodePorts));
+  containerLinks =
+    lib.sort builtins.lessThan (map (p: containerNodePorts.${p}.link) (builtins.attrNames containerNodePorts));
 
   cpmData = controlPlaneOut.control_plane_model.data or { };
 
@@ -84,13 +79,14 @@ let
       )
     );
 
-  matchingRuntimeTargets = lib.filter (
-    targetName:
-    let
-      target = runtimeTargets.${targetName};
-    in
-    builtins.toJSON (linkNamesForTarget target) == builtins.toJSON containerLinks
-  ) runtimeTargetNames;
+  matchingRuntimeTargets =
+    lib.filter (
+      targetName:
+      let
+        target = runtimeTargets.${targetName};
+      in
+      builtins.toJSON (linkNamesForTarget target) == builtins.toJSON containerLinks
+    ) runtimeTargetNames;
 
   nodeName =
     if builtins.length matchingRuntimeTargets == 1 then
@@ -106,10 +102,17 @@ let
         matches: ${builtins.toJSON matchingRuntimeTargets}
       '';
 
+  containerName =
+    if renderHostConfig ? containerName && builtins.isString renderHostConfig.containerName then
+      renderHostConfig.containerName
+    else
+      "${hostname}-container";
+
   renderedContainer = import ./lib/renderer/render-containers.nix {
     inherit lib inventory;
     cpm = controlPlaneOut;
-    inherit nodeName hostName;
+    nodeName = nodeName;
+    hostName = hostName;
   };
 in
 {
@@ -142,16 +145,36 @@ in
     };
 
     specialArgs = {
-      inherit outPath controlPlaneOut globalInventory;
+      inherit
+        outPath
+        controlPlaneOut
+        globalInventory
+        nodeName
+        ;
+      rendererHostName = hostname;
+      runtimeUnitName = nodeName;
     };
 
-    config = { controlPlaneOut, globalInventory, ... }: {
+    config = {
+      controlPlaneOut,
+      globalInventory,
+      nodeName,
+      rendererHostName,
+      runtimeUnitName,
+      ...
+    }: {
       imports = [
         ./container
       ];
 
       _module.args = {
-        inherit controlPlaneOut globalInventory;
+        inherit
+          controlPlaneOut
+          globalInventory
+          nodeName
+          rendererHostName
+          runtimeUnitName
+          ;
       };
 
       networking.useNetworkd = true;
