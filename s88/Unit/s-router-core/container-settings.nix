@@ -2,74 +2,41 @@
   config,
   pkgs,
   lib,
+  outPath,
   fabricCompiled,
   globalInventory,
+  boxContext,
   ...
 }:
 
 let
   hostname = config.networking.hostName;
-  inventory = globalInventory;
 
-  renderHosts =
-    if inventory ? render
-      && builtins.isAttrs inventory.render
-      && inventory.render ? hosts
-      && builtins.isAttrs inventory.render.hosts
-    then
-      inventory.render.hosts
-    else
-      { };
+  runtimeContext = import "${outPath}/lib/runtime-context.nix" { inherit lib; };
+
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   renderHostConfig =
-    if builtins.hasAttr hostname renderHosts && builtins.isAttrs renderHosts.${hostname} then
-      renderHosts.${hostname}
+    if boxContext ? renderHostConfig && builtins.isAttrs boxContext.renderHostConfig then
+      boxContext.renderHostConfig
     else
       { };
 
-  deploymentHosts =
-    if inventory ? deployment
-       && builtins.isAttrs inventory.deployment
-       && inventory.deployment ? hosts
-       && builtins.isAttrs inventory.deployment.hosts
-    then
-      inventory.deployment.hosts
-    else
-      throw ''
-        container-settings:
-
-        inventory.deployment.hosts missing.
-
-        inventory:
-        ${builtins.toJSON inventory}
-      '';
-
-  deploymentHostNames = lib.sort builtins.lessThan (builtins.attrNames deploymentHosts);
-
   deploymentHostName =
-    if renderHostConfig ? deploymentHost
-      && builtins.isString renderHostConfig.deploymentHost
-      && builtins.hasAttr renderHostConfig.deploymentHost deploymentHosts
-    then
-      renderHostConfig.deploymentHost
-    else if builtins.hasAttr hostname deploymentHosts then
-      hostname
-    else if builtins.length deploymentHostNames == 1 then
-      builtins.head deploymentHostNames
+    if boxContext ? deploymentHostName && builtins.isString boxContext.deploymentHostName then
+      boxContext.deploymentHostName
+    else
+      hostname;
+
+  hostConfig =
+    if boxContext ? box && builtins.isAttrs boxContext.box then
+      boxContext.box
     else
       throw ''
         container-settings:
 
-        inventory.deployment host for '${hostname}' missing, and fallback is ambiguous.
-
-        Current hostname:
-        ${hostname}
-
-        Known deployment hosts:
-        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ deploymentHostNames)}
+        boxContext.box missing.
       '';
-
-  hostConfig = deploymentHosts.${deploymentHostName};
 
   uplinks =
     if hostConfig ? uplinks && builtins.isAttrs hostConfig.uplinks then
@@ -84,7 +51,7 @@ let
         ${builtins.toJSON hostConfig}
       '';
 
-  uplinkNames = lib.sort builtins.lessThan (builtins.attrNames uplinks);
+  uplinkNames = sortedAttrNames uplinks;
 
   wanUplinkName =
     if renderHostConfig ? wanUplink
@@ -134,88 +101,14 @@ let
       false;
 
   realizationNodes =
-    if inventory ? realization
-      && builtins.isAttrs inventory.realization
-      && inventory.realization ? nodes
-      && builtins.isAttrs inventory.realization.nodes
-    then
-      inventory.realization.nodes
+    if boxContext ? realizationNodes && builtins.isAttrs boxContext.realizationNodes then
+      boxContext.realizationNodes
     else
       throw ''
         container-settings:
 
-        inventory.realization.nodes missing.
-
-        inventory:
-        ${builtins.toJSON inventory}
+        boxContext.realizationNodes missing.
       '';
-
-  cpmModel =
-    if fabricCompiled ? control_plane_model && builtins.isAttrs fabricCompiled.control_plane_model then
-      fabricCompiled.control_plane_model
-    else
-      { };
-
-  cpmData =
-    if cpmModel ? data && builtins.isAttrs cpmModel.data then
-      cpmModel.data
-    else
-      { };
-
-  enterprises =
-    if cpmData != { } then
-      cpmData
-    else
-      throw ''
-        container-settings:
-
-        fabricCompiled.control_plane_model.data missing.
-
-        Top-level keys:
-        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ builtins.attrNames fabricCompiled)}
-      '';
-
-  enterpriseName =
-    let names = builtins.attrNames enterprises;
-    in
-    if builtins.length names == 1 then
-      builtins.head names
-    else
-      throw ''
-        container-settings:
-
-        Expected exactly 1 enterprise.
-
-        Found:
-        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ names)}
-      '';
-
-  enterprise = enterprises.${enterpriseName};
-
-  siteName =
-    let names = builtins.attrNames enterprise;
-    in
-    if builtins.length names == 1 then
-      builtins.head names
-    else
-      throw ''
-        container-settings:
-
-        Expected exactly 1 site for enterprise '${enterpriseName}'.
-
-        Found:
-        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ names)}
-      '';
-
-  site = enterprise.${siteName};
-
-  runtimeTargets =
-    if site ? runtimeTargets && builtins.isAttrs site.runtimeTargets then
-      site.runtimeTargets
-    else
-      { };
-
-  runtimeTargetNames = builtins.attrNames runtimeTargets;
 
   pppoeBindMounts =
     if pppoeEnabled then
@@ -242,77 +135,25 @@ let
 
   realizationNodeForUnit =
     unitName:
-      if builtins.hasAttr unitName realizationNodes then
-        realizationNodes.${unitName}
-      else
-        throw ''
-          container-settings:
+    if builtins.hasAttr unitName realizationNodes then
+      realizationNodes.${unitName}
+    else
+      throw ''
+        container-settings:
 
-          Missing realization node for unit '${unitName}'.
+        Missing realization node for unit '${unitName}'.
 
-          Known realization nodes:
-          ${builtins.concatStringsSep "\n  - " ([ "" ] ++ builtins.attrNames realizationNodes)}
-        '';
-
-  logicalNodeNameForUnit =
-    unitName:
-      let
-        node = realizationNodeForUnit unitName;
-      in
-      if node ? logicalNode
-        && builtins.isAttrs node.logicalNode
-        && node.logicalNode ? name
-        && builtins.isString node.logicalNode.name
-      then
-        node.logicalNode.name
-      else
-        "";
-
-  unitBelongsToDeploymentHost =
-    unitName:
-      builtins.hasAttr unitName realizationNodes
-      && builtins.isAttrs realizationNodes.${unitName}
-      && (realizationNodes.${unitName}.host or null) == deploymentHostName;
-
-  unitMatchesMachine =
-    unitName:
-      let
-        logicalNodeName = logicalNodeNameForUnit unitName;
-      in
-      logicalNodeName == hostname
-      || lib.hasPrefix "${hostname}-" logicalNodeName
-      || unitBelongsToDeploymentHost unitName;
+        Known realization nodes:
+        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ builtins.attrNames realizationNodes)}
+      '';
 
   nodeContextForUnit =
     unitName:
-      if builtins.hasAttr unitName runtimeTargets then
-        runtimeTargets.${unitName}
-      else
-        throw ''
-          container-settings:
-
-          Missing runtime target for unit '${unitName}'.
-
-          Available runtime targets:
-          ${builtins.concatStringsSep "\n  - " ([ "" ] ++ builtins.attrNames runtimeTargets)}
-        '';
-
-  unitRole =
-    unitName:
-      let
-        ctx = nodeContextForUnit unitName;
-      in
-      if ctx ? role then
-        ctx.role
-      else
-        throw ''
-          container-settings:
-
-          Node '${unitName}' missing role.
-
-          Node keys:
-          ${builtins.concatStringsSep "\n  - " ([ "" ] ++ builtins.attrNames ctx)}
-        '';
+    runtimeContext.runtimeTargetForUnit {
+      cpm = fabricCompiled;
+      inherit unitName;
+      file = "s88/Unit/s-router-core/container-settings.nix";
+    };
 
   runtimeRole =
     if renderHostConfig ? runtimeRole && builtins.isString renderHostConfig.runtimeRole then
@@ -321,11 +162,13 @@ let
       "core";
 
   selectedUnits =
-    lib.filter (
-      unitName:
-        unitRole unitName == runtimeRole
-        && unitMatchesMachine unitName
-    ) runtimeTargetNames;
+    runtimeContext.unitNamesForRoleOnDeploymentHost {
+      cpm = fabricCompiled;
+      inventory = globalInventory;
+      inherit deploymentHostName;
+      role = runtimeRole;
+      file = "s88/Unit/s-router-core/container-settings.nix";
+    };
 
   _selectedNonEmpty =
     if selectedUnits != [ ] then
@@ -339,68 +182,69 @@ let
         Current hostname:
         ${hostname}
 
-        Deployment host fallback:
+        Deployment host:
         ${deploymentHostName}
-
-        Available runtime targets:
-        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ runtimeTargetNames)}
       '';
 
   runtimeTransitBridgeForUnit =
     unitName:
-      let
-        realizationNode = realizationNodeForUnit unitName;
-        ports =
-          if realizationNode ? ports && builtins.isAttrs realizationNode.ports then
-            realizationNode.ports
-          else
-            throw ''
-              container-settings:
+    let
+      realizationNode = realizationNodeForUnit unitName;
+      ports =
+        if realizationNode ? ports && builtins.isAttrs realizationNode.ports then
+          realizationNode.ports
+        else
+          throw ''
+            container-settings:
 
-              realization.nodes.${unitName}.ports missing or not an attrset.
+            realization.nodes.${unitName}.ports missing or not an attrset.
 
-              realization node:
-              ${builtins.toJSON realizationNode}
-            '';
+            realization node:
+            ${builtins.toJSON realizationNode}
+          '';
 
-        bridgePorts =
-          builtins.filter (
+      bridgePorts =
+        builtins.filter
+          (
             port:
-              builtins.isAttrs port
-              && port ? attach
-              && builtins.isAttrs port.attach
-              && (port.attach.kind or null) == "bridge"
-              && (port.attach ? bridge)
-              && builtins.isString port.attach.bridge
-          ) (attrValues ports);
+            builtins.isAttrs port
+            && port ? attach
+            && builtins.isAttrs port.attach
+            && (port.attach.kind or null) == "bridge"
+            && port.attach ? bridge
+            && builtins.isString port.attach.bridge
+          )
+          (attrValues ports);
 
-        directPorts =
-          builtins.filter (
+      directPorts =
+        builtins.filter
+          (
             port:
-              builtins.isAttrs port
-              && port ? attach
-              && builtins.isAttrs port.attach
-              && (port.attach.kind or null) == "direct"
-              && port ? link
-              && builtins.isString port.link
-          ) (attrValues ports);
-      in
-      if builtins.length bridgePorts == 1 then
-        (builtins.head bridgePorts).attach.bridge
-      else if builtins.length bridgePorts == 0 && builtins.length directPorts == 1 then
-        (builtins.head directPorts).link
-      else
-        throw ''
-          container-settings:
+            builtins.isAttrs port
+            && port ? attach
+            && builtins.isAttrs port.attach
+            && (port.attach.kind or null) == "direct"
+            && port ? link
+            && builtins.isString port.link
+          )
+          (attrValues ports);
+    in
+    if builtins.length bridgePorts == 1 then
+      (builtins.head bridgePorts).attach.bridge
+    else if builtins.length bridgePorts == 0 && builtins.length directPorts == 1 then
+      (builtins.head directPorts).link
+    else
+      throw ''
+        container-settings:
 
-          Expected exactly 1 bridge-backed runtime port or exactly 1 direct-link port for unit '${unitName}'.
+        Expected exactly 1 bridge-backed runtime port or exactly 1 direct-link port for unit '${unitName}'.
 
-          bridge-backed ports:
-          ${builtins.toJSON bridgePorts}
+        bridge-backed ports:
+        ${builtins.toJSON bridgePorts}
 
-          direct-link ports:
-          ${builtins.toJSON directPorts}
-        '';
+        direct-link ports:
+        ${builtins.toJSON directPorts}
+      '';
 
   containerTemplate =
     if renderHostConfig ? containerTemplate && builtins.isString renderHostConfig.containerTemplate then

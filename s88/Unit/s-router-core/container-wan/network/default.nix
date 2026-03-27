@@ -2,7 +2,7 @@
 {
   imports = [
     ./wan.nix
-    ./link-to-policy.nix
+    ./fabric.nix
     ./general.nix
   ];
 }

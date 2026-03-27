@@ -2,7 +2,8 @@
 
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
-
+in
+rec {
   realizationNodesFor =
     inventory:
     if inventory ? realization
@@ -13,9 +14,6 @@ let
       inventory.realization.nodes
     else
       { };
-in
-{
-  inherit realizationNodesFor;
 
   nodeForUnit =
     {
@@ -45,7 +43,7 @@ in
       file ? "lib/realization-ports.nix",
     }:
     let
-      node = (import ./realization-ports.nix { inherit lib; }).nodeForUnit {
+      node = nodeForUnit {
         inherit inventory unitName file;
       };
     in
@@ -104,7 +102,7 @@ in
       file ? "lib/realization-ports.nix",
     }:
     let
-      ports = (import ./realization-ports.nix { inherit lib; }).portsForUnit {
+      ports = portsForUnit {
         inherit inventory unitName file;
       };
     in
@@ -114,7 +112,7 @@ in
           portName:
           {
             name = portName;
-            value = (import ./realization-ports.nix { inherit lib; }).attachForPort {
+            value = attachForPort {
               port = ports.${portName};
               inherit unitName portName file;
             };
@@ -138,7 +136,7 @@ in
           unitName:
           {
             name = unitName;
-            value = (import ./realization-ports.nix { inherit lib; }).attachMapForUnit {
+            value = attachMapForUnit {
               inherit inventory unitName file;
             };
           }

@@ -3,12 +3,14 @@
   controlPlaneOut,
   globalInventory,
   outPath,
+  runtimeUnitName,
   ...
 }:
 
 let
-  hostname = "s-router-policy-only";
   inventory = globalInventory;
+
+  runtimeContext = import "${outPath}/lib/runtime-context.nix" { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -26,113 +28,27 @@ let
     else
       fabricImported;
 
-  rootEnterprise =
-    if controlPlaneOut ? control_plane_model
-      && builtins.isAttrs controlPlaneOut.control_plane_model
-      && controlPlaneOut.control_plane_model ? data
-      && builtins.isAttrs controlPlaneOut.control_plane_model.data
-    then
-      controlPlaneOut.control_plane_model.data
-    else
-      abort "container/nftables.nix: control_plane_model.data missing";
+  selectedSiteEntry = runtimeContext.siteEntryForUnit {
+    cpm = controlPlaneOut;
+    unitName = runtimeUnitName;
+    file = "s88/Unit/s-router-policy-only/container/nftables.nix";
+  };
 
-  enterpriseNames = sortedAttrNames rootEnterprise;
-
-  matchedSites =
-    lib.concatMap (
-      enterpriseName:
-      let
-        enterpriseValue = rootEnterprise.${enterpriseName};
-
-        siteTree =
-          if enterpriseValue ? site && builtins.isAttrs enterpriseValue.site then
-            enterpriseValue.site
-          else if builtins.isAttrs enterpriseValue then
-            enterpriseValue
-          else
-            { };
-
-        siteNames = sortedAttrNames siteTree;
-      in
-      lib.concatMap (
-        siteName:
-        let
-          site = siteTree.${siteName};
-
-          matchingPolicyTargets =
-            if site ? policyTargets && builtins.isList site.policyTargets then
-              lib.filter builtins.isString site.policyTargets
-            else if site ? attachments && builtins.isList site.attachments then
-              map (attachment: attachment.unit) (
-                lib.filter (
-                  attachment:
-                    builtins.isAttrs attachment
-                    && (attachment.kind or null) == "tenant"
-                    && attachment ? unit
-                    && builtins.isString attachment.unit
-                ) site.attachments
-              )
-            else
-              [ ];
-        in
-        lib.optionals (
-          lib.elem hostname matchingPolicyTargets
-          || hostname == "s-router-policy-only"
-        ) [
-          {
-            inherit enterpriseName siteName site matchingPolicyTargets;
-          }
-        ]
-      ) siteNames
-    ) enterpriseNames;
-
-  selectedSite =
-    if builtins.length matchedSites == 1 then
-      builtins.head matchedSites
-    else if builtins.length matchedSites > 1 then
-      abort ''
-        container/nftables.nix: multiple policy sites matched hostname '${hostname}'
-      ''
-    else
-      abort ''
-        container/nftables.nix: no policy site matched hostname '${hostname}'
-      '';
-
-  cpmSite =
-    if builtins.hasAttr selectedSite.enterpriseName rootEnterprise
-      && builtins.isAttrs rootEnterprise.${selectedSite.enterpriseName}
-      && builtins.hasAttr selectedSite.siteName rootEnterprise.${selectedSite.enterpriseName}
-      && builtins.isAttrs rootEnterprise.${selectedSite.enterpriseName}.${selectedSite.siteName}
-    then
-      rootEnterprise.${selectedSite.enterpriseName}.${selectedSite.siteName}
-    else if builtins.hasAttr selectedSite.enterpriseName rootEnterprise
-      && builtins.isAttrs rootEnterprise.${selectedSite.enterpriseName}
-      && rootEnterprise.${selectedSite.enterpriseName} ? site
-      && builtins.isAttrs rootEnterprise.${selectedSite.enterpriseName}.site
-      && builtins.hasAttr selectedSite.siteName rootEnterprise.${selectedSite.enterpriseName}.site
-      && builtins.isAttrs rootEnterprise.${selectedSite.enterpriseName}.site.${selectedSite.siteName}
-    then
-      rootEnterprise.${selectedSite.enterpriseName}.site.${selectedSite.siteName}
-    else if builtins.isAttrs selectedSite.site then
-      selectedSite.site
-    else
-      abort ''
-        container/nftables.nix: site '${selectedSite.siteName}' missing for enterprise '${selectedSite.enterpriseName}'
-      '';
+  cpmSite = selectedSiteEntry.site;
 
   intentEnterprise =
-    if builtins.hasAttr selectedSite.enterpriseName fabricInputs
-      && builtins.isAttrs fabricInputs.${selectedSite.enterpriseName}
+    if builtins.hasAttr selectedSiteEntry.enterpriseName fabricInputs
+      && builtins.isAttrs fabricInputs.${selectedSiteEntry.enterpriseName}
     then
-      fabricInputs.${selectedSite.enterpriseName}
+      fabricInputs.${selectedSiteEntry.enterpriseName}
     else
       { };
 
   intentSite =
-    if builtins.hasAttr selectedSite.siteName intentEnterprise
-      && builtins.isAttrs intentEnterprise.${selectedSite.siteName}
+    if builtins.hasAttr selectedSiteEntry.siteName intentEnterprise
+      && builtins.isAttrs intentEnterprise.${selectedSiteEntry.siteName}
     then
-      intentEnterprise.${selectedSite.siteName}
+      intentEnterprise.${selectedSiteEntry.siteName}
     else
       { };
 
@@ -163,61 +79,13 @@ let
     else
       [ ];
 
-  runtimeTargets =
-    if cpmSite ? runtimeTargets && builtins.isAttrs cpmSite.runtimeTargets then
-      cpmSite.runtimeTargets
-    else
-      { };
+  policyRuntimeTargetName = runtimeUnitName;
 
-  runtimeTargetNames = sortedAttrNames runtimeTargets;
-
-  policyRuntimeTargetCandidates =
-    lib.filter (
-      targetName:
-      let
-        target = runtimeTargets.${targetName};
-
-        targetRole =
-          if target ? role && builtins.isString target.role then
-            target.role
-          else
-            null;
-
-        logicalNodeName =
-          if target ? logicalNode
-            && builtins.isAttrs target.logicalNode
-            && target.logicalNode ? name
-            && builtins.isString target.logicalNode.name
-          then
-            target.logicalNode.name
-          else
-            null;
-
-        placementHost =
-          if target ? placement
-            && builtins.isAttrs target.placement
-            && target.placement ? host
-            && builtins.isString target.placement.host
-          then
-            target.placement.host
-          else
-            null;
-      in
-      targetRole == "policy"
-      || logicalNodeName == (cpmSite.policyNodeName or null)
-      || targetName == hostname
-      || placementHost == hostname
-    ) runtimeTargetNames;
-
-  policyRuntimeTargetName =
-    if builtins.hasAttr hostname runtimeTargets then
-      hostname
-    else if builtins.length policyRuntimeTargetCandidates > 0 then
-      builtins.head policyRuntimeTargetCandidates
-    else
-      abort "container/nftables.nix: no policy runtime target found";
-
-  policyRuntimeTarget = runtimeTargets.${policyRuntimeTargetName};
+  policyRuntimeTarget = runtimeContext.runtimeTargetForUnit {
+    cpm = controlPlaneOut;
+    unitName = policyRuntimeTargetName;
+    file = "s88/Unit/s-router-policy-only/container/nftables.nix";
+  };
 
   policyRuntimeInterfaces =
     if policyRuntimeTarget ? effectiveRuntimeRealization
@@ -289,6 +157,14 @@ let
           && attachment ? unit
           && builtins.isString attachment.unit
       ) cpmSite.attachments
+    else if cpmSite ? attachment && builtins.isList cpmSite.attachment then
+      lib.filter (
+        attachment:
+          builtins.isAttrs attachment
+          && attachment ? unit
+          && builtins.isString attachment.unit
+          && runtimeContext.tenantNameForAttachment attachment != null
+      ) cpmSite.attachment
     else
       [ ];
 
@@ -298,6 +174,9 @@ let
         map (
           attachment:
           let
+            tenantName =
+              runtimeContext.tenantNameForAttachment attachment;
+
             candidateIfNames =
               lib.filter (
                 ifName:
@@ -313,9 +192,9 @@ let
               else
                 null;
           in
-          if selectedIfName != null then
+          if tenantName != null && selectedIfName != null then
             {
-              name = attachment.name;
+              name = tenantName;
               value = selectedIfName;
             }
           else

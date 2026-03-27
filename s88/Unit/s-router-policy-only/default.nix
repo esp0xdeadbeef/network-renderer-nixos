@@ -9,7 +9,7 @@
 let
   queried = inputs."network-renderer-nixos".lib.queryBox.queryFromOutPath {
     inherit outPath;
-    hostname = "s-router-policy-only";
+    hostname = config.networking.hostName;
     file = "s88/Unit/s-router-policy-only/default.nix";
   };
 in
@@ -26,8 +26,6 @@ in
     ./nftables.nix
     ./debugging-packages.nix
   ];
-
-  networking.hostName = "s-router-policy-only";
 
   networking.useNetworkd = true;
   systemd.network.enable = true;
