@@ -130,11 +130,13 @@ pkgs.writeShellApplication {
 
     render_from_built_cpm() {
       local example_dir="$1"
+      local inventory_path="$2"
 
       run_nix_eval_json "
         import (builtins.toPath \"$render_file\") {
           repoRoot = \"$repo_root\";
           cpmPath = \"$(realpath ./04-control-plane.json)\";
+          inventoryPath = \"$inventory_path\";
           exampleDir = \"$example_dir\";
           debug = $debug_value;
         }
@@ -188,7 +190,7 @@ pkgs.writeShellApplication {
         exit 1
       fi
 
-      render_from_built_cpm "$example_dir"
+      render_from_built_cpm "$example_dir" "$inventory_path"
     fi
 
     jq '.metadata.sourcePaths' 90-dry-config.json > 10-paths.json
