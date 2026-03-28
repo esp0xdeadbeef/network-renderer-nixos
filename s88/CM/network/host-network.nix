@@ -1,7 +1,7 @@
 {
   config,
   lib,
-  boxContext,
+  hostContext,
   globalInventory,
   activeRoleNames ? [ ],
   activeRoles ? { },
@@ -14,14 +14,17 @@ let
     lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   deploymentHostName =
-    if boxContext ? deploymentHostName && builtins.isString boxContext.deploymentHostName then
-      boxContext.deploymentHostName
+    if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+      hostContext.deploymentHostName
     else
       config.networking.hostName;
 
   deploymentHost =
-    if boxContext ? box && builtins.isAttrs boxContext.box && boxContext.box != { } then
-      boxContext.box
+    if hostContext ? deploymentHost
+      && builtins.isAttrs hostContext.deploymentHost
+      && hostContext.deploymentHost != { }
+    then
+      hostContext.deploymentHost
     else if globalInventory ? deployment
       && builtins.isAttrs globalInventory.deployment
       && globalInventory.deployment ? hosts
@@ -64,7 +67,7 @@ let
                   lib
                   config
                   globalInventory
-                  boxContext
+                  hostContext
                   deploymentHostName
                   deploymentHost;
               }

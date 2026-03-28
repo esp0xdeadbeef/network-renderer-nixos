@@ -3,7 +3,7 @@
   lib,
   controlPlaneOut,
   globalInventory,
-  boxContext,
+  hostContext,
   activeRoleNames ? [ ],
   activeRoles ? { },
   s88Role ? null,
@@ -18,8 +18,8 @@ let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   deploymentHostName =
-    if boxContext ? deploymentHostName && builtins.isString boxContext.deploymentHostName then
-      boxContext.deploymentHostName
+    if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+      hostContext.deploymentHostName
     else
       config.networking.hostName;
 
@@ -190,7 +190,7 @@ let
             runtimeTarget
             controlPlaneOut
             globalInventory
-            boxContext
+            hostContext
             ;
           s88Role = unitRole;
           s88RoleName = unitRoleName;
