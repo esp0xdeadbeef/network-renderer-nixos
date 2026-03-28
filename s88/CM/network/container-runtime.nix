@@ -13,7 +13,6 @@
 
 let
   runtimeContext = import ../../../lib/runtime-context.nix { inherit lib; };
-  realizationPorts = import ../../../lib/realization-ports.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -83,23 +82,19 @@ let
         else
           throw "s88/CM/network/container-runtime.nix: no role registry entry for unit '${unitName}' with role '${unitRoleName}'";
 
-      realizationNode = realizationPorts.nodeForUnit {
-        inventory = globalInventory;
-        inherit unitName;
-        file = "s88/CM/network/container-runtime.nix";
-      };
-
-      attachMap = realizationPorts.attachMapForUnit {
-        inventory = globalInventory;
-        inherit unitName;
-        file = "s88/CM/network/container-runtime.nix";
-      };
-
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
         cpm = controlPlaneOut;
         inherit unitName;
         file = "s88/CM/network/container-runtime.nix";
       };
+
+      interfaces =
+        if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
+          runtimeTarget.interfaces
+        else
+          throw ''
+            s88/CM/network/container-runtime.nix: missing canonical runtime interfaces for unit '${unitName}'
+          '';
 
       profilePath =
         if unitRole ? container
@@ -143,27 +138,41 @@ let
       extraVeths =
         builtins.listToAttrs (
           map
-            (portName:
+            (ifName:
               let
-                attachTarget = attachMap.${portName};
-                hostBridgeName = attachTarget.hostBridgeName;
+                iface = interfaces.${ifName};
+
+                renderedIfName =
+                  if iface ? renderedIfName && builtins.isString iface.renderedIfName then
+                    iface.renderedIfName
+                  else
+                    throw ''
+                      s88/CM/network/container-runtime.nix: interface '${ifName}' missing renderedIfName for unit '${unitName}'
+                    '';
+
+                hostBridgeName =
+                  if iface ? hostBridge && builtins.isString iface.hostBridge then
+                    iface.hostBridge
+                  else
+                    throw ''
+                      s88/CM/network/container-runtime.nix: interface '${ifName}' missing hostBridge for unit '${unitName}'
+                    '';
+
                 renderedHostBridgeName =
                   if builtins.hasAttr hostBridgeName renderedHostNetwork.bridgeNameMap then
                     renderedHostNetwork.bridgeNameMap.${hostBridgeName}
                   else
                     throw ''
-                      s88/CM/network/container-runtime.nix: missing rendered host bridge for unit '${unitName}', port '${portName}'
-
-                      host bridge name: ${hostBridgeName}
+                      s88/CM/network/container-runtime.nix: unknown host bridge '${hostBridgeName}' for unit '${unitName}', interface '${ifName}'
                     '';
               in
               {
-                name = portName;
+                name = renderedIfName;
                 value = {
                   hostBridge = renderedHostBridgeName;
                 };
               })
-            (sortedAttrNames attachMap)
+            (sortedAttrNames interfaces)
         );
     in
     {
@@ -186,7 +195,6 @@ let
           inherit
             unitName
             deploymentHostName
-            realizationNode
             runtimeTarget
             controlPlaneOut
             globalInventory
