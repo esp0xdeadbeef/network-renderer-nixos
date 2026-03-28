@@ -3,6 +3,15 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  isNonEmptyAttrs = value:
+    builtins.isAttrs value && sortedAttrNames value != [ ];
+
+  callIfFunction = value:
+    if builtins.isFunction value then
+      value { inherit lib; }
+    else
+      value;
+
   importMaybeFunction =
     path:
     let
@@ -12,24 +21,31 @@ let
         else
           { };
     in
-    if builtins.isFunction imported then
-      imported { inherit lib; }
-    else
-      imported;
+    callIfFunction imported;
 
-  renderHostsFor =
-    inventory:
-    if inventory ? render
-      && builtins.isAttrs inventory.render
-      && inventory.render ? hosts
-      && builtins.isAttrs inventory.render.hosts
+  firstExistingPath = candidates:
+    let
+      existing = builtins.filter builtins.pathExists candidates;
+    in
+    if existing == [ ] then null else builtins.head existing;
+
+  loadOptionalFromCandidates = candidates:
+    let
+      selected = firstExistingPath candidates;
+    in
+    if selected == null then { } else callIfFunction (import selected);
+
+  realizationNodesFor = inventory:
+    if inventory ? realization
+      && builtins.isAttrs inventory.realization
+      && inventory.realization ? nodes
+      && builtins.isAttrs inventory.realization.nodes
     then
-      inventory.render.hosts
+      inventory.realization.nodes
     else
       { };
 
-  deploymentHostsFor =
-    inventory:
+  deploymentHostsFor = inventory:
     if inventory ? deployment
       && builtins.isAttrs inventory.deployment
       && inventory.deployment ? hosts
@@ -39,14 +55,13 @@ let
     else
       { };
 
-  realizationNodesFor =
-    inventory:
-    if inventory ? realization
-      && builtins.isAttrs inventory.realization
-      && inventory.realization ? nodes
-      && builtins.isAttrs inventory.realization.nodes
+  renderHostsFor = inventory:
+    if inventory ? render
+      && builtins.isAttrs inventory.render
+      && inventory.render ? hosts
+      && builtins.isAttrs inventory.render.hosts
     then
-      inventory.realization.nodes
+      inventory.render.hosts
     else
       { };
 
@@ -69,10 +84,35 @@ let
           fabricRoot
         else
           fabricRootFromOutPath outPath;
+
+      intentCandidates = [
+        "${outPath}/library/100-fabric-routing/inputs/intent.nix"
+        "${outPath}/inputs/intent.nix"
+        "${outPath}/intent.nix"
+        "${resolvedFabricRoot}/inputs/intent.nix"
+      ];
+
+      inventoryCandidates = [
+        "${outPath}/library/100-fabric-routing/inputs/inventory.nix"
+        "${outPath}/library/100-fabric-routing/inventory.nix"
+        "${outPath}/inputs/inventory.nix"
+        "${outPath}/inventory.nix"
+        "${resolvedFabricRoot}/inputs/inventory.nix"
+        "${resolvedFabricRoot}/inventory.nix"
+      ];
     in
     {
-      intentPath = resolvedFabricRoot + /inputs/intent.nix;
-      inventoryPath = resolvedFabricRoot + /inventory.nix;
+      intentPath =
+        let
+          selected = firstExistingPath intentCandidates;
+        in
+        if selected == null then builtins.head intentCandidates else selected;
+
+      inventoryPath =
+        let
+          selected = firstExistingPath inventoryCandidates;
+        in
+        if selected == null then builtins.head inventoryCandidates else selected;
     };
 
   resolveDeploymentHostName =
@@ -117,6 +157,241 @@ let
         known deployment hosts:
         ${builtins.concatStringsSep "\n  - " ([ "" ] ++ deploymentHostNames)}
       '';
+
+  selectAttrs = names: attrs:
+    builtins.listToAttrs (
+      map
+        (name: {
+          inherit name;
+          value = attrs.${name};
+        })
+        (lib.filter (name: builtins.hasAttr name attrs) names)
+    );
+
+  matchingNodesBy =
+    inventory: predicate:
+    let
+      realizationNodes = realizationNodesFor inventory;
+    in
+    builtins.listToAttrs (
+      map
+        (nodeName: {
+          name = nodeName;
+          value = realizationNodes.${nodeName};
+        })
+        (lib.filter
+          (nodeName: predicate nodeName realizationNodes.${nodeName})
+          (sortedAttrNames realizationNodes))
+    );
+
+  hostNamesFromNodes = nodes:
+    lib.unique (
+      lib.filter
+        builtins.isString
+        (map
+          (nodeName:
+            let
+              node = nodes.${nodeName};
+            in
+            if node ? host && builtins.isString node.host then node.host else null)
+          (sortedAttrNames nodes))
+    );
+
+  boxContextForSelector =
+    {
+      selector,
+      intent,
+      inventory,
+      file ? "lib/query-box.nix",
+    }:
+    let
+      _selectorIsString =
+        if builtins.isString selector then
+          true
+        else
+          throw "${file}: selector must be a string";
+
+      realizationNodes = realizationNodesFor inventory;
+      deploymentHosts = deploymentHostsFor inventory;
+      renderHosts = renderHostsFor inventory;
+
+      exactRealizationNode =
+        if builtins.hasAttr selector realizationNodes then
+          realizationNodes.${selector}
+        else
+          null;
+
+      exactDeploymentHost =
+        if builtins.hasAttr selector deploymentHosts then
+          deploymentHosts.${selector}
+        else
+          null;
+
+      matchingEnterpriseNodes =
+        matchingNodesBy inventory (
+          _: node:
+          node ? logicalNode
+          && builtins.isAttrs node.logicalNode
+          && (node.logicalNode.enterprise or null) == selector
+        );
+
+      matchingSiteNodes =
+        matchingNodesBy inventory (
+          _: node:
+          node ? logicalNode
+          && builtins.isAttrs node.logicalNode
+          && (node.logicalNode.site or null) == selector
+        );
+
+      matchingLogicalNameNodes =
+        matchingNodesBy inventory (
+          _: node:
+          node ? logicalNode
+          && builtins.isAttrs node.logicalNode
+          && (node.logicalNode.name or null) == selector
+        );
+
+      nodesOnDeploymentHost =
+        if exactDeploymentHost != null then
+          matchingNodesBy inventory (_: node: (node.host or null) == selector)
+        else
+          { };
+
+      selectedRealizationNodes =
+        if exactRealizationNode != null then
+          { "${selector}" = exactRealizationNode; }
+        else if exactDeploymentHost != null then
+          nodesOnDeploymentHost
+        else if isNonEmptyAttrs matchingEnterpriseNodes then
+          matchingEnterpriseNodes
+        else if isNonEmptyAttrs matchingSiteNodes then
+          matchingSiteNodes
+        else if isNonEmptyAttrs matchingLogicalNameNodes then
+          matchingLogicalNameNodes
+        else
+          { };
+
+      selectedDeploymentHostNames =
+        if exactDeploymentHost != null then
+          [ selector ]
+        else if exactRealizationNode != null then
+          hostNamesFromNodes selectedRealizationNodes
+        else if isNonEmptyAttrs selectedRealizationNodes then
+          hostNamesFromNodes selectedRealizationNodes
+        else if builtins.hasAttr selector deploymentHosts then
+          [ selector ]
+        else
+          [ ];
+
+      selectedDeploymentHosts = selectAttrs selectedDeploymentHostNames deploymentHosts;
+
+      deploymentHostName =
+        if builtins.length selectedDeploymentHostNames == 1 then
+          builtins.head selectedDeploymentHostNames
+        else
+          null;
+
+      boxName =
+        if exactDeploymentHost != null then
+          selector
+        else
+          deploymentHostName;
+
+      box =
+        if boxName != null && builtins.hasAttr boxName deploymentHosts then
+          deploymentHosts.${boxName}
+        else
+          { };
+
+      renderHostConfig =
+        if boxName != null && builtins.hasAttr boxName renderHosts then
+          renderHosts.${boxName}
+        else if builtins.hasAttr selector renderHosts then
+          renderHosts.${selector}
+        else
+          { };
+
+      matchedEnterprises =
+        lib.filter
+          (value: value != null)
+          (
+            lib.unique (
+              (map
+                (nodeName:
+                  let
+                    logicalNode = selectedRealizationNodes.${nodeName}.logicalNode or { };
+                  in
+                  logicalNode.enterprise or null)
+                (sortedAttrNames selectedRealizationNodes))
+              ++ lib.optionals (builtins.hasAttr selector intent) [ selector ]
+            )
+          );
+
+      matchedSites =
+        lib.filter
+          (value: value != null)
+          (
+            lib.unique (
+              map
+                (nodeName:
+                  let
+                    logicalNode = selectedRealizationNodes.${nodeName}.logicalNode or { };
+                  in
+                  logicalNode.site or null)
+                (sortedAttrNames selectedRealizationNodes)
+            )
+          );
+
+      matchedLogicalNodes =
+        lib.filter
+          (value: value != null)
+          (
+            lib.unique (
+              map
+                (nodeName:
+                  let
+                    logicalNode = selectedRealizationNodes.${nodeName}.logicalNode or { };
+                  in
+                  logicalNode.name or null)
+                (sortedAttrNames selectedRealizationNodes)
+            )
+          );
+
+      selectorType =
+        if exactRealizationNode != null then
+          "realization-node"
+        else if exactDeploymentHost != null then
+          "deployment-host"
+        else if isNonEmptyAttrs matchingEnterpriseNodes then
+          "enterprise"
+        else if isNonEmptyAttrs matchingSiteNodes then
+          "site"
+        else if isNonEmptyAttrs matchingLogicalNameNodes then
+          "logical-node"
+        else
+          "unknown";
+    in
+    {
+      inherit
+        selector
+        selectorType
+        box
+        boxName
+        deploymentHostName
+        renderHostConfig
+        renderHosts
+        ;
+
+      hostname = selector;
+      deploymentHostNames = selectedDeploymentHostNames;
+      deploymentHosts = selectedDeploymentHosts;
+      matchedEnterprises = matchedEnterprises;
+      matchedSites = matchedSites;
+      matchedLogicalNodes = matchedLogicalNodes;
+      realizationNode = exactRealizationNode;
+      realizationNodes = selectedRealizationNodes;
+    };
+
 in
 {
   inherit
@@ -187,7 +462,11 @@ in
         ;
 
       boxName = deploymentHostName;
-      box = deploymentHosts.${deploymentHostName};
+      box =
+        if builtins.hasAttr deploymentHostName deploymentHosts then
+          deploymentHosts.${deploymentHostName}
+        else
+          { };
 
       realizationNode =
         if builtins.hasAttr hostname realizationNodes && builtins.isAttrs realizationNodes.${hostname} then
@@ -198,22 +477,46 @@ in
 
   query =
     {
-      intentPath,
-      inventoryPath,
-      hostname,
+      selector ? null,
+      hostname ? null,
+      intent ? null,
+      inventory ? null,
+      intentPath ? null,
+      inventoryPath ? null,
       file ? "lib/query-box.nix",
     }:
     let
-      loaded = {
-        fabricInputs = importMaybeFunction intentPath;
-        globalInventory = importMaybeFunction inventoryPath;
-      };
+      effectiveSelector =
+        if selector != null then
+          selector
+        else if hostname != null then
+          hostname
+        else
+          throw "${file}: query requires either selector or hostname";
+
+      fabricInputs =
+        if intent != null then
+          intent
+        else if intentPath != null then
+          importMaybeFunction intentPath
+        else
+          { };
+
+      globalInventory =
+        if inventory != null then
+          inventory
+        else if inventoryPath != null then
+          importMaybeFunction inventoryPath
+        else
+          { };
     in
-    loaded
-    // {
-      boxContext = (builtins.getAttr "boxForHost" (import ./query-box.nix { inherit lib; })) {
-        inventory = loaded.globalInventory;
-        inherit hostname file;
+    {
+      inherit fabricInputs globalInventory;
+      boxContext = boxContextForSelector {
+        selector = effectiveSelector;
+        intent = fabricInputs;
+        inventory = globalInventory;
+        inherit file;
       };
     };
 
@@ -229,7 +532,8 @@ in
         inherit outPath fabricRoot;
       };
     in
-    (builtins.getAttr "query" (import ./query-box.nix { inherit lib; })) ({
+    (builtins.getAttr "query" (import ./query-box.nix { inherit lib; })) {
       inherit hostname file;
-    } // paths);
+      inherit (paths) intentPath inventoryPath;
+    };
 }

@@ -2,10 +2,8 @@
 
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
-in
-rec {
-  realizationNodesFor =
-    inventory:
+
+  realizationNodesFor = inventory:
     if inventory ? realization
       && builtins.isAttrs inventory.realization
       && inventory.realization ? nodes
@@ -89,7 +87,7 @@ rec {
       }
     else
       throw ''
-        ${file}: could not resolve host attach target for unit '${unitName}', port '${portName}'
+        ${file}: could not resolve attach target for unit '${unitName}', port '${portName}'
 
         port:
         ${builtins.toJSON port}
@@ -108,16 +106,13 @@ rec {
     in
     builtins.listToAttrs (
       map
-        (
-          portName:
-          {
-            name = portName;
-            value = attachForPort {
-              port = ports.${portName};
-              inherit unitName portName file;
-            };
-          }
-        )
+        (portName: {
+          name = portName;
+          value = attachForPort {
+            port = ports.${portName};
+            inherit unitName portName file;
+          };
+        })
         (sortedAttrNames ports)
     );
 
@@ -128,19 +123,77 @@ rec {
     }:
     let
       realizationNodes = realizationNodesFor inventory;
-      unitNames = sortedAttrNames realizationNodes;
     in
     builtins.listToAttrs (
       map
-        (
-          unitName:
-          {
-            name = unitName;
-            value = attachMapForUnit {
-              inherit inventory unitName file;
-            };
-          }
-        )
-        unitNames
+        (unitName: {
+          name = unitName;
+          value = attachMapForUnit {
+            inherit inventory unitName file;
+          };
+        })
+        (sortedAttrNames realizationNodes)
     );
+
+  unitNamesForDeploymentHost =
+    {
+      inventory,
+      deploymentHostName,
+    }:
+    let
+      realizationNodes = realizationNodesFor inventory;
+    in
+    lib.filter
+      (unitName:
+        let
+          node = realizationNodes.${unitName};
+        in
+        (node.host or null) == deploymentHostName)
+      (sortedAttrNames realizationNodes);
+
+  attachTargetsForDeploymentHost =
+    {
+      inventory,
+      deploymentHostName,
+      file ? "lib/realization-ports.nix",
+    }:
+    let
+      unitNames = unitNamesForDeploymentHost {
+        inherit inventory deploymentHostName;
+      };
+
+      attachTargetsByName =
+        builtins.listToAttrs (
+          lib.concatMap
+            (unitName:
+              let
+                attachMap = attachMapForUnit {
+                  inherit inventory unitName file;
+                };
+              in
+              map
+                (portName: {
+                  name = attachMap.${portName}.name;
+                  value = attachMap.${portName};
+                })
+                (sortedAttrNames attachMap))
+            unitNames
+        );
+    in
+    map
+      (name: attachTargetsByName.${name})
+      (sortedAttrNames attachTargetsByName);
+
+in
+{
+  inherit
+    realizationNodesFor
+    nodeForUnit
+    portsForUnit
+    attachForPort
+    attachMapForUnit
+    attachMapForInventory
+    unitNamesForDeploymentHost
+    attachTargetsForDeploymentHost
+    ;
 }
