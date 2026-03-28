@@ -2,6 +2,7 @@
 
 let
 realizationPorts = import ./realization-ports.nix { inherit lib; };
+tenantBridgeRenderer = import ./tenant-bridge-renderer.nix { inherit lib; };
 
 maxLen = 15;
 
@@ -55,54 +56,6 @@ name = entry.original;
 value = entry.rendered;
 }) shortened
 );
-
-renderTenantBridges =
-{
-tenantBridges ? { },
-}:
-let
-bridgeNamesRaw =
-lib.unique (
-lib.filter builtins.isString (builtins.attrNames tenantBridges)
-);
-
-bridgeNameMap = ensureUnique bridgeNamesRaw;
-
-bridgeNames = map (n: bridgeNameMap.${n}) bridgeNamesRaw;
-
-netdevs =
-builtins.listToAttrs (
-map
-(bridgeName: {
-name = "40-${bridgeName}";
-value = {
-netdevConfig = {
-Name = bridgeName;
-Kind = "bridge";
-};
-};
-})
-bridgeNames
-);
-
-networks =
-builtins.listToAttrs (
-map
-(bridgeName: {
-name = "50-${bridgeName}";
-value = {
-matchConfig.Name = bridgeName;
-networkConfig = {
-ConfigureWithoutCarrier = true;
-};
-};
-})
-bridgeNames
-);
-in
-{
-inherit netdevs networks bridgeNameMap;
-};
 
 sortedAttrNames = attrs:
 lib.sort builtins.lessThan (builtins.attrNames attrs);
@@ -223,8 +176,10 @@ bridgeNames
 );
 
 tenantRendered =
-renderTenantBridges {
+tenantBridgeRenderer.renderTenantBridges {
 tenantBridges = { };
+shorten = shorten;
+ensureUnique = ensureUnique;
 };
 in
 {
