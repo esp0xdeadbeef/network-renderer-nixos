@@ -154,11 +154,6 @@ The existing `./render-all.sh` already reflects the current example layout and r
 
 ## Refactor plan
 
-### Step 3
-
-* [ ] Extract deterministic host-side naming into one shared library module
-* [ ] Include collision checks for shortened rendered interface and bridge names
-
 ### Step 4
 
 * [ ] Extract access-specific tenant VLAN overlay rendering into a reusable equipment renderer
