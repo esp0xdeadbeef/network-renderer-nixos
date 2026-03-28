@@ -10,6 +10,21 @@ let
 
   currentSystem = builtins.currentSystem;
 
+  renderHostNetworkImpl =
+    {
+      hostName,
+      cpm,
+      inventory ? { },
+    }:
+    import ./render-host-network.nix {
+      inherit
+        lib
+        hostName
+        cpm
+        inventory
+        ;
+    };
+
   isControlPlaneLike =
     value:
     builtins.isAttrs value
@@ -22,6 +37,28 @@ let
       )
       || (value ? data && builtins.isAttrs value.data)
     );
+
+  resolveSingleDeploymentHostName =
+    {
+      hostContext,
+      selectorValue,
+      file ? "lib/api.nix",
+    }:
+    if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+      hostContext.deploymentHostName
+    else if
+      hostContext ? deploymentHostNames
+      && builtins.isList hostContext.deploymentHostNames
+      && builtins.length hostContext.deploymentHostNames == 1
+    then
+      builtins.head hostContext.deploymentHostNames
+    else
+      throw ''
+        ${file}: selector '${selectorValue}' did not resolve to a single deployment host
+
+        deploymentHostNames:
+        ${builtins.toJSON (hostContext.deploymentHostNames or [ ])}
+      '';
 
   buildCompiler =
     {
@@ -140,6 +177,125 @@ let
       inherit system;
     };
 
+  buildHost =
+    {
+      selector ? null,
+      hostname ? null,
+      intent ? null,
+      inventory ? null,
+      intentPath ? null,
+      inventoryPath ? null,
+      system ? currentSystem,
+      file ? "lib/api.nix",
+    }:
+    let
+      queried = selectors.query {
+        inherit
+          selector
+          hostname
+          intent
+          inventory
+          intentPath
+          inventoryPath
+          file
+          ;
+      };
+
+      selectorValue =
+        if selector != null then
+          selector
+        else if hostname != null then
+          hostname
+        else
+          "<unknown>";
+
+      deploymentHostName = resolveSingleDeploymentHostName {
+        hostContext = queried.hostContext;
+        inherit selectorValue file;
+      };
+
+      compilerOut = buildCompiler {
+        intent = queried.fabricInputs;
+        inherit system;
+      };
+
+      forwardingOut = buildForwarding {
+        inherit compilerOut system;
+      };
+
+      controlPlaneOut = buildControlPlane {
+        inherit forwardingOut system;
+        inventory = queried.globalInventory;
+      };
+
+      renderedHost = renderHostNetworkImpl {
+        hostName = deploymentHostName;
+        cpm = controlPlaneOut;
+        inventory = queried.globalInventory;
+      };
+    in
+    {
+      inherit
+        compilerOut
+        forwardingOut
+        controlPlaneOut
+        renderedHost
+        ;
+
+      fabricInputs = queried.fabricInputs;
+      globalInventory = queried.globalInventory;
+      hostContext = queried.hostContext;
+
+      selectedUnits = renderedHost.selectedUnits or [ ];
+      selectedRoleNames = renderedHost.selectedRoleNames or [ ];
+      selectedRoles = renderedHost.selectedRoles or { };
+      containers = renderedHost.containers or { };
+    };
+
+  buildHostFromPaths =
+    {
+      intentPath,
+      inventoryPath,
+      selector ? null,
+      hostname ? null,
+      system ? currentSystem,
+      file ? "lib/api.nix",
+    }:
+    buildHost {
+      inherit
+        intentPath
+        inventoryPath
+        selector
+        hostname
+        system
+        file
+        ;
+    };
+
+  buildHostFromOutPath =
+    {
+      outPath,
+      selector ? null,
+      hostname ? null,
+      fabricRoot ? null,
+      system ? currentSystem,
+      file ? "lib/api.nix",
+    }:
+    let
+      paths = selectors.pathsFromOutPath {
+        inherit outPath fabricRoot;
+      };
+    in
+    buildHostFromPaths {
+      inherit
+        selector
+        hostname
+        system
+        file
+        ;
+      inherit (paths) intentPath inventoryPath;
+    };
+
   buildAndRenderFromPaths =
     {
       intentPath,
@@ -166,7 +322,7 @@ let
       rendered = import ./render-dry-config-output.nix {
         repoRoot = builtins.toString repoRoot;
         cpm = controlPlane;
-        inherit exampleDir debug;
+        inherit inventory exampleDir debug;
       };
     in
     if rendered == null then
@@ -198,33 +354,31 @@ in
       buildCompilerFromPaths
       buildForwardingFromPaths
       buildControlPlaneFromPaths
+      buildHost
+      buildHostFromPaths
+      buildHostFromOutPath
       buildAndRenderFromPaths
       ;
 
-    renderHostNetwork =
-      {
-        hostName,
-        cpm,
-        inventory ? { },
-      }:
-      import ./render-host-network.nix {
-        inherit
-          lib
-          hostName
-          cpm
-          inventory
-          ;
-      };
+    renderHostNetwork = renderHostNetworkImpl;
 
     renderDryConfig =
       {
         cpmPath,
+        inventory ? { },
+        inventoryPath ? null,
         exampleDir ? null,
         debug ? false,
       }:
       import ./render-dry-config-output.nix {
         repoRoot = builtins.toString repoRoot;
-        inherit cpmPath exampleDir debug;
+        inherit
+          cpmPath
+          inventory
+          inventoryPath
+          exampleDir
+          debug
+          ;
       };
   };
 }

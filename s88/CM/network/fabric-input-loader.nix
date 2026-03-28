@@ -1,43 +1,66 @@
-{ pkgs, inputs, fabricInputs, globalInventory, lib, ... }:
+{
+  config,
+  pkgs,
+  inputs,
+  fabricInputs,
+  globalInventory,
+  hostContext ? { },
+  lib,
+  ...
+}:
 
 let
+  renderer = inputs.network-renderer-nixos.lib.renderer;
   runtimeContext = import ../../../lib/runtime-context.nix { inherit lib; };
 
   system = pkgs.stdenv.hostPlatform.system;
 
-  compilerOut =
-    (inputs.nixos-network-compiler.lib.compile system) fabricInputs;
+  compilerOut = renderer.buildCompiler {
+    intent = fabricInputs;
+    inherit system;
+  };
 
-  forwardingOut =
-    inputs.network-forwarding-model.lib.${system} {
-      input = compilerOut;
-    };
+  forwardingOut = renderer.buildForwarding {
+    inherit compilerOut system;
+  };
 
-  controlPlaneOut =
-    inputs.network-control-plane-model.lib.${system}.build {
-      input = forwardingOut;
-      inventory = globalInventory;
-    };
+  controlPlaneOut = renderer.buildControlPlane {
+    inherit forwardingOut system;
+    inventory = globalInventory;
+  };
 
-  _validatedRuntimeTargets =
-    runtimeContext.validateAllRuntimeTargets {
-      cpm = controlPlaneOut;
-      inventory = globalInventory;
-      file = "s88/CM/network/fabric-input-loader.nix";
-    };
+  deploymentHostName =
+    if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+      hostContext.deploymentHostName
+    else
+      config.networking.hostName;
+
+  renderedHostNetwork = renderer.renderHostNetwork {
+    hostName = deploymentHostName;
+    cpm = controlPlaneOut;
+    inventory = globalInventory;
+  };
+
+  _validatedRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
+    cpm = controlPlaneOut;
+    inventory = globalInventory;
+    file = "s88/CM/network/fabric-input-loader.nix";
+  };
 in
 {
   _module.args = {
-    inherit compilerOut forwardingOut controlPlaneOut;
+    inherit
+      compilerOut
+      forwardingOut
+      controlPlaneOut
+      renderedHostNetwork
+      ;
     fabricCompiled = controlPlaneOut;
   };
 
-  environment.etc."network-artifacts/compiler.json".text =
-    builtins.toJSON compilerOut;
+  environment.etc."network-artifacts/compiler.json".text = builtins.toJSON compilerOut;
 
-  environment.etc."network-artifacts/forwarding.json".text =
-    builtins.toJSON forwardingOut;
+  environment.etc."network-artifacts/forwarding.json".text = builtins.toJSON forwardingOut;
 
-  environment.etc."network-artifacts/control-plane.json".text =
-    builtins.toJSON controlPlaneOut;
+  environment.etc."network-artifacts/control-plane.json".text = builtins.toJSON controlPlaneOut;
 }

@@ -7,21 +7,78 @@
 
 let
   hostNaming = import ./host-naming.nix { inherit lib; };
+  hostQuery = import ./host-query.nix { inherit lib; };
   runtimeContext = import ./runtime-context.nix { inherit lib; };
   cpmAdapter = import ./cpm-runtime-adapter.nix { inherit lib; };
-
-  _inventory = inventory;
+  roles = import ./s88-role-registry.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+
+  forceAll = values: builtins.foldl' (acc: value: builtins.seq value acc) true values;
+
+  resolvedHostContext =
+    if inventory != { } then
+      hostQuery.hostContextForHost {
+        inherit inventory;
+        hostname = hostName;
+        file = "lib/render-host-network.nix";
+      }
+    else
+      rec {
+        hostname = hostName;
+        renderHosts = { };
+        renderHostConfig = { };
+        deploymentHosts = { };
+        deploymentHostNames = [ hostName ];
+        realizationNodes = { };
+        deploymentHostName = hostName;
+        deploymentHost = { };
+        realizationNode = null;
+      };
+
+  deploymentHostName =
+    if
+      resolvedHostContext ? deploymentHostName && builtins.isString resolvedHostContext.deploymentHostName
+    then
+      resolvedHostContext.deploymentHostName
+    else
+      hostName;
+
+  deploymentHost =
+    if resolvedHostContext ? deploymentHost && builtins.isAttrs resolvedHostContext.deploymentHost then
+      resolvedHostContext.deploymentHost
+    else
+      { };
+
+  renderHostConfig =
+    if
+      resolvedHostContext ? renderHostConfig && builtins.isAttrs resolvedHostContext.renderHostConfig
+    then
+      resolvedHostContext.renderHostConfig
+    else
+      { };
+
+  realizationNodes =
+    if
+      inventory ? realization
+      && builtins.isAttrs inventory.realization
+      && inventory.realization ? nodes
+      && builtins.isAttrs inventory.realization.nodes
+    then
+      inventory.realization.nodes
+    else
+      { };
 
   normalizedRuntimeTargets = cpmAdapter.normalizedRuntimeTargets {
     inherit cpm;
     file = "lib/render-host-network.nix";
   };
 
+  allUnitNames = sortedAttrNames normalizedRuntimeTargets;
+
   unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
     inherit cpm;
-    deploymentHostName = hostName;
+    deploymentHostName = deploymentHostName;
     file = "lib/render-host-network.nix";
   };
 
@@ -69,7 +126,7 @@ let
     }) bridgeNamesRaw
   );
 
-  netdevs = builtins.listToAttrs (
+  localBridgeNetdevs = builtins.listToAttrs (
     map (renderedBridgeName: {
       name = "10-${renderedBridgeName}";
       value = {
@@ -81,7 +138,7 @@ let
     }) bridgeNames
   );
 
-  networks = builtins.listToAttrs (
+  localBridgeNetworks = builtins.listToAttrs (
     map (renderedBridgeName: {
       name = "30-${renderedBridgeName}";
       value = {
@@ -93,7 +150,109 @@ let
     }) bridgeNames
   );
 
-  attachTargets = lib.concatMap (
+  logicalNodeNameForUnit =
+    unitName:
+    let
+      target = normalizedRuntimeTargets.${unitName};
+    in
+    if
+      target ? logicalNode
+      && builtins.isAttrs target.logicalNode
+      && target.logicalNode ? name
+      && builtins.isString target.logicalNode.name
+    then
+      target.logicalNode.name
+    else
+      unitName;
+
+  placementHostForUnit =
+    unitName:
+    let
+      target = normalizedRuntimeTargets.${unitName};
+    in
+    if
+      target ? placement
+      && builtins.isAttrs target.placement
+      && target.placement ? host
+      && builtins.isString target.placement.host
+    then
+      target.placement.host
+    else
+      null;
+
+  realizationHostForUnit =
+    unitName:
+    if
+      builtins.hasAttr unitName realizationNodes
+      && builtins.isAttrs realizationNodes.${unitName}
+      && realizationNodes.${unitName} ? host
+      && builtins.isString realizationNodes.${unitName}.host
+    then
+      realizationNodes.${unitName}.host
+    else
+      null;
+
+  unitBelongsToMachine =
+    unitName:
+    let
+      logicalNodeName = logicalNodeNameForUnit unitName;
+      placementHost = placementHostForUnit unitName;
+      realizationHost = realizationHostForUnit unitName;
+    in
+    logicalNodeName == hostName
+    || lib.hasPrefix "${hostName}-" logicalNodeName
+    || placementHost == deploymentHostName
+    || realizationHost == deploymentHostName;
+
+  runtimeRole =
+    if renderHostConfig ? runtimeRole && builtins.isString renderHostConfig.runtimeRole then
+      renderHostConfig.runtimeRole
+    else
+      null;
+
+  selectedUnits = lib.filter (
+    unitName:
+    unitBelongsToMachine unitName
+    && (
+      runtimeRole == null
+      ||
+        runtimeContext.roleForUnit {
+          cpm = cpm;
+          inherit unitName;
+          file = "lib/render-host-network.nix";
+        } == runtimeRole
+    )
+  ) allUnitNames;
+
+  _selectedUnitsNonEmpty =
+    if selectedUnits != [ ] then
+      true
+    else
+      throw ''
+        lib/render-host-network.nix: no units matched host '${hostName}'${
+          if runtimeRole != null then " for runtimeRole '${runtimeRole}'" else ""
+        }
+
+        deploymentHostName:
+          ${deploymentHostName}
+
+        available runtime targets:
+          ${builtins.concatStringsSep "\n  " allUnitNames}
+      '';
+
+  sourceKindForTarget =
+    target:
+    if
+      target ? connectivity
+      && builtins.isAttrs target.connectivity
+      && target.connectivity ? sourceKind
+      && builtins.isString target.connectivity.sourceKind
+    then
+      target.connectivity.sourceKind
+    else
+      null;
+
+  attachTargetsBase = lib.concatMap (
     unitName:
     let
       interfaces = interfacesForUnit unitName;
@@ -106,22 +265,942 @@ let
       in
       {
         inherit unitName ifName hostBridgeName;
-        renderedHostBridgeName = bridgeNameMap.${hostBridgeName};
+        baseRenderedHostBridgeName = bridgeNameMap.${hostBridgeName};
         renderedIfName = iface.renderedIfName or null;
         addresses = iface.addresses or [ ];
         routes = iface.routes or [ ];
-        connectivity = iface.connectivity or null;
+        connectivity = iface.connectivity or { };
         interface = iface;
       }
     ) (sortedAttrNames interfaces)
   ) unitsOnDeploymentHost;
+
+  localAttachTargetsBase = lib.filter (
+    target: builtins.elem (target.unitName or "") selectedUnits
+  ) attachTargetsBase;
+
+  logicalNodeNameForTarget = target: logicalNodeNameForUnit target.unitName;
+
+  wanGroupNameForTarget =
+    target: if sourceKindForTarget target == "wan" then logicalNodeNameForTarget target else null;
+
+  uplinksRaw =
+    if !(deploymentHost ? uplinks) then
+      { }
+    else if builtins.isAttrs deploymentHost.uplinks then
+      deploymentHost.uplinks
+    else
+      throw ''
+        lib/render-host-network.nix: deployment host '${deploymentHostName}' has non-attr uplinks
+
+        deployment host:
+        ${builtins.toJSON deploymentHost}
+      '';
+
+  hostHasUplinks = uplinksRaw != { };
+
+  uplinkNames = sortedAttrNames uplinksRaw;
+
+  bridgeNetworks =
+    if !(deploymentHost ? bridgeNetworks) then
+      { }
+    else if builtins.isAttrs deploymentHost.bridgeNetworks then
+      deploymentHost.bridgeNetworks
+    else
+      throw ''
+        lib/render-host-network.nix: deployment host '${deploymentHostName}' has non-attr bridgeNetworks
+
+        deployment host:
+        ${builtins.toJSON deploymentHost}
+      '';
+
+  wanGroupNames = lib.sort builtins.lessThan (
+    lib.unique (lib.filter builtins.isString (map wanGroupNameForTarget localAttachTargetsBase))
+  );
+
+  configuredWanUplinkName =
+    if !hostHasUplinks then
+      null
+    else if renderHostConfig ? wanUplink then
+      if
+        builtins.isString renderHostConfig.wanUplink
+        && builtins.hasAttr renderHostConfig.wanUplink uplinksRaw
+      then
+        renderHostConfig.wanUplink
+      else
+        throw ''
+          lib/render-host-network.nix: render host '${hostName}' has invalid wanUplink '${
+            builtins.toJSON (renderHostConfig.wanUplink or null)
+          }'
+
+          known uplinks:
+          ${builtins.toJSON uplinkNames}
+        ''
+    else if uplinksRaw ? upstream-core && builtins.isAttrs uplinksRaw.upstream-core then
+      "upstream-core"
+    else if builtins.length uplinkNames == 1 then
+      builtins.head uplinkNames
+    else
+      null;
+
+  configuredWanGroupToUplink =
+    if renderHostConfig ? wanGroupToUplink then
+      if builtins.isAttrs renderHostConfig.wanGroupToUplink then
+        renderHostConfig.wanGroupToUplink
+      else
+        throw ''
+          lib/render-host-network.nix: render host '${hostName}' has non-attr wanGroupToUplink
+
+          render host config:
+          ${builtins.toJSON renderHostConfig}
+        ''
+    else if deploymentHost ? wanGroupToUplink then
+      if builtins.isAttrs deploymentHost.wanGroupToUplink then
+        deploymentHost.wanGroupToUplink
+      else
+        throw ''
+          lib/render-host-network.nix: deployment host '${deploymentHostName}' has non-attr wanGroupToUplink
+
+          deployment host:
+          ${builtins.toJSON deploymentHost}
+        ''
+    else
+      { };
+
+  _validateConfiguredWanGroupToUplink = forceAll (
+    map (
+      wanGroupName:
+      let
+        uplinkName = configuredWanGroupToUplink.${wanGroupName};
+      in
+      if !builtins.isString uplinkName then
+        throw ''
+          lib/render-host-network.nix: wanGroupToUplink entry '${wanGroupName}' on host '${hostName}' must map to a string uplink name
+        ''
+      else if !builtins.hasAttr uplinkName uplinksRaw then
+        throw ''
+          lib/render-host-network.nix: wanGroupToUplink entry '${wanGroupName}' on host '${hostName}' references unknown uplink '${uplinkName}'
+
+          known uplinks:
+          ${builtins.toJSON uplinkNames}
+        ''
+      else
+        true
+    ) (sortedAttrNames configuredWanGroupToUplink)
+  );
+
+  wanGroupToUplinkName = builtins.seq _validateConfiguredWanGroupToUplink (
+    if configuredWanGroupToUplink != { } then
+      configuredWanGroupToUplink
+    else if configuredWanUplinkName != null then
+      builtins.listToAttrs (
+        map (wanGroupName: {
+          name = wanGroupName;
+          value = configuredWanUplinkName;
+        }) wanGroupNames
+      )
+    else
+      { }
+  );
+
+  missingWanGroupAssignments = lib.filter (
+    wanGroupName: !builtins.hasAttr wanGroupName wanGroupToUplinkName
+  ) wanGroupNames;
+
+  _validateStrictWanRendering =
+    if !hostHasUplinks || wanGroupNames == [ ] || missingWanGroupAssignments == [ ] then
+      true
+    else
+      throw ''
+        lib/render-host-network.nix: strict rendering requires explicit WAN uplink assignment for host '${hostName}'
+
+        missing wan groups:
+        ${builtins.toJSON missingWanGroupAssignments}
+
+        known uplinks:
+        ${builtins.toJSON uplinkNames}
+
+        set either:
+          render.hosts.${hostName}.wanUplink
+        or:
+          render.hosts.${hostName}.wanGroupToUplink
+        or:
+          deployment.hosts.${deploymentHostName}.wanGroupToUplink
+      '';
+
+  renderedBridgeNameForWanGroup =
+    wanGroupName:
+    let
+      uplinkName = wanGroupToUplinkName.${wanGroupName};
+      uplink = uplinksRaw.${uplinkName};
+    in
+    if uplink ? bridge && builtins.isString uplink.bridge then
+      uplink.bridge
+    else
+      throw ''
+        lib/render-host-network.nix: uplink '${uplinkName}' assigned to WAN group '${wanGroupName}' is missing bridge
+
+        uplink:
+        ${builtins.toJSON uplink}
+      '';
+
+  attachTargets = builtins.seq _validateStrictWanRendering (
+    map (
+      target:
+      let
+        wanGroupName = wanGroupNameForTarget target;
+      in
+      target
+      // {
+        renderedHostBridgeName =
+          if wanGroupName != null && builtins.hasAttr wanGroupName wanGroupToUplinkName then
+            renderedBridgeNameForWanGroup wanGroupName
+          else
+            target.baseRenderedHostBridgeName;
+      }
+    ) attachTargetsBase
+  );
+
+  localAttachTargets = lib.filter (
+    target: builtins.elem (target.unitName or "") selectedUnits
+  ) attachTargets;
+
+  maybePreferredAttachTarget =
+    predicate:
+    let
+      matches = lib.filter predicate localAttachTargets;
+    in
+    if builtins.length matches == 1 then builtins.head matches else null;
+
+  wanAttachTarget = maybePreferredAttachTarget (target: sourceKindForTarget target == "wan");
+
+  fabricAttachTarget = maybePreferredAttachTarget (target: sourceKindForTarget target == "p2p");
+
+  renderedHostBridgeNameForAssignedUplink =
+    uplinkName:
+    let
+      matches = lib.filter (
+        target:
+        let
+          wanGroupName = wanGroupNameForTarget target;
+        in
+        wanGroupName != null
+        && builtins.hasAttr wanGroupName wanGroupToUplinkName
+        && wanGroupToUplinkName.${wanGroupName} == uplinkName
+      ) localAttachTargets;
+
+      renderedNames = lib.unique (map (target: target.renderedHostBridgeName) matches);
+    in
+    if renderedNames == [ ] then
+      null
+    else if builtins.length renderedNames == 1 then
+      builtins.head renderedNames
+    else
+      throw ''
+        lib/render-host-network.nix: uplink '${uplinkName}' resolved to multiple rendered WAN bridges
+
+        matches:
+        ${builtins.toJSON matches}
+      '';
+
+  wanUplinkName = configuredWanUplinkName;
+
+  fabricUplinkName =
+    if !hostHasUplinks then
+      null
+    else if renderHostConfig ? fabricUplink then
+      if
+        builtins.isString renderHostConfig.fabricUplink
+        && builtins.hasAttr renderHostConfig.fabricUplink uplinksRaw
+      then
+        renderHostConfig.fabricUplink
+      else
+        throw ''
+          lib/render-host-network.nix: render host '${hostName}' has invalid fabricUplink '${
+            builtins.toJSON (renderHostConfig.fabricUplink or null)
+          }'
+
+          known uplinks:
+          ${builtins.toJSON uplinkNames}
+        ''
+    else if uplinksRaw ? fabric && builtins.isAttrs uplinksRaw.fabric then
+      "fabric"
+    else if uplinksRaw ? trunk && builtins.isAttrs uplinksRaw.trunk then
+      "trunk"
+    else
+      let
+        candidates = lib.filter (name: name != wanUplinkName && name != "management") uplinkNames;
+      in
+      if builtins.length candidates == 1 then builtins.head candidates else null;
+
+  uplinks = builtins.mapAttrs (
+    uplinkName: uplink:
+    let
+      originalBridge =
+        if uplink ? bridge && builtins.isString uplink.bridge then
+          uplink.bridge
+        else
+          throw ''
+            lib/render-host-network.nix: uplink '${uplinkName}' is missing bridge
+
+            uplink:
+            ${builtins.toJSON uplink}
+          '';
+
+      assignedWanRenderedBridge = renderedHostBridgeNameForAssignedUplink uplinkName;
+
+      renderedBridge =
+        if assignedWanRenderedBridge != null then
+          assignedWanRenderedBridge
+        else if uplinkName == wanUplinkName && wanAttachTarget != null then
+          wanAttachTarget.renderedHostBridgeName
+        else if
+          fabricUplinkName != null && uplinkName == fabricUplinkName && fabricAttachTarget != null
+        then
+          fabricAttachTarget.renderedHostBridgeName
+        else if builtins.hasAttr originalBridge bridgeNameMap then
+          bridgeNameMap.${originalBridge}
+        else
+          originalBridge;
+    in
+    uplink
+    // {
+      inherit originalBridge;
+      bridge = renderedBridge;
+    }
+  ) uplinksRaw;
+
+  bridgeNetworkFor =
+    uplink:
+    let
+      originalBridge =
+        if uplink ? originalBridge && builtins.isString uplink.originalBridge then
+          uplink.originalBridge
+        else
+          uplink.bridge;
+    in
+    if builtins.hasAttr originalBridge bridgeNetworks then
+      bridgeNetworks.${originalBridge}
+    else
+      { ConfigureWithoutCarrier = true; };
+
+  transitBridges =
+    if !(deploymentHost ? transitBridges) then
+      { }
+    else if builtins.isAttrs deploymentHost.transitBridges then
+      deploymentHost.transitBridges
+    else
+      throw ''
+        lib/render-host-network.nix: deployment host '${deploymentHostName}' has non-attr transitBridges
+
+        deployment host:
+        ${builtins.toJSON deploymentHost}
+      '';
+
+  transitNames = sortedAttrNames transitBridges;
+
+  parentNames = lib.unique (
+    lib.filter builtins.isString (map (uplinkName: uplinks.${uplinkName}.parent or null) uplinkNames)
+  );
+
+  transitNamesForUplink =
+    uplinkName:
+    lib.filter (
+      transitName:
+      let
+        transit = transitBridges.${transitName};
+      in
+      (transit.parentUplink or null) == uplinkName
+    ) transitNames;
+
+  vlanIfNameFor =
+    uplinkName:
+    let
+      uplink = uplinks.${uplinkName};
+    in
+    if (uplink.mode or "") == "vlan" then "${uplink.parent}.${toString uplink.vlan}" else null;
+
+  uplinkNetdevs = builtins.listToAttrs (
+    lib.concatMap (
+      uplinkName:
+      let
+        uplink = uplinks.${uplinkName};
+        transitNamesOnUplink = transitNamesForUplink uplinkName;
+        vlanIfName = vlanIfNameFor uplinkName;
+      in
+      [
+        {
+          name = "10-${uplink.bridge}";
+          value = {
+            netdevConfig = {
+              Name = uplink.bridge;
+              Kind = "bridge";
+            };
+          };
+        }
+      ]
+      ++ lib.optionals ((uplink.mode or "") == "vlan") [
+        {
+          name = "11-${vlanIfName}";
+          value = {
+            netdevConfig = {
+              Name = vlanIfName;
+              Kind = "vlan";
+            };
+            vlanConfig.Id = uplink.vlan;
+          };
+        }
+      ]
+      ++ lib.optionals ((uplink.mode or "") == "trunk") (
+        map (
+          transitName:
+          let
+            transit = transitBridges.${transitName};
+            transitVlanIfName = "${uplink.bridge}.${toString transit.vlan}";
+          in
+          {
+            name = "12-${transitVlanIfName}";
+            value = {
+              netdevConfig = {
+                Name = transitVlanIfName;
+                Kind = "vlan";
+              };
+              vlanConfig.Id = transit.vlan;
+            };
+          }
+        ) transitNamesOnUplink
+      )
+    ) uplinkNames
+  );
+
+  uplinkParentNetworks = builtins.listToAttrs (
+    let
+      parentEntries = map (
+        parentIf:
+        let
+          uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
+
+          vlanChildren = lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent);
+
+          directBridgeUplinks = lib.filter (
+            uplinkName:
+            let
+              mode = uplinks.${uplinkName}.mode or "";
+            in
+            mode != "vlan"
+          ) uplinksOnParent;
+
+          _singleDirectBridge =
+            if builtins.length directBridgeUplinks <= 1 then
+              true
+            else
+              throw ''
+                lib/render-host-network.nix: multiple non-vlan uplinks on parent '${parentIf}' are not supported
+
+                uplinks:
+                ${builtins.concatStringsSep "\n  - " ([ "" ] ++ directBridgeUplinks)}
+              '';
+        in
+        {
+          name = "20-${parentIf}";
+          value = {
+            matchConfig.Name = parentIf;
+            linkConfig = {
+              ActivationPolicy = "always-up";
+              RequiredForOnline = "no";
+            };
+            networkConfig = {
+              ConfigureWithoutCarrier = true;
+              LinkLocalAddressing = "no";
+              IPv6AcceptRA = false;
+            }
+            // lib.optionalAttrs (vlanChildren != [ ]) {
+              VLAN = vlanChildren;
+            }
+            // lib.optionalAttrs (builtins.length directBridgeUplinks == 1) {
+              Bridge = uplinks.${builtins.head directBridgeUplinks}.bridge;
+            };
+          };
+        }
+      ) parentNames;
+
+      vlanBridgeEntries = lib.concatMap (
+        uplinkName:
+        let
+          uplink = uplinks.${uplinkName};
+          vlanIfName = vlanIfNameFor uplinkName;
+        in
+        lib.optionals ((uplink.mode or "") == "vlan") [
+          {
+            name = "21-${vlanIfName}";
+            value = {
+              matchConfig.Name = vlanIfName;
+              linkConfig = {
+                ActivationPolicy = "always-up";
+                RequiredForOnline = "no";
+              };
+              networkConfig = {
+                Bridge = uplink.bridge;
+                ConfigureWithoutCarrier = true;
+                LinkLocalAddressing = "no";
+                IPv6AcceptRA = false;
+              };
+            };
+          }
+        ]
+      ) uplinkNames;
+    in
+    parentEntries ++ vlanBridgeEntries
+  );
+
+  uplinkBridgeNetworks = builtins.listToAttrs (
+    map (
+      uplinkName:
+      let
+        uplink = uplinks.${uplinkName};
+        transitNamesOnUplink = transitNamesForUplink uplinkName;
+        baseBridgeNetworkConfig = bridgeNetworkFor uplink;
+        bridgeNetworkConfig = {
+          ConfigureWithoutCarrier = true;
+          DHCP = "no";
+          LinkLocalAddressing = "no";
+          IPv6AcceptRA = false;
+        }
+        // baseBridgeNetworkConfig
+        // lib.optionalAttrs ((uplink.mode or "") == "trunk" && transitNamesOnUplink != [ ]) {
+          VLAN = map (
+            transitName:
+            let
+              transit = transitBridges.${transitName};
+            in
+            "${uplink.bridge}.${toString transit.vlan}"
+          ) transitNamesOnUplink;
+        };
+      in
+      {
+        name = "30-${uplink.bridge}";
+        value = {
+          matchConfig.Name = uplink.bridge;
+          linkConfig = {
+            ActivationPolicy = "always-up";
+            RequiredForOnline = "no";
+          };
+          networkConfig = bridgeNetworkConfig;
+        };
+      }
+    ) uplinkNames
+  );
+
+  transitNetdevs = builtins.listToAttrs (
+    map (
+      transitName:
+      let
+        transit = transitBridges.${transitName};
+      in
+      {
+        name = "40-${transit.name}";
+        value = {
+          netdevConfig = {
+            Name = transit.name;
+            Kind = "bridge";
+          };
+        };
+      }
+    ) transitNames
+  );
+
+  transitNetworks = builtins.listToAttrs (
+    lib.concatMap (
+      transitName:
+      let
+        transit = transitBridges.${transitName};
+        parentUplink = transit.parentUplink or null;
+      in
+      [
+        {
+          name = "50-${transit.name}";
+          value = {
+            matchConfig.Name = transit.name;
+            linkConfig = {
+              ActivationPolicy = "always-up";
+              RequiredForOnline = "no";
+            };
+            networkConfig.ConfigureWithoutCarrier = true;
+          };
+        }
+      ]
+      ++
+        lib.optionals
+          (
+            parentUplink != null
+            && builtins.hasAttr parentUplink uplinks
+            && (uplinks.${parentUplink}.mode or "") == "trunk"
+          )
+          [
+            {
+              name =
+                let
+                  uplink = uplinks.${parentUplink};
+                  transitVlanIfName = "${uplink.bridge}.${toString transit.vlan}";
+                in
+                "51-${transitVlanIfName}";
+              value =
+                let
+                  uplink = uplinks.${parentUplink};
+                  transitVlanIfName = "${uplink.bridge}.${toString transit.vlan}";
+                in
+                {
+                  matchConfig.Name = transitVlanIfName;
+                  linkConfig = {
+                    ActivationPolicy = "always-up";
+                    RequiredForOnline = "no";
+                  };
+                  networkConfig = {
+                    Bridge = transit.name;
+                    ConfigureWithoutCarrier = true;
+                    LinkLocalAddressing = "no";
+                    IPv6AcceptRA = false;
+                  };
+                };
+            }
+          ]
+    ) transitNames
+  );
+
+  synthesizedNetdevs =
+    if hostHasUplinks then
+      localBridgeNetdevs // uplinkNetdevs // transitNetdevs
+    else
+      localBridgeNetdevs;
+
+  synthesizedNetworks =
+    if hostHasUplinks then
+      localBridgeNetworks // uplinkParentNetworks // uplinkBridgeNetworks // transitNetworks
+    else
+      localBridgeNetworks;
+
+  mkRoute =
+    route:
+    if !builtins.isAttrs route then
+      null
+    else
+      let
+        gateway =
+          if route ? via4 && route.via4 != null then
+            route.via4
+          else if route ? via6 && route.via6 != null then
+            route.via6
+          else
+            null;
+      in
+      if gateway == null then
+        null
+      else
+        {
+          Gateway = gateway;
+          GatewayOnLink = true;
+        }
+        // lib.optionalAttrs (route ? dst && route.dst != null) {
+          Destination = route.dst;
+        };
+
+  mkContainerNetworks =
+    {
+      interfaces,
+      loopback,
+      interfaceNameMap,
+    }:
+    let
+      interfaceNames = sortedAttrNames interfaces;
+
+      loopbackAddresses = lib.filter builtins.isString [
+        (loopback.addr4 or null)
+        (loopback.addr6 or null)
+      ];
+
+      loopbackUnit = lib.optionalAttrs (loopbackAddresses != [ ]) {
+        "00-lo" = {
+          matchConfig.Name = "lo";
+          address = loopbackAddresses;
+          linkConfig.RequiredForOnline = "no";
+          networkConfig.ConfigureWithoutCarrier = true;
+        };
+      };
+
+      interfaceUnits = builtins.listToAttrs (
+        map (
+          ifName:
+          let
+            iface = interfaces.${ifName};
+            renderedName = interfaceNameMap.${ifName};
+            routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
+          in
+          {
+            name = "10-${renderedName}";
+            value = {
+              matchConfig.Name = renderedName;
+              networkConfig = {
+                ConfigureWithoutCarrier = true;
+                LinkLocalAddressing = "no";
+                IPv6AcceptRA = false;
+              };
+              address = iface.addresses or [ ];
+              routes = routes;
+            };
+          }
+        ) interfaceNames
+      );
+    in
+    loopbackUnit // interfaceUnits;
+
+  attachTargetForInterface =
+    {
+      unitName,
+      ifName,
+      iface,
+    }:
+    let
+      matches = lib.filter (
+        target:
+        (target.unitName or null) == unitName
+        && (
+          (target.ifName or null) == ifName
+          || ((target.renderedIfName or null) == (iface.renderedIfName or null))
+          || ((target.interface.renderedIfName or null) == (iface.renderedIfName or null))
+          || ((target.hostBridgeName or null) == (iface.hostBridge or null))
+        )
+      ) attachTargets;
+    in
+    if builtins.length matches == 1 then
+      builtins.head matches
+    else if builtins.hasAttr iface.hostBridge bridgeNameMap then
+      {
+        renderedHostBridgeName = bridgeNameMap.${iface.hostBridge};
+      }
+    else
+      throw ''
+        lib/render-host-network.nix: could not resolve rendered host bridge for unit '${unitName}', interface '${ifName}'
+
+        iface.hostBridge:
+        ${iface.hostBridge}
+
+        available bridgeNameMap keys:
+        ${builtins.toJSON (builtins.attrNames bridgeNameMap)}
+
+        attachTargets:
+        ${builtins.toJSON attachTargets}
+      '';
+
+  selectedRoleNames = lib.filter (roleName: builtins.hasAttr roleName roles) (
+    lib.unique (
+      map (
+        unitName:
+        runtimeContext.roleForUnit {
+          cpm = cpm;
+          inventory = inventory;
+          inherit unitName;
+          file = "lib/render-host-network.nix";
+        }
+      ) selectedUnits
+    )
+  );
+
+  selectedRoles = builtins.listToAttrs (
+    map (roleName: {
+      name = roleName;
+      value = roles.${roleName};
+    }) selectedRoleNames
+  );
+
+  containerEnabledUnitNames = lib.filter (
+    unitName:
+    let
+      roleName = runtimeContext.roleForUnit {
+        cpm = cpm;
+        inventory = inventory;
+        inherit unitName;
+        file = "lib/render-host-network.nix";
+      };
+    in
+    builtins.hasAttr roleName selectedRoles
+    && selectedRoles.${roleName} ? container
+    && builtins.isAttrs selectedRoles.${roleName}.container
+    && (selectedRoles.${roleName}.container.enable or false)
+  ) selectedUnits;
+
+  mkContainer =
+    unitName:
+    let
+      runtimeTarget = cpmAdapter.normalizedRuntimeTargetForUnit {
+        cpm = cpm;
+        inherit unitName;
+        file = "lib/render-host-network.nix";
+      };
+
+      interfaces = runtimeTarget.interfaces or { };
+      interfaceNames = sortedAttrNames interfaces;
+
+      interfaceNameMap = hostNaming.ensureUnique interfaceNames;
+
+      roleName = runtimeContext.roleForUnit {
+        cpm = cpm;
+        inventory = inventory;
+        inherit unitName;
+        file = "lib/render-host-network.nix";
+      };
+
+      roleConfig = if builtins.hasAttr roleName selectedRoles then selectedRoles.${roleName} else { };
+
+      profilePath =
+        if
+          roleConfig ? container
+          && builtins.isAttrs roleConfig.container
+          && roleConfig.container ? profilePath
+        then
+          roleConfig.container.profilePath
+        else
+          null;
+
+      additionalCapabilities =
+        if
+          roleConfig ? container
+          && builtins.isAttrs roleConfig.container
+          && roleConfig.container ? additionalCapabilities
+          && builtins.isList roleConfig.container.additionalCapabilities
+        then
+          roleConfig.container.additionalCapabilities
+        else
+          [ ];
+
+      bindMounts =
+        if
+          roleConfig ? container
+          && builtins.isAttrs roleConfig.container
+          && roleConfig.container ? bindMounts
+          && builtins.isAttrs roleConfig.container.bindMounts
+        then
+          roleConfig.container.bindMounts
+        else
+          { };
+
+      allowedDevices =
+        if
+          roleConfig ? container
+          && builtins.isAttrs roleConfig.container
+          && roleConfig.container ? allowedDevices
+          && builtins.isList roleConfig.container.allowedDevices
+        then
+          roleConfig.container.allowedDevices
+        else
+          [ ];
+
+      extraVeths = builtins.listToAttrs (
+        map (
+          ifName:
+          let
+            iface = interfaces.${ifName};
+            attachTarget = attachTargetForInterface {
+              inherit unitName ifName iface;
+            };
+          in
+          {
+            name = interfaceNameMap.${ifName};
+            value = {
+              hostBridge = attachTarget.renderedHostBridgeName;
+            };
+          }
+        ) interfaceNames
+      );
+
+      containerNetworks = mkContainerNetworks {
+        inherit interfaces interfaceNameMap;
+        loopback = runtimeTarget.loopback or { };
+      };
+    in
+    {
+      name = unitName;
+      value = {
+        autoStart = true;
+        privateNetwork = true;
+
+        inherit bindMounts allowedDevices extraVeths;
+
+        additionalCapabilities = lib.unique (
+          [
+            "CAP_NET_ADMIN"
+            "CAP_NET_RAW"
+          ]
+          ++ additionalCapabilities
+        );
+
+        specialArgs = {
+          inherit unitName deploymentHostName runtimeTarget;
+          controlPlaneOut = cpm;
+          globalInventory = inventory;
+          hostContext = resolvedHostContext;
+          s88Role = roleConfig;
+          s88RoleName = roleName;
+        };
+
+        config =
+          { ... }:
+          {
+            imports = lib.optionals (profilePath != null) [
+              profilePath
+            ];
+
+            networking.hostName = unitName;
+            networking.useNetworkd = true;
+            systemd.network.enable = true;
+            networking.useDHCP = false;
+            networking.useHostResolvConf = lib.mkForce false;
+            services.resolved.enable = lib.mkForce false;
+            system.stateVersion = lib.mkDefault "25.11";
+
+            systemd.network.networks = containerNetworks;
+          };
+      };
+    };
+
+  containers = builtins.seq _selectedUnitsNonEmpty (
+    builtins.listToAttrs (map mkContainer containerEnabledUnitNames)
+  );
 in
 {
   inherit
+    hostName
+    deploymentHostName
+    deploymentHost
+    renderHostConfig
     bridgeNameMap
     bridges
-    netdevs
-    networks
     attachTargets
+    localAttachTargets
+    selectedUnits
+    selectedRoleNames
+    selectedRoles
+    containers
+    resolvedHostContext
     ;
+
+  runtimeRole = runtimeRole;
+
+  netdevs = builtins.seq _selectedUnitsNonEmpty synthesizedNetdevs;
+  networks = builtins.seq _selectedUnitsNonEmpty synthesizedNetworks;
+
+  uplinks = uplinks;
+  transitBridges = transitBridges;
+
+  debug = {
+    inherit
+      hostName
+      deploymentHostName
+      runtimeRole
+      selectedUnits
+      ;
+    localBridgeNameMap = bridgeNameMap;
+    localAttachTargets = localAttachTargets;
+    uplinks = uplinks;
+    transitBridges = transitBridges;
+  };
 }

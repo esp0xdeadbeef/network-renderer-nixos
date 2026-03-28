@@ -431,9 +431,12 @@ in
       deploymentHostNames = sortedAttrNames deploymentHosts;
       realizationNodes = realizationNodesFor inventory;
 
-      deploymentHostName = resolveDeploymentHostName {
+      deploymentHostNameAttempt = builtins.tryEval (resolveDeploymentHostName {
         inherit inventory hostname file;
-      };
+      });
+
+      deploymentHostName =
+        if deploymentHostNameAttempt.success then deploymentHostNameAttempt.value else hostname;
     in
     rec {
       inherit

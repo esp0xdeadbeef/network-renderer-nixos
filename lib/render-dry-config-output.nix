@@ -2,6 +2,8 @@
   repoRoot,
   cpm ? null,
   cpmPath ? null,
+  inventory ? { },
+  inventoryPath ? null,
   exampleDir ? null,
   debug ? false,
 }:
@@ -28,6 +30,7 @@ let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   resolvedCpmPath = if cpmPath == null then null else builtins.toString cpmPath;
+  resolvedInventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
 
   resolvedExampleDir =
     if exampleDir != null then
@@ -47,8 +50,17 @@ let
         render-dry-config: requires either cpm or cpmPath
       '';
 
+  resolvedInventory =
+    if inventory != { } then
+      inventory
+    else if resolvedInventoryPath != null then
+      renderer.loadInventory (builtins.toPath resolvedInventoryPath)
+    else
+      { };
+
   _validateRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
     cpm = controlPlane;
+    inventory = resolvedInventory;
     file = "render-dry-config";
   };
 
@@ -65,6 +77,7 @@ let
         unitName:
         runtimeContext.deploymentHostForUnit {
           cpm = controlPlane;
+          inventory = resolvedInventory;
           inherit unitName;
           file = "render-dry-config";
         }
@@ -78,15 +91,68 @@ let
       value = renderer.renderHostNetwork {
         inherit hostName;
         cpm = controlPlane;
+        inventory = resolvedInventory;
       };
     }) deploymentHostNames
   );
+
+  hostRenderingsDebug = builtins.mapAttrs (_hostName: hostRendering: {
+    hostName = hostRendering.hostName or null;
+    deploymentHostName = hostRendering.deploymentHostName or null;
+    runtimeRole = hostRendering.runtimeRole or null;
+    selectedUnits = hostRendering.selectedUnits or [ ];
+    selectedRoleNames = hostRendering.selectedRoleNames or [ ];
+    bridgeNameMap = hostRendering.bridgeNameMap or { };
+    bridges = hostRendering.bridges or { };
+    netdevs = hostRendering.netdevs or { };
+    networks = hostRendering.networks or { };
+    attachTargets = hostRendering.attachTargets or [ ];
+    localAttachTargets = hostRendering.localAttachTargets or [ ];
+    uplinks = hostRendering.uplinks or { };
+    transitBridges = hostRendering.transitBridges or { };
+    containers = builtins.listToAttrs (
+      map (containerName: {
+        name = containerName;
+        value =
+          let
+            container = hostRendering.containers.${containerName};
+          in
+          {
+            autoStart = container.autoStart or false;
+            privateNetwork = container.privateNetwork or false;
+            extraVeths = container.extraVeths or { };
+            bindMounts = container.bindMounts or { };
+            allowedDevices = container.allowedDevices or [ ];
+            additionalCapabilities = container.additionalCapabilities or [ ];
+            specialArgs = {
+              unitName =
+                if container ? specialArgs && container.specialArgs ? unitName then
+                  container.specialArgs.unitName
+                else
+                  containerName;
+              deploymentHostName =
+                if container ? specialArgs && container.specialArgs ? deploymentHostName then
+                  container.specialArgs.deploymentHostName
+                else
+                  null;
+              s88RoleName =
+                if container ? specialArgs && container.specialArgs ? s88RoleName then
+                  container.specialArgs.s88RoleName
+                else
+                  null;
+            };
+          };
+      }) (sortedAttrNames (hostRendering.containers or { }))
+    );
+    debug = hostRendering.debug or { };
+  }) hostRenderings;
 
   renderedInterfacesForUnit =
     unitName:
     let
       deploymentHostName = runtimeContext.deploymentHostForUnit {
         cpm = controlPlane;
+        inventory = resolvedInventory;
         inherit unitName;
         file = "render-dry-config";
       };
@@ -150,18 +216,21 @@ let
       value = {
         logicalNode = runtimeContext.logicalNodeForUnit {
           cpm = controlPlane;
+          inventory = resolvedInventory;
           inherit unitName;
           file = "render-dry-config";
         };
 
         deploymentHostName = runtimeContext.deploymentHostForUnit {
           cpm = controlPlane;
+          inventory = resolvedInventory;
           inherit unitName;
           file = "render-dry-config";
         };
 
         role = runtimeContext.roleForUnit {
           cpm = controlPlane;
+          inventory = resolvedInventory;
           inherit unitName;
           file = "render-dry-config";
         };
@@ -177,6 +246,7 @@ let
       sourcePaths = {
         repoRoot = builtins.toString repoRoot;
         cpmPath = resolvedCpmPath;
+        inventoryPath = resolvedInventoryPath;
         exampleDir = resolvedExampleDir;
       };
     };
@@ -191,8 +261,9 @@ let
       {
         debug = {
           controlPlane = controlPlane;
+          inventory = resolvedInventory;
           normalizedRuntimeTargets = normalizedRuntimeTargets;
-          hostRenderings = hostRenderings;
+          hostRenderings = hostRenderingsDebug;
         };
       }
     else
