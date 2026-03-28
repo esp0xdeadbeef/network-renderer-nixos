@@ -6,55 +6,103 @@ realizationPorts = import ./realization-ports.nix { inherit lib; };
 maxLen = 15;
 
 hash = name:
-  builtins.substring 0 6 (builtins.hashString "sha256" name);
+builtins.substring 0 6 (builtins.hashString "sha256" name);
 
 shorten = name:
-  if builtins.stringLength name <= maxLen then
-    name
-  else
-    let
-      prefixLen = maxLen - 7;
-      prefix = builtins.substring 0 prefixLen name;
-    in
-    "${prefix}-${hash name}";
+if builtins.stringLength name <= maxLen then
+name
+else
+let
+prefixLen = maxLen - 7;
+prefix = builtins.substring 0 prefixLen name;
+in
+"${prefix}-${hash name}";
 
 ensureUnique =
-  names:
-  let
-    shortened =
-      map
-        (n: {
-          original = n;
-          rendered = shorten n;
-        })
-        names;
+names:
+let
+shortened =
+map
+(n: {
+original = n;
+rendered = shorten n;
+})
+names;
 
-    grouped =
-      builtins.foldl'
-        (acc: entry:
-          let key = entry.rendered;
-          in acc // {
-            ${key} = (acc.${key} or [ ]) ++ [ entry.original ];
-          })
-        { }
-        shortened;
+grouped =
+builtins.foldl'
+(acc: entry:
+let key = entry.rendered;
+in acc // {
+${key} = (acc.${key} or [ ]) ++ [ entry.original ];
+})
+{ }
+shortened;
 
-    collisions =
-      lib.filterAttrs (_: v: builtins.length v > 1) grouped;
-  in
-  if collisions != { } then
-    throw ''
+collisions =
+lib.filterAttrs (_: v: builtins.length v > 1) grouped;
+in
+if collisions != { } then
+throw ''
 render-host-network: collision detected after shortening
 
 ${builtins.toJSON collisions}
 ''
-  else
-    builtins.listToAttrs (
-      map (entry: {
-        name = entry.original;
-        value = entry.rendered;
-      }) shortened
-    );
+else
+builtins.listToAttrs (
+map (entry: {
+name = entry.original;
+value = entry.rendered;
+}) shortened
+);
+
+renderTenantBridges =
+{
+tenantBridges ? { },
+}:
+let
+bridgeNamesRaw =
+lib.unique (
+lib.filter builtins.isString (builtins.attrNames tenantBridges)
+);
+
+bridgeNameMap = ensureUnique bridgeNamesRaw;
+
+bridgeNames = map (n: bridgeNameMap.${n}) bridgeNamesRaw;
+
+netdevs =
+builtins.listToAttrs (
+map
+(bridgeName: {
+name = "40-${bridgeName}";
+value = {
+netdevConfig = {
+Name = bridgeName;
+Kind = "bridge";
+};
+};
+})
+bridgeNames
+);
+
+networks =
+builtins.listToAttrs (
+map
+(bridgeName: {
+name = "50-${bridgeName}";
+value = {
+matchConfig.Name = bridgeName;
+networkConfig = {
+ConfigureWithoutCarrier = true;
+};
+};
+})
+bridgeNames
+);
+in
+{
+inherit netdevs networks bridgeNameMap;
+};
 
 sortedAttrNames = attrs:
 lib.sort builtins.lessThan (builtins.attrNames attrs);
@@ -173,8 +221,16 @@ ConfigureWithoutCarrier = true;
 })
 bridgeNames
 );
+
+tenantRendered =
+renderTenantBridges {
+tenantBridges = { };
+};
 in
 {
 inherit netdevs;
-networks = parentNetworks // bridgeNetworks;
+networks =
+parentNetworks
+// bridgeNetworks
+// tenantRendered.networks;
 }

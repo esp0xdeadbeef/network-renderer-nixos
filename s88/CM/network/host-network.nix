@@ -63,6 +63,54 @@ ${builtins.toJSON collisions}
         }) shortened
       );
 
+  renderTenantBridges =
+    {
+      tenantBridges ? { },
+    }:
+    let
+      bridgeNamesRaw =
+        lib.unique (
+          lib.filter builtins.isString (builtins.attrNames tenantBridges)
+        );
+
+      bridgeNameMap = ensureUnique bridgeNamesRaw;
+
+      bridgeNames = map (n: bridgeNameMap.${n}) bridgeNamesRaw;
+
+      netdevs =
+        builtins.listToAttrs (
+          map
+            (bridgeName: {
+              name = "40-${bridgeName}";
+              value = {
+                netdevConfig = {
+                  Name = bridgeName;
+                  Kind = "bridge";
+                };
+              };
+            })
+            bridgeNames
+        );
+
+      networks =
+        builtins.listToAttrs (
+          map
+            (bridgeName: {
+              name = "50-${bridgeName}";
+              value = {
+                matchConfig.Name = bridgeName;
+                networkConfig = {
+                  ConfigureWithoutCarrier = true;
+                };
+              };
+            })
+            bridgeNames
+        );
+    in
+    {
+      inherit netdevs networks bridgeNameMap;
+    };
+
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   deploymentHostName =
@@ -178,6 +226,11 @@ ${builtins.toJSON collisions}
         bridgeNames
     );
 
+  tenantRendered =
+    renderTenantBridges {
+      tenantBridges = { };
+    };
+
   roleExtra =
     if s88Role ? hostProfilePath && s88Role.hostProfilePath != null then
       import s88Role.hostProfilePath {
@@ -202,10 +255,12 @@ in
 
   systemd.network.netdevs =
     renderedBaseNetdevs
+    // tenantRendered.netdevs
     // (roleExtra.netdevs or { });
 
   systemd.network.networks =
     renderedParentNetworks
     // renderedBridgeNetworks
+    // tenantRendered.networks
     // (roleExtra.networks or { });
 }
