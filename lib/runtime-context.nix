@@ -1,6 +1,8 @@
 { lib }:
 
 let
+  hostQuery = import ./host-query.nix { inherit lib; };
+
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   controlPlaneData =
@@ -182,7 +184,7 @@ let
 
       placementHost =
         if !(placement ? host) || placement.host == null then
-          fallbackHost
+          null
         else if builtins.isString placement.host then
           placement.host
         else
@@ -192,8 +194,38 @@ let
             runtime target:
             ${builtins.toJSON target}
           '';
+
+      resolveCandidate =
+        candidate:
+        if candidate == null || !builtins.isString candidate || inventory == { } then
+          null
+        else
+          let
+            attempt = builtins.tryEval (
+              hostQuery.resolveDeploymentHostName {
+                inherit inventory file;
+                hostname = candidate;
+              }
+            );
+          in
+          if attempt.success && builtins.isString attempt.value then attempt.value else null;
+
+      resolvedViaInventory =
+        if placementHost != null then
+          null
+        else
+          let
+            fromUnitName = resolveCandidate unitName;
+            fromFallbackHost = if fromUnitName != null then null else resolveCandidate fallbackHost;
+          in
+          if fromUnitName != null then fromUnitName else fromFallbackHost;
     in
-    placementHost;
+    if placementHost != null then
+      placementHost
+    else if resolvedViaInventory != null then
+      resolvedViaInventory
+    else
+      fallbackHost;
 
   emittedInterfacesForUnit =
     {

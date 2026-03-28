@@ -2,6 +2,7 @@
 
 let
   runtimeContext = import ./runtime-context.nix { inherit lib; };
+  hostNaming = import ./host-naming.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -77,6 +78,65 @@ let
     in
     effectiveRuntimeRealization.loopback or { };
 
+  desiredRenderedIfNameForInterface =
+    {
+      ifName,
+      iface,
+    }:
+    if iface ? renderedIfName && builtins.isString iface.renderedIfName then
+      iface.renderedIfName
+    else
+      ifName;
+
+  renderedInterfaceNamesForUnit =
+    {
+      cpm,
+      unitName,
+      file ? "lib/cpm-runtime-adapter.nix",
+    }:
+    let
+      interfaces = emittedInterfacesForUnit {
+        inherit cpm unitName file;
+      };
+
+      interfaceNames = sortedAttrNames interfaces;
+
+      desiredRenderedIfNameMap = builtins.listToAttrs (
+        map (ifName: {
+          name = ifName;
+          value = desiredRenderedIfNameForInterface {
+            inherit ifName;
+            iface = interfaces.${ifName};
+          };
+        }) interfaceNames
+      );
+
+      desiredRenderedIfNames = map (ifName: desiredRenderedIfNameMap.${ifName}) interfaceNames;
+
+      uniqueDesiredRenderedIfNames = lib.unique desiredRenderedIfNames;
+
+      _validateDesiredRenderedIfNames =
+        if builtins.length uniqueDesiredRenderedIfNames == builtins.length desiredRenderedIfNames then
+          true
+        else
+          throw ''
+            ${file}: duplicate desired rendered interface names for unit '${unitName}'
+
+            desiredRenderedIfNameMap:
+            ${builtins.toJSON desiredRenderedIfNameMap}
+          '';
+
+      renderedNameMap = hostNaming.ensureUnique uniqueDesiredRenderedIfNames;
+    in
+    builtins.seq _validateDesiredRenderedIfNames (
+      builtins.listToAttrs (
+        map (ifName: {
+          name = ifName;
+          value = renderedNameMap.${desiredRenderedIfNameMap.${ifName}};
+        }) interfaceNames
+      )
+    );
+
   hostBridgeIdentityForInterface =
     {
       unitName,
@@ -143,20 +203,10 @@ let
       unitName,
       ifName,
       iface,
+      renderedIfName,
       file ? "lib/cpm-runtime-adapter.nix",
     }:
     let
-      renderedIfName =
-        if iface ? renderedIfName && builtins.isString iface.renderedIfName then
-          iface.renderedIfName
-        else
-          throw ''
-            ${file}: interface '${ifName}' for unit '${unitName}' is missing renderedIfName
-
-            interface:
-            ${builtins.toJSON iface}
-          '';
-
       backingRef =
         if iface ? backingRef && builtins.isAttrs iface.backingRef then
           iface.backingRef
@@ -222,6 +272,10 @@ let
       interfaces = emittedInterfacesForUnit {
         inherit cpm unitName file;
       };
+
+      renderedInterfaceNameMap = renderedInterfaceNamesForUnit {
+        inherit cpm unitName file;
+      };
     in
     builtins.listToAttrs (
       map (ifName: {
@@ -229,6 +283,7 @@ let
         value = normalizedInterfaceForUnit {
           inherit unitName ifName file;
           iface = interfaces.${ifName};
+          renderedIfName = renderedInterfaceNameMap.${ifName};
         };
       }) (sortedAttrNames interfaces)
     );
@@ -275,6 +330,8 @@ in
   inherit
     emittedInterfacesForUnit
     emittedLoopbackForUnit
+    desiredRenderedIfNameForInterface
+    renderedInterfaceNamesForUnit
     hostBridgeIdentityForInterface
     normalizedInterfaceForUnit
     normalizedInterfacesForUnit

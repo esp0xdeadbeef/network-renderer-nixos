@@ -58,17 +58,6 @@ let
     else
       { };
 
-  realizationNodes =
-    if
-      inventory ? realization
-      && builtins.isAttrs inventory.realization
-      && inventory.realization ? nodes
-      && builtins.isAttrs inventory.realization.nodes
-    then
-      inventory.realization.nodes
-    else
-      { };
-
   normalizedRuntimeTargets = cpmAdapter.normalizedRuntimeTargets {
     inherit cpm;
     file = "lib/render-host-network.nix";
@@ -77,7 +66,7 @@ let
   allUnitNames = sortedAttrNames normalizedRuntimeTargets;
 
   unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
-    inherit cpm;
+    inherit cpm inventory;
     deploymentHostName = deploymentHostName;
     file = "lib/render-host-network.nix";
   };
@@ -150,59 +139,32 @@ let
     }) bridgeNames
   );
 
+  logicalNodeForUnit =
+    unitName:
+    let
+      target = normalizedRuntimeTargets.${unitName};
+    in
+    if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
+
   logicalNodeNameForUnit =
     unitName:
     let
-      target = normalizedRuntimeTargets.${unitName};
+      logicalNode = logicalNodeForUnit unitName;
     in
-    if
-      target ? logicalNode
-      && builtins.isAttrs target.logicalNode
-      && target.logicalNode ? name
-      && builtins.isString target.logicalNode.name
-    then
-      target.logicalNode.name
-    else
-      unitName;
+    if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
 
-  placementHostForUnit =
+  logicalNodeIdentityForUnit =
     unitName:
     let
-      target = normalizedRuntimeTargets.${unitName};
-    in
-    if
-      target ? placement
-      && builtins.isAttrs target.placement
-      && target.placement ? host
-      && builtins.isString target.placement.host
-    then
-      target.placement.host
-    else
-      null;
+      logicalNode = logicalNodeForUnit unitName;
 
-  realizationHostForUnit =
-    unitName:
-    if
-      builtins.hasAttr unitName realizationNodes
-      && builtins.isAttrs realizationNodes.${unitName}
-      && realizationNodes.${unitName} ? host
-      && builtins.isString realizationNodes.${unitName}.host
-    then
-      realizationNodes.${unitName}.host
-    else
-      null;
-
-  unitBelongsToMachine =
-    unitName:
-    let
-      logicalNodeName = logicalNodeNameForUnit unitName;
-      placementHost = placementHostForUnit unitName;
-      realizationHost = realizationHostForUnit unitName;
+      segments = lib.filter builtins.isString [
+        (logicalNode.enterprise or null)
+        (logicalNode.site or null)
+        (logicalNode.name or null)
+      ];
     in
-    logicalNodeName == hostName
-    || lib.hasPrefix "${hostName}-" logicalNodeName
-    || placementHost == deploymentHostName
-    || realizationHost == deploymentHostName;
+    if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
 
   runtimeRole =
     if renderHostConfig ? runtimeRole && builtins.isString renderHostConfig.runtimeRole then
@@ -212,32 +174,33 @@ let
 
   selectedUnits = lib.filter (
     unitName:
-    unitBelongsToMachine unitName
-    && (
-      runtimeRole == null
-      ||
-        runtimeContext.roleForUnit {
-          cpm = cpm;
-          inherit unitName;
-          file = "lib/render-host-network.nix";
-        } == runtimeRole
-    )
-  ) allUnitNames;
+    runtimeRole == null
+    ||
+      runtimeContext.roleForUnit {
+        cpm = cpm;
+        inventory = inventory;
+        inherit unitName;
+        file = "lib/render-host-network.nix";
+      } == runtimeRole
+  ) unitsOnDeploymentHost;
 
   _selectedUnitsNonEmpty =
     if selectedUnits != [ ] then
       true
     else
       throw ''
-        lib/render-host-network.nix: no units matched host '${hostName}'${
+        lib/render-host-network.nix: no units matched deployment host '${deploymentHostName}'${
           if runtimeRole != null then " for runtimeRole '${runtimeRole}'" else ""
         }
 
-        deploymentHostName:
-          ${deploymentHostName}
+        requested host:
+        ${hostName}
+
+        units on deployment host:
+        ${builtins.concatStringsSep "\n  " ([ "" ] ++ unitsOnDeploymentHost)}
 
         available runtime targets:
-          ${builtins.concatStringsSep "\n  " allUnitNames}
+        ${builtins.concatStringsSep "\n  " ([ "" ] ++ allUnitNames)}
       '';
 
   sourceKindForTarget =
@@ -280,9 +243,10 @@ let
   ) attachTargetsBase;
 
   logicalNodeNameForTarget = target: logicalNodeNameForUnit target.unitName;
+  logicalNodeIdentityForTarget = target: logicalNodeIdentityForUnit target.unitName;
 
   wanGroupNameForTarget =
-    target: if sourceKindForTarget target == "wan" then logicalNodeNameForTarget target else null;
+    target: if sourceKindForTarget target == "wan" then logicalNodeIdentityForTarget target else null;
 
   uplinksRaw =
     if !(deploymentHost ? uplinks) then
@@ -336,8 +300,20 @@ let
           known uplinks:
           ${builtins.toJSON uplinkNames}
         ''
-    else if uplinksRaw ? upstream-core && builtins.isAttrs uplinksRaw.upstream-core then
-      "upstream-core"
+    else if deploymentHost ? wanUplink then
+      if
+        builtins.isString deploymentHost.wanUplink && builtins.hasAttr deploymentHost.wanUplink uplinksRaw
+      then
+        deploymentHost.wanUplink
+      else
+        throw ''
+          lib/render-host-network.nix: deployment host '${deploymentHostName}' has invalid wanUplink '${
+            builtins.toJSON (deploymentHost.wanUplink or null)
+          }'
+
+          known uplinks:
+          ${builtins.toJSON uplinkNames}
+        ''
     else if builtins.length uplinkNames == 1 then
       builtins.head uplinkNames
     else
@@ -389,6 +365,110 @@ let
     ) (sortedAttrNames configuredWanGroupToUplink)
   );
 
+  wanTargetsForGroup =
+    wanGroupName:
+    lib.filter (target: wanGroupNameForTarget target == wanGroupName) localAttachTargetsBase;
+
+  upstreamNamesForWanGroup =
+    wanGroupName:
+    let
+      upstreamNames = lib.unique (
+        lib.filter builtins.isString (
+          map (target: target.connectivity.upstream or null) (wanTargetsForGroup wanGroupName)
+        )
+      );
+    in
+    if builtins.length upstreamNames <= 1 then
+      upstreamNames
+    else
+      throw ''
+        lib/render-host-network.nix: WAN group '${wanGroupName}' resolved to multiple upstream identities on host '${hostName}'
+
+        upstream names:
+        ${builtins.toJSON upstreamNames}
+
+        targets:
+        ${builtins.toJSON (wanTargetsForGroup wanGroupName)}
+      '';
+
+  uplinkMatchKeys =
+    uplinkName:
+    let
+      uplink = uplinksRaw.${uplinkName};
+    in
+    lib.unique (
+      lib.filter builtins.isString [
+        uplinkName
+        (uplink.name or null)
+        (uplink.uplink or null)
+        (uplink.upstream or null)
+        (uplink.external or null)
+        (uplink.provider or null)
+        (uplink.bridge or null)
+      ]
+    );
+
+  candidateUplinkNamesForWanGroup =
+    wanGroupName:
+    let
+      groupKeys = lib.unique (
+        lib.filter builtins.isString ([ wanGroupName ] ++ (upstreamNamesForWanGroup wanGroupName))
+      );
+    in
+    lib.filter (
+      uplinkName:
+      let
+        keys = uplinkMatchKeys uplinkName;
+      in
+      lib.any (key: builtins.elem key keys) groupKeys
+    ) uplinkNames;
+
+  autoMatchedWanGroups = builtins.listToAttrs (
+    lib.concatMap (
+      wanGroupName:
+      let
+        candidates = candidateUplinkNamesForWanGroup wanGroupName;
+      in
+      if builtins.length candidates == 1 then
+        [
+          {
+            name = wanGroupName;
+            value = builtins.head candidates;
+          }
+        ]
+      else
+        [ ]
+    ) wanGroupNames
+  );
+
+  autoMatchedUplinkNames = lib.unique (builtins.attrValues autoMatchedWanGroups);
+
+  remainingWanGroupsForAuto = lib.filter (
+    wanGroupName: !builtins.hasAttr wanGroupName autoMatchedWanGroups
+  ) wanGroupNames;
+
+  remainingUplinkNamesForAuto = lib.filter (
+    uplinkName: !(builtins.elem uplinkName autoMatchedUplinkNames)
+  ) uplinkNames;
+
+  zippedWanGroupToUplink =
+    let
+      count = builtins.length remainingWanGroupsForAuto;
+    in
+    if count == 0 then
+      { }
+    else if count == builtins.length remainingUplinkNamesForAuto then
+      builtins.listToAttrs (
+        builtins.genList (idx: {
+          name = builtins.elemAt remainingWanGroupsForAuto idx;
+          value = builtins.elemAt remainingUplinkNamesForAuto idx;
+        }) count
+      )
+    else
+      { };
+
+  autoWanGroupToUplink = autoMatchedWanGroups // zippedWanGroupToUplink;
+
   wanGroupToUplinkName = builtins.seq _validateConfiguredWanGroupToUplink (
     if configuredWanGroupToUplink != { } then
       configuredWanGroupToUplink
@@ -400,7 +480,7 @@ let
         }) wanGroupNames
       )
     else
-      { }
+      autoWanGroupToUplink
   );
 
   missingWanGroupAssignments = lib.filter (
@@ -421,14 +501,16 @@ let
         ${builtins.toJSON uplinkNames}
 
         set either:
-          render.hosts.${hostName}.wanUplink
+        render.hosts.${hostName}.wanUplink
         or:
-          render.hosts.${hostName}.wanGroupToUplink
+        render.hosts.${hostName}.wanGroupToUplink
         or:
-          deployment.hosts.${deploymentHostName}.wanGroupToUplink
+        deployment.hosts.${deploymentHostName}.wanUplink
+        or:
+        deployment.hosts.${deploymentHostName}.wanGroupToUplink
       '';
 
-  renderedBridgeNameForWanGroup =
+  renderedHostBridgeNameForWanGroup =
     wanGroupName:
     let
       uplinkName = wanGroupToUplinkName.${wanGroupName};
@@ -454,7 +536,7 @@ let
       // {
         renderedHostBridgeName =
           if wanGroupName != null && builtins.hasAttr wanGroupName wanGroupToUplinkName then
-            renderedBridgeNameForWanGroup wanGroupName
+            renderedHostBridgeNameForWanGroup wanGroupName
           else
             target.baseRenderedHostBridgeName;
       }
@@ -523,10 +605,21 @@ let
           known uplinks:
           ${builtins.toJSON uplinkNames}
         ''
-    else if uplinksRaw ? fabric && builtins.isAttrs uplinksRaw.fabric then
-      "fabric"
-    else if uplinksRaw ? trunk && builtins.isAttrs uplinksRaw.trunk then
-      "trunk"
+    else if deploymentHost ? fabricUplink then
+      if
+        builtins.isString deploymentHost.fabricUplink
+        && builtins.hasAttr deploymentHost.fabricUplink uplinksRaw
+      then
+        deploymentHost.fabricUplink
+      else
+        throw ''
+          lib/render-host-network.nix: deployment host '${deploymentHostName}' has invalid fabricUplink '${
+            builtins.toJSON (deploymentHost.fabricUplink or null)
+          }'
+
+          known uplinks:
+          ${builtins.toJSON uplinkNames}
+        ''
     else
       let
         candidates = lib.filter (name: name != wanUplinkName && name != "management") uplinkNames;
@@ -1040,7 +1133,19 @@ let
       interfaces = runtimeTarget.interfaces or { };
       interfaceNames = sortedAttrNames interfaces;
 
-      interfaceNameMap = hostNaming.ensureUnique interfaceNames;
+      interfaceNameMap = builtins.listToAttrs (
+        map (ifName: {
+          name = ifName;
+          value =
+            let
+              iface = interfaces.${ifName};
+            in
+            if iface ? renderedIfName && builtins.isString iface.renderedIfName then
+              iface.renderedIfName
+            else
+              ifName;
+        }) interfaceNames
+      );
 
       roleName = runtimeContext.roleForUnit {
         cpm = cpm;
