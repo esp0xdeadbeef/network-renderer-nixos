@@ -10,11 +10,64 @@
 let
   realizationPorts = import ../../../lib/realization-ports.nix { inherit lib; };
 
+  maxLen = 15;
+
+  hash = name:
+    builtins.substring 0 6 (builtins.hashString "sha256" name);
+
+  shorten = name:
+    if builtins.stringLength name <= maxLen then
+      name
+    else
+      let
+        prefixLen = maxLen - 7;
+        prefix = builtins.substring 0 prefixLen name;
+      in
+      "${prefix}-${hash name}";
+
+  ensureUnique =
+    names:
+    let
+      shortened =
+        map
+          (n: {
+            original = n;
+            rendered = shorten n;
+          })
+          names;
+
+      grouped =
+        builtins.foldl'
+          (acc: entry:
+            let key = entry.rendered;
+            in acc // {
+              ${key} = (acc.${key} or [ ]) ++ [ entry.original ];
+            })
+          { }
+          shortened;
+
+      collisions =
+        lib.filterAttrs (_: v: builtins.length v > 1) grouped;
+    in
+    if collisions != { } then
+      throw ''
+host-network: collision detected after shortening
+
+${builtins.toJSON collisions}
+''
+    else
+      builtins.listToAttrs (
+        map (entry: {
+          name = entry.original;
+          value = entry.rendered;
+        }) shortened
+      );
+
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   deploymentHostName =
     if boxContext ? deploymentHostName && builtins.isString boxContext.deploymentHostName then
-      boxContext.deploymentHostName
+      deploymentHostName = boxContext.deploymentHostName;
     else
       config.networking.hostName;
 
@@ -43,10 +96,8 @@ let
         (value: builtins.isString value)
         (map
           (uplinkName:
-            let
-              uplink = uplinks.${uplinkName};
-            in
-            uplink.bridge or null)
+            let uplink = uplinks.${uplinkName};
+            in uplink.bridge or null)
           (sortedAttrNames uplinks))
     );
 
@@ -59,7 +110,11 @@ let
   localAttachBridgeNames =
     lib.unique (map (target: target.name) localAttachTargets);
 
-  bridgeNames = lib.unique (uplinkBridgeNames ++ localAttachBridgeNames);
+  bridgeNamesRaw = lib.unique (uplinkBridgeNames ++ localAttachBridgeNames);
+
+  bridgeNameMap = ensureUnique bridgeNamesRaw;
+
+  bridgeNames = map (n: bridgeNameMap.${n}) bridgeNamesRaw;
 
   renderedBaseNetdevs =
     builtins.listToAttrs (
@@ -86,14 +141,19 @@ let
               uplink = uplinks.${uplinkName};
               parent = uplink.parent or null;
               bridge = uplink.bridge or null;
+              renderedBridge =
+                if builtins.isString bridge && builtins.hasAttr bridge bridgeNameMap then
+                  bridgeNameMap.${bridge}
+                else
+                  null;
             in
-            if builtins.isString parent && builtins.isString bridge then
+            if builtins.isString parent && renderedBridge != null then
               {
                 name = "20-${parent}";
                 value = {
                   matchConfig.Name = parent;
                   networkConfig = {
-                    Bridge = bridge;
+                    Bridge = renderedBridge;
                     ConfigureWithoutCarrier = true;
                   };
                 };
@@ -127,8 +187,7 @@ let
           globalInventory
           boxContext
           deploymentHostName
-          deploymentHost
-          ;
+          deploymentHost;
       }
     else
       {
