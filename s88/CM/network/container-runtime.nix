@@ -13,6 +13,7 @@
 
 let
   runtimeContext = import ../../../lib/runtime-context.nix { inherit lib; };
+  cpmAdapter = import ../../../lib/cpm-runtime-adapter.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -31,15 +32,12 @@ let
       { };
 
   effectiveActiveRoleNames =
-    if activeRoleNames != [ ] then
-      activeRoleNames
-    else
-      sortedAttrNames effectiveActiveRoles;
+    if activeRoleNames != [ ] then activeRoleNames else sortedAttrNames effectiveActiveRoles;
 
   renderedHostNetwork = import ../../../lib/render-host-network.nix {
     inherit lib;
-    inventory = globalInventory;
     hostName = deploymentHostName;
+    cpm = controlPlaneOut;
   };
 
   unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
@@ -49,22 +47,21 @@ let
     file = "s88/CM/network/container-runtime.nix";
   };
 
-  selectedUnits =
-    lib.filter
-      (unitName:
-        let
-          unitRoleName = runtimeContext.roleForUnit {
-            cpm = controlPlaneOut;
-            inventory = globalInventory;
-            inherit unitName;
-            file = "s88/CM/network/container-runtime.nix";
-          };
-        in
-        builtins.hasAttr unitRoleName effectiveActiveRoles
-        && effectiveActiveRoles.${unitRoleName} ? container
-        && builtins.isAttrs effectiveActiveRoles.${unitRoleName}.container
-        && (effectiveActiveRoles.${unitRoleName}.container.enable or false))
-      unitsOnDeploymentHost;
+  selectedUnits = lib.filter (
+    unitName:
+    let
+      unitRoleName = runtimeContext.roleForUnit {
+        cpm = controlPlaneOut;
+        inventory = globalInventory;
+        inherit unitName;
+        file = "s88/CM/network/container-runtime.nix";
+      };
+    in
+    builtins.hasAttr unitRoleName effectiveActiveRoles
+    && effectiveActiveRoles.${unitRoleName} ? container
+    && builtins.isAttrs effectiveActiveRoles.${unitRoleName}.container
+    && (effectiveActiveRoles.${unitRoleName}.container.enable or false)
+  ) unitsOnDeploymentHost;
 
   mkContainer =
     unitName:
@@ -82,31 +79,25 @@ let
         else
           throw "s88/CM/network/container-runtime.nix: no role registry entry for unit '${unitName}' with role '${unitRoleName}'";
 
-      runtimeTarget = runtimeContext.runtimeTargetForUnit {
+      runtimeTarget = cpmAdapter.normalizedRuntimeTargetForUnit {
         cpm = controlPlaneOut;
         inherit unitName;
         file = "s88/CM/network/container-runtime.nix";
       };
 
-      interfaces =
-        if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
-          runtimeTarget.interfaces
-        else
-          throw ''
-            s88/CM/network/container-runtime.nix: missing canonical runtime interfaces for unit '${unitName}'
-          '';
+      interfaces = runtimeTarget.interfaces;
 
       profilePath =
-        if unitRole ? container
-          && builtins.isAttrs unitRole.container
-          && unitRole.container ? profilePath
+        if
+          unitRole ? container && builtins.isAttrs unitRole.container && unitRole.container ? profilePath
         then
           unitRole.container.profilePath
         else
           null;
 
       additionalCapabilities =
-        if unitRole ? container
+        if
+          unitRole ? container
           && builtins.isAttrs unitRole.container
           && unitRole.container ? additionalCapabilities
           && builtins.isList unitRole.container.additionalCapabilities
@@ -116,7 +107,8 @@ let
           [ ];
 
       bindMounts =
-        if unitRole ? container
+        if
+          unitRole ? container
           && builtins.isAttrs unitRole.container
           && unitRole.container ? bindMounts
           && builtins.isAttrs unitRole.container.bindMounts
@@ -126,7 +118,8 @@ let
           { };
 
       allowedDevices =
-        if unitRole ? container
+        if
+          unitRole ? container
           && builtins.isAttrs unitRole.container
           && unitRole.container ? allowedDevices
           && builtins.isList unitRole.container.allowedDevices
@@ -135,45 +128,44 @@ let
         else
           [ ];
 
-      extraVeths =
-        builtins.listToAttrs (
-          map
-            (ifName:
-              let
-                iface = interfaces.${ifName};
+      extraVeths = builtins.listToAttrs (
+        map (
+          ifName:
+          let
+            iface = interfaces.${ifName};
 
-                renderedIfName =
-                  if iface ? renderedIfName && builtins.isString iface.renderedIfName then
-                    iface.renderedIfName
-                  else
-                    throw ''
-                      s88/CM/network/container-runtime.nix: interface '${ifName}' missing renderedIfName for unit '${unitName}'
-                    '';
+            renderedIfName =
+              if iface ? renderedIfName && builtins.isString iface.renderedIfName then
+                iface.renderedIfName
+              else
+                throw ''
+                  s88/CM/network/container-runtime.nix: interface '${ifName}' missing renderedIfName for unit '${unitName}'
+                '';
 
-                hostBridgeName =
-                  if iface ? hostBridge && builtins.isString iface.hostBridge then
-                    iface.hostBridge
-                  else
-                    throw ''
-                      s88/CM/network/container-runtime.nix: interface '${ifName}' missing hostBridge for unit '${unitName}'
-                    '';
+            hostBridgeName =
+              if iface ? hostBridge && builtins.isString iface.hostBridge then
+                iface.hostBridge
+              else
+                throw ''
+                  s88/CM/network/container-runtime.nix: interface '${ifName}' missing normalized hostBridge for unit '${unitName}'
+                '';
 
-                renderedHostBridgeName =
-                  if builtins.hasAttr hostBridgeName renderedHostNetwork.bridgeNameMap then
-                    renderedHostNetwork.bridgeNameMap.${hostBridgeName}
-                  else
-                    throw ''
-                      s88/CM/network/container-runtime.nix: unknown host bridge '${hostBridgeName}' for unit '${unitName}', interface '${ifName}'
-                    '';
-              in
-              {
-                name = renderedIfName;
-                value = {
-                  hostBridge = renderedHostBridgeName;
-                };
-              })
-            (sortedAttrNames interfaces)
-        );
+            renderedHostBridgeName =
+              if builtins.hasAttr hostBridgeName renderedHostNetwork.bridgeNameMap then
+                renderedHostNetwork.bridgeNameMap.${hostBridgeName}
+              else
+                throw ''
+                  s88/CM/network/container-runtime.nix: unknown host bridge '${hostBridgeName}' for unit '${unitName}', interface '${ifName}'
+                '';
+          in
+          {
+            name = renderedIfName;
+            value = {
+              hostBridge = renderedHostBridgeName;
+            };
+          }
+        ) (sortedAttrNames interfaces)
+      );
     in
     {
       name = unitName;
@@ -182,14 +174,13 @@ let
         privateNetwork = true;
         inherit bindMounts allowedDevices extraVeths;
 
-        additionalCapabilities =
-          lib.unique (
-            [
-              "CAP_NET_ADMIN"
-              "CAP_NET_RAW"
-            ]
-            ++ additionalCapabilities
-          );
+        additionalCapabilities = lib.unique (
+          [
+            "CAP_NET_ADMIN"
+            "CAP_NET_RAW"
+          ]
+          ++ additionalCapabilities
+        );
 
         specialArgs = {
           inherit
@@ -204,18 +195,18 @@ let
           s88RoleName = unitRoleName;
         };
 
-        config = { ... }: {
-          imports =
-            lib.optionals (profilePath != null) [
+        config =
+          { ... }:
+          {
+            imports = lib.optionals (profilePath != null) [
               profilePath
             ];
 
-          networking.hostName = unitName;
-        };
+            networking.hostName = unitName;
+          };
       };
     };
 in
 {
-  containers =
-    builtins.listToAttrs (map mkContainer selectedUnits);
+  containers = builtins.listToAttrs (map mkContainer selectedUnits);
 }

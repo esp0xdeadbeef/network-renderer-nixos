@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  controlPlaneOut,
   hostContext,
   globalInventory,
   activeRoleNames ? [ ],
@@ -10,8 +11,7 @@
 }:
 
 let
-  sortedAttrNames = attrs:
-    lib.sort builtins.lessThan (builtins.attrNames attrs);
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   deploymentHostName =
     if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
@@ -20,12 +20,14 @@ let
       config.networking.hostName;
 
   deploymentHost =
-    if hostContext ? deploymentHost
+    if
+      hostContext ? deploymentHost
       && builtins.isAttrs hostContext.deploymentHost
       && hostContext.deploymentHost != { }
     then
       hostContext.deploymentHost
-    else if globalInventory ? deployment
+    else if
+      globalInventory ? deployment
       && builtins.isAttrs globalInventory.deployment
       && globalInventory.deployment ? hosts
       && builtins.isAttrs globalInventory.deployment.hosts
@@ -37,8 +39,8 @@ let
 
   renderedHostNetwork = import ../../../lib/render-host-network.nix {
     inherit lib;
-    inventory = globalInventory;
     hostName = deploymentHostName;
+    cpm = controlPlaneOut;
   };
 
   effectiveActiveRoles =
@@ -50,14 +52,12 @@ let
       { };
 
   effectiveActiveRoleNames =
-    if activeRoleNames != [ ] then
-      activeRoleNames
-    else
-      sortedAttrNames effectiveActiveRoles;
+    if activeRoleNames != [ ] then activeRoleNames else sortedAttrNames effectiveActiveRoles;
 
   roleExtra =
     lib.foldl'
-      (acc: roleName:
+      (
+        acc: roleName:
         let
           role = effectiveActiveRoles.${roleName};
           extra =
@@ -69,7 +69,8 @@ let
                   globalInventory
                   hostContext
                   deploymentHostName
-                  deploymentHost;
+                  deploymentHost
+                  ;
               }
             else
               {
@@ -80,7 +81,8 @@ let
         {
           netdevs = acc.netdevs // (extra.netdevs or { });
           networks = acc.networks // (extra.networks or { });
-        })
+        }
+      )
       {
         netdevs = { };
         networks = { };
@@ -92,11 +94,7 @@ in
   systemd.network.enable = true;
   networking.useDHCP = false;
 
-  systemd.network.netdevs =
-    renderedHostNetwork.netdevs
-    // (roleExtra.netdevs or { });
+  systemd.network.netdevs = renderedHostNetwork.netdevs // (roleExtra.netdevs or { });
 
-  systemd.network.networks =
-    renderedHostNetwork.networks
-    // (roleExtra.networks or { });
+  systemd.network.networks = renderedHostNetwork.networks // (roleExtra.networks or { });
 }

@@ -1,10 +1,26 @@
 {
   description = "network-renderer-nixos";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    nixos-network-compiler.url = "github:esp0xdeadbeef/nixos-network-compiler";
+
+    network-control-plane-model.url = "github:esp0xdeadbeef/network-control-plane-model";
+
+    network-forwarding-model.url = "github:esp0xdeadbeef/network-forwarding-model";
+    network-forwarding-model.inputs.nixpkgs.follows = "nixpkgs";
+  };
 
   outputs =
-    { self, nixpkgs, ... }:
+    {
+      self,
+      nixpkgs,
+      nixos-network-compiler,
+      network-control-plane-model,
+      network-forwarding-model,
+      ...
+    }:
     let
       lib = nixpkgs.lib;
       systems = [
@@ -12,7 +28,18 @@
         "aarch64-linux"
       ];
       forAllSystems = lib.genAttrs systems;
-      api = import ./lib/api.nix { inherit lib; };
+      api = import ./lib/api.nix {
+        inherit lib;
+        repoRoot = ./.;
+        flakeInputs = {
+          inherit
+            nixpkgs
+            nixos-network-compiler
+            network-control-plane-model
+            network-forwarding-model
+            ;
+        };
+      };
     in
     {
       lib = api;

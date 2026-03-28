@@ -28,7 +28,16 @@ find "$search_root" -name intent.nix -type f | sort | while read -r intent_path;
 
   echo "[*] Running for $intent_path"
 
-  rm -f ./00-*.json ./01-*.json ./10-*.json ./20-*.json ./21-*.json ./22-*.json ./23-*.json ./30-*.json ./90-*.json
+  rm -f \
+    ./00-*.json \
+    ./01-*.json \
+    ./02-*.json \
+    ./03-*.json \
+    ./04-*.json \
+    ./10-*.json \
+    ./25-*.json \
+    ./30-*.json \
+    ./90-*.json
 
   if [ ! -f "$inventory_path" ]; then
     echo
@@ -42,31 +51,37 @@ find "$search_root" -name intent.nix -type f | sort | while read -r intent_path;
     --extra-experimental-features 'nix-command flakes' \
     .#render-dry-config \
     -- \
+    --debug \
     "$intent_path" \
     "$inventory_path"
   then
     echo
     echo "[!] Generation failed for: $intent_path"
-    echo "[!] Dumping inputs:"
+    echo "[!] Dumping generated JSON artifacts:"
     echo
 
-    echo "===== $intent_path ====="
-    cat "$intent_path"
-    echo
-
-    echo "===== $inventory_path ====="
-    cat "$inventory_path"
-    echo
-
-    echo "[!] Dumping JSON files:"
-    echo
+    have_artifacts=false
 
     for j in ./[0-9][0-9]-*.json; do
       [ -e "$j" ] || continue
+      have_artifacts=true
       echo "===== $j ====="
-      jq -c . "$j"
+      jq -c . "$j" 2>/dev/null || cat "$j"
       echo
     done
+
+    if [ "$have_artifacts" = false ]; then
+      echo "[!] No generated JSON artifacts were produced; dumping source inputs:"
+      echo
+
+      echo "===== $intent_path ====="
+      cat "$intent_path"
+      echo
+
+      echo "===== $inventory_path ====="
+      cat "$inventory_path"
+      echo
+    fi
 
     exit 1
   fi
