@@ -3,6 +3,7 @@
   intentPath,
   inventoryPath,
   exampleDir ? null,
+  debug ? false,
 }:
 
 let
@@ -139,7 +140,7 @@ let
         enterpriseNames
     );
 
-  hostNetworks =
+  hostRenderings =
     builtins.listToAttrs (
       map
         (hostName: {
@@ -150,20 +151,94 @@ let
         })
         (sortedAttrNames deploymentHosts)
     );
-in
-{
-  inputs = {
-    inherit intent inventory;
-  };
 
-  vars = {
-    paths = {
-      inherit repoRoot intentPath inventoryPath;
-      exampleDir =
-        if exampleDir != null then
-          exampleDir
-        else
-          builtins.dirOf intentPath;
+  renderHosts =
+    builtins.listToAttrs (
+      map
+        (hostName:
+          let
+            hostRendering = hostRenderings.${hostName};
+          in
+          {
+            name = hostName;
+            value = {
+              network = {
+                bridges = hostRendering.bridges;
+                netdevs = hostRendering.netdevs;
+                networks = hostRendering.networks;
+              };
+            };
+          })
+        (sortedAttrNames hostRenderings)
+    );
+
+  renderNodes =
+    builtins.listToAttrs (
+      map
+        (unitName:
+          let
+            realizationNode = realizationNodes.${unitName};
+
+            logicalNode =
+              if realizationNode ? logicalNode && builtins.isAttrs realizationNode.logicalNode then
+                realizationNode.logicalNode
+              else
+                { };
+
+            deploymentHostName =
+              if realizationNode ? host && builtins.isString realizationNode.host then
+                realizationNode.host
+              else
+                null;
+
+            attachMap = flake.lib.realizationPorts.attachMapForUnit {
+              inherit inventory unitName;
+              file = "render-dry-config";
+            };
+
+            hostBridgeNameMap =
+              if deploymentHostName != null && builtins.hasAttr deploymentHostName hostRenderings then
+                hostRenderings.${deploymentHostName}.bridgeNameMap
+              else
+                { };
+
+            ports =
+              builtins.listToAttrs (
+                map
+                  (portName:
+                    let
+                      attachment = attachMap.${portName};
+                      renderedHostBridgeName =
+                        if builtins.hasAttr attachment.hostBridgeName hostBridgeNameMap then
+                          hostBridgeNameMap.${attachment.hostBridgeName}
+                        else
+                          null;
+                    in
+                    {
+                      name = portName;
+                      value = {
+                        attachment =
+                          attachment
+                          // {
+                            inherit renderedHostBridgeName;
+                          };
+                      };
+                    })
+                  (sortedAttrNames attachMap)
+              );
+          in
+          {
+            name = unitName;
+            value = {
+              inherit logicalNode deploymentHostName ports;
+            };
+          })
+        (sortedAttrNames realizationNodes)
+    );
+
+  debugOutput = {
+    inputs = {
+      inherit intent inventory;
     };
 
     hardware = {
@@ -177,6 +252,31 @@ in
       file = "render-dry-config";
     };
 
-    inherit enterprises hostNetworks;
+    inherit enterprises hostRenderings;
+  };
+in
+{
+  metadata = {
+    sourcePaths = {
+      inherit repoRoot intentPath inventoryPath;
+      exampleDir =
+        if exampleDir != null then
+          exampleDir
+        else
+          builtins.dirOf intentPath;
+    };
+  };
+
+  render = {
+    hosts = renderHosts;
+    nodes = renderNodes;
   };
 }
+// (
+  if debug then
+    {
+      debug = debugOutput;
+    }
+  else
+    { }
+)

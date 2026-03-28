@@ -1,191 +1,168 @@
 { lib, inventory, hostName, cpm ? null }:
 
 let
-realizationPorts = import ./realization-ports.nix { inherit lib; };
-tenantBridgeRenderer = import ./tenant-bridge-renderer.nix { inherit lib; };
+  hostNaming = import ./host-naming.nix { inherit lib; };
+  realizationPorts = import ./realization-ports.nix { inherit lib; };
+  tenantBridgeRenderer = import ./tenant-bridge-renderer.nix { inherit lib; };
 
-maxLen = 15;
+  sortedAttrNames = attrs:
+    lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-hash = name:
-builtins.substring 0 6 (builtins.hashString "sha256" name);
+  deploymentHosts =
+    if inventory ? deployment
+      && builtins.isAttrs inventory.deployment
+      && inventory.deployment ? hosts
+      && builtins.isAttrs inventory.deployment.hosts
+    then
+      inventory.deployment.hosts
+    else
+      throw "lib/render-host-network.nix: inventory.deployment.hosts missing";
 
-shorten = name:
-if builtins.stringLength name <= maxLen then
-name
-else
-let
-prefixLen = maxLen - 7;
-prefix = builtins.substring 0 prefixLen name;
-in
-"${prefix}-${hash name}";
+  deploymentHost =
+    if builtins.hasAttr hostName deploymentHosts
+      && builtins.isAttrs deploymentHosts.${hostName}
+    then
+      deploymentHosts.${hostName}
+    else
+      throw "lib/render-host-network.nix: deployment host '${hostName}' missing";
 
-ensureUnique =
-names:
-let
-shortened =
-map
-(n: {
-original = n;
-rendered = shorten n;
-})
-names;
+  uplinks =
+    if deploymentHost ? uplinks && builtins.isAttrs deploymentHost.uplinks then
+      deploymentHost.uplinks
+    else
+      { };
 
-grouped =
-builtins.foldl'
-(acc: entry:
-let key = entry.rendered;
-in acc // {
-${key} = (acc.${key} or [ ]) ++ [ entry.original ];
-})
-{ }
-shortened;
+  uplinkBridgeNames =
+    lib.unique (
+      lib.filter
+        builtins.isString
+        (map
+          (uplinkName:
+            let
+              uplink = uplinks.${uplinkName};
+            in
+            uplink.bridge or null)
+          (sortedAttrNames uplinks))
+    );
 
-collisions =
-lib.filterAttrs (_: v: builtins.length v > 1) grouped;
-in
-if collisions != { } then
-throw ''
-render-host-network: collision detected after shortening
+  localAttachTargets =
+    realizationPorts.attachTargetsForDeploymentHost {
+      inventory = inventory;
+      deploymentHostName = hostName;
+      file = "lib/render-host-network.nix";
+    };
 
-${builtins.toJSON collisions}
-''
-else
-builtins.listToAttrs (
-map (entry: {
-name = entry.original;
-value = entry.rendered;
-}) shortened
-);
+  localAttachBridgeNames =
+    lib.unique (map (target: target.hostBridgeName) localAttachTargets);
 
-sortedAttrNames = attrs:
-lib.sort builtins.lessThan (builtins.attrNames attrs);
+  bridgeNamesRaw =
+    lib.unique (uplinkBridgeNames ++ localAttachBridgeNames);
 
-deploymentHosts =
-if inventory ? deployment
-&& builtins.isAttrs inventory.deployment
-&& inventory.deployment ? hosts
-&& builtins.isAttrs inventory.deployment.hosts
-then
-inventory.deployment.hosts
-else
-throw "lib/render-host-network.nix: inventory.deployment.hosts missing";
+  bridgeNameMap = hostNaming.ensureUnique bridgeNamesRaw;
 
-deploymentHost =
-if builtins.hasAttr hostName deploymentHosts
-&& builtins.isAttrs deploymentHosts.${hostName}
-then
-deploymentHosts.${hostName}
-else
-throw "lib/render-host-network.nix: deployment host '${hostName}' missing";
+  bridgeNames =
+    map (name: bridgeNameMap.${name}) bridgeNamesRaw;
 
-uplinks =
-if deploymentHost ? uplinks && builtins.isAttrs deploymentHost.uplinks then
-deploymentHost.uplinks
-else
-{ };
+  bridges =
+    builtins.listToAttrs (
+      map
+        (bridgeName: {
+          name = bridgeName;
+          value = {
+            originalName = bridgeName;
+            renderedName = bridgeNameMap.${bridgeName};
+          };
+        })
+        bridgeNamesRaw
+    );
 
-uplinkBridgeNames =
-lib.unique (
-lib.filter
-builtins.isString
-(map
-(uplinkName:
-let uplink = uplinks.${uplinkName};
-in uplink.bridge or null)
-(sortedAttrNames uplinks))
-);
+  netdevs =
+    builtins.listToAttrs (
+      map
+        (bridgeName: {
+          name = "10-${bridgeName}";
+          value = {
+            netdevConfig = {
+              Name = bridgeName;
+              Kind = "bridge";
+            };
+          };
+        })
+        bridgeNames
+    );
 
-localAttachTargets =
-realizationPorts.attachTargetsForDeploymentHost {
-inventory = inventory;
-deploymentHostName = hostName;
-file = "lib/render-host-network.nix";
-};
+  parentNetworks =
+    builtins.listToAttrs (
+      lib.filter
+        (entry: entry != null)
+        (map
+          (uplinkName:
+            let
+              uplink = uplinks.${uplinkName};
+              parent = uplink.parent or null;
+              bridge = uplink.bridge or null;
+              renderedBridge =
+                if builtins.isString bridge && builtins.hasAttr bridge bridgeNameMap then
+                  bridgeNameMap.${bridge}
+                else
+                  null;
+            in
+            if builtins.isString parent && renderedBridge != null then
+              {
+                name = "20-${parent}";
+                value = {
+                  matchConfig.Name = parent;
+                  networkConfig = {
+                    Bridge = renderedBridge;
+                    ConfigureWithoutCarrier = true;
+                  };
+                };
+              }
+            else
+              null)
+          (sortedAttrNames uplinks))
+    );
 
-localAttachBridgeNames =
-lib.unique (map (target: target.name) localAttachTargets);
+  bridgeNetworks =
+    builtins.listToAttrs (
+      map
+        (bridgeName: {
+          name = "30-${bridgeName}";
+          value = {
+            matchConfig.Name = bridgeName;
+            networkConfig = {
+              ConfigureWithoutCarrier = true;
+            };
+          };
+        })
+        bridgeNames
+    );
 
-bridgeNamesRaw =
-lib.unique (uplinkBridgeNames ++ localAttachBridgeNames);
+  tenantRendered =
+    tenantBridgeRenderer.renderTenantBridges {
+      tenantBridges = { };
+      inherit (hostNaming) shorten ensureUnique;
+    };
 
-bridgeNameMap = ensureUnique bridgeNamesRaw;
-
-bridgeNames =
-map (n: bridgeNameMap.${n}) bridgeNamesRaw;
-
-netdevs =
-builtins.listToAttrs (
-map
-(bridgeName: {
-name = "10-${bridgeName}";
-value = {
-netdevConfig = {
-Name = bridgeName;
-Kind = "bridge";
-};
-};
-})
-bridgeNames
-);
-
-parentNetworks =
-builtins.listToAttrs (
-lib.filter
-(entry: entry != null)
-(map
-(uplinkName:
-let
-uplink = uplinks.${uplinkName};
-parent = uplink.parent or null;
-bridge = uplink.bridge or null;
-renderedBridge =
-if builtins.isString bridge && builtins.hasAttr bridge bridgeNameMap then
-bridgeNameMap.${bridge}
-else
-null;
-in
-if builtins.isString parent && renderedBridge != null then
-{
-name = "20-${parent}";
-value = {
-matchConfig.Name = parent;
-networkConfig = {
-Bridge = renderedBridge;
-ConfigureWithoutCarrier = true;
-};
-};
-}
-else
-null)
-(sortedAttrNames uplinks))
-);
-
-bridgeNetworks =
-builtins.listToAttrs (
-map
-(bridgeName: {
-name = "30-${bridgeName}";
-value = {
-matchConfig.Name = bridgeName;
-networkConfig = {
-ConfigureWithoutCarrier = true;
-};
-};
-})
-bridgeNames
-);
-
-tenantRendered =
-tenantBridgeRenderer.renderTenantBridges {
-tenantBridges = { };
-shorten = shorten;
-ensureUnique = ensureUnique;
-};
+  attachTargets =
+    map
+      (target:
+        target
+        // {
+          renderedHostBridgeName = bridgeNameMap.${target.hostBridgeName};
+        })
+      localAttachTargets;
 in
 {
-inherit netdevs;
-networks =
-parentNetworks
-// bridgeNetworks
-// tenantRendered.networks;
+  inherit
+    bridgeNameMap
+    bridges
+    netdevs
+    attachTargets
+    ;
+
+  networks =
+    parentNetworks
+    // bridgeNetworks
+    // tenantRendered.networks;
 }

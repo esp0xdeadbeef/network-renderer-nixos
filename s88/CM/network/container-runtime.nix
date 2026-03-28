@@ -4,8 +4,10 @@
   controlPlaneOut,
   globalInventory,
   boxContext,
-  s88Role,
-  s88RoleName,
+  activeRoleNames ? [ ],
+  activeRoles ? { },
+  s88Role ? null,
+  s88RoleName ? null,
   ...
 }:
 
@@ -21,56 +23,66 @@ let
     else
       config.networking.hostName;
 
-  selectedUnits = runtimeContext.unitNamesForRoleOnDeploymentHost {
-    cpm = controlPlaneOut;
-    inventory = globalInventory;
-    inherit deploymentHostName;
-    role = s88Role.runtimeRole;
-    file = "s88/CM/network/container-runtime.nix";
-  };
-
-  profilePath =
-    if s88Role ? container
-      && builtins.isAttrs s88Role.container
-      && s88Role.container ? profilePath
-    then
-      s88Role.container.profilePath
-    else
-      null;
-
-  additionalCapabilities =
-    if s88Role ? container
-      && builtins.isAttrs s88Role.container
-      && s88Role.container ? additionalCapabilities
-      && builtins.isList s88Role.container.additionalCapabilities
-    then
-      s88Role.container.additionalCapabilities
-    else
-      [ ];
-
-  bindMounts =
-    if s88Role ? container
-      && builtins.isAttrs s88Role.container
-      && s88Role.container ? bindMounts
-      && builtins.isAttrs s88Role.container.bindMounts
-    then
-      s88Role.container.bindMounts
+  effectiveActiveRoles =
+    if activeRoles != { } then
+      activeRoles
+    else if s88Role != null && s88RoleName != null then
+      { "${s88RoleName}" = s88Role; }
     else
       { };
 
-  allowedDevices =
-    if s88Role ? container
-      && builtins.isAttrs s88Role.container
-      && s88Role.container ? allowedDevices
-      && builtins.isList s88Role.container.allowedDevices
-    then
-      s88Role.container.allowedDevices
+  effectiveActiveRoleNames =
+    if activeRoleNames != [ ] then
+      activeRoleNames
     else
-      [ ];
+      sortedAttrNames effectiveActiveRoles;
+
+  renderedHostNetwork = import ../../../lib/render-host-network.nix {
+    inherit lib;
+    inventory = globalInventory;
+    hostName = deploymentHostName;
+  };
+
+  unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
+    cpm = controlPlaneOut;
+    inventory = globalInventory;
+    inherit deploymentHostName;
+    file = "s88/CM/network/container-runtime.nix";
+  };
+
+  selectedUnits =
+    lib.filter
+      (unitName:
+        let
+          unitRoleName = runtimeContext.roleForUnit {
+            cpm = controlPlaneOut;
+            inventory = globalInventory;
+            inherit unitName;
+            file = "s88/CM/network/container-runtime.nix";
+          };
+        in
+        builtins.hasAttr unitRoleName effectiveActiveRoles
+        && effectiveActiveRoles.${unitRoleName} ? container
+        && builtins.isAttrs effectiveActiveRoles.${unitRoleName}.container
+        && (effectiveActiveRoles.${unitRoleName}.container.enable or false))
+      unitsOnDeploymentHost;
 
   mkContainer =
     unitName:
     let
+      unitRoleName = runtimeContext.roleForUnit {
+        cpm = controlPlaneOut;
+        inventory = globalInventory;
+        inherit unitName;
+        file = "s88/CM/network/container-runtime.nix";
+      };
+
+      unitRole =
+        if builtins.hasAttr unitRoleName effectiveActiveRoles then
+          effectiveActiveRoles.${unitRoleName}
+        else
+          throw "s88/CM/network/container-runtime.nix: no role registry entry for unit '${unitName}' with role '${unitRoleName}'";
+
       realizationNode = realizationPorts.nodeForUnit {
         inventory = globalInventory;
         inherit unitName;
@@ -89,15 +101,68 @@ let
         file = "s88/CM/network/container-runtime.nix";
       };
 
+      profilePath =
+        if unitRole ? container
+          && builtins.isAttrs unitRole.container
+          && unitRole.container ? profilePath
+        then
+          unitRole.container.profilePath
+        else
+          null;
+
+      additionalCapabilities =
+        if unitRole ? container
+          && builtins.isAttrs unitRole.container
+          && unitRole.container ? additionalCapabilities
+          && builtins.isList unitRole.container.additionalCapabilities
+        then
+          unitRole.container.additionalCapabilities
+        else
+          [ ];
+
+      bindMounts =
+        if unitRole ? container
+          && builtins.isAttrs unitRole.container
+          && unitRole.container ? bindMounts
+          && builtins.isAttrs unitRole.container.bindMounts
+        then
+          unitRole.container.bindMounts
+        else
+          { };
+
+      allowedDevices =
+        if unitRole ? container
+          && builtins.isAttrs unitRole.container
+          && unitRole.container ? allowedDevices
+          && builtins.isList unitRole.container.allowedDevices
+        then
+          unitRole.container.allowedDevices
+        else
+          [ ];
+
       extraVeths =
         builtins.listToAttrs (
           map
-            (portName: {
-              name = portName;
-              value = {
-                hostBridge = attachMap.${portName}.name;
-              };
-            })
+            (portName:
+              let
+                attachTarget = attachMap.${portName};
+                hostBridgeName = attachTarget.hostBridgeName;
+                renderedHostBridgeName =
+                  if builtins.hasAttr hostBridgeName renderedHostNetwork.bridgeNameMap then
+                    renderedHostNetwork.bridgeNameMap.${hostBridgeName}
+                  else
+                    throw ''
+                      s88/CM/network/container-runtime.nix: missing rendered host bridge for unit '${unitName}', port '${portName}'
+
+                      host bridge name: ${hostBridgeName}
+                    '';
+              in
+              {
+                name = portName;
+                value = {
+                  hostBridge = renderedHostBridgeName;
+                };
+              })
             (sortedAttrNames attachMap)
         );
     in
@@ -109,11 +174,13 @@ let
         inherit bindMounts allowedDevices extraVeths;
 
         additionalCapabilities =
-          [
-            "CAP_NET_ADMIN"
-            "CAP_NET_RAW"
-          ]
-          ++ additionalCapabilities;
+          lib.unique (
+            [
+              "CAP_NET_ADMIN"
+              "CAP_NET_RAW"
+            ]
+            ++ additionalCapabilities
+          );
 
         specialArgs = {
           inherit
@@ -124,9 +191,9 @@ let
             controlPlaneOut
             globalInventory
             boxContext
-            s88Role
-            s88RoleName
             ;
+          s88Role = unitRole;
+          s88RoleName = unitRoleName;
         };
 
         config = { ... }: {
