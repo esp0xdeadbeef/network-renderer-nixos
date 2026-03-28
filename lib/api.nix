@@ -1,24 +1,24 @@
 { lib }:
 
 let
-  selectors = import ./query-box.nix { inherit lib; };
-  realizationPorts = import ./realization-ports.nix { inherit lib; };
+selectors = import ./host-query.nix { inherit lib; };
+realizationPorts = import ./realization-ports.nix { inherit lib; };
 in
 {
-  inherit realizationPorts selectors;
+inherit realizationPorts selectors;
 
-  renderer = {
-    loadIntent = selectors.importMaybeFunction;
-    loadInventory = selectors.importMaybeFunction;
+renderer = {
+loadIntent = selectors.importMaybeFunction;
+loadInventory = selectors.importMaybeFunction;
 
-    renderHostNetwork =
-      {
-        inventory,
-        hostName,
-        cpm ? null,
-      }:
-      import ./render-host-network.nix {
-        inherit lib inventory hostName cpm;
-      };
-  };
+renderHostNetwork =
+{
+inventory,
+hostName,
+cpm ? null,
+}:
+import ./render-host-network.nix {
+inherit lib inventory hostName cpm;
+};
+};
 }
