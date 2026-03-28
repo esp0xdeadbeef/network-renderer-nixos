@@ -1,168 +1,127 @@
-{ lib, inventory, hostName, cpm ? null }:
+{
+  lib,
+  hostName,
+  cpm,
+  inventory ? { },
+}:
 
 let
   hostNaming = import ./host-naming.nix { inherit lib; };
-  realizationPorts = import ./realization-ports.nix { inherit lib; };
-  tenantBridgeRenderer = import ./tenant-bridge-renderer.nix { inherit lib; };
+  runtimeContext = import ./runtime-context.nix { inherit lib; };
+  cpmAdapter = import ./cpm-runtime-adapter.nix { inherit lib; };
 
-  sortedAttrNames = attrs:
-    lib.sort builtins.lessThan (builtins.attrNames attrs);
+  _inventory = inventory;
 
-  deploymentHosts =
-    if inventory ? deployment
-      && builtins.isAttrs inventory.deployment
-      && inventory.deployment ? hosts
-      && builtins.isAttrs inventory.deployment.hosts
-    then
-      inventory.deployment.hosts
-    else
-      throw "lib/render-host-network.nix: inventory.deployment.hosts missing";
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  deploymentHost =
-    if builtins.hasAttr hostName deploymentHosts
-      && builtins.isAttrs deploymentHosts.${hostName}
-    then
-      deploymentHosts.${hostName}
-    else
-      throw "lib/render-host-network.nix: deployment host '${hostName}' missing";
+  normalizedRuntimeTargets = cpmAdapter.normalizedRuntimeTargets {
+    inherit cpm;
+    file = "lib/render-host-network.nix";
+  };
 
-  uplinks =
-    if deploymentHost ? uplinks && builtins.isAttrs deploymentHost.uplinks then
-      deploymentHost.uplinks
+  unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
+    inherit cpm;
+    deploymentHostName = hostName;
+    file = "lib/render-host-network.nix";
+  };
+
+  interfacesForUnit =
+    unitName:
+    if builtins.hasAttr unitName normalizedRuntimeTargets then
+      normalizedRuntimeTargets.${unitName}.interfaces or { }
     else
       { };
 
-  uplinkBridgeNames =
-    lib.unique (
-      lib.filter
-        builtins.isString
-        (map
-          (uplinkName:
-            let
-              uplink = uplinks.${uplinkName};
-            in
-            uplink.bridge or null)
-          (sortedAttrNames uplinks))
-    );
+  localAttachBridgeNames = lib.unique (
+    lib.concatMap (
+      unitName:
+      let
+        interfaces = interfacesForUnit unitName;
+      in
+      map (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+        in
+        if iface ? hostBridge && builtins.isString iface.hostBridge then
+          iface.hostBridge
+        else
+          throw ''
+            lib/render-host-network.nix: interface '${ifName}' for unit '${unitName}' is missing normalized hostBridge
+          ''
+      ) (sortedAttrNames interfaces)
+    ) unitsOnDeploymentHost
+  );
 
-  localAttachTargets =
-    realizationPorts.attachTargetsForDeploymentHost {
-      inventory = inventory;
-      deploymentHostName = hostName;
-      file = "lib/render-host-network.nix";
-    };
-
-  localAttachBridgeNames =
-    lib.unique (map (target: target.hostBridgeName) localAttachTargets);
-
-  bridgeNamesRaw =
-    lib.unique (uplinkBridgeNames ++ localAttachBridgeNames);
+  bridgeNamesRaw = lib.sort builtins.lessThan (lib.unique localAttachBridgeNames);
 
   bridgeNameMap = hostNaming.ensureUnique bridgeNamesRaw;
 
-  bridgeNames =
-    map (name: bridgeNameMap.${name}) bridgeNamesRaw;
+  bridgeNames = map (bridgeName: bridgeNameMap.${bridgeName}) bridgeNamesRaw;
 
-  bridges =
-    builtins.listToAttrs (
-      map
-        (bridgeName: {
-          name = bridgeName;
-          value = {
-            originalName = bridgeName;
-            renderedName = bridgeNameMap.${bridgeName};
-          };
-        })
-        bridgeNamesRaw
-    );
+  bridges = builtins.listToAttrs (
+    map (bridgeName: {
+      name = bridgeName;
+      value = {
+        originalName = bridgeName;
+        renderedName = bridgeNameMap.${bridgeName};
+      };
+    }) bridgeNamesRaw
+  );
 
-  netdevs =
-    builtins.listToAttrs (
-      map
-        (bridgeName: {
-          name = "10-${bridgeName}";
-          value = {
-            netdevConfig = {
-              Name = bridgeName;
-              Kind = "bridge";
-            };
-          };
-        })
-        bridgeNames
-    );
+  netdevs = builtins.listToAttrs (
+    map (renderedBridgeName: {
+      name = "10-${renderedBridgeName}";
+      value = {
+        netdevConfig = {
+          Name = renderedBridgeName;
+          Kind = "bridge";
+        };
+      };
+    }) bridgeNames
+  );
 
-  parentNetworks =
-    builtins.listToAttrs (
-      lib.filter
-        (entry: entry != null)
-        (map
-          (uplinkName:
-            let
-              uplink = uplinks.${uplinkName};
-              parent = uplink.parent or null;
-              bridge = uplink.bridge or null;
-              renderedBridge =
-                if builtins.isString bridge && builtins.hasAttr bridge bridgeNameMap then
-                  bridgeNameMap.${bridge}
-                else
-                  null;
-            in
-            if builtins.isString parent && renderedBridge != null then
-              {
-                name = "20-${parent}";
-                value = {
-                  matchConfig.Name = parent;
-                  networkConfig = {
-                    Bridge = renderedBridge;
-                    ConfigureWithoutCarrier = true;
-                  };
-                };
-              }
-            else
-              null)
-          (sortedAttrNames uplinks))
-    );
+  networks = builtins.listToAttrs (
+    map (renderedBridgeName: {
+      name = "30-${renderedBridgeName}";
+      value = {
+        matchConfig.Name = renderedBridgeName;
+        networkConfig = {
+          ConfigureWithoutCarrier = true;
+        };
+      };
+    }) bridgeNames
+  );
 
-  bridgeNetworks =
-    builtins.listToAttrs (
-      map
-        (bridgeName: {
-          name = "30-${bridgeName}";
-          value = {
-            matchConfig.Name = bridgeName;
-            networkConfig = {
-              ConfigureWithoutCarrier = true;
-            };
-          };
-        })
-        bridgeNames
-    );
-
-  tenantRendered =
-    tenantBridgeRenderer.renderTenantBridges {
-      tenantBridges = { };
-      inherit (hostNaming) shorten ensureUnique;
-    };
-
-  attachTargets =
-    map
-      (target:
-        target
-        // {
-          renderedHostBridgeName = bridgeNameMap.${target.hostBridgeName};
-        })
-      localAttachTargets;
+  attachTargets = lib.concatMap (
+    unitName:
+    let
+      interfaces = interfacesForUnit unitName;
+    in
+    map (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        hostBridgeName = iface.hostBridge;
+      in
+      {
+        inherit unitName ifName hostBridgeName;
+        renderedHostBridgeName = bridgeNameMap.${hostBridgeName};
+        renderedIfName = iface.renderedIfName or null;
+        addresses = iface.addresses or [ ];
+        routes = iface.routes or [ ];
+        connectivity = iface.connectivity or null;
+        interface = iface;
+      }
+    ) (sortedAttrNames interfaces)
+  ) unitsOnDeploymentHost;
 in
 {
   inherit
     bridgeNameMap
     bridges
     netdevs
+    networks
     attachTargets
     ;
-
-  networks =
-    parentNetworks
-    // bridgeNetworks
-    // tenantRendered.networks;
 }
