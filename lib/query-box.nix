@@ -14,14 +14,10 @@ let
 
   importMaybeFunction =
     path:
-    let
-      imported =
-        if builtins.pathExists path then
-          import path
-        else
-          { };
-    in
-    callIfFunction imported;
+    if builtins.pathExists path then
+      callIfFunction (import path)
+    else
+      throw "lib/query-box.nix: missing required input path '${builtins.toString path}'";
 
   firstExistingPath = candidates:
     let

@@ -1,4 +1,4 @@
-{ pkgs, self }:
+{ pkgs, self ? null }:
 
 pkgs.writeShellApplication {
   name = "render-dry-config";
@@ -21,8 +21,15 @@ pkgs.writeShellApplication {
     intent_path="$(realpath "$1")"
     inventory_path="$(realpath "$2")"
     example_dir="$(dirname "$intent_path")"
-    repo_root='${self}'
+    repo_root='${builtins.toString ../.}'
     render_file="$repo_root/lib/render-dry-config-output.nix"
+
+    debug_value=false
+    case "''${RENDER_DRY_CONFIG_DEBUG:-0}" in
+      1|true|TRUE|yes|YES)
+        debug_value=true
+        ;;
+    esac
 
     rm -f \
       ./00-*.json \
@@ -45,18 +52,22 @@ pkgs.writeShellApplication {
           intentPath = \"$intent_path\";
           inventoryPath = \"$inventory_path\";
           exampleDir = \"$example_dir\";
+          debug = $debug_value;
         }
       " \
       > 90-dry-config.json
 
-    jq '.inputs.intent' 90-dry-config.json > 00-intent.json
-    jq '.inputs.inventory' 90-dry-config.json > 01-inventory.json
-    jq '.vars.paths' 90-dry-config.json > 10-paths.json
-    jq '.vars.hardware' 90-dry-config.json > 21-hardware.json
-    jq '.vars.realization' 90-dry-config.json > 22-realization.json
-    jq '.vars.portAttachTargets' 90-dry-config.json > 23-port-attach-targets.json
-    jq '.vars.enterprises' 90-dry-config.json > 24-enterprises.json
-    jq '.vars.hostNetworks' 90-dry-config.json > 30-host-networks.json
+    jq '.metadata.sourcePaths' 90-dry-config.json > 10-paths.json
+    jq '.render.hosts' 90-dry-config.json > 30-host-networks.json
+
+    if jq -e '.debug != null' 90-dry-config.json >/dev/null; then
+      jq '.debug.inputs.intent' 90-dry-config.json > 00-intent.json
+      jq '.debug.inputs.inventory' 90-dry-config.json > 01-inventory.json
+      jq '.debug.hardware' 90-dry-config.json > 21-hardware.json
+      jq '.debug.realization' 90-dry-config.json > 22-realization.json
+      jq '.debug.portAttachTargets' 90-dry-config.json > 23-port-attach-targets.json
+      jq '.debug.enterprises' 90-dry-config.json > 24-enterprises.json
+    fi
 
     cp 90-dry-config.json 90-render.json
     jq . 90-dry-config.json

@@ -9,6 +9,10 @@
 
 let
   runtimeContext = import ./runtime-context.nix { inherit lib; };
+
+  sortedAttrNames = attrs:
+    lib.sort builtins.lessThan (builtins.attrNames attrs);
+
   queried = (import ./query-box.nix { inherit lib; }).queryFromOutPath {
     inherit outPath;
     hostname = config.networking.hostName;
@@ -35,10 +39,24 @@ let
     else
       null;
 
-  matchedRole =
+  roles = import ./s88-role-registry.nix { inherit lib; };
+
+  deploymentHostUnitNames =
     if controlPlaneOut != null then
-      let
-        roles =
+      runtimeContext.unitNamesForDeploymentHost {
+        cpm = controlPlaneOut;
+        inventory = resolvedInventory;
+        inherit deploymentHostName;
+        file = "lib/s88-unit.nix";
+      }
+    else
+      [ ];
+
+  activeRoleNames =
+    if controlPlaneOut != null then
+      lib.filter
+        (roleName: builtins.hasAttr roleName roles)
+        (
           lib.unique (
             map
               (unitName:
@@ -48,51 +66,39 @@ let
                   inherit unitName;
                   file = "lib/s88-unit.nix";
                 })
-              (
-                runtimeContext.unitNamesForRoleOnDeploymentHost {
-                  cpm = controlPlaneOut;
-                  inventory = resolvedInventory;
-                  inherit deploymentHostName;
-                  role = "access";
-                  file = "lib/s88-unit.nix";
-                }
-                ++ runtimeContext.unitNamesForRoleOnDeploymentHost {
-                  cpm = controlPlaneOut;
-                  inventory = resolvedInventory;
-                  inherit deploymentHostName;
-                  role = "core";
-                  file = "lib/s88-unit.nix";
-                }
-                ++ runtimeContext.unitNamesForRoleOnDeploymentHost {
-                  cpm = controlPlaneOut;
-                  inventory = resolvedInventory;
-                  inherit deploymentHostName;
-                  role = "policy";
-                  file = "lib/s88-unit.nix";
-                }
-                ++ runtimeContext.unitNamesForRoleOnDeploymentHost {
-                  cpm = controlPlaneOut;
-                  inventory = resolvedInventory;
-                  inherit deploymentHostName;
-                  role = "upstream-selector";
-                  file = "lib/s88-unit.nix";
-                }
-              )
-          );
-      in
-      if builtins.length roles == 1 then builtins.head roles else null
+              deploymentHostUnitNames
+          )
+        )
+    else
+      [ ];
+
+  activeRoles =
+    builtins.listToAttrs (
+      map
+        (roleName: {
+          name = roleName;
+          value = roles.${roleName};
+        })
+        activeRoleNames
+    );
+
+  s88RoleName =
+    if builtins.length activeRoleNames == 1 then
+      builtins.head activeRoleNames
     else
       null;
 
-  roles = import ./s88-role-registry.nix { inherit lib; };
-
-  s88RoleName =
-    if matchedRole != null && builtins.hasAttr matchedRole roles then
-      matchedRole
+  s88Role =
+    if s88RoleName != null then
+      roles.${s88RoleName}
     else
-      throw "lib/s88-unit.nix: could not resolve a unique router role";
+      null;
 
-  s88Role = roles.${s88RoleName};
+  _validatedRoles =
+    if controlPlaneOut == null || activeRoleNames != [ ] then
+      true
+    else
+      throw "lib/s88-unit.nix: could not resolve any router roles for deployment host '${deploymentHostName}'";
 in
 {
   imports = [
@@ -101,8 +107,9 @@ in
   ];
 
   _module.args = {
-    inherit (queried) fabricInputs globalInventory;
-    inherit resolvedBoxContext s88Role s88RoleName;
+    inherit (queried) fabricInputs;
+    inherit resolvedBoxContext activeRoleNames activeRoles s88Role s88RoleName;
+    globalInventory = resolvedInventory;
     boxContext = resolvedBoxContext;
   };
 }

@@ -13,6 +13,38 @@ let
     else
       { };
 
+  logicalNodeForRealizationNode = node:
+    if node ? logicalNode && builtins.isAttrs node.logicalNode then
+      node.logicalNode
+    else
+      { };
+
+  namespaceSegmentsForNode = node:
+    let
+      logicalNode = logicalNodeForRealizationNode node;
+    in
+    lib.filter
+      builtins.isString
+      [
+        (logicalNode.enterprise or null)
+        (logicalNode.site or null)
+      ];
+
+  namespacedDirectBridgeName =
+    {
+      node,
+      linkName,
+    }:
+    let
+      namespaceSegments = namespaceSegmentsForNode node;
+      segments =
+        if namespaceSegments == [ ] then
+          [ linkName ]
+        else
+          namespaceSegments ++ [ linkName ];
+    in
+    builtins.concatStringsSep "--" segments;
+
   nodeForUnit =
     {
       inventory,
@@ -57,6 +89,7 @@ let
 
   attachForPort =
     {
+      node,
       port,
       unitName ? "<unknown>",
       portName ? "<unknown>",
@@ -68,6 +101,26 @@ let
           port.attach
         else
           { };
+
+      logicalNode = logicalNodeForRealizationNode node;
+
+      logicalName =
+        if logicalNode ? name && builtins.isString logicalNode.name then
+          logicalNode.name
+        else
+          unitName;
+
+      enterprise =
+        if logicalNode ? enterprise && builtins.isString logicalNode.enterprise then
+          logicalNode.enterprise
+        else
+          null;
+
+      site =
+        if logicalNode ? site && builtins.isString logicalNode.site then
+          logicalNode.site
+        else
+          null;
     in
     if (attach.kind or null) == "bridge"
       && attach ? bridge
@@ -76,14 +129,32 @@ let
       {
         kind = "bridge";
         name = attach.bridge;
+        originalName = attach.bridge;
+        hostBridgeName = attach.bridge;
+        identity = {
+          inherit enterprise site logicalName unitName portName;
+          attachmentKind = "bridge";
+        };
       }
     else if (attach.kind or null) == "direct"
       && port ? link
       && builtins.isString port.link
     then
+      let
+        hostBridgeName = namespacedDirectBridgeName {
+          inherit node;
+          linkName = port.link;
+        };
+      in
       {
         kind = "direct";
-        name = port.link;
+        name = hostBridgeName;
+        originalName = port.link;
+        hostBridgeName = hostBridgeName;
+        identity = {
+          inherit enterprise site logicalName unitName portName;
+          attachmentKind = "direct";
+        };
       }
     else
       throw ''
@@ -100,6 +171,10 @@ let
       file ? "lib/realization-ports.nix",
     }:
     let
+      node = nodeForUnit {
+        inherit inventory unitName file;
+      };
+
       ports = portsForUnit {
         inherit inventory unitName file;
       };
@@ -109,8 +184,8 @@ let
         (portName: {
           name = portName;
           value = attachForPort {
+            inherit node unitName portName file;
             port = ports.${portName};
-            inherit unitName portName file;
           };
         })
         (sortedAttrNames ports)
@@ -162,7 +237,7 @@ let
         inherit inventory deploymentHostName;
       };
 
-      attachTargetsByName =
+      attachTargetsByHostBridgeName =
         builtins.listToAttrs (
           lib.concatMap
             (unitName:
@@ -173,7 +248,7 @@ let
               in
               map
                 (portName: {
-                  name = attachMap.${portName}.name;
+                  name = attachMap.${portName}.hostBridgeName;
                   value = attachMap.${portName};
                 })
                 (sortedAttrNames attachMap))
@@ -181,8 +256,8 @@ let
         );
     in
     map
-      (name: attachTargetsByName.${name})
-      (sortedAttrNames attachTargetsByName);
+      (hostBridgeName: attachTargetsByHostBridgeName.${hostBridgeName})
+      (sortedAttrNames attachTargetsByHostBridgeName);
 
 in
 {

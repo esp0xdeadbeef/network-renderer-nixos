@@ -192,6 +192,23 @@ let
     else
       null;
 
+  unitNamesForDeploymentHost =
+    {
+      cpm,
+      inventory,
+      deploymentHostName,
+      file ? "lib/runtime-context.nix",
+    }:
+    let
+      targets = runtimeTargets cpm;
+    in
+    lib.filter
+      (unitName:
+        deploymentHostForUnit {
+          inherit cpm inventory unitName file;
+        } == deploymentHostName)
+      (sortedAttrNames targets);
+
   unitNamesForRoleOnDeploymentHost =
     {
       cpm,
@@ -249,6 +266,7 @@ in
     logicalNodeForUnit
     roleForUnit
     deploymentHostForUnit
+    unitNamesForDeploymentHost
     unitNamesForRoleOnDeploymentHost
     enterpriseNamesForUnit
     siteNamesForUnit
