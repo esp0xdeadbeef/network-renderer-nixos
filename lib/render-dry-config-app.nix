@@ -201,6 +201,6 @@ pkgs.writeShellApplication {
       jq '.debug.normalizedRuntimeTargets' 90-dry-config.json > 25-runtime-targets.json
     fi
 
-    cp 90-dry-config.json 90-render.json
+    jq '.render' 90-dry-config.json > 90-render.json
   '';
 }

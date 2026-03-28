@@ -29,8 +29,15 @@ let
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  firstExistingPath =
+    candidates:
+    let
+      existing = lib.filter (path: path != null && builtins.pathExists (builtins.toPath path)) candidates;
+    in
+    if existing == [ ] then null else builtins.head existing;
+
   resolvedCpmPath = if cpmPath == null then null else builtins.toString cpmPath;
-  resolvedInventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
+  requestedInventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
 
   resolvedExampleDir =
     if exampleDir != null then
@@ -39,6 +46,15 @@ let
       builtins.dirOf resolvedCpmPath
     else
       null;
+
+  resolvedInventoryPath =
+    if requestedInventoryPath != null then
+      requestedInventoryPath
+    else
+      firstExistingPath [
+        (if resolvedExampleDir != null then "${resolvedExampleDir}/inventory.nix" else null)
+        (if resolvedExampleDir != null then "${resolvedExampleDir}/inputs/inventory.nix" else null)
+      ];
 
   controlPlane =
     if cpm != null then
@@ -96,6 +112,41 @@ let
     }) deploymentHostNames
   );
 
+  sanitizeContainer = containerName: container: {
+    autoStart = container.autoStart or false;
+    privateNetwork = container.privateNetwork or false;
+    extraVeths = container.extraVeths or { };
+    bindMounts = container.bindMounts or { };
+    allowedDevices = container.allowedDevices or [ ];
+    additionalCapabilities = container.additionalCapabilities or [ ];
+    specialArgs = {
+      unitName =
+        if container ? specialArgs && container.specialArgs ? unitName then
+          container.specialArgs.unitName
+        else
+          containerName;
+      deploymentHostName =
+        if container ? specialArgs && container.specialArgs ? deploymentHostName then
+          container.specialArgs.deploymentHostName
+        else
+          null;
+      s88RoleName =
+        if container ? specialArgs && container.specialArgs ? s88RoleName then
+          container.specialArgs.s88RoleName
+        else
+          null;
+    };
+  };
+
+  sanitizedContainersForHost =
+    hostRendering:
+    builtins.listToAttrs (
+      map (containerName: {
+        name = containerName;
+        value = sanitizeContainer containerName hostRendering.containers.${containerName};
+      }) (sortedAttrNames (hostRendering.containers or { }))
+    );
+
   hostRenderingsDebug = builtins.mapAttrs (_hostName: hostRendering: {
     hostName = hostRendering.hostName or null;
     deploymentHostName = hostRendering.deploymentHostName or null;
@@ -110,40 +161,7 @@ let
     localAttachTargets = hostRendering.localAttachTargets or [ ];
     uplinks = hostRendering.uplinks or { };
     transitBridges = hostRendering.transitBridges or { };
-    containers = builtins.listToAttrs (
-      map (containerName: {
-        name = containerName;
-        value =
-          let
-            container = hostRendering.containers.${containerName};
-          in
-          {
-            autoStart = container.autoStart or false;
-            privateNetwork = container.privateNetwork or false;
-            extraVeths = container.extraVeths or { };
-            bindMounts = container.bindMounts or { };
-            allowedDevices = container.allowedDevices or [ ];
-            additionalCapabilities = container.additionalCapabilities or [ ];
-            specialArgs = {
-              unitName =
-                if container ? specialArgs && container.specialArgs ? unitName then
-                  container.specialArgs.unitName
-                else
-                  containerName;
-              deploymentHostName =
-                if container ? specialArgs && container.specialArgs ? deploymentHostName then
-                  container.specialArgs.deploymentHostName
-                else
-                  null;
-              s88RoleName =
-                if container ? specialArgs && container.specialArgs ? s88RoleName then
-                  container.specialArgs.s88RoleName
-                else
-                  null;
-            };
-          };
-      }) (sortedAttrNames (hostRendering.containers or { }))
-    );
+    containers = sanitizedContainersForHost hostRendering;
     debug = hostRendering.debug or { };
   }) hostRenderings;
 
@@ -165,8 +183,12 @@ let
             render-dry-config: unit '${unitName}' references unknown deployment host '${deploymentHostName}'
           '';
 
-      bridgeNameMap = hostRendering.bridgeNameMap;
+      bridgeNameMap = hostRendering.bridgeNameMap or { };
       interfaces = normalizedRuntimeTargets.${unitName}.interfaces or { };
+
+      globalBridgeNameMap = lib.foldl' (
+        acc: hostName: acc // (hostRenderings.${hostName}.bridgeNameMap or { })
+      ) { } deploymentHostNames;
     in
     builtins.listToAttrs (
       map (
@@ -177,9 +199,19 @@ let
           renderedHostBridgeName =
             if builtins.hasAttr iface.hostBridge bridgeNameMap then
               bridgeNameMap.${iface.hostBridge}
+            else if builtins.hasAttr iface.hostBridge globalBridgeNameMap then
+              globalBridgeNameMap.${iface.hostBridge}
             else
               throw ''
                 render-dry-config: missing rendered bridge for '${iface.hostBridge}' (unit '${unitName}', interface '${ifName}')
+
+                deploymentHostName: ${deploymentHostName}
+
+                local bridgeNameMap keys:
+                ${builtins.toJSON (sortedAttrNames bridgeNameMap)}
+
+                global bridgeNameMap keys:
+                ${builtins.toJSON (sortedAttrNames globalBridgeNameMap)}
               '';
         in
         {
@@ -241,6 +273,13 @@ let
     }) unitNames
   );
 
+  renderContainers = builtins.listToAttrs (
+    map (hostName: {
+      name = hostName;
+      value = sanitizedContainersForHost hostRenderings.${hostName};
+    }) deploymentHostNames
+  );
+
   output = {
     metadata = {
       sourcePaths = {
@@ -254,6 +293,7 @@ let
     render = {
       hosts = renderHosts;
       nodes = renderNodes;
+      containers = renderContainers;
     };
   }
   // (
@@ -279,7 +319,9 @@ let
       throw ''
         render-dry-config: no deployment hosts found in control-plane model
       ''
-    else if output.render.hosts == { } && output.render.nodes == { } then
+    else if
+      output.render.hosts == { } && output.render.nodes == { } && output.render.containers == { }
+    then
       throw ''
         render-dry-config: empty render output
       ''
