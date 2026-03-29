@@ -129,9 +129,9 @@ let
         dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
       in
       {
-        name = "10-${iface.renderedIfName}";
+        name = "10-${iface.hostInterfaceName}";
         value = {
-          matchConfig.Name = iface.renderedIfName;
+          matchConfig.Name = iface.hostInterfaceName;
           networkConfig = {
             ConfigureWithoutCarrier = true;
           }

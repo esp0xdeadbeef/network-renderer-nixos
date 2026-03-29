@@ -142,10 +142,9 @@ let
           iface = interfaces.${ifName};
         in
         {
-          name = iface.renderedIfName;
+          name = iface.hostInterfaceName;
           value = {
             hostBridge = iface.renderedHostBridgeName;
-            hostInterfaceName = iface.hostInterfaceName;
           };
         }
       ) (sortedAttrNames interfaces)
@@ -195,11 +194,11 @@ let
 
       interfaceNames = sortedAttrNames interfaces;
 
-      wanInterfaceNames = map (ifName: interfaces.${ifName}.renderedIfName) (
+      wanInterfaceNames = map (ifName: interfaces.${ifName}.hostInterfaceName) (
         lib.filter (ifName: interfaces.${ifName}.sourceKind == "wan") interfaceNames
       );
 
-      lanInterfaceNames = map (ifName: interfaces.${ifName}.renderedIfName) (
+      lanInterfaceNames = map (ifName: interfaces.${ifName}.hostInterfaceName) (
         lib.filter (ifName: interfaces.${ifName}.sourceKind != "wan") interfaceNames
       );
     in
