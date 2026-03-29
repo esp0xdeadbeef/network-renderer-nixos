@@ -3,8 +3,10 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  realizationNodesFor = inventory:
-    if inventory ? realization
+  realizationNodesFor =
+    inventory:
+    if
+      inventory ? realization
       && builtins.isAttrs inventory.realization
       && inventory.realization ? nodes
       && builtins.isAttrs inventory.realization.nodes
@@ -13,22 +15,18 @@ let
     else
       { };
 
-  logicalNodeForRealizationNode = node:
-    if node ? logicalNode && builtins.isAttrs node.logicalNode then
-      node.logicalNode
-    else
-      { };
+  logicalNodeForRealizationNode =
+    node: if node ? logicalNode && builtins.isAttrs node.logicalNode then node.logicalNode else { };
 
-  namespaceSegmentsForNode = node:
+  namespaceSegmentsForNode =
+    node:
     let
       logicalNode = logicalNodeForRealizationNode node;
     in
-    lib.filter
-      builtins.isString
-      [
-        (logicalNode.enterprise or null)
-        (logicalNode.site or null)
-      ];
+    lib.filter builtins.isString [
+      (logicalNode.enterprise or null)
+      (logicalNode.site or null)
+    ];
 
   namespacedDirectBridgeName =
     {
@@ -37,11 +35,7 @@ let
     }:
     let
       namespaceSegments = namespaceSegmentsForNode node;
-      segments =
-        if namespaceSegments == [ ] then
-          [ linkName ]
-        else
-          namespaceSegments ++ [ linkName ];
+      segments = if namespaceSegments == [ ] then [ linkName ] else namespaceSegments ++ [ linkName ];
     in
     builtins.concatStringsSep "--" segments;
 
@@ -54,9 +48,7 @@ let
     let
       realizationNodes = realizationNodesFor inventory;
     in
-    if builtins.hasAttr unitName realizationNodes
-      && builtins.isAttrs realizationNodes.${unitName}
-    then
+    if builtins.hasAttr unitName realizationNodes && builtins.isAttrs realizationNodes.${unitName} then
       realizationNodes.${unitName}
     else
       throw ''
@@ -96,19 +88,12 @@ let
       file ? "lib/realization-ports.nix",
     }:
     let
-      attach =
-        if port ? attach && builtins.isAttrs port.attach then
-          port.attach
-        else
-          { };
+      attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
 
       logicalNode = logicalNodeForRealizationNode node;
 
       logicalName =
-        if logicalNode ? name && builtins.isString logicalNode.name then
-          logicalNode.name
-        else
-          unitName;
+        if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
 
       enterprise =
         if logicalNode ? enterprise && builtins.isString logicalNode.enterprise then
@@ -116,30 +101,26 @@ let
         else
           null;
 
-      site =
-        if logicalNode ? site && builtins.isString logicalNode.site then
-          logicalNode.site
-        else
-          null;
+      site = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
     in
-    if (attach.kind or null) == "bridge"
-      && attach ? bridge
-      && builtins.isString attach.bridge
-    then
+    if (attach.kind or null) == "bridge" && attach ? bridge && builtins.isString attach.bridge then
       {
         kind = "bridge";
         name = attach.bridge;
         originalName = attach.bridge;
         hostBridgeName = attach.bridge;
         identity = {
-          inherit enterprise site logicalName unitName portName;
+          inherit
+            enterprise
+            site
+            logicalName
+            unitName
+            portName
+            ;
           attachmentKind = "bridge";
         };
       }
-    else if (attach.kind or null) == "direct"
-      && port ? link
-      && builtins.isString port.link
-    then
+    else if (attach.kind or null) == "direct" && port ? link && builtins.isString port.link then
       let
         hostBridgeName = namespacedDirectBridgeName {
           inherit node;
@@ -152,7 +133,13 @@ let
         originalName = port.link;
         hostBridgeName = hostBridgeName;
         identity = {
-          inherit enterprise site logicalName unitName portName;
+          inherit
+            enterprise
+            site
+            logicalName
+            unitName
+            portName
+            ;
           attachmentKind = "direct";
         };
       }
@@ -180,15 +167,18 @@ let
       };
     in
     builtins.listToAttrs (
-      map
-        (portName: {
-          name = portName;
-          value = attachForPort {
-            inherit node unitName portName file;
-            port = ports.${portName};
-          };
-        })
-        (sortedAttrNames ports)
+      map (portName: {
+        name = portName;
+        value = attachForPort {
+          inherit
+            node
+            unitName
+            portName
+            file
+            ;
+          port = ports.${portName};
+        };
+      }) (sortedAttrNames ports)
     );
 
   attachMapForInventory =
@@ -200,14 +190,12 @@ let
       realizationNodes = realizationNodesFor inventory;
     in
     builtins.listToAttrs (
-      map
-        (unitName: {
-          name = unitName;
-          value = attachMapForUnit {
-            inherit inventory unitName file;
-          };
-        })
-        (sortedAttrNames realizationNodes)
+      map (unitName: {
+        name = unitName;
+        value = attachMapForUnit {
+          inherit inventory unitName file;
+        };
+      }) (sortedAttrNames realizationNodes)
     );
 
   unitNamesForDeploymentHost =
@@ -218,13 +206,13 @@ let
     let
       realizationNodes = realizationNodesFor inventory;
     in
-    lib.filter
-      (unitName:
-        let
-          node = realizationNodes.${unitName};
-        in
-        (node.host or null) == deploymentHostName)
-      (sortedAttrNames realizationNodes);
+    lib.filter (
+      unitName:
+      let
+        node = realizationNodes.${unitName};
+      in
+      (node.host or null) == deploymentHostName
+    ) (sortedAttrNames realizationNodes);
 
   attachTargetsForDeploymentHost =
     {
@@ -237,28 +225,71 @@ let
         inherit inventory deploymentHostName;
       };
 
-      attachTargetsByHostBridgeName =
-        builtins.listToAttrs (
-          lib.concatMap
-            (unitName:
-              let
-                attachMap = attachMapForUnit {
-                  inherit inventory unitName file;
-                };
-              in
-              map
-                (portName: {
-                  name = attachMap.${portName}.hostBridgeName;
-                  value = attachMap.${portName};
-                })
-                (sortedAttrNames attachMap))
-            unitNames
-        );
+      attachTargetsByHostBridgeName = builtins.listToAttrs (
+        lib.concatMap (
+          unitName:
+          let
+            attachMap = attachMapForUnit {
+              inherit inventory unitName file;
+            };
+          in
+          map (portName: {
+            name = attachMap.${portName}.hostBridgeName;
+            value = attachMap.${portName};
+          }) (sortedAttrNames attachMap)
+        ) unitNames
+      );
     in
-    map
-      (hostBridgeName: attachTargetsByHostBridgeName.${hostBridgeName})
-      (sortedAttrNames attachTargetsByHostBridgeName);
+    map (hostBridgeName: attachTargetsByHostBridgeName.${hostBridgeName}) (
+      sortedAttrNames attachTargetsByHostBridgeName
+    );
 
+  attachTargetsForUnitsFromRuntime =
+    {
+      selectedUnits,
+      normalizedRuntimeTargets,
+      file ? "lib/realization-ports.nix",
+    }:
+    lib.concatMap (
+      unitName:
+      let
+        runtimeTarget =
+          if builtins.hasAttr unitName normalizedRuntimeTargets then
+            normalizedRuntimeTargets.${unitName}
+          else
+            throw ''
+              ${file}: missing normalized runtime target for unit '${unitName}'
+            '';
+
+        interfaces =
+          if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
+            runtimeTarget.interfaces
+          else
+            { };
+      in
+      map (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+
+          hostBridgeName =
+            if iface ? hostBridge && builtins.isString iface.hostBridge then
+              iface.hostBridge
+            else
+              throw ''
+                ${file}: normalized interface '${ifName}' for unit '${unitName}' is missing hostBridge
+
+                interface:
+                ${builtins.toJSON iface}
+              '';
+        in
+        {
+          inherit unitName ifName hostBridgeName;
+          interface = iface;
+          connectivity = iface.connectivity or { };
+        }
+      ) (sortedAttrNames interfaces)
+    ) selectedUnits;
 in
 {
   inherit
@@ -270,5 +301,6 @@ in
     attachMapForInventory
     unitNamesForDeploymentHost
     attachTargetsForDeploymentHost
+    attachTargetsForUnitsFromRuntime
     ;
 }

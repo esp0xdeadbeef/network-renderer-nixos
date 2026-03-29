@@ -6,11 +6,14 @@
 }:
 
 let
-  hostNaming = import ./host-naming.nix { inherit lib; };
-  hostQuery = import ./host-query.nix { inherit lib; };
   runtimeContext = import ./runtime-context.nix { inherit lib; };
   cpmAdapter = import ./cpm-runtime-adapter.nix { inherit lib; };
+  realizationPorts = import ./realization-ports.nix { inherit lib; };
+  hostQuery = import ./host-query.nix { inherit lib; };
+  hostNaming = import ./host-naming.nix { inherit lib; };
+  bridgeRenderer = import ./tenant-bridge-renderer.nix { inherit lib; };
   roles = import ./s88-role-registry.nix { inherit lib; };
+  nft = import ./s88-nftables.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -24,7 +27,7 @@ let
         file = "lib/render-host-network.nix";
       }
     else
-      rec {
+      {
         hostname = hostName;
         renderHosts = { };
         renderHostConfig = { };
@@ -36,30 +39,16 @@ let
         realizationNode = null;
       };
 
-  deploymentHostName =
-    if
-      resolvedHostContext ? deploymentHostName && builtins.isString resolvedHostContext.deploymentHostName
-    then
-      resolvedHostContext.deploymentHostName
-    else
-      hostName;
-
-  deploymentHost =
-    if resolvedHostContext ? deploymentHost && builtins.isAttrs resolvedHostContext.deploymentHost then
-      resolvedHostContext.deploymentHost
-    else
-      { };
-
-  renderHostConfig =
-    if
-      resolvedHostContext ? renderHostConfig && builtins.isAttrs resolvedHostContext.renderHostConfig
-    then
-      resolvedHostContext.renderHostConfig
-    else
-      { };
+  deploymentHostName = resolvedHostContext.deploymentHostName or hostName;
+  deploymentHost = resolvedHostContext.deploymentHost or { };
+  renderHostConfig = resolvedHostContext.renderHostConfig or { };
 
   realizationNodes =
     if
+      resolvedHostContext ? realizationNodes && builtins.isAttrs resolvedHostContext.realizationNodes
+    then
+      resolvedHostContext.realizationNodes
+    else if
       inventory ? realization
       && builtins.isAttrs inventory.realization
       && inventory.realization ? nodes
@@ -76,149 +65,10 @@ let
 
   allUnitNames = sortedAttrNames normalizedRuntimeTargets;
 
-  logicalNodeForUnit =
-    unitName:
-    let
-      target = normalizedRuntimeTargets.${unitName};
-    in
-    if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
-
-  logicalNodeNameForUnit =
-    unitName:
-    let
-      logicalNode = logicalNodeForUnit unitName;
-    in
-    if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
-
-  logicalNodeIdentityForUnit =
-    unitName:
-    let
-      logicalNode = logicalNodeForUnit unitName;
-
-      segments = lib.filter builtins.isString [
-        (logicalNode.enterprise or null)
-        (logicalNode.site or null)
-        (logicalNode.name or null)
-      ];
-    in
-    if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
-
-  placementHostForUnit =
-    unitName:
-    let
-      target = normalizedRuntimeTargets.${unitName};
-    in
-    if
-      target ? placement
-      && builtins.isAttrs target.placement
-      && target.placement ? host
-      && builtins.isString target.placement.host
-    then
-      target.placement.host
-    else
-      null;
-
-  realizationHostForUnit =
-    unitName:
-    if
-      builtins.hasAttr unitName realizationNodes
-      && builtins.isAttrs realizationNodes.${unitName}
-      && realizationNodes.${unitName} ? host
-      && builtins.isString realizationNodes.${unitName}.host
-    then
-      realizationNodes.${unitName}.host
-    else
-      null;
-
-  unitBelongsToMachine =
-    unitName:
-    let
-      logicalNodeName = logicalNodeNameForUnit unitName;
-      placementHost = placementHostForUnit unitName;
-      realizationHost = realizationHostForUnit unitName;
-    in
-    logicalNodeName == hostName
-    || lib.hasPrefix "${hostName}-" logicalNodeName
-    || placementHost == deploymentHostName
-    || realizationHost == deploymentHostName;
-
   unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
-    inherit cpm inventory;
-    deploymentHostName = deploymentHostName;
+    inherit cpm inventory deploymentHostName;
     file = "lib/render-host-network.nix";
   };
-
-  selectedUnitsBase = lib.unique (
-    unitsOnDeploymentHost ++ lib.filter unitBelongsToMachine allUnitNames
-  );
-
-  interfacesForUnit =
-    unitName:
-    if builtins.hasAttr unitName normalizedRuntimeTargets then
-      normalizedRuntimeTargets.${unitName}.interfaces or { }
-    else
-      { };
-
-  localAttachBridgeNames = lib.unique (
-    lib.concatMap (
-      unitName:
-      let
-        interfaces = interfacesForUnit unitName;
-      in
-      map (
-        ifName:
-        let
-          iface = interfaces.${ifName};
-        in
-        if iface ? hostBridge && builtins.isString iface.hostBridge then
-          iface.hostBridge
-        else
-          throw ''
-            lib/render-host-network.nix: interface '${ifName}' for unit '${unitName}' is missing normalized hostBridge
-          ''
-      ) (sortedAttrNames interfaces)
-    ) selectedUnitsBase
-  );
-
-  bridgeNamesRaw = lib.sort builtins.lessThan (lib.unique localAttachBridgeNames);
-
-  bridgeNameMap = hostNaming.ensureUnique bridgeNamesRaw;
-
-  bridgeNames = map (bridgeName: bridgeNameMap.${bridgeName}) bridgeNamesRaw;
-
-  bridges = builtins.listToAttrs (
-    map (bridgeName: {
-      name = bridgeName;
-      value = {
-        originalName = bridgeName;
-        renderedName = bridgeNameMap.${bridgeName};
-      };
-    }) bridgeNamesRaw
-  );
-
-  localBridgeNetdevs = builtins.listToAttrs (
-    map (renderedBridgeName: {
-      name = "10-${renderedBridgeName}";
-      value = {
-        netdevConfig = {
-          Name = renderedBridgeName;
-          Kind = "bridge";
-        };
-      };
-    }) bridgeNames
-  );
-
-  localBridgeNetworks = builtins.listToAttrs (
-    map (renderedBridgeName: {
-      name = "30-${renderedBridgeName}";
-      value = {
-        matchConfig.Name = renderedBridgeName;
-        networkConfig = {
-          ConfigureWithoutCarrier = true;
-        };
-      };
-    }) bridgeNames
-  );
 
   runtimeRole =
     if renderHostConfig ? runtimeRole && builtins.isString renderHostConfig.runtimeRole then
@@ -226,17 +76,11 @@ let
     else
       null;
 
-  selectedUnits = lib.filter (
-    unitName:
-    runtimeRole == null
-    ||
-      runtimeContext.roleForUnit {
-        cpm = cpm;
-        inventory = inventory;
-        inherit unitName;
-        file = "lib/render-host-network.nix";
-      } == runtimeRole
-  ) selectedUnitsBase;
+  selectedUnits = runtimeContext.selectedUnitsForHostContext {
+    inherit cpm inventory runtimeRole;
+    hostContext = resolvedHostContext;
+    file = "lib/render-host-network.nix";
+  };
 
   _selectedUnitsNonEmpty =
     if selectedUnits != [ ] then
@@ -257,6 +101,55 @@ let
         ${builtins.concatStringsSep "\n  " ([ "" ] ++ allUnitNames)}
       '';
 
+  selectedRoleNames = runtimeContext.selectedRoleNamesForUnits {
+    inherit cpm inventory selectedUnits;
+    file = "lib/render-host-network.nix";
+  };
+
+  selectedRoles = builtins.listToAttrs (
+    map (roleName: {
+      name = roleName;
+      value = roles.${roleName};
+    }) (lib.filter (roleName: builtins.hasAttr roleName roles) selectedRoleNames)
+  );
+
+  attachTargetsRuntime = realizationPorts.attachTargetsForUnitsFromRuntime {
+    inherit selectedUnits normalizedRuntimeTargets;
+    file = "lib/render-host-network.nix";
+  };
+
+  bridgeArtifacts = bridgeRenderer.renderBridgeArtifacts {
+    attachTargets = attachTargetsRuntime;
+    shorten = hostNaming.shorten;
+    ensureUnique = hostNaming.ensureUnique;
+  };
+
+  bridgeNameMap = bridgeArtifacts.bridgeNameMap;
+  bridges = bridgeArtifacts.bridges;
+  localBridgeNetdevs = bridgeArtifacts.netdevs;
+  localBridgeNetworks = bridgeArtifacts.networks;
+
+  attachTargetsBase = map (
+    target:
+    let
+      iface = target.interface or { };
+      hostBridgeName = target.hostBridgeName;
+    in
+    target
+    // {
+      baseRenderedHostBridgeName =
+        if builtins.hasAttr hostBridgeName bridgeNameMap then
+          bridgeNameMap.${hostBridgeName}
+        else
+          hostNaming.shorten hostBridgeName;
+      renderedIfName = iface.renderedIfName or null;
+      addresses = iface.addresses or [ ];
+      routes = iface.routes or [ ];
+      connectivity = target.connectivity or (iface.connectivity or { });
+      interface = iface;
+    }
+  ) attachTargetsRuntime;
+
   sourceKindForTarget =
     target:
     if
@@ -269,35 +162,13 @@ let
     else
       null;
 
-  attachTargetsBase = lib.concatMap (
-    unitName:
-    let
-      interfaces = interfacesForUnit unitName;
-    in
-    map (
-      ifName:
-      let
-        iface = interfaces.${ifName};
-        hostBridgeName = iface.hostBridge;
-      in
-      {
-        inherit unitName ifName hostBridgeName;
-        baseRenderedHostBridgeName = bridgeNameMap.${hostBridgeName};
-        renderedIfName = iface.renderedIfName or null;
-        addresses = iface.addresses or [ ];
-        routes = iface.routes or [ ];
-        connectivity = iface.connectivity or { };
-        interface = iface;
-      }
-    ) (sortedAttrNames interfaces)
-  ) selectedUnitsBase;
-
-  localAttachTargetsBase = lib.filter (
-    target: builtins.elem (target.unitName or "") selectedUnits
-  ) attachTargetsBase;
-
-  logicalNodeNameForTarget = target: logicalNodeNameForUnit target.unitName;
-  logicalNodeIdentityForTarget = target: logicalNodeIdentityForUnit target.unitName;
+  logicalNodeIdentityForTarget =
+    target:
+    runtimeContext.logicalNodeIdentityForUnit {
+      inherit cpm inventory;
+      unitName = target.unitName;
+      file = "lib/render-host-network.nix";
+    };
 
   wanGroupNameForTarget =
     target: if sourceKindForTarget target == "wan" then logicalNodeIdentityForTarget target else null;
@@ -332,8 +203,14 @@ let
         ${builtins.toJSON deploymentHost}
       '';
 
+  uplinkBridgeNamesRaw = lib.unique (
+    lib.filter builtins.isString (map (uplinkName: uplinksRaw.${uplinkName}.bridge or null) uplinkNames)
+  );
+
+  uplinkBridgeNameMap = hostNaming.ensureUnique uplinkBridgeNamesRaw;
+
   wanGroupNames = lib.sort builtins.lessThan (
-    lib.unique (lib.filter builtins.isString (map wanGroupNameForTarget localAttachTargetsBase))
+    lib.unique (lib.filter builtins.isString (map wanGroupNameForTarget attachTargetsBase))
   );
 
   configuredWanUplinkName =
@@ -420,8 +297,7 @@ let
   );
 
   wanTargetsForGroup =
-    wanGroupName:
-    lib.filter (target: wanGroupNameForTarget target == wanGroupName) localAttachTargetsBase;
+    wanGroupName: lib.filter (target: wanGroupNameForTarget target == wanGroupName) attachTargetsBase;
 
   upstreamNamesForWanGroup =
     wanGroupName:
@@ -569,27 +445,37 @@ let
     let
       uplinkName = wanGroupToUplinkName.${wanGroupName};
       uplink = uplinksRaw.${uplinkName};
-    in
-    if uplink ? bridge && builtins.isString uplink.bridge then
-      uplink.bridge
-    else
-      throw ''
-        lib/render-host-network.nix: uplink '${uplinkName}' assigned to WAN group '${wanGroupName}' is missing bridge
 
-        uplink:
-        ${builtins.toJSON uplink}
-      '';
+      originalBridge =
+        if uplink ? bridge && builtins.isString uplink.bridge then
+          uplink.bridge
+        else
+          throw ''
+            lib/render-host-network.nix: uplink '${uplinkName}' assigned to WAN group '${wanGroupName}' is missing bridge
+
+            uplink:
+            ${builtins.toJSON uplink}
+          '';
+    in
+    uplinkBridgeNameMap.${originalBridge};
 
   attachTargets = builtins.seq _validateStrictWanRendering (
     map (
       target:
       let
         wanGroupName = wanGroupNameForTarget target;
+
+        assignedUplinkName =
+          if wanGroupName != null && builtins.hasAttr wanGroupName wanGroupToUplinkName then
+            wanGroupToUplinkName.${wanGroupName}
+          else
+            null;
       in
       target
       // {
+        inherit assignedUplinkName;
         renderedHostBridgeName =
-          if wanGroupName != null && builtins.hasAttr wanGroupName wanGroupToUplinkName then
+          if assignedUplinkName != null then
             renderedHostBridgeNameForWanGroup wanGroupName
           else
             target.baseRenderedHostBridgeName;
@@ -597,9 +483,7 @@ let
     ) attachTargetsBase
   );
 
-  localAttachTargets = lib.filter (
-    target: builtins.elem (target.unitName or "") selectedUnits
-  ) attachTargets;
+  localAttachTargets = attachTargets;
 
   maybePreferredAttachTarget =
     predicate:
@@ -615,15 +499,7 @@ let
   renderedHostBridgeNameForAssignedUplink =
     uplinkName:
     let
-      matches = lib.filter (
-        target:
-        let
-          wanGroupName = wanGroupNameForTarget target;
-        in
-        wanGroupName != null
-        && builtins.hasAttr wanGroupName wanGroupToUplinkName
-        && wanGroupToUplinkName.${wanGroupName} == uplinkName
-      ) localAttachTargets;
+      matches = lib.filter (target: (target.assignedUplinkName or null) == uplinkName) localAttachTargets;
 
       renderedNames = lib.unique (map (target: target.renderedHostBridgeName) matches);
     in
@@ -705,10 +581,8 @@ let
           fabricUplinkName != null && uplinkName == fabricUplinkName && fabricAttachTarget != null
         then
           fabricAttachTarget.renderedHostBridgeName
-        else if builtins.hasAttr originalBridge bridgeNameMap then
-          bridgeNameMap.${originalBridge}
         else
-          originalBridge;
+          uplinkBridgeNameMap.${originalBridge};
     in
     uplink
     // {
@@ -762,13 +636,15 @@ let
     ) (builtins.attrNames realizationNodes)
   );
 
+  synthesizedTransitBridgeNameMap = hostNaming.ensureUnique synthesizedTransitLinks;
+
   transitBridges =
     if !(deploymentHost ? transitBridges) then
       builtins.listToAttrs (
         map (linkName: {
           name = linkName;
           value = {
-            name = linkName;
+            name = synthesizedTransitBridgeNameMap.${linkName};
           };
         }) synthesizedTransitLinks
       )
@@ -841,10 +717,15 @@ let
           transitName:
           let
             transit = transitBridges.${transitName};
+            transitNameRendered =
+              if transit ? name && builtins.isString transit.name then
+                transit.name
+              else
+                hostNaming.shorten transitName;
             transitVlanIfName = "${uplink.bridge}.${toString transit.vlan}";
           in
           {
-            name = "12-${transitVlanIfName}";
+            name = "12-${transitNameRendered}";
             value = {
               netdevConfig = {
                 Name = transitVlanIfName;
@@ -945,6 +826,7 @@ let
         uplink = uplinks.${uplinkName};
         transitNamesOnUplink = transitNamesForUplink uplinkName;
         baseBridgeNetworkConfig = bridgeNetworkFor uplink;
+
         bridgeNetworkConfig = {
           ConfigureWithoutCarrier = true;
           DHCP = "no";
@@ -981,12 +863,18 @@ let
       transitName:
       let
         transit = transitBridges.${transitName};
+
+        transitNameRendered =
+          if transit ? name && builtins.isString transit.name then
+            transit.name
+          else
+            hostNaming.shorten transitName;
       in
       {
-        name = "40-${transit.name}";
+        name = "40-${transitNameRendered}";
         value = {
           netdevConfig = {
-            Name = transit.name;
+            Name = transitNameRendered;
             Kind = "bridge";
           };
         };
@@ -999,13 +887,20 @@ let
       transitName:
       let
         transit = transitBridges.${transitName};
+
+        transitNameRendered =
+          if transit ? name && builtins.isString transit.name then
+            transit.name
+          else
+            hostNaming.shorten transitName;
+
         parentUplink = transit.parentUplink or null;
       in
       [
         {
-          name = "50-${transit.name}";
+          name = "50-${transitNameRendered}";
           value = {
-            matchConfig.Name = transit.name;
+            matchConfig.Name = transitNameRendered;
             linkConfig = {
               ActivationPolicy = "always-up";
               RequiredForOnline = "no";
@@ -1041,7 +936,7 @@ let
                     RequiredForOnline = "no";
                   };
                   networkConfig = {
-                    Bridge = transit.name;
+                    Bridge = transitNameRendered;
                     ConfigureWithoutCarrier = true;
                     LinkLocalAddressing = "no";
                     IPv6AcceptRA = false;
@@ -1090,41 +985,53 @@ let
         };
 
   mkDynamicWanNetworkConfig =
-    iface:
+    attachTarget: iface:
     let
       connectivity = iface.connectivity or { };
       isWan = (connectivity.sourceKind or null) == "wan";
       addresses = iface.addresses or [ ];
 
-      wanUplink =
-        if isWan && wanUplinkName != null && builtins.hasAttr wanUplinkName uplinks then
+      assignedUplink =
+        if
+          isWan
+          && attachTarget != null
+          && attachTarget ? assignedUplinkName
+          && attachTarget.assignedUplinkName != null
+          && builtins.hasAttr attachTarget.assignedUplinkName uplinks
+        then
+          uplinks.${attachTarget.assignedUplinkName}
+        else if isWan && wanUplinkName != null && builtins.hasAttr wanUplinkName uplinks then
           uplinks.${wanUplinkName}
         else
           { };
 
       ipv4Enabled =
-        wanUplink ? ipv4 && builtins.isAttrs wanUplink.ipv4 && (wanUplink.ipv4.enable or false);
+        assignedUplink ? ipv4
+        && builtins.isAttrs assignedUplink.ipv4
+        && (assignedUplink.ipv4.enable or false);
 
       ipv4Dhcp =
         ipv4Enabled
-        && wanUplink ? ipv4
-        && builtins.isAttrs wanUplink.ipv4
-        && (wanUplink.ipv4.dhcp or false);
+        && assignedUplink ? ipv4
+        && builtins.isAttrs assignedUplink.ipv4
+        && (assignedUplink.ipv4.dhcp or false);
 
       ipv6Enabled =
-        wanUplink ? ipv6 && builtins.isAttrs wanUplink.ipv6 && (wanUplink.ipv6.enable or false);
+        assignedUplink ? ipv6
+        && builtins.isAttrs assignedUplink.ipv6
+        && (assignedUplink.ipv6.enable or false);
 
       ipv6Dhcp =
         ipv6Enabled
-        && wanUplink ? ipv6
-        && builtins.isAttrs wanUplink.ipv6
-        && (wanUplink.ipv6.dhcp or false);
+        && assignedUplink ? ipv6
+        && builtins.isAttrs assignedUplink.ipv6
+        && (assignedUplink.ipv6.dhcp or false);
 
       ipv6AcceptRA =
         ipv6Enabled
-        && wanUplink ? ipv6
-        && builtins.isAttrs wanUplink.ipv6
-        && (wanUplink.ipv6.acceptRA or false);
+        && assignedUplink ? ipv6
+        && builtins.isAttrs assignedUplink.ipv6
+        && (assignedUplink.ipv6.acceptRA or false);
 
       dhcpMode =
         if ipv4Dhcp && ipv6Dhcp then
@@ -1148,8 +1055,48 @@ let
         LinkLocalAddressing = "no";
       };
 
+  attachTargetForInterface =
+    {
+      unitName,
+      ifName,
+      iface,
+    }:
+    let
+      matches = lib.filter (
+        target:
+        (target.unitName or null) == unitName
+        && (
+          (target.ifName or null) == ifName
+          || ((target.renderedIfName or null) == (iface.renderedIfName or null))
+          || ((target.interface.renderedIfName or null) == (iface.renderedIfName or null))
+          || ((target.hostBridgeName or null) == (iface.hostBridge or null))
+        )
+      ) attachTargets;
+    in
+    if builtins.length matches == 1 then
+      builtins.head matches
+    else if builtins.hasAttr iface.hostBridge bridgeNameMap then
+      {
+        renderedHostBridgeName = bridgeNameMap.${iface.hostBridge};
+        assignedUplinkName = null;
+      }
+    else
+      throw ''
+        lib/render-host-network.nix: could not resolve rendered host bridge for unit '${unitName}', interface '${ifName}'
+
+        iface.hostBridge:
+        ${iface.hostBridge}
+
+        available bridgeNameMap keys:
+        ${builtins.toJSON (builtins.attrNames bridgeNameMap)}
+
+        attachTargets:
+        ${builtins.toJSON attachTargets}
+      '';
+
   mkContainerNetworks =
     {
+      unitName,
       interfaces,
       loopback,
       interfaceNameMap,
@@ -1177,8 +1124,11 @@ let
           let
             iface = interfaces.${ifName};
             renderedName = interfaceNameMap.${ifName};
+            attachTarget = attachTargetForInterface {
+              inherit unitName ifName iface;
+            };
             routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
-            dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
+            dynamicWanNetworkConfig = mkDynamicWanNetworkConfig attachTarget iface;
           in
           {
             name = "10-${renderedName}";
@@ -1197,74 +1147,17 @@ let
     in
     loopbackUnit // interfaceUnits;
 
-  attachTargetForInterface =
-    {
-      unitName,
-      ifName,
-      iface,
-    }:
-    let
-      matches = lib.filter (
-        target:
-        (target.unitName or null) == unitName
-        && (
-          (target.ifName or null) == ifName
-          || ((target.renderedIfName or null) == (iface.renderedIfName or null))
-          || ((target.interface.renderedIfName or null) == (iface.renderedIfName or null))
-          || ((target.hostBridgeName or null) == (iface.hostBridge or null))
-        )
-      ) attachTargets;
-    in
-    if builtins.length matches == 1 then
-      builtins.head matches
-    else if builtins.hasAttr iface.hostBridge bridgeNameMap then
-      {
-        renderedHostBridgeName = bridgeNameMap.${iface.hostBridge};
-      }
-    else
-      throw ''
-        lib/render-host-network.nix: could not resolve rendered host bridge for unit '${unitName}', interface '${ifName}'
-
-        iface.hostBridge:
-        ${iface.hostBridge}
-
-        available bridgeNameMap keys:
-        ${builtins.toJSON (builtins.attrNames bridgeNameMap)}
-
-        attachTargets:
-        ${builtins.toJSON attachTargets}
-      '';
-
-  selectedRoleNames = lib.filter (roleName: builtins.hasAttr roleName roles) (
-    lib.unique (
-      map (
-        unitName:
-        runtimeContext.roleForUnit {
-          cpm = cpm;
-          inventory = inventory;
-          inherit unitName;
-          file = "lib/render-host-network.nix";
-        }
-      ) selectedUnits
-    )
-  );
-
-  selectedRoles = builtins.listToAttrs (
-    map (roleName: {
-      name = roleName;
-      value = roles.${roleName};
-    }) selectedRoleNames
-  );
+  roleForUnit =
+    unitName:
+    runtimeContext.roleForUnit {
+      inherit cpm inventory unitName;
+      file = "lib/render-host-network.nix";
+    };
 
   containerEnabledUnitNames = lib.filter (
     unitName:
     let
-      roleName = runtimeContext.roleForUnit {
-        cpm = cpm;
-        inventory = inventory;
-        inherit unitName;
-        file = "lib/render-host-network.nix";
-      };
+      roleName = roleForUnit unitName;
     in
     builtins.hasAttr roleName selectedRoles
     && selectedRoles.${roleName} ? container
@@ -1275,36 +1168,18 @@ let
   mkContainer =
     unitName:
     let
-      runtimeTarget = cpmAdapter.normalizedRuntimeTargetForUnit {
-        cpm = cpm;
-        inherit unitName;
+      runtimeTarget = normalizedRuntimeTargets.${unitName};
+      interfaces = runtimeTarget.interfaces or { };
+      loopback = runtimeTarget.loopback or { };
+
+      interfaceNameMap = cpmAdapter.renderedInterfaceNamesForUnit {
+        inherit cpm unitName;
         file = "lib/render-host-network.nix";
       };
 
-      interfaces = runtimeTarget.interfaces or { };
       interfaceNames = sortedAttrNames interfaces;
 
-      interfaceNameMap = builtins.listToAttrs (
-        map (ifName: {
-          name = ifName;
-          value =
-            let
-              iface = interfaces.${ifName};
-            in
-            if iface ? renderedIfName && builtins.isString iface.renderedIfName then
-              iface.renderedIfName
-            else
-              ifName;
-        }) interfaceNames
-      );
-
-      roleName = runtimeContext.roleForUnit {
-        cpm = cpm;
-        inventory = inventory;
-        inherit unitName;
-        file = "lib/render-host-network.nix";
-      };
-
+      roleName = roleForUnit unitName;
       roleConfig = if builtins.hasAttr roleName selectedRoles then selectedRoles.${roleName} else { };
 
       profilePath =
@@ -1370,28 +1245,18 @@ let
         lib.filter (ifName: interfaceSourceKindFor ifName != "wan") interfaceNames
       );
 
-      nftQuotedIfNames = names: builtins.concatStringsSep ", " (map (name: ''"${name}"'') names);
-
-      nftIfSet = names: "{ ${nftQuotedIfNames names} }";
-
-      coreNftRuleset =
-        if roleName == "core" && wanInterfaceNames != [ ] && lanInterfaceNames != [ ] then
-          ''
-            table inet filter {
-              chain forward {
-                type filter hook forward priority 0; policy drop;
-                ct state { established, related } accept
-                iifname ${nftIfSet lanInterfaceNames} oifname ${nftIfSet wanInterfaceNames} accept
-              }
-            }
-
-            table ip nat {
-              chain postrouting {
-                type nat hook postrouting priority 100; policy accept;
-                oifname ${nftIfSet wanInterfaceNames} masquerade
-              }
-            }
-          ''
+      nftRuleset =
+        if builtins.hasAttr roleName nft then
+          nft.${roleName} {
+            wanIfs = wanInterfaceNames;
+            lanIfs = lanInterfaceNames;
+            inherit
+              unitName
+              roleName
+              runtimeTarget
+              interfaces
+              ;
+          }
         else
           null;
 
@@ -1403,19 +1268,26 @@ let
             attachTarget = attachTargetForInterface {
               inherit unitName ifName iface;
             };
+            containerIfName = interfaceNameMap.${ifName};
+            hostIfName = hostNaming.shorten "${unitName}-${containerIfName}";
           in
           {
-            name = interfaceNameMap.${ifName};
+            name = containerIfName;
             value = {
               hostBridge = attachTarget.renderedHostBridgeName;
+              hostInterfaceName = hostIfName;
             };
           }
         ) interfaceNames
       );
 
       containerNetworks = mkContainerNetworks {
-        inherit interfaces interfaceNameMap;
-        loopback = runtimeTarget.loopback or { };
+        inherit
+          unitName
+          interfaces
+          loopback
+          interfaceNameMap
+          ;
       };
     in
     {
@@ -1464,12 +1336,13 @@ let
             networking.useDHCP = false;
             networking.useHostResolvConf = lib.mkForce false;
             services.resolved.enable = lib.mkForce false;
-            networking.nftables = lib.mkIf (coreNftRuleset != null) {
-              enable = true;
-              ruleset = coreNftRuleset;
-            };
-            system.stateVersion = lib.mkDefault "25.11";
 
+            networking.nftables = lib.mkIf (nftRuleset != null) {
+              enable = true;
+              ruleset = nftRuleset;
+            };
+
+            system.stateVersion = lib.mkDefault "25.11";
             systemd.network.networks = containerNetworks;
           };
       };

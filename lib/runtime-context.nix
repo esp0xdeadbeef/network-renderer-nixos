@@ -115,6 +115,50 @@ let
     in
     if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
 
+  logicalNodeNameForUnit =
+    {
+      cpm,
+      inventory ? { },
+      unitName,
+      file ? "lib/runtime-context.nix",
+    }:
+    let
+      logicalNode = logicalNodeForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
+    in
+    if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
+
+  logicalNodeIdentityForUnit =
+    {
+      cpm,
+      inventory ? { },
+      unitName,
+      file ? "lib/runtime-context.nix",
+    }:
+    let
+      logicalNode = logicalNodeForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
+
+      segments = lib.filter builtins.isString [
+        (logicalNode.enterprise or null)
+        (logicalNode.site or null)
+        (logicalNode.name or null)
+      ];
+    in
+    if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
+
   roleForUnit =
     {
       cpm,
@@ -137,6 +181,35 @@ let
       };
     in
     if target ? role && builtins.isString target.role then target.role else logicalNode.role or null;
+
+  realizationNodeForUnit =
+    {
+      inventory ? { },
+      unitName,
+    }:
+    if
+      inventory ? realization
+      && builtins.isAttrs inventory.realization
+      && inventory.realization ? nodes
+      && builtins.isAttrs inventory.realization.nodes
+      && builtins.hasAttr unitName inventory.realization.nodes
+      && builtins.isAttrs inventory.realization.nodes.${unitName}
+    then
+      inventory.realization.nodes.${unitName}
+    else
+      null;
+
+  realizationHostForUnit =
+    {
+      inventory ? { },
+      unitName,
+    }:
+    let
+      node = realizationNodeForUnit {
+        inherit inventory unitName;
+      };
+    in
+    if node != null && node ? host && builtins.isString node.host then node.host else null;
 
   deploymentHostForUnit =
     {
@@ -217,8 +290,20 @@ let
           let
             fromUnitName = resolveCandidate unitName;
             fromFallbackHost = if fromUnitName != null then null else resolveCandidate fallbackHost;
+            fromRealizationHost =
+              if fromUnitName != null || fromFallbackHost != null then
+                null
+              else
+                realizationHostForUnit {
+                  inherit inventory unitName;
+                };
           in
-          if fromUnitName != null then fromUnitName else fromFallbackHost;
+          if fromUnitName != null then
+            fromUnitName
+          else if fromFallbackHost != null then
+            fromFallbackHost
+          else
+            fromRealizationHost;
     in
     if placementHost != null then
       placementHost
@@ -516,6 +601,122 @@ let
         } == deploymentHostName
     ) (sortedAttrNames targets);
 
+  requestedHostMatchesUnit =
+    {
+      cpm,
+      inventory ? { },
+      unitName,
+      requestedHostName,
+      file ? "lib/runtime-context.nix",
+    }:
+    let
+      logicalNodeName = logicalNodeNameForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
+    in
+    unitName == requestedHostName
+    || logicalNodeName == requestedHostName
+    || lib.hasPrefix "${requestedHostName}-" unitName
+    || lib.hasPrefix "${requestedHostName}-" logicalNodeName;
+
+  selectedUnitsForHostContext =
+    {
+      cpm,
+      inventory ? { },
+      hostContext,
+      runtimeRole ? null,
+      file ? "lib/runtime-context.nix",
+    }:
+    let
+      requestedHostName =
+        if hostContext ? hostname && builtins.isString hostContext.hostname then
+          hostContext.hostname
+        else if hostContext ? selector && builtins.isString hostContext.selector then
+          hostContext.selector
+        else if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+          hostContext.deploymentHostName
+        else
+          throw ''
+            ${file}: hostContext is missing hostname
+          '';
+
+      deploymentHostName =
+        if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+          hostContext.deploymentHostName
+        else
+          requestedHostName;
+
+      deploymentCandidates = unitNamesForDeploymentHost {
+        inherit
+          cpm
+          inventory
+          deploymentHostName
+          file
+          ;
+      };
+
+      hostScopedCandidates = lib.filter (
+        unitName:
+        requestedHostMatchesUnit {
+          inherit
+            cpm
+            inventory
+            unitName
+            file
+            ;
+          requestedHostName = requestedHostName;
+        }
+      ) deploymentCandidates;
+
+      baseCandidates =
+        if requestedHostName != deploymentHostName && hostScopedCandidates != [ ] then
+          hostScopedCandidates
+        else
+          deploymentCandidates;
+    in
+    if runtimeRole == null then
+      baseCandidates
+    else
+      lib.filter (
+        unitName:
+        roleForUnit {
+          inherit
+            cpm
+            inventory
+            unitName
+            file
+            ;
+        } == runtimeRole
+      ) baseCandidates;
+
+  selectedRoleNamesForUnits =
+    {
+      cpm,
+      inventory ? { },
+      selectedUnits,
+      file ? "lib/runtime-context.nix",
+    }:
+    lib.unique (
+      lib.filter builtins.isString (
+        map (
+          unitName:
+          roleForUnit {
+            inherit
+              cpm
+              inventory
+              unitName
+              file
+              ;
+          }
+        ) selectedUnits
+      )
+    );
+
   enterpriseNamesForUnit =
     {
       cpm,
@@ -549,14 +750,21 @@ in
     siteEntryForUnit
     runtimeTargetForUnit
     logicalNodeForUnit
+    logicalNodeNameForUnit
+    logicalNodeIdentityForUnit
     roleForUnit
     deploymentHostForUnit
+    realizationNodeForUnit
+    realizationHostForUnit
     emittedInterfacesForUnit
     validateInterfaceForUnit
     validateRuntimeTargetForUnit
     validateAllRuntimeTargets
     unitNamesForDeploymentHost
     unitNamesForRoleOnDeploymentHost
+    requestedHostMatchesUnit
+    selectedUnitsForHostContext
+    selectedRoleNamesForUnits
     enterpriseNamesForUnit
     siteNamesForUnit
     ;

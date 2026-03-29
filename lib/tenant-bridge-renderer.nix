@@ -1,56 +1,115 @@
 { lib }:
 
 let
-  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
-in
-{
-  renderTenantBridges =
+  sortNames = names: lib.sort builtins.lessThan names;
+
+  bridgeNamesRawForAttachTargets =
+    attachTargets:
+    sortNames (
+      lib.unique (
+        lib.filter builtins.isString (map (target: target.hostBridgeName or null) attachTargets)
+      )
+    );
+
+  bridgeNameMapForAttachTargets =
     {
-      tenantBridges ? { },
+      attachTargets,
       shorten,
       ensureUnique,
     }:
     let
-      bridgeNamesRaw =
-        lib.unique (
-          lib.filter builtins.isString (builtins.attrNames tenantBridges)
-        );
+      bridgeNamesRaw = bridgeNamesRawForAttachTargets attachTargets;
+    in
+    ensureUnique bridgeNamesRaw;
 
-      bridgeNameMap = ensureUnique bridgeNamesRaw;
+  renderBridgeArtifacts =
+    {
+      attachTargets,
+      shorten,
+      ensureUnique,
+    }:
+    let
+      bridgeNamesRaw = bridgeNamesRawForAttachTargets attachTargets;
+      bridgeNameMap = bridgeNameMapForAttachTargets {
+        inherit attachTargets shorten ensureUnique;
+      };
 
-      bridgeNames = map (n: bridgeNameMap.${n}) bridgeNamesRaw;
+      renderedBridgeNames = map (bridgeName: bridgeNameMap.${bridgeName}) bridgeNamesRaw;
 
-      netdevs =
-        builtins.listToAttrs (
-          map
-            (bridgeName: {
-              name = "40-${bridgeName}";
-              value = {
-                netdevConfig = {
-                  Name = bridgeName;
-                  Kind = "bridge";
-                };
-              };
-            })
-            bridgeNames
-        );
+      bridges = builtins.listToAttrs (
+        map (bridgeName: {
+          name = bridgeName;
+          value = {
+            originalName = bridgeName;
+            renderedName = bridgeNameMap.${bridgeName};
+          };
+        }) bridgeNamesRaw
+      );
 
-      networks =
-        builtins.listToAttrs (
-          map
-            (bridgeName: {
-              name = "50-${bridgeName}";
-              value = {
-                matchConfig.Name = bridgeName;
-                networkConfig = {
-                  ConfigureWithoutCarrier = true;
-                };
-              };
-            })
-            bridgeNames
-        );
+      netdevs = builtins.listToAttrs (
+        map (renderedBridgeName: {
+          name = "10-${renderedBridgeName}";
+          value = {
+            netdevConfig = {
+              Name = renderedBridgeName;
+              Kind = "bridge";
+            };
+          };
+        }) renderedBridgeNames
+      );
+
+      networks = builtins.listToAttrs (
+        map (renderedBridgeName: {
+          name = "30-${renderedBridgeName}";
+          value = {
+            matchConfig.Name = renderedBridgeName;
+            linkConfig = {
+              ActivationPolicy = "always-up";
+              RequiredForOnline = "no";
+            };
+            networkConfig = {
+              ConfigureWithoutCarrier = true;
+            };
+          };
+        }) renderedBridgeNames
+      );
     in
     {
-      inherit netdevs networks bridgeNameMap;
+      inherit
+        bridgeNamesRaw
+        bridgeNameMap
+        bridges
+        netdevs
+        networks
+        ;
     };
+
+  renderedAttachTargets =
+    {
+      attachTargets,
+      bridgeNameMap,
+      shorten,
+    }:
+    map (
+      target:
+      let
+        hostBridgeName = target.hostBridgeName;
+      in
+      target
+      // {
+        renderedHostBridgeName =
+          if builtins.hasAttr hostBridgeName bridgeNameMap then
+            bridgeNameMap.${hostBridgeName}
+          else
+            shorten hostBridgeName;
+      }
+    ) attachTargets;
+in
+{
+  inherit
+    bridgeNamesRawForAttachTargets
+    bridgeNameMapForAttachTargets
+    renderBridgeArtifacts
+    renderedAttachTargets
+    ;
 }
