@@ -43,7 +43,7 @@ let
     {
       inventory,
       unitName,
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -62,7 +62,7 @@ let
     {
       inventory,
       unitName,
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     let
       node = nodeForUnit {
@@ -85,7 +85,7 @@ let
       port,
       unitName ? "<unknown>",
       portName ? "<unknown>",
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     let
       attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
@@ -155,7 +155,7 @@ let
     {
       inventory,
       unitName,
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     let
       node = nodeForUnit {
@@ -184,7 +184,7 @@ let
   attachMapForInventory =
     {
       inventory,
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -218,7 +218,7 @@ let
     {
       inventory,
       deploymentHostName,
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     let
       unitNames = unitNamesForDeploymentHost {
@@ -248,7 +248,7 @@ let
     {
       selectedUnits,
       normalizedRuntimeTargets,
-      file ? "lib/realization-ports.nix",
+      file ? "s88/CM/network/physical/realization-ports.nix",
     }:
     lib.concatMap (
       unitName:

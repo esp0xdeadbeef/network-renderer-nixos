@@ -12,7 +12,7 @@ let
     if builtins.pathExists path then
       callIfFunction (import path)
     else
-      throw "lib/host-query.nix: missing required input path '${builtins.toString path}'";
+      throw "s88/CM/network/lookup/host-query.nix: missing required input path '${builtins.toString path}'";
 
   loadStructuredPath =
     path:
@@ -20,7 +20,7 @@ let
       pathString = builtins.toString path;
     in
     if !builtins.pathExists path then
-      throw "lib/host-query.nix: missing required input path '${pathString}'"
+      throw "s88/CM/network/lookup/host-query.nix: missing required input path '${pathString}'"
     else if lib.hasSuffix ".json" pathString then
       builtins.fromJSON (builtins.readFile path)
     else
@@ -32,13 +32,6 @@ let
       existing = builtins.filter builtins.pathExists candidates;
     in
     if existing == [ ] then null else builtins.head existing;
-
-  loadOptionalFromCandidates =
-    candidates:
-    let
-      selected = firstExistingPath candidates;
-    in
-    if selected == null then { } else callIfFunction (import selected);
 
   realizationNodesFor =
     inventory:
@@ -123,7 +116,7 @@ let
     {
       inventory,
       hostname,
-      file ? "lib/host-query.nix",
+      file ? "s88/CM/network/lookup/host-query.nix",
     }:
     let
       renderHosts = renderHostsFor inventory;
@@ -210,7 +203,7 @@ let
       selector,
       intent,
       inventory,
-      file ? "lib/host-query.nix",
+      file ? "s88/CM/network/lookup/host-query.nix",
     }:
     let
       _selectorIsString =
@@ -376,18 +369,7 @@ let
       realizationNodes = selectedRealizationNodes;
     };
 
-in
-{
-  inherit
-    importMaybeFunction
-    loadStructuredPath
-    repoRootFromOutPath
-    fabricRootFromOutPath
-    pathsFromOutPath
-    resolveDeploymentHostName
-    ;
-
-  loadInputs =
+  loadInputsFn =
     {
       intentPath,
       inventoryPath,
@@ -397,7 +379,7 @@ in
       globalInventory = importMaybeFunction inventoryPath;
     };
 
-  loadInputsFromOutPath =
+  loadInputsFromOutPathFn =
     {
       outPath,
       fabricRoot ? null,
@@ -407,16 +389,15 @@ in
         inherit outPath fabricRoot;
       };
     in
-    {
-      fabricInputs = importMaybeFunction paths.intentPath;
-      globalInventory = importMaybeFunction paths.inventoryPath;
+    loadInputsFn {
+      inherit (paths) intentPath inventoryPath;
     };
 
-  hostContextForHost =
+  hostContextForHostFn =
     {
       inventory,
       hostname,
-      file ? "lib/host-query.nix",
+      file ? "s88/CM/network/lookup/host-query.nix",
     }:
     let
       renderHosts = renderHostsFor inventory;
@@ -462,7 +443,7 @@ in
           null;
     };
 
-  query =
+  queryFn =
     {
       selector ? null,
       hostname ? null,
@@ -470,7 +451,7 @@ in
       inventory ? null,
       intentPath ? null,
       inventoryPath ? null,
-      file ? "lib/host-query.nix",
+      file ? "s88/CM/network/lookup/host-query.nix",
     }:
     let
       effectiveSelector =
@@ -507,20 +488,37 @@ in
       };
     };
 
-  queryFromOutPath =
+  queryFromOutPathFn =
     {
       outPath,
       hostname,
       fabricRoot ? null,
-      file ? "lib/host-query.nix",
+      file ? "s88/CM/network/lookup/host-query.nix",
     }:
     let
       paths = pathsFromOutPath {
         inherit outPath fabricRoot;
       };
     in
-    (builtins.getAttr "query" (import ./host-query.nix { inherit lib; })) {
+    queryFn {
       inherit hostname file;
       inherit (paths) intentPath inventoryPath;
     };
+in
+{
+  inherit
+    importMaybeFunction
+    loadStructuredPath
+    repoRootFromOutPath
+    fabricRootFromOutPath
+    pathsFromOutPath
+    resolveDeploymentHostName
+    hostContextForSelector
+    ;
+
+  loadInputs = loadInputsFn;
+  loadInputsFromOutPath = loadInputsFromOutPathFn;
+  hostContextForHost = hostContextForHostFn;
+  query = queryFn;
+  queryFromOutPath = queryFromOutPathFn;
 }

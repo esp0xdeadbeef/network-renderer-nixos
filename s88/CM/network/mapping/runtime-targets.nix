@@ -1,8 +1,8 @@
 { lib }:
 
 let
-  runtimeContext = import ./runtime-context.nix { inherit lib; };
-  hostNaming = import ./host-naming.nix { inherit lib; };
+  runtimeContext = import ../lookup/runtime-context.nix { inherit lib; };
+  hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -50,7 +50,7 @@ let
     {
       cpm,
       unitName,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     runtimeContext.emittedInterfacesForUnit {
       inherit cpm unitName file;
@@ -60,7 +60,7 @@ let
     {
       cpm,
       unitName,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -92,7 +92,7 @@ let
     {
       cpm,
       unitName,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       interfaces = emittedInterfacesForUnit {
@@ -142,7 +142,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       backingRef =
@@ -204,7 +204,7 @@ let
       ifName,
       iface,
       renderedIfName,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       backingRef =
@@ -266,7 +266,7 @@ let
     {
       cpm,
       unitName,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       interfaces = emittedInterfacesForUnit {
@@ -292,7 +292,7 @@ let
     {
       cpm,
       unitName,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -312,7 +312,7 @@ let
   normalizedRuntimeTargets =
     {
       cpm,
-      file ? "lib/cpm-runtime-adapter.nix",
+      file ? "s88/CM/network/mapping/runtime-targets.nix",
     }:
     let
       targets = runtimeContext.runtimeTargets cpm;

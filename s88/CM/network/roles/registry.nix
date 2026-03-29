@@ -6,7 +6,7 @@
     hostProfilePath = null;
     container = {
       enable = true;
-      profilePath = ../s88/CM/network/profiles/access.nix;
+      profilePath = ../profiles/access.nix;
       additionalCapabilities = [
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"
@@ -19,7 +19,7 @@
     hostProfilePath = null;
     container = {
       enable = true;
-      profilePath = ../s88/CM/network/profiles/core.nix;
+      profilePath = ../profiles/core.nix;
       additionalCapabilities = [
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"
@@ -32,7 +32,7 @@
     hostProfilePath = null;
     container = {
       enable = true;
-      profilePath = ../s88/CM/network/profiles/policy.nix;
+      profilePath = ../profiles/policy.nix;
       additionalCapabilities = [
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"
@@ -45,7 +45,7 @@
     hostProfilePath = null;
     container = {
       enable = true;
-      profilePath = ../s88/CM/network/profiles/upstream-selector.nix;
+      profilePath = ../profiles/upstream-selector.nix;
       additionalCapabilities = [
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"
