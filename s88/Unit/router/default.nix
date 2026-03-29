@@ -9,21 +9,16 @@
 }:
 
 let
-  hostQuery = import ../../ControlModule/network/lookup/host-query.nix { inherit lib; };
-
-  paths = hostQuery.pathsFromOutPath {
-    inherit outPath;
+  routerInputs = import ./lookup/default.nix {
+    inherit
+      outPath
+      lib
+      config
+      selector
+      hostContext
+      globalInventory
+      ;
   };
-
-  queried = hostQuery.query {
-    selector = if selector != null then selector else config.networking.hostName;
-    intentPath = paths.intentPath;
-    inventoryPath = paths.inventoryPath;
-    file = "s88/Unit/router/default.nix";
-  };
-
-  resolvedHostContext = if hostContext != { } then hostContext else queried.hostContext;
-  resolvedInventory = if globalInventory != { } then globalInventory else queried.globalInventory;
 in
 {
   imports = [
@@ -32,10 +27,10 @@ in
   ];
 
   _module.args = {
-    fabricInputs = queried.fabricInputs;
-    globalInventory = resolvedInventory;
-    hostContext = resolvedHostContext;
-    hostSelector = if selector != null then selector else config.networking.hostName;
+    fabricInputs = routerInputs.fabricInputs;
+    globalInventory = routerInputs.resolvedInventory;
+    hostContext = routerInputs.resolvedHostContext;
+    hostSelector = routerInputs.hostSelector;
 
     activeRoleNames = [ ];
     activeRoles = { };
