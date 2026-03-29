@@ -48,7 +48,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          renderDryConfig = import ./s88/CM/network/tools/render-dry-config-app.nix {
+          renderDryConfig = import ./s88/ControlModule/network/tools/render-dry-config-app.nix {
             inherit pkgs self;
           };
         in

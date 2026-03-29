@@ -19,12 +19,12 @@ let
     else
       { };
 
-  siteTreeForEnterprise =
-    enterprise:
-    if enterprise ? site && builtins.isAttrs enterprise.site then
-      enterprise.site
-    else if builtins.isAttrs enterprise then
-      enterprise
+  siteTreeFromRoot =
+    rootValue:
+    if rootValue ? site && builtins.isAttrs rootValue.site then
+      rootValue.site
+    else if builtins.isAttrs rootValue then
+      rootValue
     else
       { };
 
@@ -34,12 +34,12 @@ let
       cpmData = controlPlaneData cpm;
     in
     lib.concatMap (
-      enterpriseName:
+      rootName:
       let
-        siteTree = siteTreeForEnterprise cpmData.${enterpriseName};
+        siteTree = siteTreeFromRoot cpmData.${rootName};
       in
       map (siteName: {
-        inherit enterpriseName siteName;
+        inherit rootName siteName;
         site = siteTree.${siteName};
       }) (sortedAttrNames siteTree)
     ) (sortedAttrNames cpmData);
@@ -61,7 +61,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       matches = lib.filter (
@@ -86,7 +86,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -106,7 +106,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -120,7 +120,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       logicalNode = logicalNodeForUnit {
@@ -139,7 +139,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       logicalNode = logicalNodeForUnit {
@@ -151,9 +151,20 @@ let
           ;
       };
 
+      siteEntry = siteEntryForUnit {
+        inherit cpm unitName file;
+      };
+
+      rootName = siteEntry.rootName or null;
+      siteName =
+        if logicalNode ? site && builtins.isString logicalNode.site then
+          logicalNode.site
+        else
+          siteEntry.siteName or null;
+
       segments = lib.filter builtins.isString [
-        (logicalNode.enterprise or null)
-        (logicalNode.site or null)
+        rootName
+        siteName
         (logicalNode.name or null)
       ];
     in
@@ -164,7 +175,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -216,7 +227,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -316,7 +327,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -352,7 +363,7 @@ let
       fieldName,
       unitName,
       ifName ? null,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
       context ? { },
     }:
     if builtins.isString value then
@@ -373,7 +384,7 @@ let
       fieldName,
       unitName,
       ifName ? null,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
       context ? { },
     }:
     if value == null || builtins.isString value || builtins.isList value then
@@ -394,7 +405,7 @@ let
       fieldName,
       unitName,
       ifName ? null,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
       context ? { },
     }:
     if value == null || builtins.isAttrs value then
@@ -414,7 +425,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       backingRef =
@@ -498,7 +509,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       _validateDeploymentHost = deploymentHostForUnit {
@@ -528,7 +539,7 @@ let
     {
       cpm,
       inventory ? { },
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -552,7 +563,7 @@ let
       cpm,
       inventory ? { },
       deploymentHostName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -575,7 +586,7 @@ let
       inventory ? { },
       deploymentHostName,
       role,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -607,7 +618,7 @@ let
       inventory ? { },
       unitName,
       requestedHostName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       logicalNodeName = logicalNodeNameForUnit {
@@ -630,7 +641,7 @@ let
       inventory ? { },
       hostContext,
       runtimeRole ? null,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       requestedHostName =
@@ -699,7 +710,7 @@ let
       cpm,
       inventory ? { },
       selectedUnits,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     lib.unique (
       lib.filter builtins.isString (
@@ -717,24 +728,24 @@ let
       )
     );
 
-  enterpriseNamesForUnit =
+  rootNamesForUnit =
     {
       cpm,
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       entry = siteEntryForUnit {
         inherit cpm unitName file;
       };
     in
-    [ entry.enterpriseName ];
+    [ entry.rootName ];
 
   siteNamesForUnit =
     {
       cpm,
       unitName,
-      file ? "s88/CM/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
       entry = siteEntryForUnit {
@@ -765,7 +776,7 @@ in
     requestedHostMatchesUnit
     selectedUnitsForHostContext
     selectedRoleNamesForUnits
-    enterpriseNamesForUnit
+    rootNamesForUnit
     siteNamesForUnit
     ;
 }
