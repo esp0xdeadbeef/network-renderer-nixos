@@ -12,7 +12,7 @@ let
     if builtins.pathExists path then
       callIfFunction (import path)
     else
-      throw "s88/CM/network/lookup/host-query.nix: missing required input path '${builtins.toString path}'";
+      throw "s88/ControlModule/network/lookup/host-query.nix: missing required input path '${builtins.toString path}'";
 
   loadStructuredPath =
     path:
@@ -20,7 +20,7 @@ let
       pathString = builtins.toString path;
     in
     if !builtins.pathExists path then
-      throw "s88/CM/network/lookup/host-query.nix: missing required input path '${pathString}'"
+      throw "s88/ControlModule/network/lookup/host-query.nix: missing required input path '${pathString}'"
     else if lib.hasSuffix ".json" pathString then
       builtins.fromJSON (builtins.readFile path)
     else
@@ -116,7 +116,7 @@ let
     {
       inventory,
       hostname,
-      file ? "s88/CM/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/network/lookup/host-query.nix",
     }:
     let
       renderHosts = renderHostsFor inventory;
@@ -203,7 +203,7 @@ let
       selector,
       intent,
       inventory,
-      file ? "s88/CM/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/network/lookup/host-query.nix",
     }:
     let
       _selectorIsString =
@@ -218,13 +218,6 @@ let
 
       exactDeploymentHost =
         if builtins.hasAttr selector deploymentHosts then deploymentHosts.${selector} else null;
-
-      matchingEnterpriseNodes = matchingNodesBy inventory (
-        _: node:
-        node ? logicalNode
-        && builtins.isAttrs node.logicalNode
-        && (node.logicalNode.enterprise or null) == selector
-      );
 
       matchingSiteNodes = matchingNodesBy inventory (
         _: node:
@@ -251,8 +244,6 @@ let
           { "${selector}" = exactRealizationNode; }
         else if exactDeploymentHost != null then
           nodesOnDeploymentHost
-        else if isNonEmptyAttrs matchingEnterpriseNodes then
-          matchingEnterpriseNodes
         else if isNonEmptyAttrs matchingSiteNodes then
           matchingSiteNodes
         else if isNonEmptyAttrs matchingLogicalNameNodes then
@@ -298,19 +289,6 @@ let
         else
           { };
 
-      matchedEnterprises = lib.filter (value: value != null) (
-        lib.unique (
-          (map (
-            nodeName:
-            let
-              logicalNode = selectedRealizationNodes.${nodeName}.logicalNode or { };
-            in
-            logicalNode.enterprise or null
-          ) (sortedAttrNames selectedRealizationNodes))
-          ++ lib.optionals (builtins.hasAttr selector intent) [ selector ]
-        )
-      );
-
       matchedSites = lib.filter (value: value != null) (
         lib.unique (
           map (
@@ -340,8 +318,6 @@ let
           "realization-node"
         else if exactDeploymentHost != null then
           "deployment-host"
-        else if isNonEmptyAttrs matchingEnterpriseNodes then
-          "enterprise"
         else if isNonEmptyAttrs matchingSiteNodes then
           "site"
         else if isNonEmptyAttrs matchingLogicalNameNodes then
@@ -362,7 +338,6 @@ let
       deploymentHostName = selectedDeploymentHostName;
       deploymentHostNames = selectedDeploymentHostNames;
       deploymentHosts = selectedDeploymentHosts;
-      matchedEnterprises = matchedEnterprises;
       matchedSites = matchedSites;
       matchedLogicalNodes = matchedLogicalNodes;
       realizationNode = exactRealizationNode;
@@ -397,7 +372,7 @@ let
     {
       inventory,
       hostname,
-      file ? "s88/CM/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/network/lookup/host-query.nix",
     }:
     let
       renderHosts = renderHostsFor inventory;
@@ -451,7 +426,7 @@ let
       inventory ? null,
       intentPath ? null,
       inventoryPath ? null,
-      file ? "s88/CM/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/network/lookup/host-query.nix",
     }:
     let
       effectiveSelector =
@@ -493,7 +468,7 @@ let
       outPath,
       hostname,
       fabricRoot ? null,
-      file ? "s88/CM/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/network/lookup/host-query.nix",
     }:
     let
       paths = pathsFromOutPath {

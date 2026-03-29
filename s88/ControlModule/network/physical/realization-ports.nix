@@ -24,7 +24,6 @@ let
       logicalNode = logicalNodeForRealizationNode node;
     in
     lib.filter builtins.isString [
-      (logicalNode.enterprise or null)
       (logicalNode.site or null)
     ];
 
@@ -43,7 +42,7 @@ let
     {
       inventory,
       unitName,
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -62,7 +61,7 @@ let
     {
       inventory,
       unitName,
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     let
       node = nodeForUnit {
@@ -85,7 +84,7 @@ let
       port,
       unitName ? "<unknown>",
       portName ? "<unknown>",
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     let
       attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
@@ -94,12 +93,6 @@ let
 
       logicalName =
         if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
-
-      enterprise =
-        if logicalNode ? enterprise && builtins.isString logicalNode.enterprise then
-          logicalNode.enterprise
-        else
-          null;
 
       site = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
     in
@@ -111,7 +104,6 @@ let
         hostBridgeName = attach.bridge;
         identity = {
           inherit
-            enterprise
             site
             logicalName
             unitName
@@ -134,7 +126,6 @@ let
         hostBridgeName = hostBridgeName;
         identity = {
           inherit
-            enterprise
             site
             logicalName
             unitName
@@ -155,7 +146,7 @@ let
     {
       inventory,
       unitName,
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     let
       node = nodeForUnit {
@@ -184,7 +175,7 @@ let
   attachMapForInventory =
     {
       inventory,
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -218,7 +209,7 @@ let
     {
       inventory,
       deploymentHostName,
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     let
       unitNames = unitNamesForDeploymentHost {
@@ -248,7 +239,7 @@ let
     {
       selectedUnits,
       normalizedRuntimeTargets,
-      file ? "s88/CM/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/network/physical/realization-ports.nix",
     }:
     lib.concatMap (
       unitName:

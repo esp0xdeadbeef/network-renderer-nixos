@@ -9,7 +9,7 @@
 }:
 
 let
-  hostQuery = import ../../CM/network/lookup/host-query.nix { inherit lib; };
+  hostQuery = import ../../ControlModule/network/lookup/host-query.nix { inherit lib; };
 
   paths = hostQuery.pathsFromOutPath {
     inherit outPath;
