@@ -58,6 +58,17 @@ let
     else
       { };
 
+  realizationNodes =
+    if
+      inventory ? realization
+      && builtins.isAttrs inventory.realization
+      && inventory.realization ? nodes
+      && builtins.isAttrs inventory.realization.nodes
+    then
+      inventory.realization.nodes
+    else
+      { };
+
   normalizedRuntimeTargets = cpmAdapter.normalizedRuntimeTargets {
     inherit cpm;
     file = "lib/render-host-network.nix";
@@ -65,11 +76,81 @@ let
 
   allUnitNames = sortedAttrNames normalizedRuntimeTargets;
 
+  logicalNodeForUnit =
+    unitName:
+    let
+      target = normalizedRuntimeTargets.${unitName};
+    in
+    if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
+
+  logicalNodeNameForUnit =
+    unitName:
+    let
+      logicalNode = logicalNodeForUnit unitName;
+    in
+    if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
+
+  logicalNodeIdentityForUnit =
+    unitName:
+    let
+      logicalNode = logicalNodeForUnit unitName;
+
+      segments = lib.filter builtins.isString [
+        (logicalNode.enterprise or null)
+        (logicalNode.site or null)
+        (logicalNode.name or null)
+      ];
+    in
+    if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
+
+  placementHostForUnit =
+    unitName:
+    let
+      target = normalizedRuntimeTargets.${unitName};
+    in
+    if
+      target ? placement
+      && builtins.isAttrs target.placement
+      && target.placement ? host
+      && builtins.isString target.placement.host
+    then
+      target.placement.host
+    else
+      null;
+
+  realizationHostForUnit =
+    unitName:
+    if
+      builtins.hasAttr unitName realizationNodes
+      && builtins.isAttrs realizationNodes.${unitName}
+      && realizationNodes.${unitName} ? host
+      && builtins.isString realizationNodes.${unitName}.host
+    then
+      realizationNodes.${unitName}.host
+    else
+      null;
+
+  unitBelongsToMachine =
+    unitName:
+    let
+      logicalNodeName = logicalNodeNameForUnit unitName;
+      placementHost = placementHostForUnit unitName;
+      realizationHost = realizationHostForUnit unitName;
+    in
+    logicalNodeName == hostName
+    || lib.hasPrefix "${hostName}-" logicalNodeName
+    || placementHost == deploymentHostName
+    || realizationHost == deploymentHostName;
+
   unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
     inherit cpm inventory;
     deploymentHostName = deploymentHostName;
     file = "lib/render-host-network.nix";
   };
+
+  selectedUnitsBase = lib.unique (
+    unitsOnDeploymentHost ++ lib.filter unitBelongsToMachine allUnitNames
+  );
 
   interfacesForUnit =
     unitName:
@@ -96,7 +177,7 @@ let
             lib/render-host-network.nix: interface '${ifName}' for unit '${unitName}' is missing normalized hostBridge
           ''
       ) (sortedAttrNames interfaces)
-    ) unitsOnDeploymentHost
+    ) selectedUnitsBase
   );
 
   bridgeNamesRaw = lib.sort builtins.lessThan (lib.unique localAttachBridgeNames);
@@ -139,33 +220,6 @@ let
     }) bridgeNames
   );
 
-  logicalNodeForUnit =
-    unitName:
-    let
-      target = normalizedRuntimeTargets.${unitName};
-    in
-    if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
-
-  logicalNodeNameForUnit =
-    unitName:
-    let
-      logicalNode = logicalNodeForUnit unitName;
-    in
-    if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
-
-  logicalNodeIdentityForUnit =
-    unitName:
-    let
-      logicalNode = logicalNodeForUnit unitName;
-
-      segments = lib.filter builtins.isString [
-        (logicalNode.enterprise or null)
-        (logicalNode.site or null)
-        (logicalNode.name or null)
-      ];
-    in
-    if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
-
   runtimeRole =
     if renderHostConfig ? runtimeRole && builtins.isString renderHostConfig.runtimeRole then
       renderHostConfig.runtimeRole
@@ -182,7 +236,7 @@ let
         inherit unitName;
         file = "lib/render-host-network.nix";
       } == runtimeRole
-  ) unitsOnDeploymentHost;
+  ) selectedUnitsBase;
 
   _selectedUnitsNonEmpty =
     if selectedUnits != [ ] then
@@ -236,7 +290,7 @@ let
         interface = iface;
       }
     ) (sortedAttrNames interfaces)
-  ) unitsOnDeploymentHost;
+  ) selectedUnitsBase;
 
   localAttachTargetsBase = lib.filter (
     target: builtins.elem (target.unitName or "") selectedUnits
@@ -677,9 +731,47 @@ let
     else
       { ConfigureWithoutCarrier = true; };
 
+  synthesizedTransitLinks = lib.unique (
+    lib.concatMap (
+      nodeName:
+      let
+        node = realizationNodes.${nodeName};
+        ports = if node ? ports && builtins.isAttrs node.ports then node.ports else { };
+      in
+      if (node.host or null) == deploymentHostName then
+        lib.concatMap (
+          portName:
+          let
+            port = ports.${portName};
+          in
+          lib.optionals
+            (
+              builtins.isAttrs port
+              && port ? link
+              && builtins.isString port.link
+              && port ? attach
+              && builtins.isAttrs port.attach
+              && (port.attach.kind or null) == "direct"
+            )
+            [
+              port.link
+            ]
+        ) (builtins.attrNames ports)
+      else
+        [ ]
+    ) (builtins.attrNames realizationNodes)
+  );
+
   transitBridges =
     if !(deploymentHost ? transitBridges) then
-      { }
+      builtins.listToAttrs (
+        map (linkName: {
+          name = linkName;
+          value = {
+            name = linkName;
+          };
+        }) synthesizedTransitLinks
+      )
     else if builtins.isAttrs deploymentHost.transitBridges then
       deploymentHost.transitBridges
     else
@@ -997,6 +1089,65 @@ let
           Destination = route.dst;
         };
 
+  mkDynamicWanNetworkConfig =
+    iface:
+    let
+      connectivity = iface.connectivity or { };
+      isWan = (connectivity.sourceKind or null) == "wan";
+      addresses = iface.addresses or [ ];
+
+      wanUplink =
+        if isWan && wanUplinkName != null && builtins.hasAttr wanUplinkName uplinks then
+          uplinks.${wanUplinkName}
+        else
+          { };
+
+      ipv4Enabled =
+        wanUplink ? ipv4 && builtins.isAttrs wanUplink.ipv4 && (wanUplink.ipv4.enable or false);
+
+      ipv4Dhcp =
+        ipv4Enabled
+        && wanUplink ? ipv4
+        && builtins.isAttrs wanUplink.ipv4
+        && (wanUplink.ipv4.dhcp or false);
+
+      ipv6Enabled =
+        wanUplink ? ipv6 && builtins.isAttrs wanUplink.ipv6 && (wanUplink.ipv6.enable or false);
+
+      ipv6Dhcp =
+        ipv6Enabled
+        && wanUplink ? ipv6
+        && builtins.isAttrs wanUplink.ipv6
+        && (wanUplink.ipv6.dhcp or false);
+
+      ipv6AcceptRA =
+        ipv6Enabled
+        && wanUplink ? ipv6
+        && builtins.isAttrs wanUplink.ipv6
+        && (wanUplink.ipv6.acceptRA or false);
+
+      dhcpMode =
+        if ipv4Dhcp && ipv6Dhcp then
+          "yes"
+        else if ipv4Dhcp then
+          "ipv4"
+        else if ipv6Dhcp then
+          "ipv6"
+        else
+          "no";
+    in
+    if isWan && addresses == [ ] then
+      {
+        DHCP = dhcpMode;
+        IPv6AcceptRA = ipv6AcceptRA;
+        LinkLocalAddressing = if ipv6AcceptRA || ipv6Dhcp then "ipv6" else "no";
+      }
+    else
+      {
+        IPv6AcceptRA = false;
+        LinkLocalAddressing = "no";
+      };
+
   mkContainerNetworks =
     {
       interfaces,
@@ -1027,6 +1178,7 @@ let
             iface = interfaces.${ifName};
             renderedName = interfaceNameMap.${ifName};
             routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
+            dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
           in
           {
             name = "10-${renderedName}";
@@ -1034,9 +1186,8 @@ let
               matchConfig.Name = renderedName;
               networkConfig = {
                 ConfigureWithoutCarrier = true;
-                LinkLocalAddressing = "no";
-                IPv6AcceptRA = false;
-              };
+              }
+              // dynamicWanNetworkConfig;
               address = iface.addresses or [ ];
               routes = routes;
             };
@@ -1199,6 +1350,51 @@ let
         else
           [ ];
 
+      interfaceSourceKindFor =
+        ifName:
+        let
+          iface = interfaces.${ifName};
+        in
+        if
+          iface ? connectivity && builtins.isAttrs iface.connectivity && iface.connectivity ? sourceKind
+        then
+          iface.connectivity.sourceKind
+        else
+          null;
+
+      wanInterfaceNames = map (ifName: interfaceNameMap.${ifName}) (
+        lib.filter (ifName: interfaceSourceKindFor ifName == "wan") interfaceNames
+      );
+
+      lanInterfaceNames = map (ifName: interfaceNameMap.${ifName}) (
+        lib.filter (ifName: interfaceSourceKindFor ifName != "wan") interfaceNames
+      );
+
+      nftQuotedIfNames = names: builtins.concatStringsSep ", " (map (name: ''"${name}"'') names);
+
+      nftIfSet = names: "{ ${nftQuotedIfNames names} }";
+
+      coreNftRuleset =
+        if roleName == "core" && wanInterfaceNames != [ ] && lanInterfaceNames != [ ] then
+          ''
+            table inet filter {
+              chain forward {
+                type filter hook forward priority 0; policy drop;
+                ct state { established, related } accept
+                iifname ${nftIfSet lanInterfaceNames} oifname ${nftIfSet wanInterfaceNames} accept
+              }
+            }
+
+            table ip nat {
+              chain postrouting {
+                type nat hook postrouting priority 100; policy accept;
+                oifname ${nftIfSet wanInterfaceNames} masquerade
+              }
+            }
+          ''
+        else
+          null;
+
       extraVeths = builtins.listToAttrs (
         map (
           ifName:
@@ -1248,10 +1444,20 @@ let
         };
 
         config =
-          { ... }:
+          { pkgs, ... }:
           {
-            imports = lib.optionals (profilePath != null) [
+            imports = [
+              ../s88/CM/network/profiles/common-router.nix
+              ../s88/CM/network/../../mount-utils.nix
+            ]
+            ++ lib.optionals (profilePath != null) [
               profilePath
+            ];
+
+            environment.systemPackages = with pkgs; [
+              bindfs
+              gron
+              traceroute
             ];
 
             networking.hostName = unitName;
@@ -1260,6 +1466,10 @@ let
             networking.useDHCP = false;
             networking.useHostResolvConf = lib.mkForce false;
             services.resolved.enable = lib.mkForce false;
+            networking.nftables = lib.mkIf (coreNftRuleset != null) {
+              enable = true;
+              ruleset = coreNftRuleset;
+            };
             system.stateVersion = lib.mkDefault "25.11";
 
             systemd.network.networks = containerNetworks;
