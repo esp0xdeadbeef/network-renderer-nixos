@@ -4,6 +4,7 @@ pkgs.writeShellApplication {
   name = "render-dry-config";
 
   runtimeInputs = with pkgs; [
+    coreutils
     jq
   ];
 
@@ -48,8 +49,8 @@ pkgs.writeShellApplication {
       exit 1
     fi
 
-    repo_root='${builtins.toString ../.}'
-    render_file="$repo_root/lib/render-dry-config-output.nix"
+    repo_root='${builtins.toString ../../../..}'
+    render_file="$repo_root/s88/CM/network/render/dry-config-output.nix"
 
     rm -f \
       ./00-*.json \

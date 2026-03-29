@@ -19,7 +19,7 @@ let
     if renderedHostNetwork != null then
       renderedHostNetwork
     else
-      import ../../../lib/render-host-network.nix {
+      import ./render/host-network.nix {
         inherit lib;
         hostName = deploymentHostName;
         cpm = controlPlaneOut;

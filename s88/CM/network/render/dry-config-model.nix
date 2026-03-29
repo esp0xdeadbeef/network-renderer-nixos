@@ -1,116 +1,19 @@
 {
-  repoRoot,
-  cpm ? null,
-  cpmPath ? null,
-  inventory ? { },
-  inventoryPath ? null,
-  exampleDir ? null,
-  debug ? false,
+  lib,
+  metadataSourcePaths,
+  debugEnabled ? false,
+  runtimeContext,
+  normalizedRuntimeTargets,
+  hostRenderings,
+  deploymentHostNames,
+  controlPlane,
+  resolvedInventory,
 }:
 
 let
-  flake = builtins.getFlake (toString (builtins.toPath repoRoot));
-
-  lib =
-    if
-      flake ? lib
-      && flake.lib ? flakeInputs
-      && flake.lib.flakeInputs ? nixpkgs
-      && flake.lib.flakeInputs.nixpkgs ? lib
-    then
-      flake.lib.flakeInputs.nixpkgs.lib
-    else
-      throw "render-dry-config: unable to resolve nixpkgs lib from flake inputs";
-
-  runtimeContext = import ./runtime-context.nix { inherit lib; };
-  cpmAdapter = import ./cpm-runtime-adapter.nix { inherit lib; };
-
-  renderer = flake.lib.renderer;
-
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  firstExistingPath =
-    candidates:
-    let
-      existing = lib.filter (path: path != null && builtins.pathExists (builtins.toPath path)) candidates;
-    in
-    if existing == [ ] then null else builtins.head existing;
-
-  resolvedCpmPath = if cpmPath == null then null else builtins.toString cpmPath;
-  requestedInventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
-
-  resolvedExampleDir =
-    if exampleDir != null then
-      builtins.toString exampleDir
-    else if resolvedCpmPath != null then
-      builtins.dirOf resolvedCpmPath
-    else
-      null;
-
-  resolvedInventoryPath =
-    if requestedInventoryPath != null then
-      requestedInventoryPath
-    else
-      firstExistingPath [
-        (if resolvedExampleDir != null then "${resolvedExampleDir}/inventory.nix" else null)
-        (if resolvedExampleDir != null then "${resolvedExampleDir}/inputs/inventory.nix" else null)
-      ];
-
-  controlPlane =
-    if cpm != null then
-      cpm
-    else if resolvedCpmPath != null then
-      renderer.loadControlPlane (builtins.toPath resolvedCpmPath)
-    else
-      throw ''
-        render-dry-config: requires either cpm or cpmPath
-      '';
-
-  resolvedInventory =
-    if inventory != { } then
-      inventory
-    else if resolvedInventoryPath != null then
-      renderer.loadInventory (builtins.toPath resolvedInventoryPath)
-    else
-      { };
-
-  _validateRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
-    cpm = controlPlane;
-    inventory = resolvedInventory;
-    file = "render-dry-config";
-  };
-
-  normalizedRuntimeTargets = cpmAdapter.normalizedRuntimeTargets {
-    cpm = controlPlane;
-    file = "render-dry-config";
-  };
-
   unitNames = sortedAttrNames normalizedRuntimeTargets;
-
-  deploymentHostNames = lib.sort builtins.lessThan (
-    lib.unique (
-      map (
-        unitName:
-        runtimeContext.deploymentHostForUnit {
-          cpm = controlPlane;
-          inventory = resolvedInventory;
-          inherit unitName;
-          file = "render-dry-config";
-        }
-      ) unitNames
-    )
-  );
-
-  hostRenderings = builtins.listToAttrs (
-    map (hostName: {
-      name = hostName;
-      value = renderer.renderHostNetwork {
-        inherit hostName;
-        cpm = controlPlane;
-        inventory = resolvedInventory;
-      };
-    }) deploymentHostNames
-  );
 
   sanitizeContainer = containerName: container: {
     autoStart = container.autoStart or false;
@@ -165,6 +68,27 @@ let
     debug = hostRendering.debug or { };
   }) hostRenderings;
 
+  attachTargetForUnitInterface =
+    {
+      hostRendering,
+      unitName,
+      ifName,
+      iface,
+    }:
+    let
+      matches = lib.filter (
+        target:
+        (target.unitName or null) == unitName
+        && (
+          (target.ifName or null) == ifName
+          || ((target.renderedIfName or null) == (iface.renderedIfName or null))
+          || ((target.interface.renderedIfName or null) == (iface.renderedIfName or null))
+          || ((target.hostBridgeName or null) == (iface.hostBridge or null))
+        )
+      ) (hostRendering.attachTargets or [ ]);
+    in
+    if builtins.length matches == 1 then builtins.head matches else null;
+
   renderedInterfacesForUnit =
     unitName:
     let
@@ -172,7 +96,7 @@ let
         cpm = controlPlane;
         inventory = resolvedInventory;
         inherit unitName;
-        file = "render-dry-config";
+        file = "s88/CM/network/render/dry-config-model.nix";
       };
 
       hostRendering =
@@ -180,7 +104,7 @@ let
           hostRenderings.${deploymentHostName}
         else
           throw ''
-            render-dry-config: unit '${unitName}' references unknown deployment host '${deploymentHostName}'
+            s88/CM/network/render/dry-config-model.nix: unit '${unitName}' references unknown deployment host '${deploymentHostName}'
           '';
 
       bridgeNameMap = hostRendering.bridgeNameMap or { };
@@ -196,14 +120,29 @@ let
         let
           iface = interfaces.${ifName};
 
+          attachTarget = attachTargetForUnitInterface {
+            inherit
+              hostRendering
+              unitName
+              ifName
+              iface
+              ;
+          };
+
           renderedHostBridgeName =
-            if builtins.hasAttr iface.hostBridge bridgeNameMap then
+            if
+              attachTarget != null
+              && attachTarget ? renderedHostBridgeName
+              && builtins.isString attachTarget.renderedHostBridgeName
+            then
+              attachTarget.renderedHostBridgeName
+            else if builtins.hasAttr iface.hostBridge bridgeNameMap then
               bridgeNameMap.${iface.hostBridge}
             else if builtins.hasAttr iface.hostBridge globalBridgeNameMap then
               globalBridgeNameMap.${iface.hostBridge}
             else
               throw ''
-                render-dry-config: missing rendered bridge for '${iface.hostBridge}' (unit '${unitName}', interface '${ifName}')
+                s88/CM/network/render/dry-config-model.nix: missing rendered bridge for '${iface.hostBridge}' (unit '${unitName}', interface '${ifName}')
 
                 deploymentHostName: ${deploymentHostName}
 
@@ -250,21 +189,21 @@ let
           cpm = controlPlane;
           inventory = resolvedInventory;
           inherit unitName;
-          file = "render-dry-config";
+          file = "s88/CM/network/render/dry-config-model.nix";
         };
 
         deploymentHostName = runtimeContext.deploymentHostForUnit {
           cpm = controlPlane;
           inventory = resolvedInventory;
           inherit unitName;
-          file = "render-dry-config";
+          file = "s88/CM/network/render/dry-config-model.nix";
         };
 
         role = runtimeContext.roleForUnit {
           cpm = controlPlane;
           inventory = resolvedInventory;
           inherit unitName;
-          file = "render-dry-config";
+          file = "s88/CM/network/render/dry-config-model.nix";
         };
 
         interfaces = renderedInterfacesForUnit unitName;
@@ -282,12 +221,7 @@ let
 
   output = {
     metadata = {
-      sourcePaths = {
-        repoRoot = builtins.toString repoRoot;
-        cpmPath = resolvedCpmPath;
-        inventoryPath = resolvedInventoryPath;
-        exampleDir = resolvedExampleDir;
-      };
+      sourcePaths = metadataSourcePaths;
     };
 
     render = {
@@ -296,37 +230,13 @@ let
       containers = renderContainers;
     };
   }
-  // (
-    if debug then
-      {
-        debug = {
-          controlPlane = controlPlane;
-          inventory = resolvedInventory;
-          normalizedRuntimeTargets = normalizedRuntimeTargets;
-          hostRenderings = hostRenderingsDebug;
-        };
-      }
-    else
-      { }
-  );
-
-  validation = builtins.seq _validateRuntimeTargets (
-    if unitNames == [ ] then
-      throw ''
-        render-dry-config: no runtime targets found in control-plane model
-      ''
-    else if deploymentHostNames == [ ] then
-      throw ''
-        render-dry-config: no deployment hosts found in control-plane model
-      ''
-    else if
-      output.render.hosts == { } && output.render.nodes == { } && output.render.containers == { }
-    then
-      throw ''
-        render-dry-config: empty render output
-      ''
-    else
-      true
-  );
+  // lib.optionalAttrs debugEnabled {
+    debug = {
+      controlPlane = controlPlane;
+      inventory = resolvedInventory;
+      normalizedRuntimeTargets = normalizedRuntimeTargets;
+      hostRenderings = hostRenderingsDebug;
+    };
+  };
 in
-builtins.seq validation output
+output

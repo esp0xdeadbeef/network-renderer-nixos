@@ -11,7 +11,7 @@
 
 let
   renderer = inputs.network-renderer-nixos.lib.renderer;
-  runtimeContext = import ../../../lib/runtime-context.nix { inherit lib; };
+  runtimeContext = import ./lookup/runtime-context.nix { inherit lib; };
 
   system = pkgs.stdenv.hostPlatform.system;
 

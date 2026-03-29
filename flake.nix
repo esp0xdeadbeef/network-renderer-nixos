@@ -28,7 +28,7 @@
         "aarch64-linux"
       ];
       forAllSystems = lib.genAttrs systems;
-      api = import ./lib/api.nix {
+      api = import ./s88/Enterprise/network/default.nix {
         inherit lib;
         repoRoot = ./.;
         flakeInputs = {
@@ -48,7 +48,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          renderDryConfig = import ./lib/render-dry-config-app.nix {
+          renderDryConfig = import ./s88/CM/network/tools/render-dry-config-app.nix {
             inherit pkgs self;
           };
         in
