@@ -5,15 +5,14 @@
 
 let
   hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
-  bridgeRenderer = import ../render/bridge-artifacts.nix { inherit lib; };
 
-  bridgeNamesRaw = bridgeRenderer.bridgeNamesRawForAttachTargets attachTargetsRuntime;
+  bridgeNamesRaw = lib.sort builtins.lessThan (
+    lib.unique (
+      lib.filter builtins.isString (map (target: target.hostBridgeName or null) attachTargetsRuntime)
+    )
+  );
 
-  bridgeNameMap = bridgeRenderer.bridgeNameMapForAttachTargets {
-    attachTargets = attachTargetsRuntime;
-    shorten = hostNaming.shorten;
-    ensureUnique = hostNaming.ensureUnique;
-  };
+  bridgeNameMap = hostNaming.ensureUnique bridgeNamesRaw;
 
   bridges = builtins.listToAttrs (
     map (bridgeName: {

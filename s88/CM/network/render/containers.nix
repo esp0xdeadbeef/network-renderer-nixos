@@ -7,7 +7,7 @@
 
 let
   nft = import ../roles/nftables.nix { inherit lib; };
-  containerModel = import ./container-model.nix {
+  containerRuntime = import ../mapping/container-runtime.nix {
     inherit
       lib
       hostPlan
@@ -19,7 +19,14 @@ let
   mkContainer =
     unitName:
     let
-      model = containerModel.${unitName};
+      model = containerRuntime.${unitName};
+
+      containerNetworks = import ./container-networks.nix {
+        inherit lib;
+        containerModel = model;
+        uplinks = hostPlan.uplinks or { };
+        wanUplinkName = hostPlan.wanUplinkName or null;
+      };
 
       nftRuleset =
         if model.roleName != null && builtins.hasAttr model.roleName nft then
@@ -47,8 +54,9 @@ let
         inherit (model)
           bindMounts
           allowedDevices
-          extraVeths
           ;
+
+        extraVeths = model.veths;
 
         additionalCapabilities = lib.unique (
           [
@@ -99,9 +107,9 @@ let
             };
 
             system.stateVersion = lib.mkDefault "25.11";
-            systemd.network.networks = model.containerNetworks;
+            systemd.network.networks = containerNetworks;
           };
       };
     };
 in
-builtins.listToAttrs (map mkContainer (sortedAttrNames containerModel))
+builtins.listToAttrs (map mkContainer (sortedAttrNames containerRuntime))
