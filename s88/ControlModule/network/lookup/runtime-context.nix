@@ -44,18 +44,111 @@ let
       }) (sortedAttrNames siteTree)
     ) (sortedAttrNames cpmData);
 
-  runtimeTargets =
+  runtimeTargetAttrNamesForEntry =
+    entry:
+    if entry.site ? runtimeTargets && builtins.isAttrs entry.site.runtimeTargets then
+      sortedAttrNames entry.site.runtimeTargets
+    else
+      [ ];
+
+  runtimeTargetInstanceId =
+    {
+      rootName,
+      siteName,
+      unitName,
+    }:
+    builtins.concatStringsSep "::" (
+      lib.filter builtins.isString [
+        rootName
+        siteName
+        unitName
+      ]
+    );
+
+  runtimeTargetEntries =
     cpm:
-    lib.foldl' (
-      acc: entry:
-      acc
-      // (
-        if entry.site ? runtimeTargets && builtins.isAttrs entry.site.runtimeTargets then
-          entry.site.runtimeTargets
-        else
-          { }
-      )
-    ) { } (siteEntries cpm);
+    lib.concatMap (
+      entry:
+      map (
+        unitName:
+        entry
+        // {
+          inherit unitName;
+          runtimeTarget = entry.site.runtimeTargets.${unitName};
+          instanceId = runtimeTargetInstanceId {
+            inherit (entry) rootName siteName;
+            inherit unitName;
+          };
+        }
+      ) (runtimeTargetAttrNamesForEntry entry)
+    ) (siteEntries cpm);
+
+  runtimeTargetEntriesById =
+    cpm:
+    builtins.listToAttrs (
+      map (entry: {
+        name = entry.instanceId;
+        value = entry;
+      }) (runtimeTargetEntries cpm)
+    );
+
+  runtimeTargetEntriesForRawUnitName =
+    {
+      cpm,
+      unitName,
+    }:
+    lib.filter (entry: entry.unitName == unitName) (runtimeTargetEntries cpm);
+
+  runtimeTargetEntryForUnit =
+    {
+      cpm,
+      unitName,
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+    }:
+    let
+      byId = runtimeTargetEntriesById cpm;
+      rawMatches = runtimeTargetEntriesForRawUnitName {
+        inherit cpm unitName;
+      };
+    in
+    if builtins.hasAttr unitName byId then
+      byId.${unitName}
+    else if builtins.length rawMatches == 1 then
+      builtins.head rawMatches
+    else if rawMatches == [ ] then
+      throw ''
+        ${file}: missing runtime target for unit '${unitName}'
+
+        known runtime target instances:
+        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ (sortedAttrNames byId))}
+      ''
+    else
+      throw ''
+        ${file}: multiple runtime target instances matched legacy unit name '${unitName}'
+
+        matching runtime target instances:
+        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ (map (entry: entry.instanceId) rawMatches))}
+      '';
+
+  runtimeTargetIdForEntry =
+    entry:
+    let
+      target = entry.runtimeTarget;
+    in
+    if target ? runtimeTargetId && builtins.isString target.runtimeTargetId then
+      target.runtimeTargetId
+    else if
+      target ? logicalNode
+      && builtins.isAttrs target.logicalNode
+      && target.logicalNode ? name
+      && builtins.isString target.logicalNode.name
+    then
+      target.logicalNode.name
+    else
+      entry.unitName;
+
+  runtimeTargets =
+    cpm: builtins.mapAttrs (_: entry: entry.runtimeTarget) (runtimeTargetEntriesById cpm);
 
   siteEntryForUnit =
     {
@@ -64,23 +157,20 @@ let
       file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
-      matches = lib.filter (
-        entry:
-        entry.site ? runtimeTargets
-        && builtins.isAttrs entry.site.runtimeTargets
-        && builtins.hasAttr unitName entry.site.runtimeTargets
-      ) (siteEntries cpm);
+      entry = runtimeTargetEntryForUnit {
+        inherit cpm unitName file;
+      };
     in
-    if builtins.length matches == 1 then
-      builtins.head matches
-    else if matches == [ ] then
-      throw ''
-        ${file}: no site entry matched unit '${unitName}'
-      ''
-    else
-      throw ''
-        ${file}: multiple site entries matched unit '${unitName}'
-      '';
+    {
+      inherit (entry)
+        rootName
+        siteName
+        site
+        unitName
+        instanceId
+        runtimeTarget
+        ;
+    };
 
   runtimeTargetForUnit =
     {
@@ -88,18 +178,9 @@ let
       unitName,
       file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
-    let
-      targets = runtimeTargets cpm;
-    in
-    if builtins.hasAttr unitName targets && builtins.isAttrs targets.${unitName} then
-      targets.${unitName}
-    else
-      throw ''
-        ${file}: missing runtime target for unit '${unitName}'
-
-        known runtime targets:
-        ${builtins.concatStringsSep "\n  - " ([ "" ] ++ sortedAttrNames targets)}
-      '';
+    (runtimeTargetEntryForUnit {
+      inherit cpm unitName file;
+    }).runtimeTarget;
 
   logicalNodeForUnit =
     {
@@ -114,6 +195,20 @@ let
       };
     in
     if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
+
+  runtimeTargetIdForUnit =
+    {
+      cpm,
+      inventory ? { },
+      unitName,
+      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+    }:
+    let
+      entry = runtimeTargetEntryForUnit {
+        inherit cpm unitName file;
+      };
+    in
+    runtimeTargetIdForEntry entry;
 
   logicalNodeNameForUnit =
     {
@@ -131,8 +226,20 @@ let
           file
           ;
       };
+
+      runtimeTargetId = runtimeTargetIdForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
     in
-    if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else unitName;
+    if logicalNode ? name && builtins.isString logicalNode.name then
+      logicalNode.name
+    else
+      runtimeTargetId;
 
   logicalNodeIdentityForUnit =
     {
@@ -142,6 +249,10 @@ let
       file ? "s88/ControlModule/network/lookup/runtime-context.nix",
     }:
     let
+      entry = runtimeTargetEntryForUnit {
+        inherit cpm unitName file;
+      };
+
       logicalNode = logicalNodeForUnit {
         inherit
           cpm
@@ -151,21 +262,22 @@ let
           ;
       };
 
-      siteEntry = siteEntryForUnit {
-        inherit cpm unitName file;
-      };
-
-      rootName = siteEntry.rootName or null;
       siteName =
         if logicalNode ? site && builtins.isString logicalNode.site then
           logicalNode.site
         else
-          siteEntry.siteName or null;
+          entry.siteName or null;
+
+      identityName =
+        if logicalNode ? name && builtins.isString logicalNode.name then
+          logicalNode.name
+        else
+          runtimeTargetIdForEntry entry;
 
       segments = lib.filter builtins.isString [
-        rootName
+        entry.rootName
         siteName
-        (logicalNode.name or null)
+        identityName
       ];
     in
     if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
@@ -253,16 +365,29 @@ let
             ${builtins.toJSON target}
           '';
 
+      runtimeTargetId = runtimeTargetIdForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
+
+      logicalNodeName = logicalNodeNameForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
+
       fallbackHost =
         if target ? runtimeTargetId && builtins.isString target.runtimeTargetId then
           target.runtimeTargetId
-        else if
-          target ? logicalNode
-          && builtins.isAttrs target.logicalNode
-          && target.logicalNode ? name
-          && builtins.isString target.logicalNode.name
-        then
-          target.logicalNode.name
+        else if logicalNodeName != null then
+          logicalNodeName
         else
           unitName;
 
@@ -300,9 +425,24 @@ let
         else
           let
             fromUnitName = resolveCandidate unitName;
-            fromFallbackHost = if fromUnitName != null then null else resolveCandidate fallbackHost;
+            fromRuntimeTargetId = if fromUnitName != null then null else resolveCandidate runtimeTargetId;
+            fromLogicalNodeName =
+              if fromUnitName != null || fromRuntimeTargetId != null then
+                null
+              else
+                resolveCandidate logicalNodeName;
+            fromFallbackHost =
+              if fromUnitName != null || fromRuntimeTargetId != null || fromLogicalNodeName != null then
+                null
+              else
+                resolveCandidate fallbackHost;
             fromRealizationHost =
-              if fromUnitName != null || fromFallbackHost != null then
+              if
+                fromUnitName != null
+                || fromRuntimeTargetId != null
+                || fromLogicalNodeName != null
+                || fromFallbackHost != null
+              then
                 null
               else
                 realizationHostForUnit {
@@ -311,6 +451,10 @@ let
           in
           if fromUnitName != null then
             fromUnitName
+          else if fromRuntimeTargetId != null then
+            fromRuntimeTargetId
+          else if fromLogicalNodeName != null then
+            fromLogicalNodeName
           else if fromFallbackHost != null then
             fromFallbackHost
           else
@@ -629,10 +773,21 @@ let
           file
           ;
       };
+
+      runtimeTargetId = runtimeTargetIdForUnit {
+        inherit
+          cpm
+          inventory
+          unitName
+          file
+          ;
+      };
     in
     unitName == requestedHostName
+    || runtimeTargetId == requestedHostName
     || logicalNodeName == requestedHostName
-    || lib.hasPrefix "${requestedHostName}-" unitName
+    || lib.hasPrefix "${requestedHostName}::" unitName
+    || lib.hasPrefix "${requestedHostName}-" runtimeTargetId
     || lib.hasPrefix "${requestedHostName}-" logicalNodeName;
 
   selectedUnitsForHostContext =
@@ -757,9 +912,12 @@ in
 {
   inherit
     siteEntries
+    runtimeTargetInstanceId
+    runtimeTargetEntries
     runtimeTargets
     siteEntryForUnit
     runtimeTargetForUnit
+    runtimeTargetIdForUnit
     logicalNodeForUnit
     logicalNodeNameForUnit
     logicalNodeIdentityForUnit

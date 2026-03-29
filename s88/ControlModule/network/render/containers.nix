@@ -17,9 +17,9 @@ let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   mkContainer =
-    unitName:
+    unitKey:
     let
-      model = containerRuntime.${unitName};
+      model = containerRuntime.${unitKey};
 
       containerNetworks = import ./container-networks.nix {
         inherit lib;
@@ -33,8 +33,8 @@ let
           nft.${model.roleName} {
             wanIfs = model.wanInterfaceNames;
             lanIfs = model.lanInterfaceNames;
+            unitName = model.unitName;
             inherit
-              unitName
               cpm
               inventory
               ;
@@ -46,7 +46,7 @@ let
           null;
     in
     {
-      name = unitName;
+      name = model.containerName;
       value = {
         autoStart = true;
         privateNetwork = true;
@@ -67,9 +67,7 @@ let
         );
 
         specialArgs = {
-          inherit
-            unitName
-            ;
+          unitName = model.unitName;
           deploymentHostName = model.deploymentHostName;
           runtimeTarget = model.runtimeTarget;
           controlPlaneOut = cpm;
@@ -94,7 +92,7 @@ let
               traceroute
             ];
 
-            networking.hostName = unitName;
+            networking.hostName = model.containerName;
             networking.useNetworkd = true;
             systemd.network.enable = true;
             networking.useDHCP = false;

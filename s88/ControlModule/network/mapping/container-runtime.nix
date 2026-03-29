@@ -17,6 +17,32 @@ let
   deploymentHostName = hostPlan.deploymentHostName or null;
   hostContext = hostPlan.resolvedHostContext or { };
 
+  runtimeTargetForUnit =
+    unitName:
+    if builtins.hasAttr unitName normalizedRuntimeTargets then
+      normalizedRuntimeTargets.${unitName}
+    else
+      throw ''
+        s88/CM/network/mapping/container-runtime.nix: missing normalized runtime target for unit '${unitName}'
+      '';
+
+  runtimeTargetIdForUnit =
+    unitName:
+    let
+      runtimeTarget = runtimeTargetForUnit unitName;
+    in
+    if runtimeTarget ? runtimeTargetId && builtins.isString runtimeTarget.runtimeTargetId then
+      runtimeTarget.runtimeTargetId
+    else if
+      runtimeTarget ? logicalNode
+      && builtins.isAttrs runtimeTarget.logicalNode
+      && runtimeTarget.logicalNode ? name
+      && builtins.isString runtimeTarget.logicalNode.name
+    then
+      runtimeTarget.logicalNode.name
+    else
+      unitName;
+
   roleForUnit = unitName: if builtins.hasAttr unitName unitRoles then unitRoles.${unitName} else null;
 
   roleConfigForUnit =
@@ -99,9 +125,61 @@ let
         ${builtins.toJSON localAttachTargets}
       '';
 
+  desiredContainerBaseNameForUnit =
+    unitName:
+    let
+      containerConfig = containerConfigForUnit unitName;
+    in
+    if containerConfig ? name && builtins.isString containerConfig.name then
+      containerConfig.name
+    else
+      runtimeTargetIdForUnit unitName;
+
+  desiredContainerBaseNames = builtins.listToAttrs (
+    map (unitName: {
+      name = unitName;
+      value = desiredContainerBaseNameForUnit unitName;
+    }) selectedUnits
+  );
+
+  desiredContainerBaseCounts = builtins.foldl' (
+    acc: unitName:
+    let
+      baseName = desiredContainerBaseNames.${unitName};
+    in
+    acc
+    // {
+      ${baseName} = (acc.${baseName} or 0) + 1;
+    }
+  ) { } selectedUnits;
+
+  candidateContainerNames = builtins.listToAttrs (
+    map (
+      unitName:
+      let
+        baseName = desiredContainerBaseNames.${unitName};
+      in
+      {
+        name = unitName;
+        value =
+          if desiredContainerBaseCounts.${baseName} == 1 then
+            baseName
+          else
+            "${baseName}-${builtins.substring 0 6 (builtins.hashString "sha256" unitName)}";
+      }
+    ) selectedUnits
+  );
+
+  containerNameMap = hostNaming.ensureUnique (
+    map (unitName: candidateContainerNames.${unitName}) selectedUnits
+  );
+
+  containerNameForUnit = unitName: containerNameMap.${candidateContainerNames.${unitName}};
+
   normalizedInterfacesForUnit =
     {
       unitName,
+      containerName,
       interfaces,
     }:
     builtins.listToAttrs (
@@ -127,7 +205,7 @@ let
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = hostNaming.shorten "${unitName}-${renderedIfName}";
+            hostInterfaceName = hostNaming.shorten "${containerName}-${renderedIfName}";
           };
         }
       ) (sortedAttrNames interfaces)
@@ -153,16 +231,14 @@ let
   mkContainerRuntime =
     unitName:
     let
-      runtimeTarget =
-        if builtins.hasAttr unitName normalizedRuntimeTargets then
-          normalizedRuntimeTargets.${unitName}
-        else
-          throw ''
-            s88/CM/network/mapping/container-runtime.nix: missing normalized runtime target for unit '${unitName}'
-          '';
+      runtimeTarget = runtimeTargetForUnit unitName;
+
+      unitRuntimeTargetId = runtimeTargetIdForUnit unitName;
+
+      containerName = containerNameForUnit unitName;
 
       interfaces = normalizedInterfacesForUnit {
-        inherit unitName;
+        inherit unitName containerName;
         interfaces = runtimeTarget.interfaces or { };
       };
 
@@ -204,7 +280,6 @@ let
     in
     {
       inherit
-        unitName
         deploymentHostName
         hostContext
         runtimeTarget
@@ -218,6 +293,9 @@ let
         lanInterfaceNames
         interfaces
         ;
+      unitKey = unitName;
+      unitName = unitRuntimeTargetId;
+      inherit containerName;
       loopback = runtimeTarget.loopback or { };
       veths = vethsForInterfaces interfaces;
     };
