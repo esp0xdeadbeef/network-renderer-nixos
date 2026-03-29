@@ -1448,14 +1448,12 @@ let
           {
             imports = [
               ../s88/CM/network/profiles/common-router.nix
-              ../s88/CM/network/../../mount-utils.nix
             ]
             ++ lib.optionals (profilePath != null) [
               profilePath
             ];
 
             environment.systemPackages = with pkgs; [
-              bindfs
               gron
               traceroute
             ];
