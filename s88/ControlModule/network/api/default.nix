@@ -48,7 +48,7 @@ let
         ;
     };
 
-  hostBuild = import ./host-build.nix {
+  hostBuilders = import ./host-build.nix {
     inherit
       lib
       selectors
@@ -57,9 +57,22 @@ let
     renderHostNetwork = renderHostNetworkImpl;
     renderDryConfig = renderDryConfigImpl;
   };
+
+  hostBuild = import ./module-host-build.nix {
+    inherit
+      lib
+      selectors
+      ;
+    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+  };
 in
 {
-  inherit realizationPorts selectors flakeInputs;
+  inherit
+    realizationPorts
+    selectors
+    flakeInputs
+    hostBuild
+    ;
 
   renderer = {
     loadIntent = selectors.importMaybeFunction;
@@ -75,7 +88,7 @@ in
       buildControlPlaneFromPaths
       ;
 
-    inherit (hostBuild)
+    inherit (hostBuilders)
       buildHost
       buildHostFromPaths
       buildHostFromOutPath
