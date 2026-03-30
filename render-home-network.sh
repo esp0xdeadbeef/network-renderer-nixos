@@ -9,3 +9,5 @@ nix run \
     --debug \
     "/home/deadbeef/github/nixos/library/100-fabric-routing/inputs/intent.nix" \
     "/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/inventory.nix"
+
+cat 90-render.json | jq -c
