@@ -1,72 +1,62 @@
 {
   lib,
-  interfaceView,
+  unitName ? null,
+  runtimeTarget ? { },
+  interfaces ? { },
+  wanIfs ? [ ],
+  lanIfs ? [ ],
   uplinks ? { },
   ...
 }:
 
 let
-  wanEntries = interfaceView.wanEntries or [ ];
-  wanNames = interfaceView.wanNames or [ ];
-  lanNames = interfaceView.lanNames or [ ];
+  emit = import ../emission/default.nix { inherit lib; };
 
-  uplinkForEntry =
-    entry:
-    if
-      entry ? assignedUplinkName
-      && builtins.isString entry.assignedUplinkName
-      && builtins.hasAttr entry.assignedUplinkName uplinks
-    then
-      uplinks.${entry.assignedUplinkName}
-    else
-      { };
+  sortedStrings =
+    values:
+    lib.sort builtins.lessThan (
+      lib.unique (lib.filter (value: builtins.isString value && value != "") values)
+    );
 
-  masqueradeEnabled =
-    uplink:
-    (uplink.masquerade or false)
-    || (lib.attrByPath [ "nat" "enable" ] false uplink)
-    || (lib.attrByPath [ "nat" "masquerade" ] false uplink)
-    || (lib.attrByPath [ "ipv4" "masquerade" ] false uplink);
+  wanNames = sortedStrings wanIfs;
+  lanNames = sortedStrings lanIfs;
 
-  mssClampEnabled =
-    uplink:
-    if uplink ? mssClamp then
-      uplink.mssClamp
-    else if uplink ? tcpMssClamp then
-      uplink.tcpMssClamp
-    else if lib.hasAttrByPath [ "tcp" "mssClamp" ] uplink then
-      lib.attrByPath [ "tcp" "mssClamp" ] false uplink
-    else if lib.hasAttrByPath [ "tcpMssClamp" "enable" ] uplink then
-      lib.attrByPath [ "tcpMssClamp" "enable" ] false uplink
+  uplinkNames =
+    if builtins.isAttrs uplinks then lib.sort builtins.lessThan (builtins.attrNames uplinks) else [ ];
+
+  uplinkHasIpv4 =
+    uplinkName:
+    let
+      uplink = uplinks.${uplinkName};
+      ipv4 = if uplink ? ipv4 && builtins.isAttrs uplink.ipv4 then uplink.ipv4 else null;
+    in
+    if ipv4 == null then
+      true
+    else if ipv4 ? enable then
+      (ipv4.enable or false)
     else
       true;
 
-  natInterfaces = map (entry: entry.name) (
-    lib.filter (entry: masqueradeEnabled (uplinkForEntry entry)) wanEntries
-  );
+  natEnabled = wanNames != [ ] && (uplinkNames == [ ] || lib.any uplinkHasIpv4 uplinkNames);
 
-  clampMssInterfaces = map (entry: entry.name) (
-    lib.filter (entry: mssClampEnabled (uplinkForEntry entry)) wanEntries
-  );
+  forwardPairs = lib.optionals (lanNames != [ ] && wanNames != [ ]) [
+    {
+      iifname = lanNames;
+      oifname = wanNames;
+      action = "accept";
+      comment = "core-lan-to-wan";
+    }
+  ];
 in
-if wanNames == [ ] || lanNames == [ ] then
+if wanNames == [ ] && lanNames == [ ] then
   null
 else
-  {
+  emit {
     tableName = "router";
     inputPolicy = "accept";
     outputPolicy = "accept";
     forwardPolicy = "drop";
-
-    forwardPairs = [
-      {
-        "in" = lanNames;
-        "out" = wanNames;
-        action = "accept";
-        comment = "core-lan-to-wan";
-      }
-    ];
-
-    natInterfaces = natInterfaces;
-    clampMssInterfaces = clampMssInterfaces;
+    inherit forwardPairs;
+    natInterfaces = if natEnabled then wanNames else [ ];
+    clampMssInterfaces = wanNames;
   }
