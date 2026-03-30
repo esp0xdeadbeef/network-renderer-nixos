@@ -6,7 +6,7 @@
 }:
 
 let
-  hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
+  hostNaming = import ../../../lib/host-naming.nix { inherit lib; };
 
   synthesizedTransitLinks = lib.unique (
     lib.concatMap (

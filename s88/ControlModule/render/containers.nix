@@ -6,7 +6,7 @@
 }:
 
 let
-  firewall = import ../../firewall/default.nix { inherit lib; };
+  firewall = import ../firewall/default.nix { inherit lib; };
   containerRuntime = import ../mapping/container-runtime.nix {
     inherit
       lib

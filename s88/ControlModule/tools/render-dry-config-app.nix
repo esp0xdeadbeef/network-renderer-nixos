@@ -49,7 +49,7 @@ pkgs.writeShellApplication {
       exit 1
     fi
 
-    repo_root='${builtins.toString ../../../..}'
+    repo_root='${builtins.toString ../../..}'
     render_file="$repo_root/s88/ControlModule/render/dry-config-output.nix"
 
     rm -f \

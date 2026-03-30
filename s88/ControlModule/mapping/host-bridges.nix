@@ -4,7 +4,7 @@
 }:
 
 let
-  hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
+  hostNaming = import ../../../lib/host-naming.nix { inherit lib; };
 
   bridgeNamesRaw = lib.sort builtins.lessThan (
     lib.unique (

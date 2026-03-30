@@ -23,7 +23,7 @@ in
 {
   imports = [
     "${outPath}/library/10-vms/nixos-shell-vm/host-config-routers-without-network"
-    ../../EquipmentModule/network/default.nix
+    ../../EquipmentModule/default.nix
   ];
 
   _module.args = {
