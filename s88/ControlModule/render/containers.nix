@@ -16,6 +16,19 @@ let
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  mkFirewallArg =
+    nftRuleset:
+    if nftRuleset == null then
+      {
+        enable = false;
+        ruleset = null;
+      }
+    else
+      {
+        enable = true;
+        ruleset = nftRuleset;
+      };
+
   mkContainer =
     unitKey:
     let
@@ -42,6 +55,8 @@ let
         lanIfs = model.lanInterfaceNames or [ ];
         uplinks = hostPlan.uplinks or { };
       };
+
+      firewallArg = mkFirewallArg nftRuleset;
     in
     {
       name = model.containerName;
@@ -74,10 +89,7 @@ let
           hostContext = model.hostContext;
           s88Role = model.roleConfig;
           s88RoleName = model.roleName;
-          s88Firewall = {
-            enable = nftRuleset != null;
-            ruleset = if nftRuleset != null then nftRuleset else "";
-          };
+          s88Firewall = firewallArg;
         };
 
         config =
@@ -102,9 +114,9 @@ let
             networking.useHostResolvConf = lib.mkForce false;
             services.resolved.enable = lib.mkForce false;
 
-            networking.nftables = lib.mkIf (nftRuleset != null) {
+            networking.nftables = lib.mkIf firewallArg.enable {
               enable = true;
-              ruleset = nftRuleset;
+              ruleset = firewallArg.ruleset;
             };
 
             system.stateVersion = lib.mkDefault "25.11";
