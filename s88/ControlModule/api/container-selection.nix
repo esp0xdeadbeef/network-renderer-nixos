@@ -19,7 +19,7 @@ let
       acc
     else
       throw ''
-        s88/ControlModule/network/api/container-selection.nix: containerSelection entry '${name}' must be a boolean
+        s88/ControlModule/api/container-selection.nix: containerSelection entry '${name}' must be a boolean
 
         value:
         ${builtins.toJSON value}
@@ -65,7 +65,7 @@ let
     in
     if matches == [ ] then
       throw ''
-        s88/ControlModule/network/api/container-selection.nix: selector '${selector}' did not match any rendered container
+        s88/ControlModule/api/container-selection.nix: selector '${selector}' did not match any rendered container
 
         available container names:
         ${builtins.toJSON containerNames}
@@ -74,7 +74,7 @@ let
       builtins.head matches
     else
       throw ''
-        s88/ControlModule/network/api/container-selection.nix: selector '${selector}' matched multiple rendered containers
+        s88/ControlModule/api/container-selection.nix: selector '${selector}' matched multiple rendered containers
 
         matches:
         ${builtins.toJSON matches}

@@ -6,7 +6,7 @@
 }:
 
 let
-  nft = import ../roles/nftables.nix { inherit lib; };
+  firewall = import ../../firewall/default.nix { inherit lib; };
   containerRuntime = import ../mapping/container-runtime.nix {
     inherit
       lib
@@ -28,22 +28,20 @@ let
         wanUplinkName = hostPlan.wanUplinkName or null;
       };
 
-      nftRuleset =
-        if model.roleName != null && builtins.hasAttr model.roleName nft then
-          nft.${model.roleName} {
-            wanIfs = model.wanInterfaceNames;
-            lanIfs = model.lanInterfaceNames;
-            unitName = model.unitName;
-            inherit
-              cpm
-              inventory
-              ;
-            roleName = model.roleName;
-            runtimeTarget = model.runtimeTarget;
-            interfaces = model.runtimeTarget.interfaces or { };
-          }
-        else
-          null;
+      nftRuleset = firewall {
+        inherit
+          cpm
+          inventory
+          ;
+        unitKey = model.unitKey;
+        unitName = model.unitName;
+        roleName = model.roleName;
+        runtimeTarget = model.runtimeTarget;
+        interfaces = model.interfaces or { };
+        wanIfs = model.wanInterfaceNames or [ ];
+        lanIfs = model.lanInterfaceNames or [ ];
+        uplinks = hostPlan.uplinks or { };
+      };
     in
     {
       name = model.containerName;
@@ -67,6 +65,7 @@ let
         );
 
         specialArgs = {
+          unitKey = model.unitKey;
           unitName = model.unitName;
           deploymentHostName = model.deploymentHostName;
           runtimeTarget = model.runtimeTarget;

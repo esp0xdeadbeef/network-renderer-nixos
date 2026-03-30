@@ -50,7 +50,7 @@ pkgs.writeShellApplication {
     fi
 
     repo_root='${builtins.toString ../../../..}'
-    render_file="$repo_root/s88/ControlModule/network/render/dry-config-output.nix"
+    render_file="$repo_root/s88/ControlModule/render/dry-config-output.nix"
 
     rm -f \
       ./00-*.json \
