@@ -50,7 +50,7 @@ let
         ;
     };
 
-  hostBuilders = import ./host-build.nix {
+  hostBuilders = import ../../../ControlModule/network/api/host-build.nix {
     inherit
       lib
       selectors
