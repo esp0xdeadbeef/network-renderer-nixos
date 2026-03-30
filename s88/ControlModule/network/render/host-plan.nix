@@ -18,6 +18,7 @@ let
   };
 
   attachTargetsRuntime = realizationPorts.attachTargetsForUnitsFromRuntime {
+    inherit inventory;
     selectedUnits = hostRuntime.selectedUnits;
     normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
     file = "s88/CM/network/render/host-plan.nix";
