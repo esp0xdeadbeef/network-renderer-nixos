@@ -6,8 +6,7 @@
 
 {
   lib ? null,
-  pkgs ? null,
-  system ? if pkgs != null then pkgs.stdenv.hostPlatform.system else builtins.currentSystem,
+  system ? "x86_64-linux",
   outPath,
   hostName,
   inventoryPath ? null,
