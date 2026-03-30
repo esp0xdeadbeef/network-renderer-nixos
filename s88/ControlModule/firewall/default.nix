@@ -18,7 +18,7 @@ let
       ;
   };
 
-  ruleModel = import ./policy/default.nix (
+  ruleModelOrRuleset = import ./policy/default.nix (
     args
     // {
       inherit
@@ -28,4 +28,9 @@ let
     }
   );
 in
-if ruleModel == null then null else import ./emission/default.nix { inherit lib; } ruleModel
+if ruleModelOrRuleset == null then
+  null
+else if builtins.isString ruleModelOrRuleset then
+  ruleModelOrRuleset
+else
+  import ./emission/default.nix { inherit lib; } ruleModelOrRuleset
