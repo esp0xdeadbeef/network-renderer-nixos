@@ -1,10 +1,11 @@
 {
-  lib,
+  lib ? null,
   selectors,
   buildHostFromPaths,
 }:
 
 {
+  lib ? null,
   pkgs,
   outPath,
   hostName,
@@ -14,6 +15,14 @@
 }:
 
 let
+  effectiveLib =
+    if lib != null then
+      lib
+    else
+      throw ''
+        s88/ControlModule/network/api/module-host-build.nix: lib is required
+      '';
+
   system = pkgs.stdenv.hostPlatform.system;
 
   resolvedPaths = selectors.pathsFromOutPath {
@@ -29,16 +38,13 @@ let
     intentPath = resolvedIntentPath;
     inventoryPath = resolvedInventoryPath;
     selector = hostName;
-    inherit
-      system
-      selectorFile
-      ;
+    inherit system;
     file = selectorFile;
   };
 
   selectedContainers = import ./container-selection.nix {
+    lib = effectiveLib;
     inherit
-      lib
       containerSelection
       ;
     containers = builtHost.renderedHost.containers or { };
@@ -49,8 +55,8 @@ let
   };
 
   debugPayload = import ./debug-payload.nix {
+    lib = effectiveLib;
     inherit
-      lib
       system
       hostName
       renderedHostNetwork
