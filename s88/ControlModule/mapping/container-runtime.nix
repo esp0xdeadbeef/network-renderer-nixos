@@ -8,6 +8,11 @@ let
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  interfaceNameMaxLength = 15;
+
+  validInterfaceName =
+    name: builtins.isString name && name != "" && builtins.stringLength name <= interfaceNameMaxLength;
+
   normalizedRuntimeTargets = hostPlan.normalizedRuntimeTargets or { };
   selectedUnits = hostPlan.selectedUnits or [ ];
   selectedRoles = hostPlan.selectedRoles or { };
@@ -208,8 +213,7 @@ let
       attachTarget ? identity
       && builtins.isAttrs attachTarget.identity
       && attachTarget.identity ? portName
-      && builtins.isString attachTarget.identity.portName
-      && attachTarget.identity.portName != ""
+      && validInterfaceName attachTarget.identity.portName
     then
       attachTarget.identity.portName
     else
@@ -221,8 +225,7 @@ let
       iface ? connectivity
       && builtins.isAttrs iface.connectivity
       && iface.connectivity ? upstream
-      && builtins.isString iface.connectivity.upstream
-      && iface.connectivity.upstream != ""
+      && validInterfaceName iface.connectivity.upstream
     then
       iface.connectivity.upstream
     else
@@ -254,7 +257,7 @@ let
       interfaces,
     }:
     let
-      entriesBase = map (
+      entries = map (
         ifName:
         let
           iface = interfaces.${ifName};
@@ -262,47 +265,28 @@ let
             inherit unitName ifName iface;
           };
           sourceKind = sourceKindForInterface iface;
-          desiredInterfaceName = effectiveInterfaceNameForInterface {
+          interfaceName = effectiveInterfaceNameForInterface {
             inherit ifName iface attachTarget;
           };
         in
         {
-          inherit
-            ifName
-            iface
-            attachTarget
-            sourceKind
-            desiredInterfaceName
-            ;
-        }
-      ) (sortedAttrNames interfaces);
-
-      desiredInterfaceNames = map (entry: entry.desiredInterfaceName) entriesBase;
-
-      containerInterfaceNameMap = hostNaming.ensureUnique desiredInterfaceNames;
-
-      entries = map (
-        entry:
-        let
-          containerInterfaceName = containerInterfaceNameMap.${entry.desiredInterfaceName};
-        in
-        {
-          inherit (entry) ifName;
+          inherit ifName;
           value = {
-            inherit (entry)
+            inherit
+              ifName
               sourceKind
               ;
-            renderedIfName = entry.iface.renderedIfName or entry.ifName;
-            inherit containerInterfaceName;
-            addresses = entry.iface.addresses or [ ];
-            routes = entry.iface.routes or [ ];
-            renderedHostBridgeName = entry.attachTarget.renderedHostBridgeName;
-            assignedUplinkName = entry.attachTarget.assignedUplinkName or null;
-            hostInterfaceName = containerInterfaceName;
-            hostVethName = hostNaming.shorten "${containerName}-${containerInterfaceName}";
+            renderedIfName = iface.renderedIfName or ifName;
+            containerInterfaceName = interfaceName;
+            addresses = iface.addresses or [ ];
+            routes = iface.routes or [ ];
+            renderedHostBridgeName = attachTarget.renderedHostBridgeName;
+            assignedUplinkName = attachTarget.assignedUplinkName or null;
+            hostInterfaceName = interfaceName;
+            hostVethName = hostNaming.shorten "${containerName}-${interfaceName}";
           };
         }
-      ) entriesBase;
+      ) (sortedAttrNames interfaces);
 
       interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
 
