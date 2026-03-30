@@ -26,16 +26,18 @@ let
         iface = interfaces.${ifName};
 
         actualName =
-          if
+          if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
+            iface.interfaceName
+          else if
+            iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != ""
+          then
+            iface.renderedIfName
+          else if
             iface ? hostInterfaceName
             && builtins.isString iface.hostInterfaceName
             && iface.hostInterfaceName != ""
           then
             iface.hostInterfaceName
-          else if
-            iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != ""
-          then
-            iface.renderedIfName
           else
             null;
       in

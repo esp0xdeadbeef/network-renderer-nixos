@@ -200,7 +200,7 @@ let
         ifName:
         let
           iface = interfaces.${ifName};
-          renderedIfName = iface.renderedIfName or ifName;
+          interfaceName = iface.renderedIfName or ifName;
           attachTarget = attachTargetForInterface {
             inherit unitName ifName iface;
           };
@@ -211,14 +211,15 @@ let
           value = {
             inherit
               ifName
-              renderedIfName
+              interfaceName
               sourceKind
               ;
+            renderedIfName = interfaceName;
             addresses = iface.addresses or [ ];
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = hostNaming.shorten "${containerName}-${renderedIfName}";
+            hostInterfaceName = hostNaming.shorten "${containerName}-${interfaceName}";
           };
         }
       ) (sortedAttrNames interfaces)
@@ -233,7 +234,7 @@ let
           iface = interfaces.${ifName};
         in
         {
-          name = iface.hostInterfaceName;
+          name = iface.interfaceName;
           value = {
             hostBridge = iface.renderedHostBridgeName;
           };
@@ -283,11 +284,11 @@ let
 
       interfaceNames = sortedAttrNames interfaces;
 
-      wanInterfaceNames = map (ifName: interfaces.${ifName}.hostInterfaceName) (
+      wanInterfaceNames = map (ifName: interfaces.${ifName}.interfaceName) (
         lib.filter (ifName: interfaces.${ifName}.sourceKind == "wan") interfaceNames
       );
 
-      lanInterfaceNames = map (ifName: interfaces.${ifName}.hostInterfaceName) (
+      lanInterfaceNames = map (ifName: interfaces.${ifName}.interfaceName) (
         lib.filter (ifName: interfaces.${ifName}.sourceKind != "wan") interfaceNames
       );
     in
