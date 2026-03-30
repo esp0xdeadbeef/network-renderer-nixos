@@ -22,6 +22,29 @@ let
     bindMounts = container.bindMounts or { };
     allowedDevices = container.allowedDevices or [ ];
     additionalCapabilities = container.additionalCapabilities or [ ];
+    firewall =
+      if
+        container ? specialArgs
+        && builtins.isAttrs container.specialArgs
+        && container.specialArgs ? s88Firewall
+        && builtins.isAttrs container.specialArgs.s88Firewall
+      then
+        {
+          enable = container.specialArgs.s88Firewall.enable or false;
+          ruleset =
+            if
+              container.specialArgs.s88Firewall ? ruleset
+              && builtins.isString container.specialArgs.s88Firewall.ruleset
+            then
+              container.specialArgs.s88Firewall.ruleset
+            else
+              "";
+        }
+      else
+        {
+          enable = false;
+          ruleset = "";
+        };
     specialArgs = {
       unitName =
         if container ? specialArgs && container.specialArgs ? unitName then

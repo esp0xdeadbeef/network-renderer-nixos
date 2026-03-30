@@ -74,6 +74,10 @@ let
           hostContext = model.hostContext;
           s88Role = model.roleConfig;
           s88RoleName = model.roleName;
+          s88Firewall = {
+            enable = nftRuleset != null;
+            ruleset = if nftRuleset != null then nftRuleset else "";
+          };
         };
 
         config =
