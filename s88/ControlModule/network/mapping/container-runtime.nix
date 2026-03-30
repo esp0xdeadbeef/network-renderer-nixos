@@ -170,11 +170,24 @@ let
     ) selectedUnits
   );
 
-  containerNameMap = hostNaming.ensureUnique (
-    map (unitName: candidateContainerNames.${unitName}) selectedUnits
-  );
+  candidateContainerNameValues = map (unitName: candidateContainerNames.${unitName}) selectedUnits;
 
-  containerNameForUnit = unitName: containerNameMap.${candidateContainerNames.${unitName}};
+  _validateUniqueContainerNames =
+    if
+      builtins.length (lib.unique candidateContainerNameValues)
+      == builtins.length candidateContainerNameValues
+    then
+      true
+    else
+      throw ''
+        s88/CM/network/mapping/container-runtime.nix: candidate container names are not unique
+
+        candidateContainerNames:
+        ${builtins.toJSON candidateContainerNames}
+      '';
+
+  containerNameForUnit =
+    unitName: builtins.seq _validateUniqueContainerNames candidateContainerNames.${unitName};
 
   normalizedInterfacesForUnit =
     {
