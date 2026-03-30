@@ -16,54 +16,56 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  sanitizeContainer = containerName: container: {
-    autoStart = container.autoStart or false;
-    privateNetwork = container.privateNetwork or false;
-    extraVeths = container.extraVeths or { };
-    bindMounts = container.bindMounts or { };
-    allowedDevices = container.allowedDevices or [ ];
-    additionalCapabilities = container.additionalCapabilities or [ ];
-    firewall =
-      if
-        container ? specialArgs
-        && builtins.isAttrs container.specialArgs
-        && container.specialArgs ? s88Firewall
-        && builtins.isAttrs container.specialArgs.s88Firewall
-      then
-        {
-          enable = container.specialArgs.s88Firewall.enable or false;
-          ruleset =
-            if
-              container.specialArgs.s88Firewall ? ruleset
-              && builtins.isString container.specialArgs.s88Firewall.ruleset
-            then
-              container.specialArgs.s88Firewall.ruleset
-            else
-              "";
-        }
-      else
-        {
-          enable = false;
-          ruleset = "";
-        };
-    specialArgs = {
-      unitName =
-        if container ? specialArgs && container.specialArgs ? unitName then
-          container.specialArgs.unitName
+  sanitizeContainer =
+    containerName: container:
+    let
+      specialArgs =
+        if container ? specialArgs && builtins.isAttrs container.specialArgs then
+          container.specialArgs
         else
-          containerName;
-      deploymentHostName =
-        if container ? specialArgs && container.specialArgs ? deploymentHostName then
-          container.specialArgs.deploymentHostName
+          { };
+
+      firewall =
+        if specialArgs ? s88Firewall then
+          let
+            rawFirewall = specialArgs.s88Firewall;
+          in
+          if builtins.isAttrs rawFirewall then
+            {
+              enable = rawFirewall.enable or false;
+              ruleset = if rawFirewall ? ruleset then rawFirewall.ruleset else null;
+            }
+          else if builtins.isString rawFirewall then
+            {
+              enable = rawFirewall != "";
+              ruleset = rawFirewall;
+            }
+          else
+            {
+              enable = false;
+              ruleset = null;
+            }
         else
-          null;
-      s88RoleName =
-        if container ? specialArgs && container.specialArgs ? s88RoleName then
-          container.specialArgs.s88RoleName
-        else
-          null;
+          {
+            enable = false;
+            ruleset = null;
+          };
+    in
+    {
+      autoStart = container.autoStart or false;
+      privateNetwork = container.privateNetwork or false;
+      extraVeths = container.extraVeths or { };
+      bindMounts = container.bindMounts or { };
+      allowedDevices = container.allowedDevices or [ ];
+      additionalCapabilities = container.additionalCapabilities or [ ];
+      inherit firewall;
+      specialArgs = {
+        unitName = if specialArgs ? unitName then specialArgs.unitName else containerName;
+        deploymentHostName =
+          if specialArgs ? deploymentHostName then specialArgs.deploymentHostName else null;
+        s88RoleName = if specialArgs ? s88RoleName then specialArgs.s88RoleName else null;
+      };
     };
-  };
 
   sanitizedContainers = builtins.listToAttrs (
     map (containerName: {

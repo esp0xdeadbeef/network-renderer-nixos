@@ -10,8 +10,6 @@
 }:
 
 let
-  emit = import ../emission/default.nix { inherit lib; };
-
   sortedStrings =
     values:
     lib.sort builtins.lessThan (
@@ -51,7 +49,7 @@ in
 if wanNames == [ ] && lanNames == [ ] then
   null
 else
-  emit {
+  {
     tableName = "router";
     inputPolicy = "accept";
     outputPolicy = "accept";
