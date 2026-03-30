@@ -42,7 +42,7 @@ let
     {
       inventory,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -61,7 +61,7 @@ let
     {
       inventory,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       node = nodeForUnit {
@@ -84,7 +84,7 @@ let
       port,
       unitName ? "<unknown>",
       portName ? "<unknown>",
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
@@ -146,7 +146,7 @@ let
     {
       inventory,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       node = nodeForUnit {
@@ -175,7 +175,7 @@ let
   attachMapForInventory =
     {
       inventory,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -209,7 +209,7 @@ let
     {
       inventory,
       deploymentHostName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       unitNames = unitNamesForDeploymentHost {
@@ -239,7 +239,7 @@ let
     {
       normalizedRuntimeTargets,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     if builtins.hasAttr unitName normalizedRuntimeTargets then
       normalizedRuntimeTargets.${unitName}
@@ -252,7 +252,7 @@ let
     {
       normalizedRuntimeTargets,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       runtimeTarget = runtimeTargetForUnitFromNormalized {
@@ -268,7 +268,7 @@ let
     {
       normalizedRuntimeTargets,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       runtimeTarget = runtimeTargetForUnitFromNormalized {
@@ -312,7 +312,7 @@ let
       inventory,
       normalizedRuntimeTargets,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -419,7 +419,7 @@ let
       normalizedRuntimeTargets,
       unitName,
       node,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       runtimeLogical = runtimeLogicalNodeForUnitFromNormalized {
@@ -439,7 +439,7 @@ let
       inventory,
       normalizedRuntimeTargets,
       unitName,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -463,7 +463,7 @@ let
       inventory,
       nodeNames,
       linkRefs,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -513,7 +513,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       backingRef =
@@ -601,7 +601,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       backingRef = iface.backingRef or { };
@@ -702,7 +702,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       resolvedPort = tryResolvePortForRuntimeInterface {
@@ -748,7 +748,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     let
       hostBridgeName =
@@ -783,7 +783,7 @@ let
       inventory ? { },
       selectedUnits,
       normalizedRuntimeTargets,
-      file ? "s88/ControlModule/network/physical/realization-ports.nix",
+      file ? "s88/ControlModule/physical/realization-ports.nix",
     }:
     lib.concatMap (
       unitName:

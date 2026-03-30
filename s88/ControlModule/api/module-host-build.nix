@@ -10,7 +10,7 @@
   outPath,
   hostName,
   inventoryPath ? null,
-  selectorFile ? "s88/ControlModule/network/api/module-host-build.nix",
+  selectorFile ? "s88/ControlModule/api/module-host-build.nix",
   containerSelection ? { },
 }:
 
@@ -20,7 +20,7 @@ let
       lib
     else
       throw ''
-        s88/ControlModule/network/api/module-host-build.nix: lib is required
+        s88/ControlModule/api/module-host-build.nix: lib is required
       '';
 
   resolvedPaths = selectors.pathsFromOutPath {

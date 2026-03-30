@@ -103,7 +103,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       byId = runtimeTargetEntriesById cpm;
@@ -154,7 +154,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       entry = runtimeTargetEntryForUnit {
@@ -176,7 +176,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     (runtimeTargetEntryForUnit {
       inherit cpm unitName file;
@@ -187,7 +187,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -201,7 +201,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       entry = runtimeTargetEntryForUnit {
@@ -215,7 +215,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       logicalNode = logicalNodeForUnit {
@@ -246,7 +246,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       entry = runtimeTargetEntryForUnit {
@@ -287,7 +287,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -339,7 +339,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -471,7 +471,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       target = runtimeTargetForUnit {
@@ -507,7 +507,7 @@ let
       fieldName,
       unitName,
       ifName ? null,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
       context ? { },
     }:
     if builtins.isString value then
@@ -528,7 +528,7 @@ let
       fieldName,
       unitName,
       ifName ? null,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
       context ? { },
     }:
     if value == null || builtins.isString value || builtins.isList value then
@@ -549,7 +549,7 @@ let
       fieldName,
       unitName,
       ifName ? null,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
       context ? { },
     }:
     if value == null || builtins.isAttrs value then
@@ -569,7 +569,7 @@ let
       unitName,
       ifName,
       iface,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       backingRef =
@@ -653,7 +653,7 @@ let
       cpm,
       inventory ? { },
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       _validateDeploymentHost = deploymentHostForUnit {
@@ -683,7 +683,7 @@ let
     {
       cpm,
       inventory ? { },
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -707,7 +707,7 @@ let
       cpm,
       inventory ? { },
       deploymentHostName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -730,7 +730,7 @@ let
       inventory ? { },
       deploymentHostName,
       role,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       targets = runtimeTargets cpm;
@@ -762,7 +762,7 @@ let
       inventory ? { },
       unitName,
       requestedHostName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       logicalNodeName = logicalNodeNameForUnit {
@@ -796,7 +796,7 @@ let
       inventory ? { },
       hostContext,
       runtimeRole ? null,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       requestedHostName =
@@ -865,7 +865,7 @@ let
       cpm,
       inventory ? { },
       selectedUnits,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     lib.unique (
       lib.filter builtins.isString (
@@ -887,7 +887,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       entry = siteEntryForUnit {
@@ -900,7 +900,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/ControlModule/network/lookup/runtime-context.nix",
+      file ? "s88/ControlModule/lookup/runtime-context.nix",
     }:
     let
       entry = siteEntryForUnit {

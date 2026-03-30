@@ -12,7 +12,7 @@ let
     if builtins.pathExists path then
       callIfFunction (import path)
     else
-      throw "s88/ControlModule/network/lookup/host-query.nix: missing required input path '${builtins.toString path}'";
+      throw "s88/ControlModule/lookup/host-query.nix: missing required input path '${builtins.toString path}'";
 
   loadStructuredPath =
     path:
@@ -20,7 +20,7 @@ let
       pathString = builtins.toString path;
     in
     if !builtins.pathExists path then
-      throw "s88/ControlModule/network/lookup/host-query.nix: missing required input path '${pathString}'"
+      throw "s88/ControlModule/lookup/host-query.nix: missing required input path '${pathString}'"
     else if lib.hasSuffix ".json" pathString then
       builtins.fromJSON (builtins.readFile path)
     else
@@ -116,7 +116,7 @@ let
     {
       inventory,
       hostname,
-      file ? "s88/ControlModule/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/lookup/host-query.nix",
     }:
     let
       renderHosts = renderHostsFor inventory;
@@ -203,7 +203,7 @@ let
       selector,
       intent,
       inventory,
-      file ? "s88/ControlModule/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/lookup/host-query.nix",
     }:
     let
       _selectorIsString =
@@ -372,7 +372,7 @@ let
     {
       inventory,
       hostname,
-      file ? "s88/ControlModule/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/lookup/host-query.nix",
     }:
     let
       renderHosts = renderHostsFor inventory;
@@ -426,7 +426,7 @@ let
       inventory ? null,
       intentPath ? null,
       inventoryPath ? null,
-      file ? "s88/ControlModule/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/lookup/host-query.nix",
     }:
     let
       effectiveSelector =
@@ -468,7 +468,7 @@ let
       outPath,
       hostname,
       fabricRoot ? null,
-      file ? "s88/ControlModule/network/lookup/host-query.nix",
+      file ? "s88/ControlModule/lookup/host-query.nix",
     }:
     let
       paths = pathsFromOutPath {
