@@ -1,5 +1,6 @@
 {
   lib,
+  interfaceView ? null,
   unitName ? null,
   runtimeTarget ? { },
   interfaces ? { },
@@ -16,8 +17,20 @@ let
       lib.unique (lib.filter (value: builtins.isString value && value != "") values)
     );
 
-  wanNames = sortedStrings wanIfs;
-  lanNames = sortedStrings lanIfs;
+  interfaceWanNames =
+    if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? wanNames then
+      interfaceView.wanNames
+    else
+      [ ];
+
+  interfaceLanNames =
+    if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? lanNames then
+      interfaceView.lanNames
+    else
+      [ ];
+
+  wanNames = sortedStrings (interfaceWanNames ++ wanIfs);
+  lanNames = sortedStrings (interfaceLanNames ++ lanIfs);
 
   uplinkNames =
     if builtins.isAttrs uplinks then lib.sort builtins.lessThan (builtins.attrNames uplinks) else [ ];
@@ -39,8 +52,8 @@ let
 
   forwardPairs = lib.optionals (lanNames != [ ] && wanNames != [ ]) [
     {
-      iifname = lanNames;
-      oifname = wanNames;
+      "in" = lanNames;
+      "out" = wanNames;
       action = "accept";
       comment = "core-lan-to-wan";
     }
