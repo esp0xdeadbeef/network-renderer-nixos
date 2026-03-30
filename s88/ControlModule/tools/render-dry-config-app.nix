@@ -50,7 +50,6 @@ pkgs.writeShellApplication {
     fi
 
     repo_root='${builtins.toString ../../..}'
-    render_file="$repo_root/s88/ControlModule/render/dry-config-output.nix"
 
     rm -f \
       ./00-*.json \
@@ -79,8 +78,10 @@ pkgs.writeShellApplication {
       local example_dir="$2"
 
       run_nix_eval_json "
-        import (builtins.toPath \"$render_file\") {
-          repoRoot = \"$repo_root\";
+        let
+          flake = builtins.getFlake (toString (builtins.toPath \"$repo_root\"));
+        in
+        flake.lib.renderer.renderDryConfig {
           cpmPath = \"$cpm_path\";
           exampleDir = \"$example_dir\";
           debug = $debug_value;
@@ -129,18 +130,19 @@ pkgs.writeShellApplication {
       " 04-control-plane.json
     }
 
-    render_from_built_cpm() {
-      local example_dir="$1"
+    render_from_paths() {
+      local intent_path="$1"
       local inventory_path="$2"
 
       run_nix_eval_json "
-        import (builtins.toPath \"$render_file\") {
-          repoRoot = \"$repo_root\";
-          cpmPath = \"$(realpath ./04-control-plane.json)\";
+        let
+          flake = builtins.getFlake (toString (builtins.toPath \"$repo_root\"));
+        in
+        (flake.lib.renderer.buildAndRenderFromPaths {
+          intentPath = \"$intent_path\";
           inventoryPath = \"$inventory_path\";
-          exampleDir = \"$example_dir\";
           debug = $debug_value;
-        }
+        }).render
       " 90-dry-config.json
     }
 
@@ -166,8 +168,6 @@ pkgs.writeShellApplication {
         inventory_path="$second_path"
       fi
 
-      example_dir="$(dirname "$intent_path")"
-
       if [ "$debug_value" = true ]; then
         build_compiler_artifact "$intent_path"
         build_forwarding_artifact "$intent_path"
@@ -191,7 +191,7 @@ pkgs.writeShellApplication {
         exit 1
       fi
 
-      render_from_built_cpm "$example_dir" "$inventory_path"
+      render_from_paths "$intent_path" "$inventory_path"
     fi
 
     jq '.metadata.sourcePaths' 90-dry-config.json > 10-paths.json

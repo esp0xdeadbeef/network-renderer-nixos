@@ -8,6 +8,24 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  interfaceNameFor =
+    iface:
+    if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+      iface.containerInterfaceName
+    else if iface ? interfaceName && builtins.isString iface.interfaceName then
+      iface.interfaceName
+    else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
+      iface.hostInterfaceName
+    else if iface ? ifName && builtins.isString iface.ifName then
+      iface.ifName
+    else
+      throw ''
+        s88/CM/network/render/container-networks.nix: could not resolve container interface name
+
+        iface:
+        ${builtins.toJSON iface}
+      '';
+
   mkRoute =
     route:
     if !builtins.isAttrs route then
@@ -125,13 +143,14 @@ let
       ifName:
       let
         iface = interfaces.${ifName};
+        interfaceName = interfaceNameFor iface;
         routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
         dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
       in
       {
-        name = "10-${iface.interfaceName}";
+        name = "10-${interfaceName}";
         value = {
-          matchConfig.Name = iface.interfaceName;
+          matchConfig.Name = interfaceName;
           networkConfig = {
             ConfigureWithoutCarrier = true;
           }
