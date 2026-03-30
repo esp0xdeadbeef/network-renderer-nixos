@@ -254,7 +254,7 @@ let
       interfaces,
     }:
     let
-      entries = map (
+      entriesBase = map (
         ifName:
         let
           iface = interfaces.${ifName};
@@ -262,28 +262,47 @@ let
             inherit unitName ifName iface;
           };
           sourceKind = sourceKindForInterface iface;
-          interfaceName = effectiveInterfaceNameForInterface {
+          desiredInterfaceName = effectiveInterfaceNameForInterface {
             inherit ifName iface attachTarget;
           };
         in
         {
-          inherit ifName;
-          value = {
-            inherit
-              ifName
-              sourceKind
-              ;
-            renderedIfName = iface.renderedIfName or ifName;
-            containerInterfaceName = interfaceName;
-            addresses = iface.addresses or [ ];
-            routes = iface.routes or [ ];
-            renderedHostBridgeName = attachTarget.renderedHostBridgeName;
-            assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = interfaceName;
-            hostVethName = hostNaming.shorten "${containerName}-${interfaceName}";
-          };
+          inherit
+            ifName
+            iface
+            attachTarget
+            sourceKind
+            desiredInterfaceName
+            ;
         }
       ) (sortedAttrNames interfaces);
+
+      desiredInterfaceNames = map (entry: entry.desiredInterfaceName) entriesBase;
+
+      containerInterfaceNameMap = hostNaming.ensureUnique desiredInterfaceNames;
+
+      entries = map (
+        entry:
+        let
+          containerInterfaceName = containerInterfaceNameMap.${entry.desiredInterfaceName};
+        in
+        {
+          inherit (entry) ifName;
+          value = {
+            inherit (entry)
+              sourceKind
+              ;
+            renderedIfName = entry.iface.renderedIfName or entry.ifName;
+            inherit containerInterfaceName;
+            addresses = entry.iface.addresses or [ ];
+            routes = entry.iface.routes or [ ];
+            renderedHostBridgeName = entry.attachTarget.renderedHostBridgeName;
+            assignedUplinkName = entry.attachTarget.assignedUplinkName or null;
+            hostInterfaceName = containerInterfaceName;
+            hostVethName = hostNaming.shorten "${containerName}-${containerInterfaceName}";
+          };
+        }
+      ) entriesBase;
 
       interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
 
