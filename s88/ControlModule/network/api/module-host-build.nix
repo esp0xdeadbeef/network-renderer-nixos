@@ -6,7 +6,8 @@
 
 {
   lib ? null,
-  pkgs,
+  pkgs ? null,
+  system ? if pkgs != null then pkgs.stdenv.hostPlatform.system else builtins.currentSystem,
   outPath,
   hostName,
   inventoryPath ? null,
@@ -22,8 +23,6 @@ let
       throw ''
         s88/ControlModule/network/api/module-host-build.nix: lib is required
       '';
-
-  system = pkgs.stdenv.hostPlatform.system;
 
   resolvedPaths = selectors.pathsFromOutPath {
     inherit outPath;
