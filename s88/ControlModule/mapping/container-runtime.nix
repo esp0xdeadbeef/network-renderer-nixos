@@ -110,6 +110,7 @@ let
       {
         renderedHostBridgeName = bridgeNameMap.${iface.hostBridge};
         assignedUplinkName = null;
+        identity = { };
       }
     else
       throw ''
@@ -189,40 +190,124 @@ let
   containerNameForUnit =
     unitName: builtins.seq _validateUniqueContainerNames candidateContainerNames.${unitName};
 
+  isKernelStyleInterfaceName =
+    name:
+    builtins.isString name
+    && (
+      builtins.match "eth[0-9]+" name != null
+      || builtins.match "ens[0-9]+" name != null
+      || builtins.match "eno[0-9]+" name != null
+      || builtins.match "enp[0-9s.]+" name != null
+      || builtins.match "enx[0-9a-fA-F]+" name != null
+      || name == "lo"
+    );
+
+  interfaceNameFromAttachTarget =
+    attachTarget:
+    if
+      attachTarget ? identity
+      && builtins.isAttrs attachTarget.identity
+      && attachTarget.identity ? portName
+      && builtins.isString attachTarget.identity.portName
+      && attachTarget.identity.portName != ""
+    then
+      attachTarget.identity.portName
+    else
+      null;
+
+  interfaceNameFromUpstream =
+    iface:
+    if
+      iface ? connectivity
+      && builtins.isAttrs iface.connectivity
+      && iface.connectivity ? upstream
+      && builtins.isString iface.connectivity.upstream
+      && iface.connectivity.upstream != ""
+    then
+      iface.connectivity.upstream
+    else
+      null;
+
+  effectiveInterfaceNameForInterface =
+    {
+      ifName,
+      iface,
+      attachTarget,
+    }:
+    let
+      renderedIfName = iface.renderedIfName or ifName;
+      sourceKind = sourceKindForInterface iface;
+      upstreamName = interfaceNameFromUpstream iface;
+      attachName = interfaceNameFromAttachTarget attachTarget;
+    in
+    if sourceKind == "wan" && upstreamName != null then
+      upstreamName
+    else if isKernelStyleInterfaceName renderedIfName && attachName != null then
+      attachName
+    else
+      renderedIfName;
+
   normalizedInterfacesForUnit =
     {
       unitName,
       containerName,
       interfaces,
     }:
-    builtins.listToAttrs (
-      map (
+    let
+      entries = map (
         ifName:
         let
           iface = interfaces.${ifName};
-          interfaceName = iface.renderedIfName or ifName;
           attachTarget = attachTargetForInterface {
             inherit unitName ifName iface;
           };
           sourceKind = sourceKindForInterface iface;
+          interfaceName = effectiveInterfaceNameForInterface {
+            inherit ifName iface attachTarget;
+          };
         in
         {
-          name = ifName;
+          inherit ifName;
           value = {
             inherit
               ifName
-              interfaceName
               sourceKind
               ;
-            renderedIfName = interfaceName;
+            renderedIfName = iface.renderedIfName or ifName;
+            containerInterfaceName = interfaceName;
             addresses = iface.addresses or [ ];
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = hostNaming.shorten "${containerName}-${interfaceName}";
+            hostInterfaceName = interfaceName;
+            hostVethName = hostNaming.shorten "${containerName}-${interfaceName}";
           };
         }
-      ) (sortedAttrNames interfaces)
+      ) (sortedAttrNames interfaces);
+
+      interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
+
+      _validateUniqueInterfaceNames =
+        if builtins.length interfaceNames == builtins.length (lib.unique interfaceNames) then
+          true
+        else
+          throw ''
+            s88/CM/network/mapping/container-runtime.nix: effective container interface names are not unique for unit '${unitName}'
+
+            interface names:
+            ${builtins.toJSON interfaceNames}
+
+            interfaces:
+            ${builtins.toJSON interfaces}
+          '';
+    in
+    builtins.seq _validateUniqueInterfaceNames (
+      builtins.listToAttrs (
+        map (entry: {
+          name = entry.ifName;
+          value = entry.value;
+        }) entries
+      )
     );
 
   vethsForInterfaces =
@@ -232,9 +317,16 @@ let
         ifName:
         let
           iface = interfaces.${ifName};
+          interfaceName =
+            if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+              iface.containerInterfaceName
+            else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
+              iface.hostInterfaceName
+            else
+              ifName;
         in
         {
-          name = iface.interfaceName;
+          name = interfaceName;
           value = {
             hostBridge = iface.renderedHostBridgeName;
           };
@@ -284,11 +376,23 @@ let
 
       interfaceNames = sortedAttrNames interfaces;
 
-      wanInterfaceNames = map (ifName: interfaces.${ifName}.interfaceName) (
+      interfaceNameFor =
+        ifName:
+        let
+          iface = interfaces.${ifName};
+        in
+        if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+          iface.containerInterfaceName
+        else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
+          iface.hostInterfaceName
+        else
+          ifName;
+
+      wanInterfaceNames = map interfaceNameFor (
         lib.filter (ifName: interfaces.${ifName}.sourceKind == "wan") interfaceNames
       );
 
-      lanInterfaceNames = map (ifName: interfaces.${ifName}.interfaceName) (
+      lanInterfaceNames = map interfaceNameFor (
         lib.filter (ifName: interfaces.${ifName}.sourceKind != "wan") interfaceNames
       );
     in
