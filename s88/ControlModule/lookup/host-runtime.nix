@@ -9,7 +9,7 @@ let
   runtimeContext = import ./runtime-context.nix { inherit lib; };
   runtimeTargets = import ../mapping/runtime-targets.nix { inherit lib; };
   hostQuery = import ./host-query.nix { inherit lib; };
-  roles = import ../roles/registry.nix { inherit lib; };
+  roles = import ../profiles/registry.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 

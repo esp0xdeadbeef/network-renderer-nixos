@@ -1,16 +1,16 @@
 {
   lib,
-  repoRoot ? ../../../../..,
+  repoRoot ? ../../..,
   flakeInputs ? { },
 }:
 
 let
-  selectors = import ../../../ControlModule/network/lookup/host-query.nix { inherit lib; };
-  realizationPorts = import ../../../ControlModule/network/physical/realization-ports.nix {
+  selectors = import ../../ControlModule/lookup/host-query.nix { inherit lib; };
+  realizationPorts = import ../../ControlModule/physical/realization-ports.nix {
     inherit lib;
   };
 
-  builders = import ../../../ControlModule/network/pipeline/builders.nix {
+  builders = import ../../ControlModule/pipeline/builders.nix {
     inherit lib flakeInputs;
   };
 
@@ -20,7 +20,7 @@ let
       cpm,
       inventory ? { },
     }:
-    import ../../../ControlModule/network/render/host-network.nix {
+    import ../../ControlModule/render/host-network.nix {
       inherit
         lib
         hostName
@@ -38,7 +38,7 @@ let
       exampleDir ? null,
       debug ? false,
     }:
-    import ../../../ControlModule/network/render/dry-config-output.nix {
+    import ../../ControlModule/render/dry-config-output.nix {
       repoRoot = builtins.toString repoRoot;
       inherit
         cpm
@@ -50,7 +50,7 @@ let
         ;
     };
 
-  hostBuilders = import ../../../ControlModule/network/api/host-build.nix {
+  hostBuilders = import ../../ControlModule/api/host-build.nix {
     inherit
       lib
       selectors
@@ -60,7 +60,7 @@ let
     renderDryConfig = renderDryConfigImpl;
   };
 
-  hostBuild = import ../../../ControlModule/network/api/module-host-build.nix {
+  hostBuild = import ../../ControlModule/api/module-host-build.nix {
     inherit
       lib
       selectors

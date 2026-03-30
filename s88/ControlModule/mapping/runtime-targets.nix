@@ -2,7 +2,7 @@
 
 let
   runtimeContext = import ../lookup/runtime-context.nix { inherit lib; };
-  hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
+  hostNaming = import ../../../lib/host-naming.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 

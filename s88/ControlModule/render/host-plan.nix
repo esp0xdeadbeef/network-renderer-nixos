@@ -31,7 +31,7 @@ let
       ;
   };
 
-  wanAttachment = import ../policy/wan-attachment.nix {
+  wanAttachment = import ../mapping/wan-attachment.nix {
     inherit
       lib
       hostName

@@ -2,8 +2,8 @@
 
 {
   imports = [
-    ../../../CM/network/fabric-input-loader.nix
-    ../../../CM/network/host-network.nix
-    ../../../CM/network/container-runtime.nix
+    ../../ControlModule/pipeline/fabric-input-loader.nix
+    ../../ControlModule/module/host-network.nix
+    ../../ControlModule/module/container-runtime.nix
   ];
 }

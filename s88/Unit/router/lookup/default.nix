@@ -8,7 +8,7 @@
 }:
 
 let
-  hostQuery = import ../../../ControlModule/network/lookup/host-query.nix { inherit lib; };
+  hostQuery = import ../../../ControlModule/lookup/host-query.nix { inherit lib; };
 
   hostSelector = if selector != null then selector else config.networking.hostName;
 

@@ -1,6 +1,6 @@
 {
   lib,
-  repoRoot ? ../../../../..,
+  repoRoot ? ../../..,
   flakeInputs ? { },
 }:
 
