@@ -265,9 +265,12 @@ let
             inherit unitName ifName iface;
           };
           sourceKind = sourceKindForInterface iface;
-          interfaceName = effectiveInterfaceNameForInterface {
+
+          desiredInterfaceName = effectiveInterfaceNameForInterface {
             inherit ifName iface attachTarget;
           };
+
+          hostVethName = hostNaming.shorten "${containerName}-${desiredInterfaceName}";
         in
         {
           inherit ifName;
@@ -275,15 +278,16 @@ let
             inherit
               ifName
               sourceKind
+              hostVethName
+              desiredInterfaceName
               ;
             renderedIfName = iface.renderedIfName or ifName;
-            containerInterfaceName = interfaceName;
+            containerInterfaceName = hostVethName;
             addresses = iface.addresses or [ ];
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = interfaceName;
-            hostVethName = hostNaming.shorten "${containerName}-${interfaceName}";
+            hostInterfaceName = hostVethName;
           };
         }
       ) (sortedAttrNames interfaces);
@@ -320,16 +324,18 @@ let
         ifName:
         let
           iface = interfaces.${ifName};
-          interfaceName =
-            if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
-              iface.containerInterfaceName
+          hostVethName =
+            if iface ? hostVethName && builtins.isString iface.hostVethName then
+              iface.hostVethName
             else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
               iface.hostInterfaceName
+            else if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+              iface.containerInterfaceName
             else
               ifName;
         in
         {
-          name = interfaceName;
+          name = hostVethName;
           value = {
             hostBridge = iface.renderedHostBridgeName;
           };
