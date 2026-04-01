@@ -105,6 +105,8 @@ let
             environment.systemPackages = with pkgs; [
               gron
               traceroute
+              tcpdump
+              dig
             ];
 
             networking.hostName = model.containerName;
