@@ -16,7 +16,11 @@ let
   normalizedRuntimeTargets = hostPlan.normalizedRuntimeTargets or { };
   selectedUnits = hostPlan.selectedUnits or [ ];
   selectedRoles = hostPlan.selectedRoles or { };
-  unitRoles = hostPlan.unitRoles or { };
+  deploymentHostRoles = hostPlan.deploymentHostRoles or selectedRoles;
+  unitRoles = hostPlan.deploymentHostUnitRoles or (hostPlan.unitRoles or { });
+  deploymentHostContainerNamingUnits =
+    hostPlan.deploymentHostContainerNamingUnits
+      or (lib.filter (unitName: builtins.elem unitName selectedUnits) selectedUnits);
   localAttachTargets = hostPlan.localAttachTargets or [ ];
   bridgeNameMap = hostPlan.bridgeNameMap or { };
   deploymentHostName = hostPlan.deploymentHostName or null;
@@ -55,8 +59,8 @@ let
     let
       roleName = roleForUnit unitName;
     in
-    if roleName != null && builtins.hasAttr roleName selectedRoles then
-      selectedRoles.${roleName}
+    if roleName != null && builtins.hasAttr roleName deploymentHostRoles then
+      deploymentHostRoles.${roleName}
     else
       { };
 
@@ -141,11 +145,13 @@ let
     else
       runtimeTargetIdForUnit unitName;
 
+  namingUnits = lib.filter containerEnabledForUnit deploymentHostContainerNamingUnits;
+
   desiredContainerBaseNames = builtins.listToAttrs (
     map (unitName: {
       name = unitName;
       value = desiredContainerBaseNameForUnit unitName;
-    }) selectedUnits
+    }) namingUnits
   );
 
   desiredContainerBaseCounts = builtins.foldl' (
@@ -157,7 +163,7 @@ let
     // {
       ${baseName} = (acc.${baseName} or 0) + 1;
     }
-  ) { } selectedUnits;
+  ) { } namingUnits;
 
   candidateContainerNames = builtins.listToAttrs (
     map (
@@ -173,10 +179,10 @@ let
           else
             "${baseName}-${builtins.substring 0 6 (builtins.hashString "sha256" unitName)}";
       }
-    ) selectedUnits
+    ) namingUnits
   );
 
-  candidateContainerNameValues = map (unitName: candidateContainerNames.${unitName}) selectedUnits;
+  candidateContainerNameValues = map (unitName: candidateContainerNames.${unitName}) namingUnits;
 
   _validateUniqueContainerNames =
     if
@@ -193,7 +199,16 @@ let
       '';
 
   containerNameForUnit =
-    unitName: builtins.seq _validateUniqueContainerNames candidateContainerNames.${unitName};
+    unitName:
+    if builtins.hasAttr unitName candidateContainerNames then
+      builtins.seq _validateUniqueContainerNames candidateContainerNames.${unitName}
+    else
+      throw ''
+        s88/CM/network/mapping/container-runtime.nix: missing candidate container name for unit '${unitName}'
+
+        namingUnits:
+        ${builtins.toJSON namingUnits}
+      '';
 
   isKernelStyleInterfaceName =
     name:

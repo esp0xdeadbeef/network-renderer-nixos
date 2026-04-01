@@ -219,6 +219,35 @@ let
       exactDeploymentHost =
         if builtins.hasAttr selector deploymentHosts then deploymentHosts.${selector} else null;
 
+      exactRenderHost =
+        if builtins.hasAttr selector renderHosts && builtins.isAttrs renderHosts.${selector} then
+          renderHosts.${selector}
+        else
+          null;
+
+      renderHostDeploymentHostName =
+        if exactRenderHost == null then
+          null
+        else if exactRenderHost ? deploymentHost && exactRenderHost.deploymentHost != null then
+          if
+            builtins.isString exactRenderHost.deploymentHost
+            && builtins.hasAttr exactRenderHost.deploymentHost deploymentHosts
+          then
+            exactRenderHost.deploymentHost
+          else
+            throw ''
+              ${file}: render host '${selector}' references unknown deployment host '${builtins.toJSON exactRenderHost.deploymentHost}'
+
+              known deployment hosts:
+              ${builtins.concatStringsSep "\n  - " ([ "" ] ++ (sortedAttrNames deploymentHosts))}
+            ''
+        else if builtins.hasAttr selector deploymentHosts then
+          selector
+        else if builtins.length (sortedAttrNames deploymentHosts) == 1 then
+          builtins.head (sortedAttrNames deploymentHosts)
+        else
+          null;
+
       matchingSiteNodes = matchingNodesBy inventory (
         _: node:
         node ? logicalNode
@@ -256,6 +285,8 @@ let
           [ selector ]
         else if exactRealizationNode != null then
           hostNamesFromNodes selectedRealizationNodes
+        else if exactRenderHost != null then
+          lib.optionals (renderHostDeploymentHostName != null) [ renderHostDeploymentHostName ]
         else if isNonEmptyAttrs selectedRealizationNodes then
           hostNamesFromNodes selectedRealizationNodes
         else if builtins.hasAttr selector deploymentHosts then
@@ -280,7 +311,9 @@ let
           { };
 
       renderHostConfig =
-        if
+        if exactRenderHost != null then
+          exactRenderHost
+        else if
           selectedDeploymentHostName != null && builtins.hasAttr selectedDeploymentHostName renderHosts
         then
           renderHosts.${selectedDeploymentHostName}
@@ -297,6 +330,18 @@ let
               logicalNode = selectedRealizationNodes.${nodeName}.logicalNode or { };
             in
             logicalNode.site or null
+          ) (sortedAttrNames selectedRealizationNodes)
+        )
+      );
+
+      matchedEnterprises = lib.filter (value: value != null) (
+        lib.unique (
+          map (
+            nodeName:
+            let
+              logicalNode = selectedRealizationNodes.${nodeName}.logicalNode or { };
+            in
+            logicalNode.enterprise or null
           ) (sortedAttrNames selectedRealizationNodes)
         )
       );
@@ -318,6 +363,8 @@ let
           "realization-node"
         else if exactDeploymentHost != null then
           "deployment-host"
+        else if exactRenderHost != null then
+          "render-host"
         else if isNonEmptyAttrs matchingSiteNodes then
           "site"
         else if isNonEmptyAttrs matchingLogicalNameNodes then
@@ -339,6 +386,7 @@ let
       deploymentHostNames = selectedDeploymentHostNames;
       deploymentHosts = selectedDeploymentHosts;
       matchedSites = matchedSites;
+      matchedEnterprises = matchedEnterprises;
       matchedLogicalNodes = matchedLogicalNodes;
       realizationNode = exactRealizationNode;
       realizationNodes = selectedRealizationNodes;

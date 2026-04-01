@@ -51,7 +51,8 @@ let
       };
 
       renderedHost = renderHostNetwork {
-        hostName = resolved.deploymentHostName;
+        hostName = resolved.selectorValue;
+        hostContext = resolved.hostContext;
         cpm = controlPlaneOut;
         inventory = resolved.globalInventory;
       };

@@ -82,7 +82,7 @@ let
     else
       { ConfigureWithoutCarrier = true; };
 
-  uplinkNetdevs = builtins.listToAttrs (
+  uplinkBridgeNetdevs = builtins.listToAttrs (
     lib.concatMap (
       uplinkName:
       let
@@ -144,56 +144,58 @@ let
   );
 
   uplinkParentNetworks = builtins.listToAttrs (
-    let
-      parentEntries = map (
-        parentIf:
-        let
-          uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
+    map (
+      parentIf:
+      let
+        uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
 
-          vlanChildren = lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent);
+        vlanChildren = lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent);
 
-          directBridgeUplinks = lib.filter (
-            uplinkName:
-            let
-              mode = uplinks.${uplinkName}.mode or "";
-            in
-            mode != "vlan"
-          ) uplinksOnParent;
+        directBridgeUplinks = lib.filter (
+          uplinkName:
+          let
+            mode = uplinks.${uplinkName}.mode or "";
+          in
+          mode != "vlan"
+        ) uplinksOnParent;
 
-          _singleDirectBridge =
-            if builtins.length directBridgeUplinks <= 1 then
-              true
-            else
-              throw ''
-                s88/CM/network/render/systemd-host-network.nix: multiple non-vlan uplinks on parent '${parentIf}' are not supported
+        _singleDirectBridge =
+          if builtins.length directBridgeUplinks <= 1 then
+            true
+          else
+            throw ''
+              s88/CM/network/render/systemd-host-network.nix: multiple non-vlan uplinks on parent '${parentIf}' are not supported
 
-                uplinks:
-                ${builtins.concatStringsSep "\n  - " ([ "" ] ++ directBridgeUplinks)}
-              '';
-        in
-        builtins.seq _singleDirectBridge {
-          name = "20-${parentIf}";
-          value = {
-            matchConfig.Name = parentIf;
-            linkConfig = {
-              ActivationPolicy = "always-up";
-              RequiredForOnline = "no";
-            };
-            networkConfig = {
-              ConfigureWithoutCarrier = true;
-              LinkLocalAddressing = "no";
-              IPv6AcceptRA = false;
-            }
-            // lib.optionalAttrs (vlanChildren != [ ]) {
-              VLAN = vlanChildren;
-            }
-            // lib.optionalAttrs (builtins.length directBridgeUplinks == 1) {
-              Bridge = uplinks.${builtins.head directBridgeUplinks}.bridge;
-            };
+              uplinks:
+              ${builtins.concatStringsSep "\n  - " ([ "" ] ++ directBridgeUplinks)}
+            '';
+      in
+      builtins.seq _singleDirectBridge {
+        name = "20-${parentIf}";
+        value = {
+          matchConfig.Name = parentIf;
+          linkConfig = {
+            ActivationPolicy = "always-up";
+            RequiredForOnline = "no";
           };
-        }
-      ) parentNames;
+          networkConfig = {
+            ConfigureWithoutCarrier = true;
+            LinkLocalAddressing = "no";
+            IPv6AcceptRA = false;
+          }
+          // lib.optionalAttrs (vlanChildren != [ ]) {
+            VLAN = vlanChildren;
+          }
+          // lib.optionalAttrs (builtins.length directBridgeUplinks == 1) {
+            Bridge = uplinks.${builtins.head directBridgeUplinks}.bridge;
+          };
+        };
+      }
+    ) parentNames
+  );
 
+  uplinkBridgeAttachmentNetworks = builtins.listToAttrs (
+    let
       vlanBridgeEntries = lib.concatMap (
         uplinkName:
         let
@@ -220,7 +222,7 @@ let
         ]
       ) uplinkNames;
     in
-    parentEntries ++ vlanBridgeEntries
+    vlanBridgeEntries
   );
 
   uplinkBridgeNetworks = builtins.listToAttrs (
@@ -336,18 +338,33 @@ let
     ) transitNames
   );
 
-  netdevs =
+  bridgeNetdevs =
     if hostHasUplinks then
-      localBridgeNetdevs // uplinkNetdevs // transitNetdevs
+      localBridgeNetdevs // uplinkBridgeNetdevs // transitNetdevs
     else
       localBridgeNetdevs;
 
-  networks =
+  bridgeNetworksRendered =
     if hostHasUplinks then
-      localBridgeNetworks // uplinkParentNetworks // uplinkBridgeNetworks // transitNetworks
+      localBridgeNetworks // uplinkBridgeAttachmentNetworks // uplinkBridgeNetworks // transitNetworks
     else
       localBridgeNetworks;
+
+  hostNetdevs = { };
+
+  hostNetworks = if hostHasUplinks then uplinkParentNetworks else { };
+
+  netdevs = hostNetdevs // bridgeNetdevs;
+  networks = hostNetworks // bridgeNetworksRendered;
 in
 {
-  inherit netdevs networks;
+  inherit
+    bridgeNetdevs
+    hostNetdevs
+    hostNetworks
+    netdevs
+    networks
+    ;
+
+  bridgeNetworks = bridgeNetworksRendered;
 }

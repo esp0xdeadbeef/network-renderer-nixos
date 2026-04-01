@@ -817,6 +817,40 @@ let
         else
           requestedHostName;
 
+      requestedSiteNames =
+        if hostContext ? matchedSites && builtins.isList hostContext.matchedSites then
+          hostContext.matchedSites
+        else if hostContext ? siteName && builtins.isString hostContext.siteName then
+          [ hostContext.siteName ]
+        else
+          [ ];
+
+      requestedEnterpriseNames =
+        if hostContext ? matchedEnterprises && builtins.isList hostContext.matchedEnterprises then
+          hostContext.matchedEnterprises
+        else if hostContext ? enterpriseName && builtins.isString hostContext.enterpriseName then
+          [ hostContext.enterpriseName ]
+        else
+          [ ];
+
+      matchesRequestedIdentity =
+        unitName:
+        let
+          logicalNode = logicalNodeForUnit {
+            inherit
+              cpm
+              inventory
+              unitName
+              file
+              ;
+          };
+
+          unitSite = logicalNode.site or null;
+          unitEnterprise = logicalNode.enterprise or null;
+        in
+        (requestedSiteNames == [ ] || builtins.elem unitSite requestedSiteNames)
+        && (requestedEnterpriseNames == [ ] || builtins.elem unitEnterprise requestedEnterpriseNames);
+
       deploymentCandidates = unitNamesForDeploymentHost {
         inherit
           cpm
@@ -844,9 +878,11 @@ let
           hostScopedCandidates
         else
           deploymentCandidates;
+
+      identityScopedCandidates = lib.filter matchesRequestedIdentity baseCandidates;
     in
     if runtimeRole == null then
-      baseCandidates
+      identityScopedCandidates
     else
       lib.filter (
         unitName:
@@ -858,7 +894,7 @@ let
             file
             ;
         } == runtimeRole
-      ) baseCandidates;
+      ) identityScopedCandidates;
 
   selectedRoleNamesForUnits =
     {
