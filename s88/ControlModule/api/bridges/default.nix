@@ -2,7 +2,7 @@
   lib,
   selectors,
   buildHostFromPaths,
-  currentSystem ? builtins.currentSystem,
+  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
 }:
 
 let
