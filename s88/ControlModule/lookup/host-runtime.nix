@@ -3,6 +3,7 @@
   hostName,
   cpm,
   inventory ? { },
+  hostContext ? null,
 }:
 
 let
@@ -13,42 +14,73 @@ let
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  requestedHostName =
+    if
+      hostContext != null
+      && builtins.isAttrs hostContext
+      && hostContext ? hostname
+      && builtins.isString hostContext.hostname
+    then
+      hostContext.hostname
+    else
+      hostName;
+
   resolvedHostContext =
-    if inventory != { } then
+    if hostContext != null && builtins.isAttrs hostContext && hostContext != { } then
+      hostContext // { hostname = requestedHostName; }
+    else if inventory != { } then
       hostQuery.hostContextForHost {
         inherit inventory;
-        hostname = hostName;
+        hostname = requestedHostName;
         file = "s88/CM/network/lookup/host-runtime.nix";
       }
     else
       {
-        hostname = hostName;
+        hostname = requestedHostName;
         renderHosts = { };
         renderHostConfig = { };
         deploymentHosts = { };
-        deploymentHostNames = [ hostName ];
+        deploymentHostNames = [ requestedHostName ];
         realizationNodes = { };
-        deploymentHostName = hostName;
+        deploymentHostName = requestedHostName;
         deploymentHost = { };
         realizationNode = null;
       };
 
-  deploymentHostName = resolvedHostContext.deploymentHostName or hostName;
-  deploymentHost = resolvedHostContext.deploymentHost or { };
-  renderHostConfig = resolvedHostContext.renderHostConfig or { };
+  deploymentHostName =
+    if
+      resolvedHostContext ? deploymentHostName && builtins.isString resolvedHostContext.deploymentHostName
+    then
+      resolvedHostContext.deploymentHostName
+    else
+      requestedHostName;
+
+  deploymentHost =
+    if resolvedHostContext ? deploymentHost && builtins.isAttrs resolvedHostContext.deploymentHost then
+      resolvedHostContext.deploymentHost
+    else
+      { };
+
+  renderHostConfig =
+    if
+      resolvedHostContext ? renderHostConfig && builtins.isAttrs resolvedHostContext.renderHostConfig
+    then
+      resolvedHostContext.renderHostConfig
+    else
+      { };
 
   realizationNodes =
     if
-      resolvedHostContext ? realizationNodes && builtins.isAttrs resolvedHostContext.realizationNodes
-    then
-      resolvedHostContext.realizationNodes
-    else if
       inventory ? realization
       && builtins.isAttrs inventory.realization
       && inventory.realization ? nodes
       && builtins.isAttrs inventory.realization.nodes
     then
       inventory.realization.nodes
+    else if
+      resolvedHostContext ? realizationNodes && builtins.isAttrs resolvedHostContext.realizationNodes
+    then
+      resolvedHostContext.realizationNodes
     else
       { };
 
@@ -70,9 +102,14 @@ let
     else
       null;
 
+  effectiveHostContext = resolvedHostContext // {
+    hostname = requestedHostName;
+    inherit deploymentHostName;
+  };
+
   selectedUnits = runtimeContext.selectedUnitsForHostContext {
     inherit cpm inventory runtimeRole;
-    hostContext = resolvedHostContext;
+    hostContext = effectiveHostContext;
     file = "s88/CM/network/lookup/host-runtime.nix";
   };
 
@@ -86,7 +123,7 @@ let
         }
 
         requested host:
-        ${hostName}
+        ${requestedHostName}
 
         units on deployment host:
         ${builtins.concatStringsSep "\n  " ([ "" ] ++ unitsOnDeploymentHost)}
@@ -94,6 +131,48 @@ let
         available runtime targets:
         ${builtins.concatStringsSep "\n  " ([ "" ] ++ allUnitNames)}
       '';
+
+  deploymentHostUnitRoles = builtins.listToAttrs (
+    map (unitName: {
+      name = unitName;
+      value = runtimeContext.roleForUnit {
+        inherit cpm inventory unitName;
+        file = "s88/CM/network/lookup/host-runtime.nix";
+      };
+    }) unitsOnDeploymentHost
+  );
+
+  deploymentHostRoleNames = lib.unique (
+    lib.filter builtins.isString (
+      map (unitName: deploymentHostUnitRoles.${unitName}) unitsOnDeploymentHost
+    )
+  );
+
+  deploymentHostRoles = builtins.listToAttrs (
+    map (roleName: {
+      name = roleName;
+      value = roles.${roleName};
+    }) (lib.filter (roleName: builtins.hasAttr roleName roles) deploymentHostRoleNames)
+  );
+
+  deploymentHostContainerNamingUnits = lib.filter (
+    unitName:
+    let
+      roleName = deploymentHostUnitRoles.${unitName} or null;
+      roleConfig =
+        if roleName != null && builtins.hasAttr roleName deploymentHostRoles then
+          deploymentHostRoles.${roleName}
+        else
+          { };
+
+      containerConfig =
+        if roleConfig ? container && builtins.isAttrs roleConfig.container then
+          roleConfig.container
+        else
+          { };
+    in
+    containerConfig ? enable && (containerConfig.enable or false)
+  ) unitsOnDeploymentHost;
 
   selectedRoleNames = runtimeContext.selectedRoleNamesForUnits {
     inherit cpm inventory selectedUnits;
@@ -110,16 +189,14 @@ let
   unitRoles = builtins.listToAttrs (
     map (unitName: {
       name = unitName;
-      value = runtimeContext.roleForUnit {
-        inherit cpm inventory unitName;
-        file = "s88/CM/network/lookup/host-runtime.nix";
-      };
+      value = deploymentHostUnitRoles.${unitName};
     }) selectedUnits
   );
 
   output = {
+    hostName = requestedHostName;
+
     inherit
-      hostName
       deploymentHostName
       deploymentHost
       renderHostConfig
@@ -128,6 +205,10 @@ let
       normalizedRuntimeTargets
       allUnitNames
       unitsOnDeploymentHost
+      deploymentHostUnitRoles
+      deploymentHostRoleNames
+      deploymentHostRoles
+      deploymentHostContainerNamingUnits
       runtimeRole
       selectedUnits
       selectedRoleNames

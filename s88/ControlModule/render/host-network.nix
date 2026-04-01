@@ -3,6 +3,7 @@
   hostName,
   cpm,
   inventory ? { },
+  hostContext ? null,
 }:
 
 let
@@ -12,6 +13,7 @@ let
       hostName
       cpm
       inventory
+      hostContext
       ;
   };
 

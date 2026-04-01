@@ -15,6 +15,7 @@ let
   renderHostNetworkImpl =
     {
       hostName,
+      hostContext ? null,
       cpm,
       inventory ? { },
     }:
@@ -22,6 +23,7 @@ let
       inherit
         lib
         hostName
+        hostContext
         cpm
         inventory
         ;
@@ -65,6 +67,30 @@ let
       ;
     buildHostFromPaths = hostBuilders.buildHostFromPaths;
   };
+
+  host = import ./host/default.nix {
+    inherit
+      lib
+      selectors
+      ;
+    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+  };
+
+  bridges = import ./bridges/default.nix {
+    inherit
+      lib
+      selectors
+      ;
+    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+  };
+
+  containers = import ./containers/default.nix {
+    inherit
+      lib
+      selectors
+      ;
+    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+  };
 in
 {
   inherit
@@ -72,6 +98,9 @@ in
     selectors
     flakeInputs
     hostBuild
+    host
+    bridges
+    containers
     ;
 
   renderer = {

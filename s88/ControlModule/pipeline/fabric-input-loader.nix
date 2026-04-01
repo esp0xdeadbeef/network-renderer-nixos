@@ -11,7 +11,7 @@
 
 let
   renderer = inputs.network-renderer-nixos.lib.renderer;
-  runtimeContext = import ./lookup/runtime-context.nix { inherit lib; };
+  runtimeContext = import ../lookup/runtime-context.nix { inherit lib; };
 
   system = pkgs.stdenv.hostPlatform.system;
 
@@ -29,14 +29,15 @@ let
     inventory = globalInventory;
   };
 
-  deploymentHostName =
-    if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
-      hostContext.deploymentHostName
+  requestedHostName =
+    if hostContext ? hostname && builtins.isString hostContext.hostname then
+      hostContext.hostname
     else
       config.networking.hostName;
 
   renderedHostNetwork = renderer.renderHostNetwork {
-    hostName = deploymentHostName;
+    hostName = requestedHostName;
+    inherit hostContext;
     cpm = controlPlaneOut;
     inventory = globalInventory;
   };

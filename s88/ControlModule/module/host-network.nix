@@ -9,9 +9,9 @@
 }:
 
 let
-  deploymentHostName =
-    if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
-      hostContext.deploymentHostName
+  requestedHostName =
+    if hostContext ? hostname && builtins.isString hostContext.hostname then
+      hostContext.hostname
     else
       config.networking.hostName;
 
@@ -19,9 +19,10 @@ let
     if renderedHostNetwork != null then
       renderedHostNetwork
     else
-      import ./render/host-network.nix {
+      import ../render/host-network.nix {
         inherit lib;
-        hostName = deploymentHostName;
+        hostName = requestedHostName;
+        inherit hostContext;
         cpm = controlPlaneOut;
         inventory = globalInventory;
       };

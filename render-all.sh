@@ -23,6 +23,38 @@ else
   search_root="$source_root"
 fi
 
+dump_generated_artifacts() {
+  local intent_path="$1"
+  local inventory_path="$2"
+
+  echo
+  echo "[!] Dumping generated JSON artifacts:"
+  echo
+
+  have_artifacts=false
+
+  for j in ./[0-9][0-9]-*.json; do
+    [ -e "$j" ] || continue
+    have_artifacts=true
+    echo "===== $j ====="
+    jq -c . "$j" 2>/dev/null || cat "$j"
+    echo
+  done
+
+  if [ "$have_artifacts" = false ]; then
+    echo "[!] No generated JSON artifacts were produced; dumping source inputs:"
+    echo
+
+    echo "===== $intent_path ====="
+    cat "$intent_path"
+    echo
+
+    echo "===== $inventory_path ====="
+    cat "$inventory_path"
+    echo
+  fi
+}
+
 find "$search_root" -name intent.nix -type f | sort | while read -r intent_path; do
   inventory_path="$(dirname "$intent_path")/inventory.nix"
 
@@ -57,32 +89,14 @@ find "$search_root" -name intent.nix -type f | sort | while read -r intent_path;
   then
     echo
     echo "[!] Generation failed for: $intent_path"
-    echo "[!] Dumping generated JSON artifacts:"
+    dump_generated_artifacts "$intent_path" "$inventory_path"
+    exit 1
+  fi
+
+  if ! ./test-split-box-render.sh "$intent_path" "$inventory_path" ./90-render.json; then
     echo
-
-    have_artifacts=false
-
-    for j in ./[0-9][0-9]-*.json; do
-      [ -e "$j" ] || continue
-      have_artifacts=true
-      echo "===== $j ====="
-      jq -c . "$j" 2>/dev/null || cat "$j"
-      echo
-    done
-
-    if [ "$have_artifacts" = false ]; then
-      echo "[!] No generated JSON artifacts were produced; dumping source inputs:"
-      echo
-
-      echo "===== $intent_path ====="
-      cat "$intent_path"
-      echo
-
-      echo "===== $inventory_path ====="
-      cat "$inventory_path"
-      echo
-    fi
-
+    echo "[!] Split box renderer validation failed for: $intent_path"
+    dump_generated_artifacts "$intent_path" "$inventory_path"
     exit 1
   fi
 done

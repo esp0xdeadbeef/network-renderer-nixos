@@ -3,6 +3,7 @@
   hostName,
   cpm,
   inventory ? { },
+  hostContext ? null,
 }:
 
 let
@@ -14,6 +15,7 @@ let
       hostName
       cpm
       inventory
+      hostContext
       ;
   };
 
@@ -63,6 +65,11 @@ in
     renderHostConfig
     resolvedHostContext
     normalizedRuntimeTargets
+    unitsOnDeploymentHost
+    deploymentHostUnitRoles
+    deploymentHostRoleNames
+    deploymentHostRoles
+    deploymentHostContainerNamingUnits
     selectedUnits
     selectedRoleNames
     selectedRoles
