@@ -4,7 +4,7 @@
   flakeInputs ? { },
 }:
 
-import ../../Site/api/default.nix {
+import ../../ProcessCell/api/default.nix {
   inherit
     lib
     repoRoot

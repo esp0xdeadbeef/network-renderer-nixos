@@ -4,7 +4,7 @@
   flakeInputs ? { },
 }:
 
-import ../../Site/api/default.nix {
+import ../../ControlModule/api/default.nix {
   inherit
     lib
     repoRoot

@@ -52,6 +52,52 @@ let
     else
       unitName;
 
+  emittedUnitNameForUnit = unitName: runtimeTargetIdForUnit unitName;
+
+  normalizedEmittedInterfacesForRuntimeTarget =
+    {
+      emittedUnitName,
+      interfaces,
+    }:
+    builtins.listToAttrs (
+      map (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+        in
+        {
+          name = ifName;
+          value = iface // {
+            runtimeTarget = emittedUnitName;
+          };
+        }
+      ) (sortedAttrNames interfaces)
+    );
+
+  emittedRuntimeTargetForUnit =
+    unitName:
+    let
+      originalRuntimeTarget = runtimeTargetForUnit unitName;
+      emittedUnitName = emittedUnitNameForUnit unitName;
+      originalLogicalNode =
+        if originalRuntimeTarget ? logicalNode && builtins.isAttrs originalRuntimeTarget.logicalNode then
+          originalRuntimeTarget.logicalNode
+        else
+          { };
+    in
+    originalRuntimeTarget
+    // {
+      runtimeTargetId = emittedUnitName;
+      deploymentHostName = deploymentHostName;
+      logicalNode = originalLogicalNode // {
+        name = emittedUnitName;
+      };
+      interfaces = normalizedEmittedInterfacesForRuntimeTarget {
+        inherit emittedUnitName;
+        interfaces = originalRuntimeTarget.interfaces or { };
+      };
+    };
+
   roleForUnit = unitName: if builtins.hasAttr unitName unitRoles then unitRoles.${unitName} else null;
 
   roleConfigForUnit =
@@ -143,7 +189,7 @@ let
     if containerConfig ? name && builtins.isString containerConfig.name then
       containerConfig.name
     else
-      runtimeTargetIdForUnit unitName;
+      emittedUnitNameForUnit unitName;
 
   namingUnits = lib.filter containerEnabledForUnit deploymentHostContainerNamingUnits;
 
@@ -372,12 +418,32 @@ let
       ) (sortedAttrNames interfaces)
     );
 
+  enabledUnits = lib.filter containerEnabledForUnit selectedUnits;
+
+  emittedRuntimeUnitNames = map emittedUnitNameForUnit enabledUnits;
+
+  _validateUniqueEmittedRuntimeUnitNames =
+    if
+      builtins.length emittedRuntimeUnitNames == builtins.length (lib.unique emittedRuntimeUnitNames)
+    then
+      true
+    else
+      throw ''
+        s88/CM/network/mapping/container-runtime.nix: emitted runtime unit names are not unique
+
+        enabledUnits:
+        ${builtins.toJSON enabledUnits}
+
+        emittedRuntimeUnitNames:
+        ${builtins.toJSON emittedRuntimeUnitNames}
+      '';
+
   mkContainerRuntime =
     unitName:
     let
-      runtimeTarget = runtimeTargetForUnit unitName;
+      runtimeTarget = emittedRuntimeTargetForUnit unitName;
 
-      unitRuntimeTargetId = runtimeTargetIdForUnit unitName;
+      emittedUnitName = emittedUnitNameForUnit unitName;
 
       containerName = containerNameForUnit unitName;
 
@@ -450,15 +516,17 @@ let
         interfaces
         ;
       unitKey = unitName;
-      unitName = unitRuntimeTargetId;
+      unitName = emittedUnitName;
       inherit containerName;
       loopback = runtimeTarget.loopback or { };
       veths = vethsForInterfaces interfaces;
     };
 in
-builtins.listToAttrs (
-  map (unitName: {
-    name = unitName;
-    value = mkContainerRuntime unitName;
-  }) (lib.filter containerEnabledForUnit selectedUnits)
+builtins.seq _validateUniqueEmittedRuntimeUnitNames (
+  builtins.listToAttrs (
+    map (unitName: {
+      name = emittedUnitNameForUnit unitName;
+      value = mkContainerRuntime unitName;
+    }) enabledUnits
+  )
 )
