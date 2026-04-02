@@ -4,15 +4,9 @@
   cpm,
   inventory,
 }:
-
 let
   firewall = import ../firewall/default.nix { inherit lib; };
-  containerRuntime = import ../mapping/container-runtime.nix {
-    inherit
-      lib
-      hostPlan
-      ;
-  };
+  containerRuntime = import ../mapping/container-runtime.nix { inherit lib hostPlan; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -42,10 +36,7 @@ let
       };
 
       nftRuleset = firewall {
-        inherit
-          cpm
-          inventory
-          ;
+        inherit cpm inventory;
         unitKey = model.unitKey;
         unitName = model.unitName;
         roleName = model.roleName;
@@ -63,14 +54,8 @@ let
       value = {
         autoStart = true;
         privateNetwork = true;
-
-        inherit (model)
-          bindMounts
-          allowedDevices
-          ;
-
+        inherit (model) bindMounts allowedDevices;
         extraVeths = model.veths;
-
         additionalCapabilities = lib.unique (
           [
             "CAP_NET_ADMIN"
@@ -98,9 +83,7 @@ let
             imports = [
               ../profiles/common-router.nix
             ]
-            ++ lib.optionals (model.profilePath != null) [
-              model.profilePath
-            ];
+            ++ lib.optionals (model.profilePath != null) [ model.profilePath ];
 
             environment.systemPackages = with pkgs; [
               gron

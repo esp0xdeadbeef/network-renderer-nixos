@@ -21,6 +21,13 @@ let
 
   attachTargetsRuntime = realizationPorts.attachTargetsForUnitsFromRuntime {
     inherit inventory;
+    selectedUnits = hostRuntime.unitsOnDeploymentHost;
+    normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
+    file = "s88/Unit/render/host-plan.nix";
+  };
+
+  attachTargetsRuntimeSelected = realizationPorts.attachTargetsForUnitsFromRuntime {
+    inherit inventory;
     selectedUnits = hostRuntime.selectedUnits;
     normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
     file = "s88/Unit/render/host-plan.nix";
@@ -129,7 +136,10 @@ in
   bridgeNameMap = effectiveBridgeNameMap;
   bridges = effectiveBridges;
 
-  inherit attachTargetsRuntime;
+  inherit
+    attachTargetsRuntime
+    attachTargetsRuntimeSelected
+    ;
   attachTargets = wanAttachment.attachTargets;
   localAttachTargets = wanAttachment.localAttachTargets;
 
