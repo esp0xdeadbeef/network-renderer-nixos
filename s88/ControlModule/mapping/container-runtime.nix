@@ -1,8 +1,4 @@
-{
-  lib,
-  hostPlan,
-}:
-
+{ lib, hostPlan }:
 let
   hostNaming = import ../../../lib/host-naming.nix { inherit lib; };
 
@@ -21,6 +17,7 @@ let
   deploymentHostContainerNamingUnits =
     hostPlan.deploymentHostContainerNamingUnits
       or (lib.filter (unitName: builtins.elem unitName selectedUnits) selectedUnits);
+
   localAttachTargets = hostPlan.localAttachTargets or [ ];
   bridgeNameMap = hostPlan.bridgeNameMap or { };
   deploymentHostName = hostPlan.deploymentHostName or null;
@@ -52,7 +49,72 @@ let
     else
       unitName;
 
-  emittedUnitNameForUnit = unitName: runtimeTargetIdForUnit unitName;
+  roleForUnit = unitName: if builtins.hasAttr unitName unitRoles then unitRoles.${unitName} else null;
+
+  roleConfigForUnit =
+    unitName:
+    let
+      roleName = roleForUnit unitName;
+    in
+    if roleName != null && builtins.hasAttr roleName deploymentHostRoles then
+      deploymentHostRoles.${roleName}
+    else
+      { };
+
+  containerConfigForUnit =
+    unitName:
+    let
+      roleConfig = roleConfigForUnit unitName;
+    in
+    if roleConfig ? container && builtins.isAttrs roleConfig.container then
+      roleConfig.container
+    else
+      { };
+
+  containerEnabledForUnit =
+    unitName:
+    let
+      containerConfig = containerConfigForUnit unitName;
+    in
+    containerConfig ? enable && (containerConfig.enable or false);
+
+  namingUnits = lib.filter containerEnabledForUnit deploymentHostContainerNamingUnits;
+
+  splitQualifiedUnitId =
+    unitName:
+    let
+      parts = lib.splitString "::" unitName;
+      partCount = builtins.length parts;
+    in
+    {
+      inherit parts;
+      local = runtimeTargetIdForUnit unitName;
+      qualified = lib.concatStringsSep "-" parts;
+    };
+
+  parsedNamingUnits = lib.genAttrs namingUnits splitQualifiedUnitId;
+
+  localNameCounts = builtins.foldl' (
+    acc: unitName:
+    let
+      local = parsedNamingUnits.${unitName}.local;
+    in
+    acc
+    // {
+      ${local} = (acc.${local} or 0) + 1;
+    }
+  ) { } namingUnits;
+
+  emittedUnitNameForUnit =
+    unitName:
+    let
+      parsed =
+        if builtins.hasAttr unitName parsedNamingUnits then
+          parsedNamingUnits.${unitName}
+        else
+          splitQualifiedUnitId unitName;
+    in
+    if (localNameCounts.${parsed.local} or 0) > 1 then parsed.qualified else parsed.local;
 
   normalizedEmittedInterfacesForRuntimeTarget =
     {
@@ -97,35 +159,6 @@ let
         interfaces = originalRuntimeTarget.interfaces or { };
       };
     };
-
-  roleForUnit = unitName: if builtins.hasAttr unitName unitRoles then unitRoles.${unitName} else null;
-
-  roleConfigForUnit =
-    unitName:
-    let
-      roleName = roleForUnit unitName;
-    in
-    if roleName != null && builtins.hasAttr roleName deploymentHostRoles then
-      deploymentHostRoles.${roleName}
-    else
-      { };
-
-  containerConfigForUnit =
-    unitName:
-    let
-      roleConfig = roleConfigForUnit unitName;
-    in
-    if roleConfig ? container && builtins.isAttrs roleConfig.container then
-      roleConfig.container
-    else
-      { };
-
-  containerEnabledForUnit =
-    unitName:
-    let
-      containerConfig = containerConfigForUnit unitName;
-    in
-    containerConfig ? enable && (containerConfig.enable or false);
 
   sourceKindForInterface =
     iface:
@@ -190,8 +223,6 @@ let
       containerConfig.name
     else
       emittedUnitNameForUnit unitName;
-
-  namingUnits = lib.filter containerEnabledForUnit deploymentHostContainerNamingUnits;
 
   desiredContainerBaseNames = builtins.listToAttrs (
     map (unitName: {
@@ -322,9 +353,7 @@ let
         ifName:
         let
           iface = interfaces.${ifName};
-          attachTarget = attachTargetForInterface {
-            inherit unitName ifName iface;
-          };
+          attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
           sourceKind = sourceKindForInterface iface;
 
           desiredInterfaceName = effectiveInterfaceNameForInterface {
@@ -420,7 +449,7 @@ let
 
   enabledUnits = lib.filter containerEnabledForUnit selectedUnits;
 
-  emittedRuntimeUnitNames = map emittedUnitNameForUnit enabledUnits;
+  emittedRuntimeUnitNames = map emittedUnitNameForUnit namingUnits;
 
   _validateUniqueEmittedRuntimeUnitNames =
     if
@@ -431,8 +460,8 @@ let
       throw ''
         s88/CM/network/mapping/container-runtime.nix: emitted runtime unit names are not unique
 
-        enabledUnits:
-        ${builtins.toJSON enabledUnits}
+        namingUnits:
+        ${builtins.toJSON namingUnits}
 
         emittedRuntimeUnitNames:
         ${builtins.toJSON emittedRuntimeUnitNames}
@@ -442,22 +471,16 @@ let
     unitName:
     let
       runtimeTarget = emittedRuntimeTargetForUnit unitName;
-
       emittedUnitName = emittedUnitNameForUnit unitName;
-
       containerName = containerNameForUnit unitName;
-
       interfaces = normalizedInterfacesForUnit {
         inherit unitName containerName;
         interfaces = runtimeTarget.interfaces or { };
       };
-
       roleName = roleForUnit unitName;
       roleConfig = roleConfigForUnit unitName;
       containerConfig = containerConfigForUnit unitName;
-
       profilePath = if containerConfig ? profilePath then containerConfig.profilePath else null;
-
       additionalCapabilities =
         if
           containerConfig ? additionalCapabilities && builtins.isList containerConfig.additionalCapabilities
@@ -465,19 +488,16 @@ let
           containerConfig.additionalCapabilities
         else
           [ ];
-
       bindMounts =
         if containerConfig ? bindMounts && builtins.isAttrs containerConfig.bindMounts then
           containerConfig.bindMounts
         else
           { };
-
       allowedDevices =
         if containerConfig ? allowedDevices && builtins.isList containerConfig.allowedDevices then
           containerConfig.allowedDevices
         else
           [ ];
-
       interfaceNames = sortedAttrNames interfaces;
 
       interfaceNameFor =
@@ -515,6 +535,7 @@ let
         lanInterfaceNames
         interfaces
         ;
+
       unitKey = unitName;
       unitName = emittedUnitName;
       inherit containerName;

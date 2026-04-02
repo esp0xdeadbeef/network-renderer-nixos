@@ -1,8 +1,4 @@
-{
-  lib,
-  hostPlan,
-}:
-
+{ lib, hostPlan }:
 let
   hostNaming = import ../../../lib/host-naming.nix { inherit lib; };
 
@@ -13,7 +9,6 @@ let
   uplinks = hostPlan.uplinks or { };
   transitBridges = hostPlan.transitBridges or { };
   hostHasUplinks = hostPlan.hostHasUplinks or false;
-
   bridgeNetworks =
     if deploymentHost ? bridgeNetworks && builtins.isAttrs deploymentHost.bridgeNetworks then
       deploymentHost.bridgeNetworks
@@ -148,7 +143,6 @@ let
       parentIf:
       let
         uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
-
         vlanChildren = lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent);
 
         directBridgeUplinks = lib.filter (
@@ -165,9 +159,7 @@ let
           else
             throw ''
               s88/CM/network/render/systemd-host-network.nix: multiple non-vlan uplinks on parent '${parentIf}' are not supported
-
-              uplinks:
-              ${builtins.concatStringsSep "\n  - " ([ "" ] ++ directBridgeUplinks)}
+              uplinks: ${builtins.concatStringsSep "\n - " ([ "" ] ++ directBridgeUplinks)}
             '';
       in
       builtins.seq _singleDirectBridge {
@@ -183,9 +175,7 @@ let
             LinkLocalAddressing = "no";
             IPv6AcceptRA = false;
           }
-          // lib.optionalAttrs (vlanChildren != [ ]) {
-            VLAN = vlanChildren;
-          }
+          // lib.optionalAttrs (vlanChildren != [ ]) { VLAN = vlanChildren; }
           // lib.optionalAttrs (builtins.length directBridgeUplinks == 1) {
             Bridge = uplinks.${builtins.head directBridgeUplinks}.bridge;
           };
