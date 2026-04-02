@@ -67,6 +67,8 @@ for box in "${boxes[@]}"; do
   identities_json_path="$tmpdir/${box}.identities.json"
   expected_json="$tmpdir/${box}.expected.json"
   actual_json="$tmpdir/${box}.actual.json"
+  expected_container_names_json="$tmpdir/${box}.expected-container-names.json"
+  actual_container_names_json="$tmpdir/${box}.actual-container-names.json"
 
   jq -cer --arg box "$box" '
     [
@@ -248,6 +250,35 @@ EOF
     echo "[!] Actual:   ${actual_json}" >&2
     exit 1
   fi
+
+  jq -c '(.containers // {}) | keys' "$expected_json" >"$expected_container_names_json"
+  jq -c '(.containers // {}) | keys' "$actual_json" >"$actual_container_names_json"
+
+  if ! diff -u <(jq -S . "$expected_container_names_json") <(jq -S . "$actual_container_names_json"); then
+    echo "[!] Split box container set mismatch for ${box}" >&2
+    echo "[!] Expected: ${expected_container_names_json}" >&2
+    echo "[!] Actual:   ${actual_container_names_json}" >&2
+    exit 1
+  fi
+
+  mapfile -t containers < <(jq -r '.[]' "$expected_container_names_json")
+
+  for container in "${containers[@]}"; do
+    echo "[*] Validating split container renderer for ${container}"
+
+    expected_container_json="$tmpdir/${box}.${container}.expected-container.json"
+    actual_container_json="$tmpdir/${box}.${container}.actual-container.json"
+
+    jq -c --arg container "$container" '.containers[$container]' "$expected_json" >"$expected_container_json"
+    jq -c --arg container "$container" '.containers[$container]' "$actual_json" >"$actual_container_json"
+
+    if ! diff -u <(jq -S . "$expected_container_json") <(jq -S . "$actual_container_json"); then
+      echo "[!] Split container renderer mismatch for ${container} on ${box}" >&2
+      echo "[!] Expected: ${expected_container_json}" >&2
+      echo "[!] Actual:   ${actual_container_json}" >&2
+      exit 1
+    fi
+  done
 done
 
 echo "[*] Split box renderer validation passed"
