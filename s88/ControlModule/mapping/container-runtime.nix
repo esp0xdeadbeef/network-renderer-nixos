@@ -303,6 +303,20 @@ let
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
             hostInterfaceName = hostVethName;
+            connectivity = iface.connectivity or { };
+            backingRef = iface.backingRef or { };
+            hostBridge = iface.hostBridge or null;
+            identity = attachTarget.identity or { };
+            upstream =
+              if
+                iface ? connectivity
+                && builtins.isAttrs iface.connectivity
+                && iface.connectivity ? upstream
+                && builtins.isString iface.connectivity.upstream
+              then
+                iface.connectivity.upstream
+              else
+                null;
           };
         }
       ) (sortedAttrNames interfaces);
