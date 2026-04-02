@@ -1,6 +1,10 @@
 { lib }:
 
 args@{
+  cpm,
+  runtimeTarget ? { },
+  unitKey ? null,
+  unitName ? null,
   roleName ? null,
   interfaces ? { },
   wanIfs ? [ ],
@@ -18,12 +22,24 @@ let
       ;
   };
 
+  topology = import ./lookup/topology.nix {
+    inherit
+      lib
+      cpm
+      runtimeTarget
+      unitKey
+      unitName
+      roleName
+      ;
+  };
+
   ruleModelOrRuleset = import ./policy/default.nix (
     args
     // {
       inherit
         lib
         interfaceView
+        topology
         ;
     }
   );

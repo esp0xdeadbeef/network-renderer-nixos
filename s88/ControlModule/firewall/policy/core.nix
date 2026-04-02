@@ -64,7 +64,7 @@ if wanNames == [ ] && lanNames == [ ] then
 else
   {
     tableName = "router";
-    inputPolicy = "accept";
+    inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
     inherit forwardPairs;
