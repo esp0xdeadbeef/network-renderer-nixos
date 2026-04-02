@@ -59,6 +59,30 @@ let
     else
       { };
 
+  topologyCurrent =
+    if
+      topology != null
+      && builtins.isAttrs topology
+      && topology ? current
+      && builtins.isAttrs topology.current
+    then
+      topology.current
+    else
+      { };
+
+  currentSite =
+    if
+      topology != null
+      && builtins.isAttrs topology
+      && topology ? currentSite
+      && builtins.isAttrs topology.currentSite
+    then
+      topology.currentSite
+    else if topologyCurrent ? site && builtins.isAttrs topologyCurrent.site then
+      topologyCurrent.site
+    else
+      { };
+
   forwardingModel =
     if cpm ? forwardingModel && builtins.isAttrs cpm.forwardingModel then
       cpm.forwardingModel
@@ -101,6 +125,13 @@ let
 
   communicationContract = firstNonEmptyAttrs [
     (
+      if currentSite ? communicationContract && builtins.isAttrs currentSite.communicationContract then
+        canonicalCommunicationContract currentSite.communicationContract
+      else
+        { }
+    )
+    (canonicalCommunicationContract currentSite)
+    (
       if
         forwardingSite ? communicationContract && builtins.isAttrs forwardingSite.communicationContract
       then
@@ -112,6 +143,12 @@ let
   ];
 
   ownership = firstNonEmptyAttrs [
+    (
+      if currentSite ? ownership && builtins.isAttrs currentSite.ownership then
+        currentSite.ownership
+      else
+        { }
+    )
     (
       if forwardingSite ? ownership && builtins.isAttrs forwardingSite.ownership then
         forwardingSite.ownership
@@ -130,6 +167,7 @@ in
   inherit
     currentRootName
     currentSiteName
+    currentSite
     forwardingModel
     forwardingSite
     communicationContract

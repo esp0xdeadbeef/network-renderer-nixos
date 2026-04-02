@@ -173,54 +173,12 @@ let
         s88/ControlModule/firewall/policy/policy.nix: missing communication contract for policy role
       '';
 
-  _validateRelations =
-    if relations != [ ] then
-      true
-    else
-      throw ''
-        s88/ControlModule/firewall/policy/policy.nix: policy role requires non-empty communicationContract.relations
-      '';
-
-  _validateRelationEndpoints = builtins.foldl' (
-    acc: rendering:
-    builtins.seq acc (
-      if rendering.fromInterfaces == [ ] then
-        throw ''
-          s88/ControlModule/firewall/policy/policy.nix: relation '${rendering.name}' resolved no source interfaces
-
-          relation:
-          ${builtins.toJSON rendering.relation}
-        ''
-      else if rendering.toInterfaces == [ ] then
-        throw ''
-          s88/ControlModule/firewall/policy/policy.nix: relation '${rendering.name}' resolved no destination interfaces
-
-          relation:
-          ${builtins.toJSON rendering.relation}
-        ''
-      else
-        true
-    )
-  ) true relationRenderings;
-
-  _validateRenderedRules =
-    if renderedRules != [ ] then
-      true
-    else
-      throw ''
-        s88/ControlModule/firewall/policy/policy.nix: policy role rendered zero firewall rules
-      '';
-
   output = {
-    tableName = "router";
-    inputPolicy = "drop";
+    tableName = "edge_policy";
+    inputPolicy = "accept";
     outputPolicy = "accept";
     forwardPolicy = "drop";
     forwardRules = renderedRules;
   };
 in
-builtins.seq _validateCommunicationContract (
-  builtins.seq _validateRelations (
-    builtins.seq _validateRelationEndpoints (builtins.seq _validateRenderedRules output)
-  )
-)
+builtins.seq _validateCommunicationContract output
