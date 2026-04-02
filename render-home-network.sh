@@ -13,6 +13,15 @@ nix run \
   "$intent_path" \
   "$inventory_path"
 
+if [ ! -f ./90-render.json ]; then
+  if [ -f ./90-dry-config.json ]; then
+    jq '.render' ./90-dry-config.json > ./90-render.json
+  else
+    echo "[!] Missing render artifact: ./90-render.json" >&2
+    exit 1
+  fi
+fi
+
 ./test-split-box-render.sh "$intent_path" "$inventory_path" ./90-render.json
 
-cat 90-render.json | jq -c
+jq -c . ./90-render.json

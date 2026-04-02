@@ -1,7 +1,7 @@
 {
   lib,
   interfaceView ? { },
-  topology ? null,
+  currentSite ? { },
   communicationContract ? { },
   ownership ? { },
   ...
@@ -47,30 +47,6 @@ let
         iface = ifaceOf entry;
       in
       if builtins.isAttrs iface && builtins.hasAttr name iface then iface.${name} else fallback;
-
-  topologyCurrent =
-    if
-      topology != null
-      && builtins.isAttrs topology
-      && topology ? current
-      && builtins.isAttrs topology.current
-    then
-      topology.current
-    else
-      { };
-
-  currentSite =
-    if
-      topology != null
-      && builtins.isAttrs topology
-      && topology ? currentSite
-      && builtins.isAttrs topology.currentSite
-    then
-      topology.currentSite
-    else if topologyCurrent ? site && builtins.isAttrs topologyCurrent.site then
-      topologyCurrent.site
-    else
-      { };
 
   rawInterfaceEntries =
     if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? interfaceEntries then

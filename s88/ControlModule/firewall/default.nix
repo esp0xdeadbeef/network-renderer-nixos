@@ -23,23 +23,12 @@ let
       ;
   };
 
-  topology = import ./lookup/topology.nix {
-    inherit
-      lib
-      cpm
-      runtimeTarget
-      unitKey
-      unitName
-      roleName
-      ;
-  };
-
   communication = import ./lookup/communication-contract.nix {
     inherit
       lib
       cpm
       flakeInputs
-      topology
+      runtimeTarget
       ;
   };
 
@@ -47,8 +36,8 @@ let
     inherit
       lib
       interfaceView
-      topology
       ;
+    currentSite = communication.currentSite;
     communicationContract = communication.communicationContract;
     ownership = communication.ownership;
   };
@@ -59,7 +48,6 @@ let
       inherit
         lib
         interfaceView
-        topology
         endpointMap
         ;
       communicationContract = communication.communicationContract;

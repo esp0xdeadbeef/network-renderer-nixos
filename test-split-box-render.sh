@@ -43,6 +43,7 @@ require_cmd() {
 require_cmd jq
 require_cmd nix
 require_cmd diff
+require_cmd cp
 
 nix_quote() {
   printf '%s' "$1" | jq -Rsa .
@@ -54,10 +55,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mapfile -t boxes < <(jq -r '.hosts | keys[]' "$render_json")
+render_json_snapshot="$tmpdir/render.json"
+cp "$render_json" "$render_json_snapshot"
+
+mapfile -t boxes < <(jq -r '.hosts | keys[]' "$render_json_snapshot")
 
 if [ "${#boxes[@]}" -eq 0 ]; then
-  echo "[!] No hosts found in render JSON: $render_json" >&2
+  echo "[!] No hosts found in render JSON: $render_json_snapshot" >&2
   exit 1
 fi
 
@@ -87,7 +91,7 @@ for box in "${boxes[@]}"; do
       else
         error("could not infer enterprise/site identities for box " + $box)
       end
-  ' "$render_json" >"$identities_json_path"
+  ' "$render_json_snapshot" >"$identities_json_path"
 
   jq -c --arg box "$box" '
     {
@@ -95,7 +99,7 @@ for box in "${boxes[@]}"; do
       networks: (.hosts[$box].network.networks // {}),
       containers: (.containers[$box] // {})
     }
-  ' "$render_json" >"$expected_json"
+  ' "$render_json_snapshot" >"$expected_json"
 
   repo_root_nix="$(nix_quote "$repo_root")"
   intent_path_nix="$(nix_quote "$intent_path")"
