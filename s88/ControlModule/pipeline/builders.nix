@@ -20,6 +20,10 @@ let
       || (value ? data && builtins.isAttrs value.data)
     );
 
+  withForwardingModel =
+    forwardingOut: result:
+    if builtins.isAttrs result then result // { forwardingModel = forwardingOut; } else result;
+
   buildCompiler =
     {
       intent,
@@ -83,21 +87,25 @@ let
         impl = flakeInputs.network-control-plane-model.lib.${system};
       in
       if builtins.isAttrs impl && impl ? build then
-        impl.build {
-          input = forwardingOut;
-          inherit inventory;
-        }
+        withForwardingModel forwardingOut (
+          impl.build {
+            input = forwardingOut;
+            inherit inventory;
+          }
+        )
       else if builtins.isFunction impl then
         let
           result = impl { input = forwardingOut; };
+
+          realized = if builtins.isFunction result then result { inherit inventory; } else result;
         in
-        if builtins.isFunction result then result { inherit inventory; } else result
+        withForwardingModel forwardingOut realized
       else if isControlPlaneLike forwardingOut then
-        forwardingOut
+        withForwardingModel forwardingOut forwardingOut
       else
         throw "s88/CM/network/pipeline/builders.nix: flake input 'network-control-plane-model' has unsupported API shape"
     else if isControlPlaneLike forwardingOut then
-      forwardingOut
+      withForwardingModel forwardingOut forwardingOut
     else
       throw "s88/CM/network/pipeline/builders.nix: flake input 'network-control-plane-model' is required";
 

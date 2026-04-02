@@ -2,6 +2,7 @@
 
 args@{
   cpm,
+  flakeInputs ? null,
   runtimeTarget ? { },
   unitKey ? null,
   unitName ? null,
@@ -33,6 +34,25 @@ let
       ;
   };
 
+  communication = import ./lookup/communication-contract.nix {
+    inherit
+      lib
+      cpm
+      flakeInputs
+      topology
+      ;
+  };
+
+  endpointMap = import ./mapping/policy-endpoints.nix {
+    inherit
+      lib
+      interfaceView
+      topology
+      ;
+    communicationContract = communication.communicationContract;
+    ownership = communication.ownership;
+  };
+
   ruleModelOrRuleset = import ./policy/default.nix (
     args
     // {
@@ -40,7 +60,10 @@ let
         lib
         interfaceView
         topology
+        endpointMap
         ;
+      communicationContract = communication.communicationContract;
+      ownership = communication.ownership;
     }
   );
 in
