@@ -7,6 +7,10 @@
     container = {
       enable = true;
       profilePath = ../profiles/access.nix;
+      advertise = {
+        dhcp4 = true;
+        radvd = true;
+      };
       additionalCapabilities = [
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"

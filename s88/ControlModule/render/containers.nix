@@ -79,34 +79,47 @@ let
 
         config =
           { pkgs, ... }:
-          {
-            imports = [
-              ../profiles/common-router.nix
-            ]
-            ++ lib.optionals (model.profilePath != null) [ model.profilePath ];
-
-            environment.systemPackages = with pkgs; [
-              gron
-              traceroute
-              tcpdump
-              dig
-            ];
-
-            networking.hostName = model.containerName;
-            networking.useNetworkd = true;
-            systemd.network.enable = true;
-            networking.useDHCP = false;
-            networking.useHostResolvConf = lib.mkForce false;
-            services.resolved.enable = lib.mkForce false;
-
-            networking.nftables = lib.mkIf firewallArg.enable {
-              enable = true;
-              ruleset = firewallArg.ruleset;
+          let
+            accessServices = import ../access/render/default.nix {
+              inherit
+                lib
+                pkgs
+                model
+                ;
+              containerModel = model;
             };
+          in
+          lib.mkMerge [
+            accessServices
+            {
+              imports = [
+                ../profiles/common-router.nix
+              ]
+              ++ lib.optionals (model.profilePath != null) [ model.profilePath ];
 
-            system.stateVersion = lib.mkDefault "25.11";
-            systemd.network.networks = containerNetworks;
-          };
+              environment.systemPackages = with pkgs; [
+                gron
+                traceroute
+                tcpdump
+                dig
+              ];
+
+              networking.hostName = model.containerName;
+              networking.useNetworkd = true;
+              systemd.network.enable = true;
+              networking.useDHCP = false;
+              networking.useHostResolvConf = lib.mkForce false;
+              services.resolved.enable = lib.mkForce false;
+
+              networking.nftables = lib.mkIf firewallArg.enable {
+                enable = true;
+                ruleset = firewallArg.ruleset;
+              };
+
+              system.stateVersion = lib.mkDefault "25.11";
+              systemd.network.networks = containerNetworks;
+            }
+          ];
       };
     };
 in
