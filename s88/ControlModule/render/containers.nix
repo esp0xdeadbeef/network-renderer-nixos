@@ -12,11 +12,35 @@
 }:
 
 let
+  uniqueStrings = values: lib.unique (lib.filter builtins.isString values);
+
   defaultDeploymentHostName =
     if hostPlan != null && builtins.isAttrs hostPlan && hostPlan ? deploymentHostName then
       hostPlan.deploymentHostName
     else if hostPlan != null && builtins.isAttrs hostPlan && hostPlan ? hostName then
       hostPlan.hostName
+    else
+      null;
+
+  uplinks =
+    if
+      hostPlan != null
+      && builtins.isAttrs hostPlan
+      && hostPlan ? uplinks
+      && builtins.isAttrs hostPlan.uplinks
+    then
+      hostPlan.uplinks
+    else
+      { };
+
+  wanUplinkName =
+    if
+      hostPlan != null
+      && builtins.isAttrs hostPlan
+      && hostPlan ? wanUplinkName
+      && builtins.isString hostPlan.wanUplinkName
+    then
+      hostPlan.wanUplinkName
     else
       null;
 
@@ -124,38 +148,90 @@ let
       interfaces = renderedInterfaces;
     };
 
+  containerConfigModuleFor =
+    containerName: renderedModel:
+    let
+      profilePath =
+        if renderedModel ? profilePath && renderedModel.profilePath != null then
+          renderedModel.profilePath
+        else
+          null;
+
+      firewallModel =
+        if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
+          renderedModel.firewall
+        else
+          { };
+
+      firewallRuleset =
+        if
+          firewallModel ? ruleset && builtins.isString firewallModel.ruleset && firewallModel.ruleset != ""
+        then
+          firewallModel.ruleset
+        else
+          null;
+
+      containerNetworks = import ./container-networks.nix {
+        inherit
+          lib
+          uplinks
+          wanUplinkName
+          ;
+        containerModel = renderedModel;
+      };
+    in
+    { lib, pkgs, ... }:
+    let
+      accessServices =
+        if (renderedModel.roleName or null) == "access" then
+          import ../access/render/default.nix {
+            inherit lib pkgs;
+            containerModel = renderedModel;
+          }
+        else
+          { };
+    in
+    lib.mkMerge [
+      {
+        imports = lib.optionals (profilePath != null) [ profilePath ];
+
+        networking.hostName =
+          if renderedModel ? unitName && builtins.isString renderedModel.unitName then
+            renderedModel.unitName
+          else
+            containerName;
+
+        networking.useNetworkd = true;
+        systemd.network.enable = true;
+        systemd.network.networks = containerNetworks;
+      }
+
+      accessServices
+
+      (lib.optionalAttrs (firewallRuleset != null) {
+        networking.nftables.enable = true;
+        networking.nftables.ruleset = firewallRuleset;
+      })
+    ];
+
   mkContainer =
     deploymentHostName: containerName: model:
     let
       renderedModel = applyTenantBridgeOverrides model;
-
-      renderedFirewall = if renderedModel ? firewall then renderedModel.firewall else { };
+      renderedFirewall =
+        if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
+          renderedModel.firewall
+        else
+          { };
     in
     {
-      additionalCapabilities = [
-        "CAP_NET_ADMIN"
-        "CAP_NET_RAW"
-      ]
-      ++ (
-        if
-          renderedModel ? additionalCapabilities && builtins.isList renderedModel.additionalCapabilities
-        then
-          renderedModel.additionalCapabilities
-        else
-          [ ]
-      );
-
-      allowedDevices =
-        if renderedModel ? allowedDevices && builtins.isList renderedModel.allowedDevices then
-          renderedModel.allowedDevices
-        else
-          [ ];
-
       autoStart =
         if renderedModel ? autoStart && builtins.isBool renderedModel.autoStart then
           renderedModel.autoStart
         else
           true;
+
+      privateNetwork = true;
 
       bindMounts =
         if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
@@ -164,17 +240,40 @@ let
           { };
 
       extraVeths = renderedModel.veths or { };
-      privateNetwork = true;
+
+      allowedDevices = uniqueStrings (
+        if renderedModel ? allowedDevices && builtins.isList renderedModel.allowedDevices then
+          renderedModel.allowedDevices
+        else
+          [ ]
+      );
+
+      additionalCapabilities = uniqueStrings (
+        [
+          "CAP_NET_ADMIN"
+          "CAP_NET_RAW"
+        ]
+        ++ (
+          if
+            renderedModel ? additionalCapabilities && builtins.isList renderedModel.additionalCapabilities
+          then
+            renderedModel.additionalCapabilities
+          else
+            [ ]
+        )
+      );
+
+      config = containerConfigModuleFor containerName renderedModel;
 
       specialArgs = {
         inherit deploymentHostName;
         s88RoleName = renderedModel.roleName or null;
+        s88Firewall = renderedFirewall;
         unitName =
           if renderedModel ? unitName && builtins.isString renderedModel.unitName then
             renderedModel.unitName
           else
             containerName;
-        s88Firewall = renderedFirewall;
       }
       // lib.optionalAttrs debugEnabled {
         s88Debug = renderedModel;
