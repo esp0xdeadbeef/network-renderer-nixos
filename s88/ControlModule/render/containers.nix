@@ -12,6 +12,8 @@
 }:
 
 let
+  firewall = import ../firewall/default.nix { inherit lib; };
+
   uniqueStrings = values: lib.unique (lib.filter builtins.isString values);
 
   defaultDeploymentHostName =
@@ -116,7 +118,10 @@ let
       renderedVeths = lib.mapAttrs (
         vethName: veth:
         if builtins.hasAttr vethName overrides then
-          veth // { hostBridge = overrides.${vethName}; }
+          veth
+          // {
+            hostBridge = overrides.${vethName};
+          }
         else
           veth
       ) (model.veths or { });
@@ -137,7 +142,10 @@ let
               null;
         in
         if vethName != null && builtins.hasAttr vethName overrides then
-          iface // { renderedHostBridgeName = overrides.${vethName}; }
+          iface
+          // {
+            renderedHostBridgeName = overrides.${vethName};
+          }
         else
           iface
       ) (model.interfaces or { });
@@ -148,9 +156,61 @@ let
       interfaces = renderedInterfaces;
     };
 
+  mkFirewallArg =
+    nftRuleset:
+    if builtins.isString nftRuleset && nftRuleset != "" then
+      {
+        enable = true;
+        ruleset = nftRuleset;
+      }
+    else
+      {
+        enable = false;
+        ruleset = null;
+      };
+
+  firewallArgForModel =
+    renderedModel:
+    if cpm == null then
+      if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
+        renderedModel.firewall
+      else
+        {
+          enable = false;
+          ruleset = null;
+        }
+    else
+      mkFirewallArg (firewall {
+        inherit cpm inventory uplinks;
+        unitKey = if renderedModel ? unitKey then renderedModel.unitKey else null;
+        unitName = if renderedModel ? unitName then renderedModel.unitName else null;
+        roleName = if renderedModel ? roleName then renderedModel.roleName else null;
+        runtimeTarget =
+          if renderedModel ? runtimeTarget && builtins.isAttrs renderedModel.runtimeTarget then
+            renderedModel.runtimeTarget
+          else
+            { };
+        interfaces =
+          if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces then
+            renderedModel.interfaces
+          else
+            { };
+        wanIfs =
+          if renderedModel ? wanInterfaceNames && builtins.isList renderedModel.wanInterfaceNames then
+            renderedModel.wanInterfaceNames
+          else
+            [ ];
+        lanIfs =
+          if renderedModel ? lanInterfaceNames && builtins.isList renderedModel.lanInterfaceNames then
+            renderedModel.lanInterfaceNames
+          else
+            [ ];
+      });
+
   commonRouterConfig =
     {
       lib,
+      pkgs,
       ...
     }:
     {
@@ -165,6 +225,16 @@ let
       services.resolved.enable = lib.mkForce false;
       networking.firewall.enable = lib.mkForce false;
 
+      environment.systemPackages = with pkgs; [
+        gron
+        traceroute
+        tcpdump
+        nftables
+        dnsutils
+        iproute2
+        iputils
+      ];
+
       boot.kernel.sysctl = {
         "net.ipv4.ip_forward" = 1;
         "net.ipv6.conf.all.forwarding" = 1;
@@ -173,38 +243,9 @@ let
       system.stateVersion = "25.11";
     };
 
-  roleProfileConfigFor =
-    roleName:
-    {
-      pkgs,
-      ...
-    }:
-    if roleName == "core" then
-      {
-        environment.systemPackages = with pkgs; [
-          tcpdump
-        ];
-      }
-    else
-      { };
-
   containerConfigModuleFor =
-    containerName: renderedModel:
+    containerName: renderedModel: firewallArg:
     let
-      firewallModel =
-        if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
-          renderedModel.firewall
-        else
-          { };
-
-      firewallRuleset =
-        if
-          firewallModel ? ruleset && builtins.isString firewallModel.ruleset && firewallModel.ruleset != ""
-        then
-          firewallModel.ruleset
-        else
-          null;
-
       containerNetworks = import ./container-networks.nix {
         inherit
           lib
@@ -215,28 +256,29 @@ let
       };
 
       roleName = renderedModel.roleName or null;
+
+      accessServices =
+        if roleName == "access" then
+          import ../access/render/default.nix {
+            inherit lib;
+            containerModel = renderedModel;
+          }
+        else
+          { };
+
+      profilePath = if renderedModel ? profilePath then renderedModel.profilePath else null;
     in
     {
       lib,
       pkgs,
       ...
     }:
-    let
-      accessServices =
-        if roleName == "access" then
-          import ../access/render/default.nix {
-            inherit lib pkgs;
-            containerModel = renderedModel;
-          }
-        else
-          { };
-    in
     lib.mkMerge [
-      (commonRouterConfig { inherit lib; })
-
-      ((roleProfileConfigFor roleName) { inherit pkgs; })
+      (commonRouterConfig { inherit lib pkgs; })
 
       {
+        imports = lib.optionals (profilePath != null) [ profilePath ];
+
         networking.hostName =
           if renderedModel ? unitName && builtins.isString renderedModel.unitName then
             renderedModel.unitName
@@ -248,9 +290,9 @@ let
 
       accessServices
 
-      (lib.optionalAttrs (firewallRuleset != null) {
+      (lib.optionalAttrs firewallArg.enable {
         networking.nftables.enable = true;
-        networking.nftables.ruleset = firewallRuleset;
+        networking.nftables.ruleset = firewallArg.ruleset;
       })
     ];
 
@@ -259,11 +301,7 @@ let
     let
       renderedModel = applyTenantBridgeOverrides model;
 
-      renderedFirewall =
-        if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
-          renderedModel.firewall
-        else
-          { };
+      firewallArg = firewallArgForModel renderedModel;
     in
     {
       autoStart =
@@ -304,12 +342,12 @@ let
         )
       );
 
-      config = containerConfigModuleFor containerName renderedModel;
+      config = containerConfigModuleFor containerName renderedModel firewallArg;
 
       specialArgs = {
         inherit deploymentHostName;
         s88RoleName = renderedModel.roleName or null;
-        s88Firewall = renderedFirewall;
+        s88Firewall = firewallArg;
         unitName =
           if renderedModel ? unitName && builtins.isString renderedModel.unitName then
             renderedModel.unitName
