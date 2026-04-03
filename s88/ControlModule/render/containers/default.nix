@@ -37,11 +37,23 @@ let
       uplinks = inputs.uplinks;
     };
 
+  alarmModelForRenderedModel =
+    renderedModel:
+    import ./alarms.nix {
+      inherit
+        lib
+        cpm
+        renderedModel
+        ;
+      uplinks = inputs.uplinks;
+    };
+
   emitContainer =
     deploymentHostName: containerName: model:
     let
       renderedModel = renderModel model;
       firewallArg = firewallArgForModel renderedModel;
+      alarmModel = alarmModelForRenderedModel renderedModel;
     in
     import ./emission.nix {
       inherit
@@ -51,6 +63,7 @@ let
         containerName
         renderedModel
         firewallArg
+        alarmModel
         ;
       uplinks = inputs.uplinks;
       wanUplinkName = inputs.wanUplinkName;

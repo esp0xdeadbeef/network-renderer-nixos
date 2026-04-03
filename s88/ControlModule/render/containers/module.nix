@@ -3,6 +3,7 @@
   containerName,
   renderedModel,
   firewallArg,
+  alarmModel,
   uplinks,
   wanUplinkName,
 }:
@@ -17,6 +18,12 @@ let
       renderedModel.unitName
     else
       containerName;
+
+  warningMessages =
+    if alarmModel ? warningMessages && builtins.isList alarmModel.warningMessages then
+      lib.unique (lib.filter builtins.isString alarmModel.warningMessages)
+    else
+      [ ];
 
   commonRouterConfig =
     {
@@ -82,6 +89,7 @@ in
     {
       networking.hostName = resolvedHostName;
       systemd.network.networks = containerNetworks;
+      warnings = warningMessages;
     }
 
     accessServices
