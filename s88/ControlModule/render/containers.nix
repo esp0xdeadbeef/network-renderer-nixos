@@ -129,37 +129,39 @@ let
               containerModel = model;
             };
           in
-          lib.mkMerge [
-            accessServices
-            {
-              imports = [
-                ../profiles/common-router.nix
-              ]
-              ++ lib.optionals (model.profilePath != null) [ model.profilePath ];
+          {
+            imports = [
+              ../profiles/common-router.nix
+            ]
+            ++ lib.optionals (model.profilePath != null) [ model.profilePath ];
 
-              environment.systemPackages = with pkgs; [
-                gron
-                traceroute
-                tcpdump
-                dig
-              ];
+            config = lib.mkMerge [
+              accessServices
+              {
+                environment.systemPackages = with pkgs; [
+                  gron
+                  traceroute
+                  tcpdump
+                  dig
+                ];
 
-              networking.hostName = model.containerName;
-              networking.useNetworkd = true;
-              systemd.network.enable = true;
-              networking.useDHCP = false;
-              networking.useHostResolvConf = lib.mkForce false;
-              services.resolved.enable = lib.mkForce false;
+                networking.hostName = model.containerName;
+                networking.useNetworkd = true;
+                systemd.network.enable = true;
+                networking.useDHCP = false;
+                networking.useHostResolvConf = lib.mkForce false;
+                services.resolved.enable = lib.mkForce false;
 
-              networking.nftables = lib.mkIf firewallArg.enable {
-                enable = true;
-                ruleset = firewallArg.ruleset;
-              };
+                networking.nftables = lib.mkIf firewallArg.enable {
+                  enable = true;
+                  ruleset = firewallArg.ruleset;
+                };
 
-              system.stateVersion = lib.mkDefault "25.11";
-              systemd.network.networks = containerNetworks;
-            }
-          ];
+                system.stateVersion = lib.mkDefault "25.11";
+                systemd.network.networks = containerNetworks;
+              }
+            ];
+          };
       };
     };
 in
