@@ -1,15 +1,27 @@
 {
   lib,
   pkgs,
-  containerModel,
+  containerModel ? null,
+  model ? null,
+  ...
 }:
 
 let
+  resolvedContainerModel =
+    if containerModel != null then
+      containerModel
+    else if model != null then
+      model
+    else
+      throw ''
+        s88/ControlModule/access/render/default.nix: requires containerModel
+      '';
+
   advertisementModel = import ../lookup/advertisements.nix {
     inherit
       lib
-      containerModel
       ;
+    containerModel = resolvedContainerModel;
   };
 
   modules =

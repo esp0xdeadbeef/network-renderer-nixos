@@ -23,6 +23,29 @@ let
         ruleset = nftRuleset;
       };
 
+  mkAccessDebug =
+    model:
+    let
+      advertisements = import ../access/lookup/advertisements.nix {
+        inherit lib;
+        containerModel = model;
+      };
+    in
+    advertisements
+    // {
+      dhcp4ServiceUnits = map (scope: {
+        generator = "gen-kea-${scope.fileStem}";
+        daemon = "kea-dhcp4-${scope.fileStem}";
+        interfaceName = scope.interfaceName;
+      }) advertisements.dhcp4Scopes;
+
+      radvdServiceUnits = map (scope: {
+        generator = "radvd-generate-${scope.fileStem}";
+        daemon = "radvd-${scope.fileStem}";
+        interfaceName = scope.interfaceName;
+      }) advertisements.radvdScopes;
+    };
+
   mkContainer =
     unitKey:
     let
@@ -48,6 +71,8 @@ let
       };
 
       firewallArg = mkFirewallArg nftRuleset;
+
+      accessDebug = mkAccessDebug model;
     in
     {
       name = model.containerName;
@@ -75,6 +100,22 @@ let
           s88Role = model.roleConfig;
           s88RoleName = model.roleName;
           s88Firewall = firewallArg;
+          s88Debug = {
+            containerName = model.containerName;
+            unitKey = model.unitKey;
+            unitName = model.unitName;
+            deploymentHostName = model.deploymentHostName;
+            roleName = model.roleName;
+            profilePath = model.profilePath;
+            loopback = model.loopback or { };
+            interfaces = model.interfaces or { };
+            veths = model.veths or { };
+            wanInterfaceNames = model.wanInterfaceNames or [ ];
+            lanInterfaceNames = model.lanInterfaceNames or [ ];
+            containerNetworks = containerNetworks;
+            firewall = firewallArg;
+            access = accessDebug;
+          };
         };
 
         config =
@@ -84,7 +125,6 @@ let
               inherit
                 lib
                 pkgs
-                model
                 ;
               containerModel = model;
             };

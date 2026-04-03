@@ -57,9 +57,16 @@ pkgs.writeShellApplication {
       ./02-*.json \
       ./03-*.json \
       ./04-*.json \
+      ./05-*.json \
       ./10-*.json \
       ./25-*.json \
       ./30-*.json \
+      ./31-*.json \
+      ./32-*.json \
+      ./33-*.json \
+      ./34-*.json \
+      ./35-*.json \
+      ./36-*.json \
       ./90-*.json
 
     run_nix_eval_json() {
@@ -194,14 +201,19 @@ pkgs.writeShellApplication {
       render_from_paths "$intent_path" "$inventory_path"
     fi
 
-    jq '.metadata.sourcePaths' 90-dry-config.json > 10-paths.json
-    jq '.render.hosts' 90-dry-config.json > 30-host-networks.json
+    jq '.metadata' 90-dry-config.json > 10-metadata.json
+    jq '.metadata.sourcePaths' 90-dry-config.json > 11-source-paths.json
+
+    jq '.render.hosts' 90-dry-config.json > 30-hosts.json
+    jq '.render.nodes' 90-dry-config.json > 31-nodes.json
+    jq '.render.containers' 90-dry-config.json > 32-containers.json
+    jq '.render' 90-dry-config.json > 90-render.json
 
     if jq -e '.debug != null' 90-dry-config.json >/dev/null; then
       jq '.debug.controlPlane' 90-dry-config.json > 04-control-plane.rendered.json
+      jq '.debug.inventory' 90-dry-config.json > 05-inventory.rendered.json
       jq '.debug.normalizedRuntimeTargets' 90-dry-config.json > 25-runtime-targets.json
+      jq '.debug.hostRenderings' 90-dry-config.json > 35-host-renderings.json
     fi
-
-    jq '.render' 90-dry-config.json > 90-render.json
   '';
 }

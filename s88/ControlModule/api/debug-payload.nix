@@ -16,6 +16,9 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  sanitizeDebug =
+    raw: if !builtins.isAttrs raw then { } else builtins.removeAttrs raw [ "profilePath" ];
+
   sanitizeContainer =
     containerName: container:
     let
@@ -50,6 +53,12 @@ let
             enable = false;
             ruleset = null;
           };
+
+      s88Debug =
+        if specialArgs ? s88Debug && builtins.isAttrs specialArgs.s88Debug then
+          sanitizeDebug specialArgs.s88Debug
+        else
+          { };
     in
     {
       autoStart = container.autoStart or false;
@@ -64,6 +73,7 @@ let
         deploymentHostName =
           if specialArgs ? deploymentHostName then specialArgs.deploymentHostName else null;
         s88RoleName = if specialArgs ? s88RoleName then specialArgs.s88RoleName else null;
+        s88Debug = s88Debug;
       };
     };
 
