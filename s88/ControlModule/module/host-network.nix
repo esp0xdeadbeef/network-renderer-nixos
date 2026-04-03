@@ -28,6 +28,8 @@ let
       };
 in
 {
+  warnings = effectiveRenderedHostNetwork.warnings or [ ];
+
   systemd.network.netdevs = effectiveRenderedHostNetwork.netdevs or { };
   systemd.network.networks = effectiveRenderedHostNetwork.networks or { };
 }

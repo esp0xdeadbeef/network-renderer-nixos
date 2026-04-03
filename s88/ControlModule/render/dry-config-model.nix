@@ -11,9 +11,13 @@
 }:
 
 let
+  isa = import ../alarm/isa18.nix { inherit lib; };
+
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   unitNames = sortedAttrNames normalizedRuntimeTargets;
+
+  pipelineAlarmModel = isa.normalizeModel controlPlane;
 
   sanitizeDebug =
     raw: if !builtins.isAttrs raw then { } else builtins.removeAttrs raw [ "profilePath" ];
@@ -271,6 +275,8 @@ let
   output = {
     metadata = {
       sourcePaths = metadataSourcePaths;
+      warnings = pipelineAlarmModel.warningMessages;
+      alarms = pipelineAlarmModel.alarms;
     };
 
     render = {
