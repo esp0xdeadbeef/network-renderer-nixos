@@ -257,44 +257,48 @@ let
 
       roleName = renderedModel.roleName or null;
 
-      accessServices =
-        if roleName == "access" then
-          import ../access/render/default.nix {
-            inherit lib;
-            containerModel = renderedModel;
-          }
-        else
-          { };
-
       profilePath = if renderedModel ? profilePath then renderedModel.profilePath else null;
+
+      resolvedHostName =
+        if renderedModel ? unitName && builtins.isString renderedModel.unitName then
+          renderedModel.unitName
+        else
+          containerName;
     in
     {
       lib,
       pkgs,
       ...
     }:
-    lib.mkMerge [
-      (commonRouterConfig { inherit lib pkgs; })
+    let
+      accessServices =
+        if roleName == "access" then
+          import ../access/render/default.nix {
+            inherit lib pkgs;
+            containerModel = renderedModel;
+          }
+        else
+          { };
+    in
+    {
+      imports = lib.optionals (profilePath != null) [ profilePath ];
 
-      {
-        imports = lib.optionals (profilePath != null) [ profilePath ];
+      config = lib.mkMerge [
+        (commonRouterConfig { inherit lib pkgs; })
 
-        networking.hostName =
-          if renderedModel ? unitName && builtins.isString renderedModel.unitName then
-            renderedModel.unitName
-          else
-            containerName;
+        {
+          networking.hostName = resolvedHostName;
+          systemd.network.networks = containerNetworks;
+        }
 
-        systemd.network.networks = containerNetworks;
-      }
+        accessServices
 
-      accessServices
-
-      (lib.optionalAttrs firewallArg.enable {
-        networking.nftables.enable = true;
-        networking.nftables.ruleset = firewallArg.ruleset;
-      })
-    ];
+        (lib.optionalAttrs firewallArg.enable {
+          networking.nftables.enable = true;
+          networking.nftables.ruleset = firewallArg.ruleset;
+        })
+      ];
+    };
 
   mkContainer =
     deploymentHostName: containerName: model:
