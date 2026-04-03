@@ -7,6 +7,8 @@
 }:
 
 let
+  isa = import ../../ControlModule/alarm/isa18.nix { inherit lib; };
+
   hostPlan = import ./host-plan.nix {
     inherit
       lib
@@ -29,6 +31,8 @@ let
       inventory
       ;
   };
+
+  pipelineAlarmModel = isa.normalizeModel cpm;
 in
 {
   inherit (hostPlan)
@@ -48,6 +52,9 @@ in
     uplinks
     transitBridges
     ;
+
+  alarms = pipelineAlarmModel.alarms;
+  warnings = pipelineAlarmModel.warningMessages;
 
   netdevs = hostSystemd.netdevs;
   networks = hostSystemd.networks;

@@ -1,19 +1,26 @@
 { lib }:
 
 let
-  asStringList =
+  asList =
     value:
     if value == null then
       [ ]
-    else if builtins.isString value then
-      [ value ]
     else if builtins.isList value then
-      lib.filter builtins.isString value
+      value
     else
-      [ ];
+      [ value ];
+
+  flattenList =
+    values:
+    lib.concatMap (value: if builtins.isList value then flattenList value else [ value ]) (
+      asList values
+    );
+
+  asStringList = value: lib.filter builtins.isString (flattenList value);
 
   uniqueStrings =
-    values: lib.unique (lib.filter (value: builtins.isString value && value != "") values);
+    values:
+    lib.unique (lib.filter (value: builtins.isString value && value != "") (flattenList values));
 
   bulletBlock =
     {
@@ -32,6 +39,170 @@ let
     lines:
     builtins.concatStringsSep "\n" (lib.filter (line: builtins.isString line && line != "") lines);
 
+  mkAlarm =
+    {
+      alarmId,
+      summary,
+      file,
+      kind,
+      classification,
+      subjectLabel ? null,
+      subjectValue ? null,
+      roleName ? null,
+      interfaces ? [ ],
+      assumptions ? [ ],
+      details ? [ ],
+      actionItems ? [ ],
+      authorityText ? null,
+      source ? { },
+      severity ? "warning",
+    }:
+    let
+      message = renderMessage (
+        [ "${file}: ${summary}" ]
+        ++ lib.optionals (subjectLabel != null && subjectValue != null) [
+          "${subjectLabel}: ${subjectValue}"
+        ]
+        ++ lib.optionals (roleName != null) [ "role: ${roleName}" ]
+        ++ bulletBlock {
+          title = "interfaces";
+          values = interfaces;
+        }
+        ++ bulletBlock {
+          title = "renderer-only assumptions currently in use";
+          values = assumptions;
+        }
+        ++ bulletBlock {
+          title = "details";
+          values = details;
+        }
+        ++ bulletBlock {
+          title = "todo";
+          values = actionItems;
+        }
+        ++ lib.optionals (authorityText != null) [ authorityText ]
+      );
+    in
+    {
+      inherit
+        alarmId
+        summary
+        message
+        severity
+        file
+        kind
+        ;
+      assumptions = uniqueStrings assumptions;
+      roleName = roleName;
+      interfaces = uniqueStrings interfaces;
+      state = "active";
+      source = source // {
+        inherit file;
+      };
+      isa182 = {
+        standard = "ISA-18.2";
+        category = "warning";
+        inherit classification;
+        status = "active-unacknowledged";
+        responseClass = "engineering";
+      };
+    };
+
+  normalizeAlarm =
+    alarm:
+    if !builtins.isAttrs alarm then
+      null
+    else
+      let
+        resolvedMessage =
+          if alarm ? message && builtins.isString alarm.message && alarm.message != "" then
+            alarm.message
+          else if alarm ? summary && builtins.isString alarm.summary && alarm.summary != "" then
+            alarm.summary
+          else
+            null;
+
+        resolvedInterfaces = if alarm ? interfaces then uniqueStrings alarm.interfaces else [ ];
+
+        resolvedAssumptions = if alarm ? assumptions then uniqueStrings alarm.assumptions else [ ];
+
+        resolvedSource = if alarm ? source && builtins.isAttrs alarm.source then alarm.source else { };
+
+        resolvedFile =
+          if alarm ? file && builtins.isString alarm.file then
+            alarm.file
+          else if resolvedSource ? file && builtins.isString resolvedSource.file then
+            resolvedSource.file
+          else
+            null;
+      in
+      if resolvedMessage == null then
+        null
+      else
+        alarm
+        // {
+          message = resolvedMessage;
+          interfaces = resolvedInterfaces;
+          assumptions = resolvedAssumptions;
+          source =
+            resolvedSource
+            // lib.optionalAttrs (resolvedFile != null) {
+              file = resolvedFile;
+            };
+        }
+        // lib.optionalAttrs (resolvedFile != null) {
+          file = resolvedFile;
+        };
+
+  alarmsFromValue =
+    value:
+    lib.filter (alarm: alarm != null) (
+      map normalizeAlarm (
+        if builtins.isAttrs value && value ? alarms then
+          flattenList value.alarms
+        else if builtins.isList value then
+          flattenList value
+        else if builtins.isAttrs value then
+          [ value ]
+        else
+          [ ]
+      )
+    );
+
+  warningsFromAlarms =
+    alarms: uniqueStrings (map (alarm: alarm.message or null) (alarmsFromValue alarms));
+
+  warningMessagesFromValue =
+    value:
+    let
+      directWarnings =
+        if builtins.isAttrs value then
+          uniqueStrings (
+            (if value ? warningMessages then value.warningMessages else [ ])
+            ++ (if value ? warnings then value.warnings else [ ])
+          )
+        else if builtins.isString value then
+          [ value ]
+        else if builtins.isList value then
+          uniqueStrings value
+        else
+          [ ];
+
+      alarmWarnings = warningsFromAlarms (alarmsFromValue value);
+    in
+    uniqueStrings (directWarnings ++ alarmWarnings);
+
+  normalizeModel =
+    model:
+    let
+      alarms = alarmsFromValue model;
+      warningMessages = warningMessagesFromValue model;
+    in
+    {
+      inherit alarms warningMessages;
+      warnings = warningMessages;
+    };
+
   mkDesignAssumptionAlarm =
     {
       alarmId,
@@ -46,73 +217,69 @@ let
       source ? { },
       severity ? "warning",
     }:
-    let
-      message = renderMessage (
-        [ "${file}: ${summary}" ]
-        ++ lib.optionals (entityName != null) [ "container: ${entityName}" ]
-        ++ lib.optionals (roleName != null) [ "role: ${roleName}" ]
-        ++ bulletBlock {
-          title = "interfaces";
-          values = interfaces;
-        }
-        ++ bulletBlock {
-          title = "renderer-only assumptions currently in use";
-          values = assumptions;
-        }
-        ++ uniqueStrings extraText
-        ++ lib.optionals (authorityText != null) [ authorityText ]
-      );
-    in
-    {
+    mkAlarm {
       inherit
         alarmId
         summary
-        message
-        severity
         file
+        roleName
+        interfaces
         assumptions
+        source
+        severity
+        authorityText
         ;
-      entityName = entityName;
-      roleName = roleName;
-      interfaces = uniqueStrings interfaces;
       kind = "design-assumption";
-      state = "active";
-      source = source // {
-        inherit file;
-      };
-      isa182 = {
-        standard = "ISA-18.2";
-        category = "warning";
-        classification = "design-assumption";
-        status = "active-unacknowledged";
-        responseClass = "engineering";
-      };
+      classification = "design-assumption";
+      subjectLabel = "container";
+      subjectValue = entityName;
+      details = extraText;
+      actionItems = [ ];
     };
 
-  warningsFromAlarms = alarms: uniqueStrings (map (alarm: alarm.message or null) alarms);
+  mkImplementationWarningAlarm =
+    {
+      alarmId,
+      summary,
+      file,
+      component ? null,
+      roleName ? null,
+      interfaces ? [ ],
+      details ? [ ],
+      todo ? [ ],
+      authorityText ? null,
+      source ? { },
+      severity ? "warning",
+    }:
+    mkAlarm {
+      inherit
+        alarmId
+        summary
+        file
+        roleName
+        interfaces
+        source
+        severity
+        authorityText
+        ;
+      kind = "implementation-warning";
+      classification = "implementation-gap";
+      subjectLabel = "component";
+      subjectValue = component;
+      assumptions = [ ];
+      inherit details;
+      actionItems = todo;
+    };
 
   mergeModels =
     models:
     let
-      alarms = lib.concatMap (
-        model:
-        if builtins.isAttrs model && model ? alarms && builtins.isList model.alarms then
-          model.alarms
-        else
-          [ ]
-      ) models;
+      normalizedModels = map normalizeModel (flattenList models);
+
+      alarms = lib.concatMap (model: model.alarms) normalizedModels;
 
       warningMessages = uniqueStrings (
-        (lib.concatMap (
-          model:
-          if builtins.isAttrs model && model ? warningMessages && builtins.isList model.warningMessages then
-            model.warningMessages
-          else if builtins.isAttrs model && model ? warnings && builtins.isList model.warnings then
-            model.warnings
-          else
-            [ ]
-        ) models)
-        ++ warningsFromAlarms alarms
+        (lib.concatMap (model: model.warningMessages) normalizedModels) ++ warningsFromAlarms alarms
       );
     in
     {
@@ -122,8 +289,11 @@ let
 in
 {
   inherit
+    asStringList
     mkDesignAssumptionAlarm
+    mkImplementationWarningAlarm
     warningsFromAlarms
+    normalizeModel
     mergeModels
     ;
 }
