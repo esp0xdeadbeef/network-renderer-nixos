@@ -148,15 +148,49 @@ let
       interfaces = renderedInterfaces;
     };
 
+  commonRouterConfig =
+    {
+      lib,
+      ...
+    }:
+    {
+      boot.isContainer = true;
+
+      networking.useNetworkd = true;
+      systemd.network.enable = true;
+      networking.useDHCP = false;
+      networking.networkmanager.enable = false;
+      networking.useHostResolvConf = lib.mkForce false;
+
+      services.resolved.enable = lib.mkForce false;
+      networking.firewall.enable = lib.mkForce false;
+
+      boot.kernel.sysctl = {
+        "net.ipv4.ip_forward" = 1;
+        "net.ipv6.conf.all.forwarding" = 1;
+      };
+
+      system.stateVersion = "25.11";
+    };
+
+  roleProfileConfigFor =
+    roleName:
+    {
+      pkgs,
+      ...
+    }:
+    if roleName == "core" then
+      {
+        environment.systemPackages = with pkgs; [
+          tcpdump
+        ];
+      }
+    else
+      { };
+
   containerConfigModuleFor =
     containerName: renderedModel:
     let
-      profilePath =
-        if renderedModel ? profilePath && renderedModel.profilePath != null then
-          renderedModel.profilePath
-        else
-          null;
-
       firewallModel =
         if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
           renderedModel.firewall
@@ -179,11 +213,17 @@ let
           ;
         containerModel = renderedModel;
       };
+
+      roleName = renderedModel.roleName or null;
     in
-    { lib, pkgs, ... }:
+    {
+      lib,
+      pkgs,
+      ...
+    }:
     let
       accessServices =
-        if (renderedModel.roleName or null) == "access" then
+        if roleName == "access" then
           import ../access/render/default.nix {
             inherit lib pkgs;
             containerModel = renderedModel;
@@ -192,17 +232,17 @@ let
           { };
     in
     lib.mkMerge [
-      {
-        imports = lib.optionals (profilePath != null) [ profilePath ];
+      (commonRouterConfig { inherit lib; })
 
+      ((roleProfileConfigFor roleName) { inherit pkgs; })
+
+      {
         networking.hostName =
           if renderedModel ? unitName && builtins.isString renderedModel.unitName then
             renderedModel.unitName
           else
             containerName;
 
-        networking.useNetworkd = true;
-        systemd.network.enable = true;
         systemd.network.networks = containerNetworks;
       }
 
@@ -218,6 +258,7 @@ let
     deploymentHostName: containerName: model:
     let
       renderedModel = applyTenantBridgeOverrides model;
+
       renderedFirewall =
         if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
           renderedModel.firewall
