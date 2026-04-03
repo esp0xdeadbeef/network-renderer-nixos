@@ -59,6 +59,18 @@ let
           sanitizeDebug specialArgs.s88Debug
         else
           { };
+
+      s88Warnings =
+        if specialArgs ? s88Warnings && builtins.isList specialArgs.s88Warnings then
+          lib.filter builtins.isString specialArgs.s88Warnings
+        else
+          [ ];
+
+      s88Alarms =
+        if specialArgs ? s88Alarms && builtins.isList specialArgs.s88Alarms then
+          specialArgs.s88Alarms
+        else
+          [ ];
     in
     {
       autoStart = container.autoStart or false;
@@ -68,6 +80,8 @@ let
       allowedDevices = container.allowedDevices or [ ];
       additionalCapabilities = container.additionalCapabilities or [ ];
       inherit firewall;
+      warnings = s88Warnings;
+      alarms = s88Alarms;
       specialArgs = {
         unitName = if specialArgs ? unitName then specialArgs.unitName else containerName;
         deploymentHostName =

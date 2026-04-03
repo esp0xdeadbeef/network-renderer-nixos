@@ -5,6 +5,7 @@
   containerName,
   renderedModel,
   firewallArg,
+  alarmModel,
   uplinks,
   wanUplinkName,
 }:
@@ -12,12 +13,22 @@
 let
   uniqueStrings = values: lib.unique (lib.filter builtins.isString values);
 
+  warningMessages =
+    if alarmModel ? warningMessages && builtins.isList alarmModel.warningMessages then
+      uniqueStrings alarmModel.warningMessages
+    else
+      [ ];
+
+  alarms =
+    if alarmModel ? alarms && builtins.isList alarmModel.alarms then alarmModel.alarms else [ ];
+
   containerConfigModule = import ./module.nix {
     inherit
       lib
       containerName
       renderedModel
       firewallArg
+      alarmModel
       uplinks
       wanUplinkName
       ;
@@ -68,6 +79,8 @@ in
     inherit deploymentHostName;
     s88RoleName = renderedModel.roleName or null;
     s88Firewall = firewallArg;
+    s88Warnings = warningMessages;
+    s88Alarms = alarms;
     unitName =
       if renderedModel ? unitName && builtins.isString renderedModel.unitName then
         renderedModel.unitName

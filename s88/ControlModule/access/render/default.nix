@@ -46,11 +46,4 @@ let
       }
     ) advertisementModel.radvdScopes);
 in
-lib.mkMerge (
-  modules
-  ++ [
-    {
-      warnings = advertisementModel.warnings;
-    }
-  ]
-)
+lib.mkMerge modules
