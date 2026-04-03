@@ -1,5 +1,8 @@
 {
   lib,
+  hostPlan ? null,
+  cpm ? null,
+  inventory ? { },
   debugEnabled ? false,
   containerModelsByHost ? null,
   containerModels ? null,
@@ -9,6 +12,22 @@
 }:
 
 let
+  defaultDeploymentHostName =
+    if hostPlan != null && builtins.isAttrs hostPlan && hostPlan ? deploymentHostName then
+      hostPlan.deploymentHostName
+    else if hostPlan != null && builtins.isAttrs hostPlan && hostPlan ? hostName then
+      hostPlan.hostName
+    else
+      null;
+
+  flatModels =
+    if hostPlan != null then
+      import ../mapping/container-runtime.nix {
+        inherit lib hostPlan;
+      }
+    else
+      null;
+
   modelsByHost =
     if containerModelsByHost != null then
       containerModelsByHost
@@ -19,7 +38,7 @@ let
     else if models != null then
       models
     else
-      { };
+      null;
 
   tenantBridgeOverrideForInterface =
     iface:
@@ -49,6 +68,7 @@ let
       acc: iface:
       let
         override = tenantBridgeOverrideForInterface iface;
+
         vethName =
           if iface ? hostVethName && builtins.isString iface.hostVethName && iface.hostVethName != "" then
             iface.hostVethName
@@ -72,10 +92,7 @@ let
       renderedVeths = lib.mapAttrs (
         vethName: veth:
         if builtins.hasAttr vethName overrides then
-          veth
-          // {
-            hostBridge = overrides.${vethName};
-          }
+          veth // { hostBridge = overrides.${vethName}; }
         else
           veth
       ) (model.veths or { });
@@ -96,10 +113,7 @@ let
               null;
         in
         if vethName != null && builtins.hasAttr vethName overrides then
-          iface
-          // {
-            renderedHostBridgeName = overrides.${vethName};
-          }
+          iface // { renderedHostBridgeName = overrides.${vethName}; }
         else
           iface
       ) (model.interfaces or { });
@@ -119,26 +133,76 @@ let
       additionalCapabilities = [
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"
-      ];
-      allowedDevices = [ ];
-      autoStart = true;
-      bindMounts = { };
+      ]
+      ++ (
+        if
+          renderedModel ? additionalCapabilities && builtins.isList renderedModel.additionalCapabilities
+        then
+          renderedModel.additionalCapabilities
+        else
+          [ ]
+      );
+
+      allowedDevices =
+        if renderedModel ? allowedDevices && builtins.isList renderedModel.allowedDevices then
+          renderedModel.allowedDevices
+        else
+          [ ];
+
+      autoStart =
+        if renderedModel ? autoStart && builtins.isBool renderedModel.autoStart then
+          renderedModel.autoStart
+        else
+          true;
+
+      bindMounts =
+        if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
+          renderedModel.bindMounts
+        else
+          { };
+
       extraVeths = renderedModel.veths or { };
       firewall = renderedModel.firewall or { };
       privateNetwork = true;
+
       specialArgs = {
         inherit deploymentHostName;
-        s88RoleName = renderedModel.roleName;
-        unitName = renderedModel.unitName;
+        s88RoleName = renderedModel.roleName or null;
+        unitName =
+          if renderedModel ? unitName && builtins.isString renderedModel.unitName then
+            renderedModel.unitName
+          else
+            containerName;
       }
       // lib.optionalAttrs debugEnabled {
         s88Debug = renderedModel;
       };
     };
+
+  renderFlatContainers =
+    containerModelsFlat:
+    builtins.mapAttrs (
+      containerName: model:
+      mkContainer (
+        if model ? deploymentHostName && builtins.isString model.deploymentHostName then
+          model.deploymentHostName
+        else
+          defaultDeploymentHostName
+      ) containerName model
+    ) containerModelsFlat;
+
+  renderNestedContainers =
+    nestedModels:
+    lib.mapAttrs (
+      deploymentHostName: deploymentHostContainers:
+      builtins.mapAttrs (
+        containerName: model: mkContainer deploymentHostName containerName model
+      ) deploymentHostContainers
+    ) nestedModels;
 in
-lib.mapAttrs (
-  deploymentHostName: deploymentHostContainers:
-  lib.mapAttrs (
-    containerName: model: mkContainer deploymentHostName containerName model
-  ) deploymentHostContainers
-) modelsByHost
+if flatModels != null then
+  renderFlatContainers flatModels
+else if modelsByHost != null then
+  renderNestedContainers modelsByHost
+else
+  { }
