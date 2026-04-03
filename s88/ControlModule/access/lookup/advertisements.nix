@@ -172,12 +172,35 @@ let
     else
       null;
 
-  sourceKindFor =
+  semanticInterfaceFor =
     {
       containerIface,
       runtimeIface,
     }:
-    if containerIface ? sourceKind && builtins.isString containerIface.sourceKind then
+    let
+      semanticInterface =
+        if containerIface ? semanticInterface && builtins.isAttrs containerIface.semanticInterface then
+          containerIface.semanticInterface
+        else if runtimeIface ? semanticInterface && builtins.isAttrs runtimeIface.semanticInterface then
+          runtimeIface.semanticInterface
+        else if containerIface ? semantic && builtins.isAttrs containerIface.semantic then
+          containerIface.semantic
+        else if runtimeIface ? semantic && builtins.isAttrs runtimeIface.semantic then
+          runtimeIface.semantic
+        else
+          { };
+    in
+    semanticInterface;
+
+  sourceKindFor =
+    {
+      containerIface,
+      runtimeIface,
+      semanticInterface,
+    }:
+    if semanticInterface ? kind && builtins.isString semanticInterface.kind then
+      semanticInterface.kind
+    else if containerIface ? sourceKind && builtins.isString containerIface.sourceKind then
       containerIface.sourceKind
     else if runtimeIface ? sourceKind && builtins.isString runtimeIface.sourceKind then
       runtimeIface.sourceKind
@@ -207,10 +230,18 @@ let
       runtimeIface =
         if builtins.hasAttr ifName runtimeInterfaces then runtimeInterfaces.${ifName} else { };
 
+      semanticInterface = semanticInterfaceFor {
+        inherit containerIface runtimeIface;
+      };
+
       interfaceName = actualInterfaceNameFor containerIface;
 
       sourceKind = sourceKindFor {
-        inherit containerIface runtimeIface;
+        inherit
+          containerIface
+          runtimeIface
+          semanticInterface
+          ;
       };
 
       isLocalAdapter = sourceKind != "wan" && sourceKind != "p2p";
@@ -267,7 +298,21 @@ let
 
       ipv4Address = ipv4AddressFromCIDR firstIPv4Cidr;
 
-      dhcp4Subnet = stringField dhcp4Settings [ "subnet" "cidr" ] firstIPv4Cidr;
+      explicitSubnet4 =
+        if semanticInterface ? subnet4 && builtins.isString semanticInterface.subnet4 then
+          semanticInterface.subnet4
+        else
+          null;
+
+      explicitSubnet6 =
+        if semanticInterface ? subnet6 && builtins.isString semanticInterface.subnet6 then
+          semanticInterface.subnet6
+        else
+          null;
+
+      dhcp4Subnet = stringField dhcp4Settings [ "subnet" "cidr" ] (
+        if explicitSubnet4 != null then explicitSubnet4 else firstIPv4Cidr
+      );
       dhcp4Pool = stringField dhcp4Settings [ "pool" ] (defaultIPv4Pool ipv4Address);
       dhcp4Router = stringField dhcp4Settings [ "router" "gateway" ] ipv4Address;
       dhcp4DnsServers = stringListField dhcp4Settings [ "dnsServers" "nameServers" ] (
@@ -275,7 +320,9 @@ let
       );
       dhcp4Domain = stringField dhcp4Settings [ "domain" "domainName" ] "lan.";
 
-      radvdPrefixes = stringListField radvdSettings [ "prefixes" ] ipv6Cidrs;
+      radvdPrefixes = stringListField radvdSettings [ "prefixes" ] (
+        if explicitSubnet6 != null then [ explicitSubnet6 ] else ipv6Cidrs
+      );
       radvdRdnss = stringListField radvdSettings [ "rdnss" "dnsServers" ] (
         lib.optionals (firstIPv6Cidr != null) [ (ipv4AddressFromCIDR firstIPv6Cidr) ]
       );
@@ -307,6 +354,7 @@ let
           radvdEnabledRequested
           dhcp4Renderable
           radvdRenderable
+          semanticInterface
           ;
         stem = safeStem ifName;
       };
@@ -364,7 +412,7 @@ let
       assumptions = [
         "DHCPv4 advertisement enablement was resolved true from role defaults or per-interface advertisement overrides"
         "renderer expected authoritative DHCPv4 interface binding, subnet, pool, router, and DNS data to exist before emission"
-        "renderer will not silently invent a partial DHCPv4 scope when the rendered interface data is insufficient"
+        "renderer will not silently invent a partial DHCPv4 scope when the available rendered data is insufficient"
       ];
       authorityText = "Control plane should provide authoritative DHCP settings.";
     }
@@ -382,7 +430,7 @@ let
       assumptions = [
         "IPv6 RA advertisement enablement was resolved true from role defaults or per-interface advertisement overrides"
         "renderer expected authoritative IPv6 advertisement interface binding, prefixes, and RDNSS data to exist before emission"
-        "renderer will not silently invent a partial IPv6 advertisement when the rendered interface data is insufficient"
+        "renderer will not silently invent a partial IPv6 advertisement when the available rendered data is insufficient"
       ];
       authorityText = "Control plane should provide authoritative IPv6 advertisement settings.";
     }
@@ -395,21 +443,21 @@ let
     lib.optionals (derivedDhcp4Entries != [ ]) [
       (isa.mkDesignAssumptionAlarm {
         alarmId = "access-dhcp4-derived";
-        summary = "DHCPv4 advertisement is currently derived in the renderer";
+        summary = "DHCPv4 advertisement still defaults from renderer policy when explicit DHCP allocation data is absent";
         file = "s88/ControlModule/access/lookup/advertisements.nix";
         entityName = containerDisplayName;
         roleName = roleName;
         interfaces = map interfaceLabelForEntry derivedDhcp4Entries;
         assumptions = [
-          "advertisement enablement defaults from the role/container profile and source-kind inference instead of authoritative DHCP policy"
-          "any interface whose inferred source kind is neither 'wan' nor 'p2p' is treated as a LAN/local-adapter advertisement target"
-          "the service bind interface is chosen from rendered container interface fields rather than authoritative advertisement binding data"
-          "the served subnet is taken from the first rendered IPv4 CIDR on each interface"
-          "the DHCP pool is synthesized from that IPv4 address as x.y.z.100 - x.y.z.200"
-          "the default router/gateway is set to that same rendered IPv4 address"
+          "advertisement enablement defaults from the role/container profile when no authoritative DHCP policy exists"
+          "tenant-facing interfaces are selected from explicit interface semantics when available, otherwise from rendered local-adapter classification"
+          "the service bind interface defaults from the rendered container binding of that selected interface"
+          "the served subnet defaults from the explicit tenant subnet when available, otherwise from the rendered IPv4 CIDR"
+          "the DHCP pool is synthesized from the rendered interface IPv4 address as x.y.z.100 - x.y.z.200"
+          "the default router/gateway is set to the rendered interface IPv4 address"
           "DNS servers default to that same rendered IPv4 address"
           "the DHCP search/domain name defaults to 'lan.'"
-          "Kea subnet identifiers are allocated from renderer iteration order rather than authoritative DHCP allocation identity"
+          "Kea subnet identifiers default from stable interface ordering rather than authoritative DHCP allocation identity"
         ];
         authorityText = "Control plane should provide authoritative DHCP allocation data.";
       })
@@ -417,16 +465,16 @@ let
     ++ lib.optionals (derivedRadvdEntries != [ ]) [
       (isa.mkDesignAssumptionAlarm {
         alarmId = "access-radvd-derived";
-        summary = "IPv6 RA advertisement is currently derived in the renderer";
+        summary = "IPv6 RA advertisement still defaults from renderer policy when explicit IPv6 advertisement data is absent";
         file = "s88/ControlModule/access/lookup/advertisements.nix";
         entityName = containerDisplayName;
         roleName = roleName;
         interfaces = map interfaceLabelForEntry derivedRadvdEntries;
         assumptions = [
-          "advertisement enablement defaults from the role/container profile and source-kind inference instead of authoritative IPv6 advertisement policy"
-          "any interface whose inferred source kind is neither 'wan' nor 'p2p' is treated as a LAN/local-adapter advertisement target"
-          "the service bind interface is chosen from rendered container interface fields rather than authoritative advertisement binding data"
-          "advertised prefixes are taken from the rendered IPv6 CIDRs on each interface"
+          "advertisement enablement defaults from the role/container profile when no authoritative IPv6 advertisement policy exists"
+          "tenant-facing interfaces are selected from explicit interface semantics when available, otherwise from rendered local-adapter classification"
+          "the service bind interface defaults from the rendered container binding of that selected interface"
+          "advertised prefixes default from the explicit tenant subnet when available, otherwise from rendered IPv6 CIDRs"
           "RDNSS defaults to the first rendered IPv6 address on the interface"
           "the advertised DNSSL/domain defaults to 'lan.'"
         ];

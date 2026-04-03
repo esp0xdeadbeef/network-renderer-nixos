@@ -4,6 +4,7 @@
   currentSite ? { },
   communicationContract ? { },
   ownership ? { },
+  runtimeTarget ? { },
   ...
 }:
 
@@ -28,6 +29,14 @@ let
   fieldOr =
     attrs: name: fallback:
     if builtins.isAttrs attrs && builtins.hasAttr name attrs then attrs.${name} else fallback;
+
+  lastStringSegment =
+    separator: value:
+    let
+      parts = lib.splitString separator value;
+      count = builtins.length parts;
+    in
+    if count == 0 then null else builtins.elemAt parts (count - 1);
 
   ifaceOf =
     entry:
@@ -58,12 +67,31 @@ let
     entry: entry ? name && builtins.isString entry.name && entry.name != ""
   ) rawInterfaceEntries;
 
+  semanticInterfaceOf =
+    entry:
+    let
+      semanticInterface = entryFieldOr entry "semanticInterface" null;
+      semantic = entryFieldOr entry "semantic" null;
+    in
+    if builtins.isAttrs semanticInterface then
+      semanticInterface
+    else if builtins.isAttrs semantic then
+      semantic
+    else
+      { };
+
   sourceKindOf =
     entry:
     let
+      semanticInterface = semanticInterfaceOf entry;
       sourceKind = entryFieldOr entry "sourceKind" null;
     in
-    if builtins.isString sourceKind then sourceKind else null;
+    if semanticInterface ? kind && builtins.isString semanticInterface.kind then
+      semanticInterface.kind
+    else if builtins.isString sourceKind then
+      sourceKind
+    else
+      null;
 
   interfaceRefStrings =
     entry:
@@ -72,6 +100,7 @@ let
     in
     sortedStrings [
       (entry.name or null)
+      (entry.key or null)
       (entryFieldOr entry "sourceInterface" null)
       (entryFieldOr entry "runtimeIfName" null)
       (entryFieldOr entry "renderedIfName" null)
@@ -82,15 +111,147 @@ let
       (entryFieldOr entry "assignedUplinkName" null)
       (entryFieldOr entry "upstream" null)
       (if builtins.isAttrs backingRef then backingRef.name or null else null)
-      (if builtins.isAttrs backingRef then backingRef.id or null else null)
+      (
+        if builtins.isAttrs backingRef && backingRef ? id && builtins.isString backingRef.id then
+          lastStringSegment "::" backingRef.id
+        else
+          null
+      )
       (if builtins.isAttrs backingRef then backingRef.kind or null else null)
     ];
 
-  matchInterfaceEntriesByToken =
-    token:
-    lib.filter (
-      entry: lib.any (ref: ref == token || lib.hasInfix token ref) (interfaceRefStrings entry)
-    ) interfaceEntries;
+  interfaceNameForLink =
+    linkName:
+    let
+      matches = sortedStrings (
+        map (entry: entry.name) (
+          lib.filter (entry: builtins.elem linkName (interfaceRefStrings entry)) interfaceEntries
+        )
+      );
+    in
+    if matches == [ ] then
+      null
+    else if builtins.length matches == 1 then
+      builtins.head matches
+    else
+      throw ''
+        s88/ControlModule/firewall/mapping/policy-endpoints.nix: link '${linkName}' matched multiple rendered interfaces
+
+        matches:
+        ${builtins.toJSON matches}
+      '';
+
+  currentSiteNodes =
+    if currentSite ? nodes && builtins.isAttrs currentSite.nodes then currentSite.nodes else { };
+
+  runtimeLogicalNodeName =
+    if
+      runtimeTarget ? interfaces
+      && builtins.isAttrs runtimeTarget.interfaces
+      && runtimeTarget.interfaces != { }
+    then
+      let
+        names = sortedStrings (
+          map (
+            ifName:
+            let
+              iface = runtimeTarget.interfaces.${ifName};
+            in
+            if iface ? logicalNode && builtins.isString iface.logicalNode then iface.logicalNode else null
+          ) (builtins.attrNames runtimeTarget.interfaces)
+        );
+      in
+      if builtins.length names == 1 then builtins.head names else null
+    else
+      null;
+
+  currentNodeName =
+    if currentSite ? policyNodeName && builtins.isString currentSite.policyNodeName then
+      currentSite.policyNodeName
+    else if runtimeLogicalNodeName != null then
+      runtimeLogicalNodeName
+    else
+      let
+        names = sortedStrings (map (entry: entryFieldOr entry "logicalNode" null) interfaceEntries);
+      in
+      if builtins.length names == 1 then builtins.head names else null;
+
+  currentNode =
+    if
+      builtins.hasAttr currentNodeName currentSiteNodes
+      && builtins.isAttrs currentSiteNodes.${currentNodeName}
+    then
+      currentSiteNodes.${currentNodeName}
+    else
+      { };
+
+  currentNodeInterfaces =
+    if currentNode ? interfaces && builtins.isAttrs currentNode.interfaces then
+      currentNode.interfaces
+    else
+      { };
+
+  transitAdjacencies =
+    if
+      currentSite ? transit
+      && builtins.isAttrs currentSite.transit
+      && currentSite.transit ? adjacencies
+      && builtins.isList currentSite.transit.adjacencies
+    then
+      lib.filter builtins.isAttrs currentSite.transit.adjacencies
+    else
+      [ ];
+
+  adjacencyUnits =
+    adjacency:
+    sortedStrings (
+      map
+        (
+          endpoint:
+          if builtins.isAttrs endpoint && endpoint ? unit && builtins.isString endpoint.unit then
+            endpoint.unit
+          else
+            null
+        )
+        (if adjacency ? endpoints && builtins.isList adjacency.endpoints then adjacency.endpoints else [ ])
+    );
+
+  adjacencyLinkName =
+    adjacency:
+    if adjacency ? link && builtins.isString adjacency.link then
+      adjacency.link
+    else if adjacency ? name && builtins.isString adjacency.name then
+      adjacency.name
+    else if adjacency ? id && builtins.isString adjacency.id then
+      lastStringSegment "::" adjacency.id
+    else
+      null;
+
+  adjacencyForPair =
+    {
+      a,
+      b,
+    }:
+    let
+      matches = lib.filter (
+        adjacency:
+        let
+          units = adjacencyUnits adjacency;
+        in
+        builtins.length units == 2 && builtins.elem a units && builtins.elem b units
+      ) transitAdjacencies;
+    in
+    if matches == [ ] then
+      null
+    else if builtins.length matches == 1 then
+      builtins.head matches
+    else
+      throw ''
+        s88/ControlModule/firewall/mapping/policy-endpoints.nix: multiple transit adjacencies matched '${a}' and '${b}'
+
+        matches:
+        ${builtins.toJSON (map adjacencyLinkName matches)}
+      '';
 
   tenantAttachments =
     if currentSite ? attachments && builtins.isList currentSite.attachments then
@@ -111,14 +272,22 @@ let
       map (
         attachment:
         let
-          candidateEntries = matchInterfaceEntriesByToken attachment.unit;
-          selectedIfName =
-            if builtins.length candidateEntries > 0 then (builtins.head candidateEntries).name else null;
+          adjacency =
+            if currentNodeName != null then
+              adjacencyForPair {
+                a = attachment.unit;
+                b = currentNodeName;
+              }
+            else
+              null;
+
+          linkName = if adjacency != null then adjacencyLinkName adjacency else null;
+          interfaceName = if linkName != null then interfaceNameForLink linkName else null;
         in
-        if selectedIfName != null then
+        if interfaceName != null then
           {
             name = attachment.name;
-            value = selectedIfName;
+            value = interfaceName;
           }
         else
           null
@@ -134,15 +303,7 @@ let
     then
       currentSite.upstreamSelectorNodeName
     else
-      "s-router-upstream-selector";
-
-  upstreamInterfaceCandidates = lib.filter (
-    entry:
-    lib.any (ref: lib.hasInfix upstreamSelectorNodeName ref || ref == "upstream") (
-      interfaceRefStrings entry
-    )
-    || sourceKindOf entry == "wan"
-  ) interfaceEntries;
+      null;
 
   explicitWanNames =
     if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? wanNames then
@@ -151,8 +312,21 @@ let
       [ ];
 
   upstreamInterfaceName =
-    if builtins.length upstreamInterfaceCandidates > 0 then
-      (builtins.head upstreamInterfaceCandidates).name
+    let
+      adjacency =
+        if currentNodeName != null && upstreamSelectorNodeName != null then
+          adjacencyForPair {
+            a = currentNodeName;
+            b = upstreamSelectorNodeName;
+          }
+        else
+          null;
+
+      linkName = if adjacency != null then adjacencyLinkName adjacency else null;
+      interfaceName = if linkName != null then interfaceNameForLink linkName else null;
+    in
+    if interfaceName != null then
+      interfaceName
     else if explicitWanNames != [ ] then
       builtins.head explicitWanNames
     else
@@ -214,13 +388,27 @@ let
     ) serviceDefinitions
   );
 
-  interfaceTags =
+  canonicalInterfaceTags =
+    if
+      currentSite ? policy
+      && builtins.isAttrs currentSite.policy
+      && currentSite.policy ? interfaceTags
+      && builtins.isAttrs currentSite.policy.interfaceTags
+    then
+      currentSite.policy.interfaceTags
+    else
+      { };
+
+  fallbackInterfaceTags =
     if
       communicationContract ? interfaceTags && builtins.isAttrs communicationContract.interfaceTags
     then
       communicationContract.interfaceTags
     else
       { };
+
+  interfaceTags =
+    if canonicalInterfaceTags != { } then canonicalInterfaceTags else fallbackInterfaceTags;
 
   normalizeToken =
     token:
@@ -331,6 +519,27 @@ let
       ) interfaceEntries
     )
   );
+
+  missingTenantBindings = lib.filter (
+    tenantName: !builtins.hasAttr tenantName tenantInterfaceByName
+  ) (sortedStrings (map (attachment: attachment.name) tenantAttachments));
+
+  authorityGaps = lib.unique (
+    lib.optionals (currentNodeName == null) [
+      "policy node identity could not be resolved from the rendered runtime target"
+    ]
+    ++ lib.optionals (interfaceTags == { }) [
+      "policy interface tags are missing (README requires site.policy.interfaceTags canonically)"
+    ]
+    ++ lib.optionals (missingTenantBindings != [ ]) [
+      "tenant attachments could not be bound to policy transit interfaces: ${builtins.toJSON missingTenantBindings}"
+    ]
+    ++ lib.optionals (upstreamSelectorNodeName != null && upstreamInterfaceName == null) [
+      "upstream-selector transit binding could not be resolved for the policy node"
+    ]
+  );
+
+  authoritativeBindings = authorityGaps == [ ];
 in
 {
   inherit
@@ -339,5 +548,7 @@ in
     wanNames
     p2pNames
     localAdapterNames
+    authoritativeBindings
+    authorityGaps
     ;
 }
