@@ -128,6 +128,8 @@ let
     deploymentHostName: containerName: model:
     let
       renderedModel = applyTenantBridgeOverrides model;
+
+      renderedFirewall = if renderedModel ? firewall then renderedModel.firewall else { };
     in
     {
       additionalCapabilities = [
@@ -162,7 +164,6 @@ let
           { };
 
       extraVeths = renderedModel.veths or { };
-      firewall = renderedModel.firewall or { };
       privateNetwork = true;
 
       specialArgs = {
@@ -173,6 +174,7 @@ let
             renderedModel.unitName
           else
             containerName;
+        s88Firewall = renderedFirewall;
       }
       // lib.optionalAttrs debugEnabled {
         s88Debug = renderedModel;
