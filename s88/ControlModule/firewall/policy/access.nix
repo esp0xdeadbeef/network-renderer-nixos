@@ -1,6 +1,7 @@
 {
   lib,
   interfaceView ? null,
+  forwardingIntent ? null,
   ...
 }:
 
@@ -55,20 +56,37 @@ let
 
   uplinkNames = if p2pNames != [ ] then p2pNames else wanNames;
 
-  forwardPairs = lib.optionals (localAdapterNames != [ ] && uplinkNames != [ ]) [
-    {
-      "in" = localAdapterNames;
-      "out" = uplinkNames;
-      action = "accept";
-      comment = "access-local-to-uplink";
-    }
-    {
-      "in" = uplinkNames;
-      "out" = localAdapterNames;
-      action = "accept";
-      comment = "access-uplink-to-local";
-    }
-  ];
+  useExplicitForwarding =
+    forwardingIntent != null
+    && builtins.isAttrs forwardingIntent
+    && (forwardingIntent.authoritativeAccessForwarding or false);
+
+  forwardPairs =
+    if useExplicitForwarding then
+      forwardingIntent.accessForwardPairs or [ ]
+    else
+      lib.optionals (localAdapterNames != [ ] && uplinkNames != [ ]) [
+        {
+          "in" = localAdapterNames;
+          "out" = uplinkNames;
+          action = "accept";
+          comment = "access-local-to-uplink";
+        }
+        {
+          "in" = uplinkNames;
+          "out" = localAdapterNames;
+          action = "accept";
+          comment = "access-uplink-to-local";
+        }
+      ];
+
+  clampMssInterfaces =
+    if useExplicitForwarding then
+      forwardingIntent.accessClampMssInterfaces or [ ]
+    else if p2pNames == [ ] then
+      wanNames
+    else
+      [ ];
 in
 if interfaceEntries == [ ] then
   null
@@ -78,6 +96,5 @@ else
     inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
-    inherit forwardPairs;
-    clampMssInterfaces = if p2pNames == [ ] then wanNames else [ ];
+    inherit forwardPairs clampMssInterfaces;
   }
