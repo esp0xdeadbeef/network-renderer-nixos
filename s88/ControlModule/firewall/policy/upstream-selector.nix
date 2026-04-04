@@ -1,6 +1,7 @@
 {
   lib,
   interfaceView ? null,
+  forwardingIntent ? null,
   ...
 }:
 
@@ -35,8 +36,15 @@ let
     map (entry: entry.name) (lib.filter (entry: sourceKindOf entry == "p2p") interfaceEntries)
   );
 
+  useExplicitForwarding =
+    forwardingIntent != null
+    && builtins.isAttrs forwardingIntent
+    && (forwardingIntent.authoritativeUpstreamSelectorForwarding or false);
+
   forwardPairs =
-    if builtins.length transitNames < 2 then
+    if useExplicitForwarding then
+      forwardingIntent.upstreamSelectorForwardPairs or [ ]
+    else if builtins.length transitNames < 2 then
       [ ]
     else
       lib.concatMap (

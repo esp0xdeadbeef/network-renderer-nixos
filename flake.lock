@@ -54,11 +54,11 @@
         "nixpkgs-network": "nixpkgs-network_3"
       },
       "locked": {
-        "lastModified": 1775269769,
-        "narHash": "sha256-II3SvEnJXSQi+FSqwDWzUm3wkL9BlxV9RwBbnzrRV7U=",
+        "lastModified": 1775276480,
+        "narHash": "sha256-RCCB4cPQeYdOmLDby+ZoxIhnS4h6ghN4xc0J+ldZZkM=",
         "owner": "esp0xdeadbeef",
         "repo": "network-control-plane-model",
-        "rev": "4ec5c2d74ffb7c919945d865ff2859f01a9e8fbc",
+        "rev": "e0b4857e229b6595f6b55531ea80b3f7d5360f92",
         "type": "github"
       },
       "original": {
@@ -77,11 +77,11 @@
         "nixpkgs-network": "nixpkgs-network_2"
       },
       "locked": {
-        "lastModified": 1774737122,
-        "narHash": "sha256-LWTwzi/1RN+mfRPrNHET558/3v2A18v5bd/qNK/KLw0=",
+        "lastModified": 1775274687,
+        "narHash": "sha256-R03LLNRRZ/xSYQLeetcxQVVZVFje9oJtNnIb6XRHj9A=",
         "owner": "esp0xdeadbeef",
         "repo": "network-forwarding-model",
-        "rev": "c0f6d06ffd9e31dd1989578eef6018a36c97e0f7",
+        "rev": "2270635d71203ec58afc3a0a65145ff02493759e",
         "type": "github"
       },
       "original": {
@@ -99,11 +99,11 @@
         "nixpkgs-network": "nixpkgs-network_5"
       },
       "locked": {
-        "lastModified": 1775272686,
-        "narHash": "sha256-Kc5OmnBgBtrh8Q1wFCxbzX2GUpQartlgvbhbbdNGdzU=",
+        "lastModified": 1775274687,
+        "narHash": "sha256-R03LLNRRZ/xSYQLeetcxQVVZVFje9oJtNnIb6XRHj9A=",
         "owner": "esp0xdeadbeef",
         "repo": "network-forwarding-model",
-        "rev": "5349cb769e47f16f507cea74133641579b9d02ce",
+        "rev": "2270635d71203ec58afc3a0a65145ff02493759e",
         "type": "github"
       },
       "original": {
@@ -182,11 +182,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1774386573,
-        "narHash": "sha256-4hAV26quOxdC6iyG7kYaZcM3VOskcPUrdCQd/nx8obc=",
+        "lastModified": 1775036866,
+        "narHash": "sha256-ZojAnPuCdy657PbTq5V0Y+AHKhZAIwSIT2cb8UgAz/U=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "46db2e09e1d3f113a13c0d7b81e2f221c63b8ce9",
+        "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
         "type": "github"
       },
       "original": {

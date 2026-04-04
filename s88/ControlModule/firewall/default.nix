@@ -14,12 +14,25 @@ args@{
 }:
 
 let
+  uplinks = if args ? uplinks && builtins.isAttrs args.uplinks then args.uplinks else { };
+
   interfaceView = import ./lookup/interface-view.nix {
     inherit
       lib
       interfaces
       wanIfs
       lanIfs
+      ;
+  };
+
+  forwardingIntent = import ./lookup/forwarding-intent.nix {
+    inherit
+      lib
+      runtimeTarget
+      interfaces
+      wanIfs
+      lanIfs
+      uplinks
       ;
   };
 
@@ -49,6 +62,7 @@ let
         lib
         interfaceView
         endpointMap
+        forwardingIntent
         ;
       communicationContract = communication.communicationContract;
       ownership = communication.ownership;

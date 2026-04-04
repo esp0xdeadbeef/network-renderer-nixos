@@ -24,6 +24,17 @@ let
       ;
   };
 
+  forwardingIntent = import ./forwarding-intent.nix {
+    inherit
+      lib
+      runtimeTarget
+      interfaces
+      wanIfs
+      lanIfs
+      uplinks
+      ;
+  };
+
   communication =
     if cpm != null then
       import ./communication-contract.nix {
@@ -96,38 +107,74 @@ let
 
   interfaceNames = sortedStrings (map (entry: entry.name or null) interfaceEntries);
 
-  wanNames =
+  fallbackWanNames =
     if interfaceView ? wanNames && builtins.isList interfaceView.wanNames then
       sortedStrings interfaceView.wanNames
     else
       [ ];
 
-  lanNames =
+  fallbackLanNames =
     if interfaceView ? lanNames && builtins.isList interfaceView.lanNames then
       sortedStrings interfaceView.lanNames
     else
       [ ];
 
-  p2pNames = sortedStrings (
+  fallbackP2pNames = sortedStrings (
     map (entry: entry.name or null) (lib.filter (entry: sourceKindOf entry == "p2p") interfaceEntries)
   );
 
-  localAdapterNames = sortedStrings (
-    map (entry: entry.name or null) (
-      lib.filter (
-        entry:
-        let
-          sourceKind = sourceKindOf entry;
-        in
-        sourceKind != "wan" && sourceKind != "p2p"
-      ) interfaceEntries
-    )
-  );
+  wanNames =
+    if forwardingIntent ? resolvedWanNames && builtins.isList forwardingIntent.resolvedWanNames then
+      sortedStrings forwardingIntent.resolvedWanNames
+    else
+      fallbackWanNames;
+
+  lanNames =
+    if forwardingIntent ? resolvedLanNames && builtins.isList forwardingIntent.resolvedLanNames then
+      sortedStrings forwardingIntent.resolvedLanNames
+    else
+      fallbackLanNames;
+
+  p2pNames =
+    if
+      forwardingIntent ? resolvedTransitNames && builtins.isList forwardingIntent.resolvedTransitNames
+    then
+      sortedStrings forwardingIntent.resolvedTransitNames
+    else
+      fallbackP2pNames;
+
+  localAdapterNames =
+    if
+      forwardingIntent ? resolvedLocalAdapterNames
+      && builtins.isList forwardingIntent.resolvedLocalAdapterNames
+    then
+      sortedStrings forwardingIntent.resolvedLocalAdapterNames
+    else
+      sortedStrings (
+        map (entry: entry.name or null) (
+          lib.filter (
+            entry:
+            let
+              sourceKind = sourceKindOf entry;
+            in
+            sourceKind != "wan" && sourceKind != "p2p"
+          ) interfaceEntries
+        )
+      );
+
+  accessUplinkNames =
+    if
+      forwardingIntent ? resolvedAccessUplinkNames
+      && builtins.isList forwardingIntent.resolvedAccessUplinkNames
+    then
+      sortedStrings forwardingIntent.resolvedAccessUplinkNames
+    else if p2pNames != [ ] then
+      p2pNames
+    else
+      wanNames;
 
   uplinkNames =
     if builtins.isAttrs uplinks then lib.sort builtins.lessThan (builtins.attrNames uplinks) else [ ];
-
-  accessUplinkNames = if p2pNames != [ ] then p2pNames else wanNames;
 
   entityName =
     if builtins.isString containerName && containerName != "" then
@@ -144,6 +191,7 @@ let
         && interfaceNames != [ ]
         && localAdapterNames != [ ]
         && accessUplinkNames != [ ]
+        && !(forwardingIntent.authoritativeAccessForwarding or false)
       )
       [
         (isa.mkDesignAssumptionAlarm {
@@ -165,46 +213,61 @@ let
           authorityText = "Network forwarding model should provide authoritative access forwarding intent.";
         })
       ]
-    ++ lib.optionals (roleName == "core" && interfaceNames != [ ] && wanNames != [ ]) [
-      (isa.mkDesignAssumptionAlarm {
-        alarmId = "firewall-core-nat-defaults";
-        summary = "core firewall NAT intent is currently synthesized from role defaults and uplink IPv4 inference";
-        file = "s88/ControlModule/firewall/lookup/assumptions.nix";
-        entityName = entityName;
-        roleName = roleName;
-        interfaces = sortedStrings (wanNames ++ lanNames);
-        assumptions = [
-          "WAN and LAN interface roles are resolved from explicit interface semantics when available, but NAT enablement itself is not authored explicitly"
-          "NAT enablement is inferred from the presence of WAN interfaces and uplink IPv4 flags, defaulting missing uplink IPv4 metadata to enabled"
-          "masquerade is applied to every resolved WAN interface when NAT is considered enabled"
-          "TCP MSS clamping is applied to every resolved WAN interface"
-        ];
-        extraText = [
-          "resolved WAN interfaces: ${builtins.toJSON wanNames}"
-          "resolved LAN interfaces: ${builtins.toJSON lanNames}"
-          "resolved uplinks: ${builtins.toJSON uplinkNames}"
-        ];
-        authorityText = "Network forwarding model should provide authoritative core NAT intent.";
-      })
-    ]
-    ++ lib.optionals (roleName == "upstream-selector" && builtins.length p2pNames > 1) [
-      (isa.mkDesignAssumptionAlarm {
-        alarmId = "firewall-upstream-selector-forwarding-defaults";
-        summary = "upstream-selector firewall forwarding policy is currently synthesized from role defaults";
-        file = "s88/ControlModule/firewall/lookup/assumptions.nix";
-        entityName = entityName;
-        roleName = roleName;
-        interfaces = p2pNames;
-        assumptions = [
-          "transit interface roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the upstream-selector role procedure"
-          "a full-mesh bidirectional forwarding policy is emitted between every distinct resolved transit interface"
-        ];
-        extraText = [
-          "resolved transit interfaces: ${builtins.toJSON p2pNames}"
-        ];
-        authorityText = "Network forwarding model should provide authoritative upstream-selector forwarding intent.";
-      })
-    ]
+    ++
+      lib.optionals
+        (
+          roleName == "core"
+          && interfaceNames != [ ]
+          && wanNames != [ ]
+          && !(forwardingIntent.authoritativeCoreNat or false)
+        )
+        [
+          (isa.mkDesignAssumptionAlarm {
+            alarmId = "firewall-core-nat-defaults";
+            summary = "core firewall NAT intent is currently synthesized from role defaults and uplink IPv4 inference";
+            file = "s88/ControlModule/firewall/lookup/assumptions.nix";
+            entityName = entityName;
+            roleName = roleName;
+            interfaces = sortedStrings (wanNames ++ lanNames);
+            assumptions = [
+              "WAN and LAN interface roles are resolved from explicit interface semantics when available, but NAT enablement itself is not authored explicitly"
+              "NAT enablement is inferred from the presence of WAN interfaces and uplink IPv4 flags, defaulting missing uplink IPv4 metadata to enabled"
+              "masquerade is applied to every resolved WAN interface when NAT is considered enabled"
+              "TCP MSS clamping is applied to every resolved WAN interface"
+            ];
+            extraText = [
+              "resolved WAN interfaces: ${builtins.toJSON wanNames}"
+              "resolved LAN interfaces: ${builtins.toJSON lanNames}"
+              "resolved uplinks: ${builtins.toJSON uplinkNames}"
+            ];
+            authorityText = "Network forwarding model should provide authoritative core NAT intent.";
+          })
+        ]
+    ++
+      lib.optionals
+        (
+          roleName == "upstream-selector"
+          && builtins.length p2pNames > 1
+          && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
+        )
+        [
+          (isa.mkDesignAssumptionAlarm {
+            alarmId = "firewall-upstream-selector-forwarding-defaults";
+            summary = "upstream-selector firewall forwarding policy is currently synthesized from role defaults";
+            file = "s88/ControlModule/firewall/lookup/assumptions.nix";
+            entityName = entityName;
+            roleName = roleName;
+            interfaces = p2pNames;
+            assumptions = [
+              "transit interface roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the upstream-selector role procedure"
+              "a full-mesh bidirectional forwarding policy is emitted between every distinct resolved transit interface"
+            ];
+            extraText = [
+              "resolved transit interfaces: ${builtins.toJSON p2pNames}"
+            ];
+            authorityText = "Network forwarding model should provide authoritative upstream-selector forwarding intent.";
+          })
+        ]
     ++
       lib.optionals
         (
