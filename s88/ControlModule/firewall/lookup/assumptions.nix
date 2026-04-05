@@ -246,14 +246,39 @@ let
     ++
       lib.optionals
         (
-          (roleName == "upstream-selector" || roleName == "downstream-selector")
+          roleName == "downstream-selector"
           && builtins.length p2pNames > 1
           && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
-            alarmId = "firewall-${roleName}-forwarding-defaults";
-            summary = "${roleName} firewall forwarding policy is currently synthesized from role defaults";
+            alarmId = "firewall-downstream-forwarding-defaults";
+            summary = "downstream-selector firewall forwarding policy is currently synthesized from role defaults";
+            file = "s88/ControlModule/firewall/lookup/assumptions.nix";
+            entityName = entityName;
+            roleName = roleName;
+            interfaces = p2pNames;
+            assumptions = [
+              "transit interface roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the selector role procedure"
+              "a full-mesh bidirectional forwarding policy is emitted between every distinct resolved transit interface"
+            ];
+            extraText = [
+              "resolved transit interfaces: ${builtins.toJSON p2pNames}"
+            ];
+            authorityText = "Network forwarding model should provide authoritative selector forwarding intent.";
+          })
+        ]
+    ++
+      lib.optionals
+        (
+          roleName == "upstream-selector"
+          && builtins.length p2pNames > 1
+          && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
+        )
+        [
+          (isa.mkDesignAssumptionAlarm {
+            alarmId = "firewall-upstream-selector-forwarding-defaults";
+            summary = "upstream-selector firewall forwarding policy is currently synthesized from role defaults";
             file = "s88/ControlModule/firewall/lookup/assumptions.nix";
             entityName = entityName;
             roleName = roleName;
