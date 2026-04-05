@@ -56,4 +56,17 @@
       ];
     };
   };
+
+  downstream-selector = {
+    runtimeRole = "downstream-selector";
+    hostProfilePath = null;
+    container = {
+      enable = true;
+      profilePath = ../profiles/upstream-selector.nix;
+      additionalCapabilities = [
+        "CAP_NET_ADMIN"
+        "CAP_NET_RAW"
+      ];
+    };
+  };
 }
