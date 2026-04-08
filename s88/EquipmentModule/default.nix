@@ -1,7 +1,0 @@
-{ ... }:
-
-{
-  imports = [
-    ./host/default.nix
-  ];
-}

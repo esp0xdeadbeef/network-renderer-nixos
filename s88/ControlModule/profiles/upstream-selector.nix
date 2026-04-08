@@ -1,7 +1,0 @@
-{ ... }:
-
-{
-  imports = [
-    ./common-router.nix
-  ];
-}
