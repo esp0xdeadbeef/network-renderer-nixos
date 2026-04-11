@@ -1,0 +1,71 @@
+{
+  lib,
+  lookupSiteServiceInputs,
+  mapFirewallForwardingRuntimeTargetModel,
+  mapFirewallPolicyRuntimeTargetModel,
+}:
+{
+  normalizedModel,
+  artifactContext,
+}:
+let
+  ensureAttrs =
+    name: value:
+    if builtins.isAttrs value then
+      value
+    else
+      throw "network-renderer-nixos: expected ${name} to be an attribute set";
+
+  ensureString =
+    name: value:
+    if builtins.isString value && value != "" then
+      value
+    else
+      throw "network-renderer-nixos: expected ${name} to be a non-empty string";
+
+  ensureBool =
+    name: value:
+    if builtins.isBool value then
+      value
+    else
+      throw "network-renderer-nixos: expected ${name} to be a boolean";
+
+  context = ensureAttrs "artifactContext" artifactContext;
+
+  runtimeTarget =
+    if context ? runtimeTarget then
+      ensureAttrs "artifactContext.runtimeTarget" context.runtimeTarget
+    else
+      throw "network-renderer-nixos: artifactContext is missing runtimeTarget";
+
+  role =
+    if runtimeTarget ? role then
+      ensureString "artifactContext.runtimeTarget.role" runtimeTarget.role
+    else
+      null;
+
+  forwardingResponsibility =
+    if runtimeTarget ? forwardingResponsibility then
+      ensureAttrs "artifactContext.runtimeTarget.forwardingResponsibility" runtimeTarget.forwardingResponsibility
+    else
+      { };
+
+  enforcesPolicy =
+    if forwardingResponsibility ? enforcesPolicy then
+      ensureBool "artifactContext.runtimeTarget.forwardingResponsibility.enforcesPolicy" forwardingResponsibility.enforcesPolicy
+    else
+      false;
+in
+if enforcesPolicy || role == "policy" then
+  mapFirewallPolicyRuntimeTargetModel (
+    context
+    // {
+      siteServiceInputs = lookupSiteServiceInputs {
+        inherit normalizedModel;
+        enterpriseName = context.enterpriseName;
+        siteName = context.siteName;
+      };
+    }
+  )
+else
+  mapFirewallForwardingRuntimeTargetModel context
