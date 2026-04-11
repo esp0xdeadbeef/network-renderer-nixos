@@ -43,7 +43,25 @@ let
     "globalInventory"
   ];
 
-  siteData = ensureAttrs "control_plane_model.data" normalizedModel.siteData;
+  sourceRoot =
+    if
+      strippedControlPlaneOut ? control_plane_model
+      && builtins.isAttrs strippedControlPlaneOut.control_plane_model
+    then
+      strippedControlPlaneOut.control_plane_model
+    else if
+      strippedControlPlaneOut ? controlPlaneModel
+      && builtins.isAttrs strippedControlPlaneOut.controlPlaneModel
+    then
+      strippedControlPlaneOut.controlPlaneModel
+    else
+      throw "network-renderer-nixos: split artifact source must expose control_plane_model";
+
+  siteData =
+    if sourceRoot ? data then
+      ensureAttrs "control_plane_model.data" sourceRoot.data
+    else
+      ensureAttrs "control_plane_model.data" normalizedModel.siteData;
 
   _haveSiteData =
     if siteData == { } then
@@ -69,7 +87,7 @@ let
     then
       throw "network-renderer-nixos: runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}' is missing placement.host"
     else
-      runtimeTarget.placement.host;
+      validPathSegment "host name for runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}'" runtimeTarget.placement.host;
 
   containerNamesForRuntimeTarget =
     enterpriseName: siteName: runtimeTargetName: runtimeTarget:
@@ -96,33 +114,6 @@ let
           throw "network-renderer-nixos: runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}' defines duplicate container names";
     in
     builtins.seq _uniqueContainerNames uniqueContainerNames;
-
-  filterRuntimeTargets =
-    enterpriseName: siteName: predicate: runtimeTargets:
-    builtins.listToAttrs (
-      lib.concatMap (
-        runtimeTargetName:
-        let
-          runtimeTarget = runtimeTargets.${runtimeTargetName};
-        in
-        if predicate runtimeTargetName runtimeTarget then
-          [
-            {
-              name = runtimeTargetName;
-              value = runtimeTarget;
-            }
-          ]
-        else
-          [ ]
-      ) (sortedAttrNames runtimeTargets)
-    );
-
-  hostScopedRuntimeTargetsForSite =
-    enterpriseName: siteName: runtimeTargets:
-    filterRuntimeTargets enterpriseName siteName (
-      runtimeTargetName: runtimeTarget:
-      containerNamesForRuntimeTarget enterpriseName siteName runtimeTargetName runtimeTarget == [ ]
-    ) runtimeTargets;
 
   groupRuntimeTargetsByHost =
     enterpriseName: siteName: runtimeTargets:
@@ -161,19 +152,33 @@ let
       ) acc containerNames
     ) { } (sortedAttrNames runtimeTargets);
 
-  fileEntry = name: value: {
-    inherit name value;
-  };
+  filterRuntimeTargets =
+    predicate: runtimeTargets:
+    builtins.listToAttrs (
+      lib.concatMap (
+        runtimeTargetName:
+        let
+          runtimeTarget = runtimeTargets.${runtimeTargetName};
+        in
+        if predicate runtimeTargetName runtimeTarget then
+          [
+            {
+              name = runtimeTargetName;
+              value = runtimeTarget;
+            }
+          ]
+        else
+          [ ]
+      ) (sortedAttrNames runtimeTargets)
+    );
 
-  jsonFileEntry =
-    name: value:
-    fileEntry name {
-      format = "json";
-      inherit value;
-    };
+  hostScopedRuntimeTargetsForSite =
+    enterpriseName: siteName: runtimeTargets:
+    filterRuntimeTargets (
+      runtimeTargetName: runtimeTarget:
+      containerNamesForRuntimeTarget enterpriseName siteName runtimeTargetName runtimeTarget == [ ]
+    ) runtimeTargets;
 
-  siteArtifactPath = sitePath: "${sitePath}/site.json";
-  siteDataArtifactPath = sitePath: "${sitePath}/site-data.json";
   hostArtifactPath = hostPath: "${hostPath}/host.json";
   containerArtifactPath =
     hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
@@ -192,210 +197,152 @@ let
     in
     "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
 
-  enterpriseEntries = lib.concatMap (
+  jsonFileEntry = name: value: {
+    inherit name;
+    value = {
+      format = "json";
+      inherit value;
+    };
+  };
+
+  hostEntries = lib.concatMap (
     enterpriseName:
     let
       enterpriseSegment = validPathSegment "enterprise name" enterpriseName;
       enterpriseSites =
         ensureAttrs "control_plane_model.data.${enterpriseName}"
           siteData.${enterpriseName};
-      siteNames = sortedAttrNames enterpriseSites;
-
-      siteEntries = lib.concatMap (
-        siteName:
+    in
+    lib.concatMap (
+      siteName:
+      let
+        siteSegment = validPathSegment "site name" siteName;
+        site =
+          ensureAttrs "control_plane_model.data.${enterpriseName}.${siteName}"
+            enterpriseSites.${siteName};
+        sitePath = "${enterpriseSegment}/${siteSegment}";
+        runtimeTargets = runtimeTargetsForSite enterpriseName siteName site;
+        runtimeTargetsByHost = groupRuntimeTargetsByHost enterpriseName siteName runtimeTargets;
+        hostScopedRuntimeTargets = hostScopedRuntimeTargetsForSite enterpriseName siteName runtimeTargets;
+        hostScopedRuntimeTargetsByHost =
+          groupRuntimeTargetsByHost enterpriseName siteName
+            hostScopedRuntimeTargets;
+      in
+      lib.concatMap (
+        hostName:
         let
-          siteSegment = validPathSegment "site name" siteName;
-          site =
-            ensureAttrs "control_plane_model.data.${enterpriseName}.${siteName}"
-              enterpriseSites.${siteName};
-          sitePath = "${enterpriseSegment}/${siteSegment}";
+          hostSegment = validPathSegment "host name" hostName;
+          hostPath = "${sitePath}/${hostSegment}";
+          hostRuntimeTargets = hostScopedRuntimeTargetsByHost.${hostName} or { };
+          hostRuntimeTargetNames = sortedAttrNames hostRuntimeTargets;
+          hostRuntimeTargetArtifactPaths = map (
+            runtimeTargetName: hostRuntimeTargetArtifactPath hostPath runtimeTargetName
+          ) hostRuntimeTargetNames;
 
-          runtimeTargets = runtimeTargetsForSite enterpriseName siteName site;
-          runtimeTargetsByHost = groupRuntimeTargetsByHost enterpriseName siteName runtimeTargets;
-          hostScopedRuntimeTargets = hostScopedRuntimeTargetsForSite enterpriseName siteName runtimeTargets;
-          hostScopedRuntimeTargetsByHost =
-            groupRuntimeTargetsByHost enterpriseName siteName
-              hostScopedRuntimeTargets;
-          hostNames = sortedAttrNames runtimeTargetsByHost;
+          hostAllRuntimeTargets = runtimeTargetsByHost.${hostName};
+          containerRuntimeTargets =
+            groupRuntimeTargetsByContainer enterpriseName siteName
+              hostAllRuntimeTargets;
+          containerNames = sortedAttrNames containerRuntimeTargets;
 
-          hostSummaries = builtins.listToAttrs (
+          containerSummaries = builtins.listToAttrs (
             map (
-              hostName:
+              containerName:
               let
-                hostSegment = validPathSegment "host name" hostName;
-                hostPath = "${sitePath}/${hostSegment}";
-                hostRuntimeTargets = hostScopedRuntimeTargetsByHost.${hostName} or { };
-                hostRuntimeTargetNames = sortedAttrNames hostRuntimeTargets;
-                hostRuntimeTargetArtifactPaths = map (
-                  runtimeTargetName: hostRuntimeTargetArtifactPath hostPath runtimeTargetName
-                ) hostRuntimeTargetNames;
-                hostAllRuntimeTargets = runtimeTargetsByHost.${hostName};
-                containerRuntimeTargets =
-                  groupRuntimeTargetsByContainer enterpriseName siteName
-                    hostAllRuntimeTargets;
-                containerNames = sortedAttrNames containerRuntimeTargets;
-
-                containerSummaries = builtins.listToAttrs (
-                  map (
-                    containerName:
-                    let
-                      containerRuntimeTargetMap = containerRuntimeTargets.${containerName};
-                      containerRuntimeTargetNames = sortedAttrNames containerRuntimeTargetMap;
-                      containerRuntimeTargetArtifactPaths = map (
-                        runtimeTargetName: containerRuntimeTargetArtifactPath hostPath containerName runtimeTargetName
-                      ) containerRuntimeTargetNames;
-                    in
-                    {
-                      name = containerName;
-                      value = {
-                        artifactPath = containerArtifactPath hostPath containerName;
-                        runtimeTargetNames = containerRuntimeTargetNames;
-                        runtimeTargetArtifactPaths = containerRuntimeTargetArtifactPaths;
-                      };
-                    }
-                  ) containerNames
-                );
-
-                allRuntimeTargetNames = lib.unique (
-                  hostRuntimeTargetNames
-                  ++ lib.concatMap (
-                    containerName: containerSummaries.${containerName}.runtimeTargetNames
-                  ) containerNames
-                );
-
-                allRuntimeTargetArtifactPaths = lib.unique (
-                  hostRuntimeTargetArtifactPaths
-                  ++ lib.concatMap (
-                    containerName: containerSummaries.${containerName}.runtimeTargetArtifactPaths
-                  ) containerNames
-                );
+                containerRuntimeTargetMap = containerRuntimeTargets.${containerName};
+                containerRuntimeTargetNames = sortedAttrNames containerRuntimeTargetMap;
+                containerRuntimeTargetArtifactPaths = map (
+                  runtimeTargetName: containerRuntimeTargetArtifactPath hostPath containerName runtimeTargetName
+                ) containerRuntimeTargetNames;
               in
               {
-                name = hostName;
+                name = containerName;
                 value = {
-                  artifactPath = hostArtifactPath hostPath;
-                  runtimeTargetNames = hostRuntimeTargetNames;
-                  runtimeTargetArtifactPaths = hostRuntimeTargetArtifactPaths;
-                  containerNames = containerNames;
-                  containerArtifactPaths = map (
-                    containerName: containerArtifactPath hostPath containerName
-                  ) containerNames;
-                  containerRuntimeTargets = containerSummaries;
-                  allRuntimeTargetNames = allRuntimeTargetNames;
-                  allRuntimeTargetArtifactPaths = allRuntimeTargetArtifactPaths;
+                  artifactPath = containerArtifactPath hostPath containerName;
+                  runtimeTargetNames = containerRuntimeTargetNames;
+                  runtimeTargetArtifactPaths = containerRuntimeTargetArtifactPaths;
                 };
               }
-            ) hostNames
+            ) containerNames
           );
 
-          hostEntries = lib.concatMap (
-            hostName:
+          allRuntimeTargetNames = lib.unique (
+            hostRuntimeTargetNames
+            ++ lib.concatMap (
+              containerName: containerSummaries.${containerName}.runtimeTargetNames
+            ) containerNames
+          );
+
+          allRuntimeTargetArtifactPaths = lib.unique (
+            hostRuntimeTargetArtifactPaths
+            ++ lib.concatMap (
+              containerName: containerSummaries.${containerName}.runtimeTargetArtifactPaths
+            ) containerNames
+          );
+
+          hostSummary = {
+            enterprise = enterpriseName;
+            site = siteName;
+            host = hostName;
+            artifactPath = hostArtifactPath hostPath;
+            runtimeTargetNames = hostRuntimeTargetNames;
+            runtimeTargetArtifactPaths = hostRuntimeTargetArtifactPaths;
+            containerNames = containerNames;
+            containerArtifactPaths = map (
+              containerName: containerArtifactPath hostPath containerName
+            ) containerNames;
+            containers = containerSummaries;
+            allRuntimeTargetNames = allRuntimeTargetNames;
+            allRuntimeTargetArtifactPaths = allRuntimeTargetArtifactPaths;
+          };
+
+          runtimeTargetEntries = lib.concatMap (runtimeTargetName: [
+            (jsonFileEntry (hostRuntimeTargetArtifactPath hostPath runtimeTargetName)
+              hostRuntimeTargets.${runtimeTargetName}
+            )
+          ]) hostRuntimeTargetNames;
+
+          containerEntries = lib.concatMap (
+            containerName:
             let
-              hostSegment = validPathSegment "host name" hostName;
-              hostPath = "${sitePath}/${hostSegment}";
-              hostRuntimeTargets = hostScopedRuntimeTargetsByHost.${hostName} or { };
-              hostRuntimeTargetNames = sortedAttrNames hostRuntimeTargets;
-              hostAllRuntimeTargets = runtimeTargetsByHost.${hostName};
-              containerRuntimeTargets =
-                groupRuntimeTargetsByContainer enterpriseName siteName
-                  hostAllRuntimeTargets;
-              containerNames = sortedAttrNames containerRuntimeTargets;
+              containerRuntimeTargetMap = containerRuntimeTargets.${containerName};
+              containerRuntimeTargetNames = sortedAttrNames containerRuntimeTargetMap;
 
-              runtimeTargetEntries = lib.concatMap (runtimeTargetName: [
-                (jsonFileEntry (hostRuntimeTargetArtifactPath hostPath runtimeTargetName)
-                  hostRuntimeTargets.${runtimeTargetName}
-                )
-              ]) hostRuntimeTargetNames;
-
-              containerEntries = lib.concatMap (
-                containerName:
-                let
-                  containerPath = "${hostPath}/containers/${containerName}";
-                  containerRuntimeTargetMap = containerRuntimeTargets.${containerName};
-                  containerRuntimeTargetNames = sortedAttrNames containerRuntimeTargetMap;
-
-                  containerSummary = {
-                    enterprise = enterpriseName;
-                    site = siteName;
-                    host = hostName;
-                    container = containerName;
-                    artifactPath = containerArtifactPath hostPath containerName;
-                    runtimeTargetNames = containerRuntimeTargetNames;
-                    runtimeTargetArtifactPaths = map (
-                      runtimeTargetName: containerRuntimeTargetArtifactPath hostPath containerName runtimeTargetName
-                    ) containerRuntimeTargetNames;
-                  };
-
-                  containerRuntimeTargetEntries = lib.concatMap (runtimeTargetName: [
-                    (jsonFileEntry (containerRuntimeTargetArtifactPath hostPath containerName
-                      runtimeTargetName
-                    ) containerRuntimeTargetMap.${runtimeTargetName})
-                  ]) containerRuntimeTargetNames;
-                in
-                [
-                  (jsonFileEntry "${containerPath}/container.json" containerSummary)
-                ]
-                ++ containerRuntimeTargetEntries
-              ) containerNames;
-
-              hostSummary = {
+              containerSummary = {
                 enterprise = enterpriseName;
                 site = siteName;
                 host = hostName;
-                artifactPath = hostArtifactPath hostPath;
-                runtimeTargetNames = hostRuntimeTargetNames;
-                runtimeTargetArtifactPaths = hostSummaries.${hostName}.runtimeTargetArtifactPaths;
-                containerNames = containerNames;
-                containerArtifactPaths = hostSummaries.${hostName}.containerArtifactPaths;
-                containerRuntimeTargets = hostSummaries.${hostName}.containerRuntimeTargets;
-                allRuntimeTargetNames = hostSummaries.${hostName}.allRuntimeTargetNames;
-                allRuntimeTargetArtifactPaths = hostSummaries.${hostName}.allRuntimeTargetArtifactPaths;
+                container = containerName;
+                artifactPath = containerArtifactPath hostPath containerName;
+                runtimeTargetNames = containerRuntimeTargetNames;
+                runtimeTargetArtifactPaths = map (
+                  runtimeTargetName: containerRuntimeTargetArtifactPath hostPath containerName runtimeTargetName
+                ) containerRuntimeTargetNames;
               };
+
+              containerRuntimeTargetEntries = lib.concatMap (runtimeTargetName: [
+                (jsonFileEntry (containerRuntimeTargetArtifactPath hostPath containerName
+                  runtimeTargetName
+                ) containerRuntimeTargetMap.${runtimeTargetName})
+              ]) containerRuntimeTargetNames;
             in
             [
-              (jsonFileEntry "${hostPath}/host.json" hostSummary)
+              (jsonFileEntry (containerArtifactPath hostPath containerName) containerSummary)
             ]
-            ++ runtimeTargetEntries
-            ++ containerEntries
-          ) hostNames;
-
-          siteSummary = {
-            enterprise = enterpriseName;
-            site = siteName;
-            artifactPath = siteArtifactPath sitePath;
-            siteDataArtifactPath = siteDataArtifactPath sitePath;
-            hostNames = hostNames;
-            hostArtifactPaths = map (
-              hostName:
-              let
-                hostSegment = validPathSegment "host name" hostName;
-              in
-              hostArtifactPath "${sitePath}/${hostSegment}"
-            ) hostNames;
-            runtimeTargetNames = sortedAttrNames runtimeTargets;
-          };
+            ++ containerRuntimeTargetEntries
+          ) containerNames;
         in
         [
-          (jsonFileEntry "${sitePath}/site.json" siteSummary)
-          (jsonFileEntry "${sitePath}/site-data.json" site)
+          (jsonFileEntry (hostArtifactPath hostPath) hostSummary)
         ]
-        ++ hostEntries
-      ) siteNames;
-
-      enterpriseSummary = {
-        enterprise = enterpriseName;
-        siteNames = siteNames;
-      };
-    in
-    [
-      (jsonFileEntry "${enterpriseSegment}/enterprise.json" enterpriseSummary)
-    ]
-    ++ siteEntries
+        ++ runtimeTargetEntries
+        ++ containerEntries
+      ) (sortedAttrNames runtimeTargetsByHost)
+    ) (sortedAttrNames enterpriseSites)
   ) (sortedAttrNames siteData);
 
   fileEntries =
-    (lib.optional includeFullModel (jsonFileEntry rootFileName strippedControlPlaneOut))
-    ++ enterpriseEntries;
+    (lib.optional includeFullModel (jsonFileEntry rootFileName strippedControlPlaneOut)) ++ hostEntries;
 
   filePaths = map (entry: entry.name) fileEntries;
 
