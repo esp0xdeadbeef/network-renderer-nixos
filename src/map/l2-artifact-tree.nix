@@ -828,6 +828,7 @@ let
       let
         hostSegment = validPathSegment "host name" hostName;
         hostPath = "${validPathSegment "enterprise name" enterpriseName}/${validPathSegment "site name" siteName}/${hostSegment}";
+        hostDataPath = "${hostPath}/host-data";
 
         hostRuntimeTargets = runtimeTargetsByHost.${hostName};
 
@@ -877,49 +878,49 @@ let
         ) (uniqueById "device creation step" collected.deviceCreationSteps);
       in
       (lib.optional (bridges != [ ]) (
-        jsonFileEntry "${hostPath}/l2/bridges.json" {
+        jsonFileEntry "${hostDataPath}/l2/bridges.json" {
           host = hostName;
           bridges = bridges;
         }
       ))
       ++ (lib.optional (hostAdapters != [ ]) (
-        jsonFileEntry "${hostPath}/l2/host-adapters.json" {
+        jsonFileEntry "${hostDataPath}/l2/host-adapters.json" {
           host = hostName;
           adapters = hostAdapters;
         }
       ))
       ++ (lib.optional (containerAdapters != [ ]) (
-        jsonFileEntry "${hostPath}/l2/container-adapters.json" {
+        jsonFileEntry "${hostDataPath}/l2/container-adapters.json" {
           host = hostName;
           adapters = containerAdapters;
         }
       ))
       ++ (lib.optional (adapterPairings != [ ]) (
-        jsonFileEntry "${hostPath}/l2/adapter-pairings.json" {
+        jsonFileEntry "${hostDataPath}/l2/adapter-pairings.json" {
           host = hostName;
           pairings = adapterPairings;
         }
       ))
       ++ (lib.optional (bridgeMemberships != [ ]) (
-        jsonFileEntry "${hostPath}/l2/bridge-memberships.json" {
+        jsonFileEntry "${hostDataPath}/l2/bridge-memberships.json" {
           host = hostName;
           memberships = bridgeMemberships;
         }
       ))
       ++ (lib.optional (vlanProfiles != [ ]) (
-        jsonFileEntry "${hostPath}/l2/vlan-profiles.json" {
+        jsonFileEntry "${hostDataPath}/l2/vlan-profiles.json" {
           host = hostName;
           profiles = vlanProfiles;
         }
       ))
       ++ (lib.optional (l2AttachmentPolicies != [ ]) (
-        jsonFileEntry "${hostPath}/l2/l2-attachment-policy.json" {
+        jsonFileEntry "${hostDataPath}/l2/l2-attachment-policy.json" {
           host = hostName;
           policies = l2AttachmentPolicies;
         }
       ))
       ++ (lib.optional (deviceCreationSteps != [ ]) (
-        jsonFileEntry "${hostPath}/l2/device-creation-order.json" {
+        jsonFileEntry "${hostDataPath}/l2/device-creation-order.json" {
           host = hostName;
           steps = deviceCreationSteps;
         }

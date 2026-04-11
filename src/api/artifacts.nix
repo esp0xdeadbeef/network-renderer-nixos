@@ -180,12 +180,19 @@ let
         inherit normalizedModel;
       };
 
-      containerContextNames = lib.filter (
+      firewallContextNames = lib.filter (
         contextName:
         let
           context = runtimeTargetContexts.${contextName};
+          runtimeTarget =
+            if context ? runtimeTarget && builtins.isAttrs context.runtimeTarget then
+              context.runtimeTarget
+            else
+              null;
         in
-        context.containerName != null
+        runtimeTarget != null
+        && runtimeTarget ? forwardingIntent
+        && builtins.isAttrs runtimeTarget.forwardingIntent
       ) (sortedAttrNames runtimeTargetContexts);
 
       fileEntries = lib.concatMap (
@@ -207,7 +214,7 @@ let
             };
           }
         ]
-      ) containerContextNames;
+      ) firewallContextNames;
 
       filePaths = map (entry: entry.name) fileEntries;
 
