@@ -85,6 +85,20 @@ let
     in
     builtins.seq _uniqueContainerNames uniqueContainerNames;
 
+  siteArtifactPath = sitePath: "${sitePath}/site.json";
+  siteDataArtifactPath = sitePath: "${sitePath}/site-data.json";
+  hostArtifactPath = hostPath: "${hostPath}/host.json";
+  containerArtifactPath =
+    hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
+
+  runtimeTargetArtifactPathForHost =
+    hostPath: runtimeTargetSegment:
+    "${hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+
+  runtimeTargetArtifactPathForContainer =
+    hostPath: containerName: runtimeTargetSegment:
+    "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+
   contextEntry = artifactPathPrefix: value: {
     name = artifactPathPrefix;
     value = value // {
@@ -122,6 +136,9 @@ let
           hostPath = "${sitePath}/${hostName}";
         in
         if containerNames == [ ] then
+          let
+            runtimeTargetArtifactPath = runtimeTargetArtifactPathForHost hostPath runtimeTargetSegment;
+          in
           [
             (contextEntry "${hostPath}/runtime-targets/${runtimeTargetSegment}" {
               inherit
@@ -133,11 +150,21 @@ let
                 ;
               containerName = null;
               siteData = site;
+              siteArtifactPath = siteArtifactPath sitePath;
+              siteDataArtifactPath = siteDataArtifactPath sitePath;
+              hostArtifactPath = hostArtifactPath hostPath;
+              containerArtifactPath = null;
+              runtimeTargetArtifactPath = runtimeTargetArtifactPath;
             })
           ]
         else
           map (
             containerName:
+            let
+              runtimeTargetArtifactPath =
+                runtimeTargetArtifactPathForContainer hostPath containerName
+                  runtimeTargetSegment;
+            in
             contextEntry "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}" {
               inherit
                 enterpriseName
@@ -148,6 +175,11 @@ let
                 runtimeTarget
                 ;
               siteData = site;
+              siteArtifactPath = siteArtifactPath sitePath;
+              siteDataArtifactPath = siteDataArtifactPath sitePath;
+              hostArtifactPath = hostArtifactPath hostPath;
+              containerArtifactPath = containerArtifactPath hostPath containerName;
+              runtimeTargetArtifactPath = runtimeTargetArtifactPath;
             }
           ) containerNames
       ) (sortedAttrNames runtimeTargets)
