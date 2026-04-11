@@ -34,10 +34,42 @@
           controlPlaneLib = network-control-plane-model.lib.${system};
         };
 
+      mkSystemLib =
+        system:
+        let
+          pkgs = mkPkgs system;
+
+          api = mkApi system;
+
+          controlPlaneLib =
+            if network-control-plane-model ? libBySystem then
+              network-control-plane-model.libBySystem.${system}
+            else
+              network-control-plane-model.lib.${system};
+
+          renderArtifactEtc = import ./src/render/nixos-artifacts.nix {
+            inherit (pkgs) lib;
+          };
+
+          artifacts = import ./src/api/artifacts.nix {
+            inherit (pkgs) lib;
+            writeControlPlaneJSONFromPaths = controlPlaneLib.writeCompileAndBuildJSON;
+            inherit renderArtifactEtc;
+          };
+        in
+        api
+        // {
+          controlPlane = controlPlaneLib;
+          inherit artifacts;
+          writeControlPlaneJSON = controlPlaneLib.writeCompileAndBuildJSON;
+          compileAndBuildControlPlane = controlPlaneLib.compileAndBuild;
+          compileAndBuildControlPlaneFromPaths = controlPlaneLib.compileAndBuildFromPaths;
+        };
+
       defaultSystem = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
     in
     {
-      lib = mkApi defaultSystem;
-      libBySystem = forAll mkApi;
+      lib = mkSystemLib defaultSystem;
+      libBySystem = forAll mkSystemLib;
     };
 }

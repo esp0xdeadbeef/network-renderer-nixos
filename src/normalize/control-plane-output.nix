@@ -116,6 +116,8 @@ let
         [ "meta" ]
       ]
       { };
+
+  siteData = if root ? data then helpers.ensureAttrs "control_plane_model.data" root.data else { };
 in
 {
   source = source;
@@ -127,4 +129,5 @@ in
   deploymentHosts = helpers.ensureAttrs "deployment.hosts" deploymentHosts;
   realizationNodes = helpers.ensureAttrs "realization.nodes" realizationNodes;
   renderHosts = helpers.ensureAttrs "render.hosts" renderHosts;
+  siteData = siteData;
 }
