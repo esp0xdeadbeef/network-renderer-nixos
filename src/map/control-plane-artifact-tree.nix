@@ -179,7 +179,8 @@ let
       containerNamesForRuntimeTarget enterpriseName siteName runtimeTargetName runtimeTarget == [ ]
     ) runtimeTargets;
 
-  hostArtifactPath = hostPath: "${hostPath}/host.json";
+  hostDataPath = hostPath: "${hostPath}/host-data";
+  hostArtifactPath = hostPath: "${hostDataPath hostPath}/host.json";
   containerArtifactPath =
     hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
 
@@ -188,7 +189,7 @@ let
     let
       runtimeTargetSegment = validPathSegment "runtime target name" runtimeTargetName;
     in
-    "${hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+    "${hostDataPath hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
 
   containerRuntimeTargetArtifactPath =
     hostPath: containerName: runtimeTargetName:

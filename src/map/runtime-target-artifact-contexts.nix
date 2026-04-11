@@ -87,13 +87,14 @@ let
 
   siteArtifactPath = sitePath: "${sitePath}/site.json";
   siteDataArtifactPath = sitePath: "${sitePath}/site-data.json";
-  hostArtifactPath = hostPath: "${hostPath}/host.json";
+  hostDataPath = hostPath: "${hostPath}/host-data";
+  hostArtifactPath = hostPath: "${hostDataPath hostPath}/host.json";
   containerArtifactPath =
     hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
 
   runtimeTargetArtifactPathForHost =
     hostPath: runtimeTargetSegment:
-    "${hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+    "${hostDataPath hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
 
   runtimeTargetArtifactPathForContainer =
     hostPath: containerName: runtimeTargetSegment:
@@ -137,10 +138,11 @@ let
         in
         if containerNames == [ ] then
           let
+            artifactPathPrefix = "${hostDataPath hostPath}/runtime-targets/${runtimeTargetSegment}";
             runtimeTargetArtifactPath = runtimeTargetArtifactPathForHost hostPath runtimeTargetSegment;
           in
           [
-            (contextEntry "${hostPath}/runtime-targets/${runtimeTargetSegment}" {
+            (contextEntry artifactPathPrefix {
               inherit
                 enterpriseName
                 siteName
@@ -161,11 +163,12 @@ let
           map (
             containerName:
             let
+              artifactPathPrefix = "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}";
               runtimeTargetArtifactPath =
                 runtimeTargetArtifactPathForContainer hostPath containerName
                   runtimeTargetSegment;
             in
-            contextEntry "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}" {
+            contextEntry artifactPathPrefix {
               inherit
                 enterpriseName
                 siteName
