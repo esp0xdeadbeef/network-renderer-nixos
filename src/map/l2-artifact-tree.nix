@@ -33,6 +33,8 @@ let
 
   json = value: builtins.toJSON value;
 
+  compactAttrs = attrs: lib.filterAttrs (_: value: value != null) attrs;
+
   validPathSegment =
     name: value:
     let
@@ -281,20 +283,24 @@ let
   vlanProfileIdFor =
     profile: "vlan-profile::${builtins.substring 0 12 (builtins.hashString "sha256" (json profile))}";
 
-  bridgeEntry = hostName: bridgeName: {
-    id = "bridge::${hostName}::${bridgeName}";
-    host = hostName;
-    bridgeName = bridgeName;
-  };
+  bridgeEntry =
+    hostName: bridgeName:
+    compactAttrs {
+      id = "bridge::${hostName}::${bridgeName}";
+      host = hostName;
+      bridgeName = bridgeName;
+    };
 
-  hostUplinkAdapterEntry = hostName: runtimeTargetName: runtimeIfName: hostUplinkName: {
-    id = "host-uplink::${hostName}::${hostUplinkName}";
-    host = hostName;
-    kind = "host-uplink";
-    hostInterfaceName = hostUplinkName;
-    runtimeTargetName = runtimeTargetName;
-    runtimeInterfaceName = runtimeIfName;
-  };
+  hostUplinkAdapterEntry =
+    hostName: runtimeTargetName: runtimeIfName: hostUplinkName:
+    compactAttrs {
+      id = "host-uplink::${hostName}::${hostUplinkName}";
+      host = hostName;
+      kind = "host-uplink";
+      hostInterfaceName = hostUplinkName;
+      runtimeTargetName = runtimeTargetName;
+      runtimeInterfaceName = runtimeIfName;
+    };
 
   hostRuntimeAdapterEntry =
     {
@@ -305,7 +311,7 @@ let
       interface,
       attachmentPolicyId,
     }:
-    {
+    compactAttrs {
       id = "host-runtime::${hostName}::${runtimeTargetName}::${runtimeIfName}";
       host = hostName;
       kind = "host-runtime-interface";
@@ -338,7 +344,7 @@ let
       interface,
       attachmentPolicyId,
     }:
-    {
+    compactAttrs {
       id = "host-pair::${hostName}::${containerName}::${runtimeTargetName}::${runtimeIfName}";
       host = hostName;
       container = containerName;
@@ -367,7 +373,7 @@ let
       interface,
       attachmentPolicyId,
     }:
-    {
+    compactAttrs {
       id = "container-adapter::${hostName}::${containerName}::${runtimeTargetName}::${runtimeIfName}";
       host = hostName;
       container = containerName;
@@ -400,7 +406,7 @@ let
       bridgeName ? null,
       vlanProfileId ? null,
     }:
-    {
+    compactAttrs {
       id =
         "l2-attachment::${hostName}::${runtimeTargetName}::${runtimeIfName}"
         + (if containerName == null then "" else "::${containerName}");
@@ -427,7 +433,7 @@ let
       hostInterfaceName,
       containerAdapterId,
     }:
-    {
+    compactAttrs {
       id = "adapter-pairing::${hostAdapterId}::${containerAdapterId}";
       host = hostName;
       container = containerName;
@@ -449,7 +455,7 @@ let
       adapterKind,
       vlanProfileId ? null,
     }:
-    {
+    compactAttrs {
       id = "bridge-membership::${hostName}::${bridgeName}::${adapterId}";
       host = hostName;
       bridgeName = bridgeName;
@@ -460,19 +466,23 @@ let
       vlanProfileId = vlanProfileId;
     };
 
-  vlanProfileEntry = hostName: bridgeName: profileId: profile: {
-    id = profileId;
-    host = hostName;
-    bridgeName = bridgeName;
-    profile = profile;
-  };
+  vlanProfileEntry =
+    hostName: bridgeName: profileId: profile:
+    compactAttrs {
+      id = profileId;
+      host = hostName;
+      bridgeName = bridgeName;
+      profile = profile;
+    };
 
   deviceStep =
     id: phase: value:
-    {
-      inherit id phase;
-    }
-    // value;
+    compactAttrs (
+      {
+        inherit id phase;
+      }
+      // value
+    );
 
   collectInterfaceArtifacts =
     {
@@ -866,40 +876,54 @@ let
           if leftPhase == rightPhase then leftId < rightId else leftPhase < rightPhase
         ) (uniqueById "device creation step" collected.deviceCreationSteps);
       in
-      [
-        (jsonFileEntry "${hostPath}/l2/bridges.json" {
+      (lib.optional (bridges != [ ]) (
+        jsonFileEntry "${hostPath}/l2/bridges.json" {
           host = hostName;
           bridges = bridges;
-        })
-        (jsonFileEntry "${hostPath}/l2/host-adapters.json" {
+        }
+      ))
+      ++ (lib.optional (hostAdapters != [ ]) (
+        jsonFileEntry "${hostPath}/l2/host-adapters.json" {
           host = hostName;
           adapters = hostAdapters;
-        })
-        (jsonFileEntry "${hostPath}/l2/container-adapters.json" {
+        }
+      ))
+      ++ (lib.optional (containerAdapters != [ ]) (
+        jsonFileEntry "${hostPath}/l2/container-adapters.json" {
           host = hostName;
           adapters = containerAdapters;
-        })
-        (jsonFileEntry "${hostPath}/l2/adapter-pairings.json" {
+        }
+      ))
+      ++ (lib.optional (adapterPairings != [ ]) (
+        jsonFileEntry "${hostPath}/l2/adapter-pairings.json" {
           host = hostName;
           pairings = adapterPairings;
-        })
-        (jsonFileEntry "${hostPath}/l2/bridge-memberships.json" {
+        }
+      ))
+      ++ (lib.optional (bridgeMemberships != [ ]) (
+        jsonFileEntry "${hostPath}/l2/bridge-memberships.json" {
           host = hostName;
           memberships = bridgeMemberships;
-        })
-        (jsonFileEntry "${hostPath}/l2/vlan-profiles.json" {
+        }
+      ))
+      ++ (lib.optional (vlanProfiles != [ ]) (
+        jsonFileEntry "${hostPath}/l2/vlan-profiles.json" {
           host = hostName;
           profiles = vlanProfiles;
-        })
-        (jsonFileEntry "${hostPath}/l2/l2-attachment-policy.json" {
+        }
+      ))
+      ++ (lib.optional (l2AttachmentPolicies != [ ]) (
+        jsonFileEntry "${hostPath}/l2/l2-attachment-policy.json" {
           host = hostName;
           policies = l2AttachmentPolicies;
-        })
-        (jsonFileEntry "${hostPath}/l2/device-creation-order.json" {
+        }
+      ))
+      ++ (lib.optional (deviceCreationSteps != [ ]) (
+        jsonFileEntry "${hostPath}/l2/device-creation-order.json" {
           host = hostName;
           steps = deviceCreationSteps;
-        })
-      ]
+        }
+      ))
     ) (sortedAttrNames runtimeTargetsByHost);
 
   fileEntries = lib.concatMap (
