@@ -3,6 +3,7 @@
   buildControlPlaneOutput ? null,
   normalizeControlPlane ? null,
   mapControlPlaneArtifactTree ? null,
+  mapL2ArtifactTree ? null,
   mapRuntimeTargetArtifactContexts ? null,
   selectFirewallRuntimeTargetModel ? null,
   renderArtifactEtc ? null,
@@ -31,6 +32,12 @@ let
       mapControlPlaneArtifactTree
     else
       import ../map/control-plane-artifact-tree.nix { inherit lib; };
+
+  mapL2ArtifactTreeResolved =
+    if mapL2ArtifactTree != null then
+      mapL2ArtifactTree
+    else
+      import ../map/l2-artifact-tree.nix { inherit lib; };
 
   mapRuntimeTargetArtifactContextsResolved =
     if mapRuntimeTargetArtifactContexts != null then
@@ -230,11 +237,15 @@ let
         fullModelFileName = fileName;
       };
 
+      l2Files = mapL2ArtifactTreeResolved {
+        inherit normalizedModel;
+      };
+
       firewallFiles = renderFirewallArtifactFiles {
         inherit normalizedModel;
       };
 
-      mergedFiles = baseFiles // firewallFiles;
+      mergedFiles = baseFiles // l2Files // firewallFiles;
       mergedPaths = builtins.attrNames mergedFiles;
 
       _uniqueMergedPaths =

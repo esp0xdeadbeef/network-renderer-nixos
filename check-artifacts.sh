@@ -7,7 +7,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 expr='
 let
-  input = import ./vm-input.nix;
+  input = import ./vm-input-home.nix;
   system = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
   renderer = (builtins.getFlake (toString ./. )).libBySystem.${system};
 

@@ -30,6 +30,7 @@ let
   mapBridgeModel = import ../map/bridge-model.nix { inherit lib; };
   mapContainerModel = import ../map/container-model.nix { inherit lib; };
   mapControlPlaneArtifactTree = import ../map/control-plane-artifact-tree.nix { inherit lib; };
+  mapL2ArtifactTree = import ../map/l2-artifact-tree.nix { inherit lib; };
   mapRuntimeTargetArtifactContexts = import ../map/runtime-target-artifact-contexts.nix {
     inherit lib;
   };
@@ -107,6 +108,7 @@ in
       buildControlPlaneOutput
       normalizeControlPlane
       mapControlPlaneArtifactTree
+      mapL2ArtifactTree
       mapRuntimeTargetArtifactContexts
       selectFirewallRuntimeTargetModel
       renderArtifactEtc

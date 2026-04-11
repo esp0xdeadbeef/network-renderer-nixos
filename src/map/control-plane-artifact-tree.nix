@@ -172,6 +172,26 @@ let
       inherit value;
     };
 
+  siteArtifactPath = sitePath: "${sitePath}/site.json";
+  siteDataArtifactPath = sitePath: "${sitePath}/site-data.json";
+  hostArtifactPath = hostPath: "${hostPath}/host.json";
+  containerArtifactPath =
+    hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
+
+  hostRuntimeTargetArtifactPath =
+    hostPath: runtimeTargetName:
+    let
+      runtimeTargetSegment = validPathSegment "runtime target name" runtimeTargetName;
+    in
+    "${hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+
+  containerRuntimeTargetArtifactPath =
+    hostPath: containerName: runtimeTargetName:
+    let
+      runtimeTargetSegment = validPathSegment "runtime target name" runtimeTargetName;
+    in
+    "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+
   enterpriseEntries = lib.concatMap (
     enterpriseName:
     let
@@ -198,6 +218,76 @@ let
               hostScopedRuntimeTargets;
           hostNames = sortedAttrNames runtimeTargetsByHost;
 
+          hostSummaries = builtins.listToAttrs (
+            map (
+              hostName:
+              let
+                hostSegment = validPathSegment "host name" hostName;
+                hostPath = "${sitePath}/${hostSegment}";
+                hostRuntimeTargets = hostScopedRuntimeTargetsByHost.${hostName} or { };
+                hostRuntimeTargetNames = sortedAttrNames hostRuntimeTargets;
+                hostRuntimeTargetArtifactPaths = map (
+                  runtimeTargetName: hostRuntimeTargetArtifactPath hostPath runtimeTargetName
+                ) hostRuntimeTargetNames;
+                hostAllRuntimeTargets = runtimeTargetsByHost.${hostName};
+                containerRuntimeTargets =
+                  groupRuntimeTargetsByContainer enterpriseName siteName
+                    hostAllRuntimeTargets;
+                containerNames = sortedAttrNames containerRuntimeTargets;
+
+                containerSummaries = builtins.listToAttrs (
+                  map (
+                    containerName:
+                    let
+                      containerRuntimeTargetMap = containerRuntimeTargets.${containerName};
+                      containerRuntimeTargetNames = sortedAttrNames containerRuntimeTargetMap;
+                      containerRuntimeTargetArtifactPaths = map (
+                        runtimeTargetName: containerRuntimeTargetArtifactPath hostPath containerName runtimeTargetName
+                      ) containerRuntimeTargetNames;
+                    in
+                    {
+                      name = containerName;
+                      value = {
+                        artifactPath = containerArtifactPath hostPath containerName;
+                        runtimeTargetNames = containerRuntimeTargetNames;
+                        runtimeTargetArtifactPaths = containerRuntimeTargetArtifactPaths;
+                      };
+                    }
+                  ) containerNames
+                );
+
+                allRuntimeTargetNames = lib.unique (
+                  hostRuntimeTargetNames
+                  ++ lib.concatMap (
+                    containerName: containerSummaries.${containerName}.runtimeTargetNames
+                  ) containerNames
+                );
+
+                allRuntimeTargetArtifactPaths = lib.unique (
+                  hostRuntimeTargetArtifactPaths
+                  ++ lib.concatMap (
+                    containerName: containerSummaries.${containerName}.runtimeTargetArtifactPaths
+                  ) containerNames
+                );
+              in
+              {
+                name = hostName;
+                value = {
+                  artifactPath = hostArtifactPath hostPath;
+                  runtimeTargetNames = hostRuntimeTargetNames;
+                  runtimeTargetArtifactPaths = hostRuntimeTargetArtifactPaths;
+                  containerNames = containerNames;
+                  containerArtifactPaths = map (
+                    containerName: containerArtifactPath hostPath containerName
+                  ) containerNames;
+                  containerRuntimeTargets = containerSummaries;
+                  allRuntimeTargetNames = allRuntimeTargetNames;
+                  allRuntimeTargetArtifactPaths = allRuntimeTargetArtifactPaths;
+                };
+              }
+            ) hostNames
+          );
+
           hostEntries = lib.concatMap (
             hostName:
             let
@@ -211,17 +301,11 @@ let
                   hostAllRuntimeTargets;
               containerNames = sortedAttrNames containerRuntimeTargets;
 
-              runtimeTargetEntries = lib.concatMap (
-                runtimeTargetName:
-                let
-                  runtimeTargetSegment = validPathSegment "runtime target name" runtimeTargetName;
-                in
-                [
-                  (jsonFileEntry "${hostPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json"
-                    hostRuntimeTargets.${runtimeTargetName}
-                  )
-                ]
-              ) hostRuntimeTargetNames;
+              runtimeTargetEntries = lib.concatMap (runtimeTargetName: [
+                (jsonFileEntry (hostRuntimeTargetArtifactPath hostPath runtimeTargetName)
+                  hostRuntimeTargets.${runtimeTargetName}
+                )
+              ]) hostRuntimeTargetNames;
 
               containerEntries = lib.concatMap (
                 containerName:
@@ -235,20 +319,18 @@ let
                     site = siteName;
                     host = hostName;
                     container = containerName;
+                    artifactPath = containerArtifactPath hostPath containerName;
                     runtimeTargetNames = containerRuntimeTargetNames;
+                    runtimeTargetArtifactPaths = map (
+                      runtimeTargetName: containerRuntimeTargetArtifactPath hostPath containerName runtimeTargetName
+                    ) containerRuntimeTargetNames;
                   };
 
-                  containerRuntimeTargetEntries = lib.concatMap (
-                    runtimeTargetName:
-                    let
-                      runtimeTargetSegment = validPathSegment "runtime target name" runtimeTargetName;
-                    in
-                    [
-                      (jsonFileEntry "${containerPath}/runtime-targets/${runtimeTargetSegment}/runtime-target.json"
-                        containerRuntimeTargetMap.${runtimeTargetName}
-                      )
-                    ]
-                  ) containerRuntimeTargetNames;
+                  containerRuntimeTargetEntries = lib.concatMap (runtimeTargetName: [
+                    (jsonFileEntry (containerRuntimeTargetArtifactPath hostPath containerName
+                      runtimeTargetName
+                    ) containerRuntimeTargetMap.${runtimeTargetName})
+                  ]) containerRuntimeTargetNames;
                 in
                 [
                   (jsonFileEntry "${containerPath}/container.json" containerSummary)
@@ -260,8 +342,14 @@ let
                 enterprise = enterpriseName;
                 site = siteName;
                 host = hostName;
+                artifactPath = hostArtifactPath hostPath;
                 runtimeTargetNames = hostRuntimeTargetNames;
+                runtimeTargetArtifactPaths = hostSummaries.${hostName}.runtimeTargetArtifactPaths;
                 containerNames = containerNames;
+                containerArtifactPaths = hostSummaries.${hostName}.containerArtifactPaths;
+                containerRuntimeTargets = hostSummaries.${hostName}.containerRuntimeTargets;
+                allRuntimeTargetNames = hostSummaries.${hostName}.allRuntimeTargetNames;
+                allRuntimeTargetArtifactPaths = hostSummaries.${hostName}.allRuntimeTargetArtifactPaths;
               };
             in
             [
@@ -274,7 +362,16 @@ let
           siteSummary = {
             enterprise = enterpriseName;
             site = siteName;
+            artifactPath = siteArtifactPath sitePath;
+            siteDataArtifactPath = siteDataArtifactPath sitePath;
             hostNames = hostNames;
+            hostArtifactPaths = map (
+              hostName:
+              let
+                hostSegment = validPathSegment "host name" hostName;
+              in
+              hostArtifactPath "${sitePath}/${hostSegment}"
+            ) hostNames;
             runtimeTargetNames = sortedAttrNames runtimeTargets;
           };
         in
