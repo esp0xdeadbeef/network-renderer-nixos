@@ -43,6 +43,12 @@ let
       normalizeCommunicationContract
       ;
   };
+  mapKeaRuntimeTargetServiceModel = import ../map/kea-runtime-target-service-model.nix {
+    inherit lib;
+  };
+  mapRadvdRuntimeTargetServiceModel = import ../map/radvd-runtime-target-service-model.nix {
+    inherit lib;
+  };
 
   selectFirewallRuntimeTargetModel = import ../policy/select-firewall-runtime-target-model.nix {
     inherit
@@ -50,6 +56,24 @@ let
       lookupSiteServiceInputs
       mapFirewallForwardingRuntimeTargetModel
       mapFirewallPolicyRuntimeTargetModel
+      ;
+  };
+
+  selectContainerRuntimeTargetServiceModels =
+    import ../policy/select-container-runtime-target-service-models.nix
+      {
+        inherit
+          lib
+          mapKeaRuntimeTargetServiceModel
+          mapRadvdRuntimeTargetServiceModel
+          ;
+      };
+
+  mapAccessServiceArtifactTree = import ../map/access-service-artifact-tree.nix {
+    inherit
+      lib
+      mapRuntimeTargetArtifactContexts
+      selectContainerRuntimeTargetServiceModels
       ;
   };
 
@@ -111,6 +135,7 @@ in
       mapL2ArtifactTree
       mapRuntimeTargetArtifactContexts
       selectFirewallRuntimeTargetModel
+      mapAccessServiceArtifactTree
       renderArtifactEtc
       renderNftablesRuntimeTarget
       ;

@@ -6,6 +6,7 @@
   mapL2ArtifactTree ? null,
   mapRuntimeTargetArtifactContexts ? null,
   selectFirewallRuntimeTargetModel ? null,
+  mapAccessServiceArtifactTree ? null,
   renderArtifactEtc ? null,
   renderNftablesRuntimeTarget ? null,
   writeControlPlaneJSONFromPaths ? null,
@@ -72,6 +73,37 @@ let
           mapFirewallForwardingRuntimeTargetModel
           mapFirewallPolicyRuntimeTargetModel
           ;
+      };
+
+  mapAccessServiceArtifactTreeResolved =
+    if mapAccessServiceArtifactTree != null then
+      mapAccessServiceArtifactTree
+    else
+      let
+        mapKeaRuntimeTargetServiceModel = import ../map/kea-runtime-target-service-model.nix {
+          inherit lib;
+        };
+
+        mapRadvdRuntimeTargetServiceModel = import ../map/radvd-runtime-target-service-model.nix {
+          inherit lib;
+        };
+
+        selectContainerRuntimeTargetServiceModels =
+          import ../policy/select-container-runtime-target-service-models.nix
+            {
+              inherit
+                lib
+                mapKeaRuntimeTargetServiceModel
+                mapRadvdRuntimeTargetServiceModel
+                ;
+            };
+      in
+      import ../map/access-service-artifact-tree.nix {
+        inherit
+          lib
+          selectContainerRuntimeTargetServiceModels
+          ;
+        mapRuntimeTargetArtifactContexts = mapRuntimeTargetArtifactContextsResolved;
       };
 
   renderArtifactEtcResolved =
@@ -252,7 +284,11 @@ let
         inherit normalizedModel;
       };
 
-      mergedFiles = baseFiles // l2Files // firewallFiles;
+      accessServiceFiles = mapAccessServiceArtifactTreeResolved {
+        inherit normalizedModel;
+      };
+
+      mergedFiles = baseFiles // l2Files // firewallFiles // accessServiceFiles;
       mergedPaths = builtins.attrNames mergedFiles;
 
       _uniqueMergedPaths =
