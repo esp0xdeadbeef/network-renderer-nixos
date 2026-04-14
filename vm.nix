@@ -22,25 +22,41 @@ let
       ;
   };
 
-  mapHostModel = import ./src/map/host-model.nix { inherit lib; };
-  mapBridgeModel = import ./src/map/bridge-model.nix { inherit lib; };
-  mapContainerModel = import ./src/map/container-model.nix { inherit lib; };
+  mapVmContainerSimulatedModel = import ./src/map/vm-container-simulated-model.nix { inherit lib; };
 
-  renderHostNetwork = import ./src/render/networkd-host.nix { inherit lib; };
-  renderBridgeNetwork = import ./src/render/networkd-bridges.nix { inherit lib; };
   renderContainers = import ./src/render/nixos-containers.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  mergeAttrsUnique =
+  json = value: builtins.toJSON value;
+
+  mergeAttrsDedupe =
     label: left: right:
     let
-      duplicates = lib.filter (name: builtins.hasAttr name right) (sortedAttrNames left);
+      names = lib.unique (sortedAttrNames left ++ sortedAttrNames right);
     in
-    if duplicates == [ ] then
-      left // right
-    else
-      throw "vm.nix: duplicate ${label}: ${builtins.toJSON duplicates}";
+    builtins.listToAttrs (
+      map (
+        name:
+        if !(builtins.hasAttr name left) then
+          {
+            inherit name;
+            value = right.${name};
+          }
+        else if !(builtins.hasAttr name right) then
+          {
+            inherit name;
+            value = left.${name};
+          }
+        else if json left.${name} == json right.${name} then
+          {
+            inherit name;
+            value = left.${name};
+          }
+        else
+          throw "vm.nix: conflicting ${label} for '${name}'"
+      ) names
+    );
 
   primaryInventoryPath = input.inventoryPath;
 
@@ -92,121 +108,50 @@ let
     else
       primaryInventoryPath;
 
-  resolvedInventoryRaw =
-    if effectiveInventoryPath == null then { } else importValue effectiveInventoryPath;
-
-  resolvedInventory = if builtins.isAttrs resolvedInventoryRaw then resolvedInventoryRaw else { };
-
-  inventoryDeploymentHosts =
-    if
-      resolvedInventory ? deployment
-      && builtins.isAttrs resolvedInventory.deployment
-      && resolvedInventory.deployment ? hosts
-      && builtins.isAttrs resolvedInventory.deployment.hosts
-    then
-      resolvedInventory.deployment.hosts
-    else
-      { };
-
-  controlPlaneOut = renderer.renderer.buildControlPlaneFromPaths {
+  hostControlPlaneOut = renderer.renderer.buildControlPlaneFromPaths {
     intentPath = input.intentPath;
     inventoryPath = effectiveInventoryPath;
   };
 
-  normalizedModel = normalizeControlPlane controlPlaneOut;
+  simulatedControlPlaneOut = renderer.renderer.buildControlPlaneFromPaths {
+    intentPath = input.intentPath;
+    inventoryPath = primaryInventoryPath;
+  };
 
-  normalizedDeploymentHosts =
-    if normalizedModel ? deploymentHosts && builtins.isAttrs normalizedModel.deploymentHosts then
-      normalizedModel.deploymentHosts
-    else
-      { };
+  simulatedNormalizedModel = normalizeControlPlane simulatedControlPlaneOut;
 
-  deploymentHostDef =
-    if builtins.hasAttr boxName inventoryDeploymentHosts then
-      inventoryDeploymentHosts.${boxName}
-    else if builtins.hasAttr boxName normalizedDeploymentHosts then
-      normalizedDeploymentHosts.${boxName}
-    else
-      throw "vm.nix: deployment host '${boxName}' is missing from inventory and normalized control-plane output";
+  hostRendered = renderer.host.buildFromControlPlane {
+    controlPlaneOut = hostControlPlaneOut;
+    inherit boxName;
+  };
 
-  inventoryRenderHosts =
-    if
-      resolvedInventory ? render
-      && builtins.isAttrs resolvedInventory.render
-      && resolvedInventory.render ? hosts
-      && builtins.isAttrs resolvedInventory.render.hosts
-    then
-      resolvedInventory.render.hosts
-    else
-      { };
+  bridgeRendered = renderer.bridges.buildFromControlPlane {
+    controlPlaneOut = hostControlPlaneOut;
+    inherit boxName;
+  };
 
-  normalizedRenderHosts =
-    if normalizedModel ? renderHosts && builtins.isAttrs normalizedModel.renderHosts then
-      normalizedModel.renderHosts
-    else
-      { };
+  renderedContainers = renderContainers (mapVmContainerSimulatedModel {
+    normalizedModel = simulatedNormalizedModel;
+    deploymentHostName = boxName;
+    defaults = {
+      autoStart = true;
+      privateNetwork = true;
+    };
+  });
 
-  renderHosts = if inventoryRenderHosts != { } then inventoryRenderHosts else normalizedRenderHosts;
+  renderedNetdevs = mergeAttrsDedupe "systemd.network.netdevs" (hostRendered.netdevs or { }) (
+    bridgeRendered.netdevs or { }
+  );
 
-  selectedRenderHostNames =
-    let
-      renderHostNames = sortedAttrNames renderHosts;
-      selectedNames = lib.filter (
-        renderHostName:
-        let
-          cfg = renderHosts.${renderHostName};
-          deploymentTarget =
-            if builtins.isAttrs cfg && cfg ? deploymentHost && builtins.isString cfg.deploymentHost then
-              cfg.deploymentHost
-            else
-              renderHostName;
-        in
-        deploymentTarget == boxName
-      ) renderHostNames;
-    in
-    if selectedNames == [ ] then [ boxName ] else selectedNames;
+  renderedNetworks = mergeAttrsDedupe "systemd.network.networks" (hostRendered.networks or { }) (
+    bridgeRendered.networks or { }
+  );
 
   artifactModule = renderer.artifacts.controlPlaneSplitFromControlPlane {
-    inherit controlPlaneOut;
+    controlPlaneOut = simulatedControlPlaneOut;
     fileName = "control-plane-model.json";
     directory = "network-artifacts";
   };
-
-  renderedHost = renderHostNetwork (mapHostModel {
-    inherit boxName deploymentHostDef;
-  });
-
-  renderedBridges = renderBridgeNetwork (mapBridgeModel {
-    inherit boxName deploymentHostDef;
-  });
-
-  renderedContainersByRenderHost = builtins.listToAttrs (
-    map (renderHostName: {
-      name = renderHostName;
-      value = renderContainers (mapContainerModel {
-        model = normalizedModel;
-        boxName = renderHostName;
-        inherit deploymentHostDef;
-        defaults = {
-          autoStart = true;
-          privateNetwork = true;
-        };
-      });
-    }) selectedRenderHostNames
-  );
-
-  renderedContainers = lib.foldl' (
-    acc: renderHostName:
-    mergeAttrsUnique "containers" acc renderedContainersByRenderHost.${renderHostName}
-  ) { } selectedRenderHostNames;
-
-  renderedNetdevs = mergeAttrsUnique "systemd.network.netdevs" (renderedHost.netdevs or { }) (
-    renderedBridges.netdevs or { }
-  );
-
-  renderedNetworks = mergeAttrsUnique "systemd.network.networks" (renderedHost.networks or { }) (
-    renderedBridges.networks or { }
-  );
 in
 {
   imports = [ artifactModule ];
