@@ -3,11 +3,14 @@ hostModel:
 let
   uplinkNames = builtins.attrNames hostModel.uplinks;
 
+  keepaliveNameFor = bridgeName: "ka-${bridgeName}";
+
   netdevs = builtins.listToAttrs (
     lib.concatMap (
       uplinkName:
       let
         uplink = hostModel.uplinks.${uplinkName};
+        keepaliveName = keepaliveNameFor uplink.bridgeName;
       in
       if uplink.kind == "vlan-bridge" then
         [
@@ -32,6 +35,15 @@ let
               };
             };
           }
+          {
+            name = keepaliveName;
+            value = {
+              netdevConfig = {
+                Kind = "dummy";
+                Name = keepaliveName;
+              };
+            };
+          }
         ]
       else
         [
@@ -41,6 +53,15 @@ let
               netdevConfig = {
                 Kind = "bridge";
                 Name = uplink.bridgeName;
+              };
+            };
+          }
+          {
+            name = keepaliveName;
+            value = {
+              netdevConfig = {
+                Kind = "dummy";
+                Name = keepaliveName;
               };
             };
           }
@@ -71,6 +92,30 @@ let
     ) uplinkNames
   );
 
+  keepaliveNetworks = builtins.listToAttrs (
+    map (
+      uplinkName:
+      let
+        uplink = hostModel.uplinks.${uplinkName};
+        keepaliveName = keepaliveNameFor uplink.bridgeName;
+      in
+      {
+        name = "15-${keepaliveName}";
+        value = {
+          matchConfig.Name = keepaliveName;
+          networkConfig = {
+            Bridge = uplink.bridgeName;
+            ConfigureWithoutCarrier = true;
+          };
+          linkConfig = {
+            ActivationPolicy = "always-up";
+            RequiredForOnline = "no";
+          };
+        };
+      }
+    ) uplinkNames
+  );
+
   childNetworks = builtins.listToAttrs (
     lib.concatMap (
       uplinkName:
@@ -90,7 +135,13 @@ let
             name = "30-${uplink.bridgeName}";
             value = {
               matchConfig.Name = uplink.bridgeName;
-              networkConfig = uplink.networkOptions;
+              networkConfig = uplink.networkOptions // {
+                ConfigureWithoutCarrier = true;
+              };
+              linkConfig = {
+                ActivationPolicy = "always-up";
+                RequiredForOnline = "no";
+              };
             };
           }
         ]
@@ -100,14 +151,20 @@ let
             name = "20-${uplink.bridgeName}";
             value = {
               matchConfig.Name = uplink.bridgeName;
-              networkConfig = uplink.networkOptions;
+              networkConfig = uplink.networkOptions // {
+                ConfigureWithoutCarrier = true;
+              };
+              linkConfig = {
+                ActivationPolicy = "always-up";
+                RequiredForOnline = "no";
+              };
             };
           }
         ]
     ) uplinkNames
   );
 
-  renderedNetworks = parentNetworks // childNetworks;
+  renderedNetworks = parentNetworks // keepaliveNetworks // childNetworks;
 in
 {
   hostName = hostModel.hostName;

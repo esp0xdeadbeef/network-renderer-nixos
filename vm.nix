@@ -24,7 +24,13 @@ let
 
   mapVmContainerSimulatedModel = import ./src/map/vm-container-simulated-model.nix { inherit lib; };
 
+  mapVmSimulatedHostBridgeModel = import ./src/map/vm-simulated-host-bridge-model.nix {
+    inherit lib;
+  };
+
   renderContainers = import ./src/render/nixos-containers.nix { inherit lib; };
+
+  renderSimulatedBridges = import ./src/render/networkd-simulated-bridges.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
@@ -130,22 +136,33 @@ let
     inherit boxName;
   };
 
-  renderedContainers = renderContainers (mapVmContainerSimulatedModel {
+  simulatedContainerModel = mapVmContainerSimulatedModel {
     normalizedModel = simulatedNormalizedModel;
     deploymentHostName = boxName;
     defaults = {
       autoStart = true;
       privateNetwork = true;
     };
+  };
+
+  simulatedBridgeRendered = renderSimulatedBridges (mapVmSimulatedHostBridgeModel {
+    containerModel = simulatedContainerModel;
+    deploymentHostName = boxName;
   });
 
-  renderedNetdevs = mergeAttrsDedupe "systemd.network.netdevs" (hostRendered.netdevs or { }) (
-    bridgeRendered.netdevs or { }
-  );
+  renderedContainers = renderContainers simulatedContainerModel;
 
-  renderedNetworks = mergeAttrsDedupe "systemd.network.networks" (hostRendered.networks or { }) (
-    bridgeRendered.networks or { }
-  );
+  renderedNetdevs = mergeAttrsDedupe "systemd.network.netdevs" (mergeAttrsDedupe
+    "systemd.network.netdevs"
+    (hostRendered.netdevs or { })
+    (bridgeRendered.netdevs or { })
+  ) (simulatedBridgeRendered.netdevs or { });
+
+  renderedNetworks = mergeAttrsDedupe "systemd.network.networks" (mergeAttrsDedupe
+    "systemd.network.networks"
+    (hostRendered.networks or { })
+    (bridgeRendered.networks or { })
+  ) (simulatedBridgeRendered.networks or { });
 
   artifactModule = renderer.artifacts.controlPlaneSplitFromControlPlane {
     controlPlaneOut = simulatedControlPlaneOut;
