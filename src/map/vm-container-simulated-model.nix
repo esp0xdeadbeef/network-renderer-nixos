@@ -126,6 +126,14 @@ let
       && interface.hostUplink.bridge != ""
     then
       interface.hostUplink.bridge
+    else if
+      interface ? attach
+      && builtins.isAttrs interface.attach
+      && interface.attach ? bridge
+      && builtins.isString interface.attach.bridge
+      && interface.attach.bridge != ""
+    then
+      interface.attach.bridge
     else
       null;
 
