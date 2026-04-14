@@ -22,6 +22,15 @@ let
 
   hashFragment = value: builtins.substring 0 11 (builtins.hashString "sha256" value);
 
+  normalizeOptionalAddress =
+    value:
+    if value == null then
+      null
+    else if builtins.isString value && value != "" then
+      value
+    else
+      null;
+
   hostVethNameFor =
     {
       deploymentHostName,
@@ -98,6 +107,8 @@ builtins.seq _uniqueRenderedHostVethNames (
         interfaceName:
         let
           interface = container.interfaces.${interfaceName};
+          rawInterface =
+            if interface ? interface && builtins.isAttrs interface.interface then interface.interface else { };
           hostVethName = hostVethNameFor {
             deploymentHostName =
               if container ? deploymentHostName && builtins.isString container.deploymentHostName then
@@ -117,6 +128,8 @@ builtins.seq _uniqueRenderedHostVethNames (
           hostVethName = hostVethName;
           containerInterfaceName = interface.containerInterfaceName;
           hostBridge = interface.hostBridge;
+          address4 = normalizeOptionalAddress (rawInterface.addr4 or null);
+          address6 = normalizeOptionalAddress (rawInterface.addr6 or null);
         }
       ) bridgeInterfaceNames;
 
@@ -124,21 +137,15 @@ builtins.seq _uniqueRenderedHostVethNames (
         map (entry: entry.hostVethName) renderedInterfaceEntries
       );
 
+      _uniqueContainerInterfaceNames = ensureUniqueNames "container '${containerName}' interface names" (
+        map (entry: entry.containerInterfaceName) renderedInterfaceEntries
+      );
+
       renderedExtraVeths = builtins.listToAttrs (
         map (entry: {
           name = entry.hostVethName;
           value = {
             hostBridge = entry.hostBridge;
-          };
-        }) renderedInterfaceEntries
-      );
-
-      renderedInterfaceLinks = builtins.listToAttrs (
-        map (entry: {
-          name = "10-${entry.hostVethName}";
-          value = {
-            matchConfig.OriginalName = entry.hostVethName;
-            linkConfig.Name = entry.containerInterfaceName;
           };
         }) renderedInterfaceEntries
       );
@@ -170,6 +177,25 @@ builtins.seq _uniqueRenderedHostVethNames (
 
       containerImports = containerTemplateImports ++ containerConfigImports;
 
+      renameServiceScript = lib.concatStringsSep "\n" (
+        map (
+          entry:
+          ''
+            if ip link show dev "${entry.hostVethName}" >/dev/null 2>&1; then
+              ip link set dev "${entry.hostVethName}" down || true
+              ip link set dev "${entry.hostVethName}" name "${entry.containerInterfaceName}"
+            fi
+            ip link set dev "${entry.containerInterfaceName}" up
+          ''
+          + lib.optionalString (entry.address4 != null) ''
+            ip addr replace ${entry.address4} dev "${entry.containerInterfaceName}"
+          ''
+          + lib.optionalString (entry.address6 != null) ''
+            ip -6 addr replace ${entry.address6} dev "${entry.containerInterfaceName}"
+          ''
+        ) renderedInterfaceEntries
+      );
+
       passthrough = builtins.removeAttrs container [
         "containerName"
         "nodeName"
@@ -184,44 +210,59 @@ builtins.seq _uniqueRenderedHostVethNames (
       ];
     in
     builtins.seq _uniqueContainerHostVethNames (
-      passthrough
-      // {
-        autoStart =
-          if container ? autoStart && builtins.isBool container.autoStart then container.autoStart else false;
+      builtins.seq _uniqueContainerInterfaceNames (
+        passthrough
+        // {
+          autoStart =
+            if container ? autoStart && builtins.isBool container.autoStart then container.autoStart else false;
 
-        privateNetwork =
-          if container ? privateNetwork && builtins.isBool container.privateNetwork then
-            container.privateNetwork
-          else
-            true;
+          privateNetwork =
+            if container ? privateNetwork && builtins.isBool container.privateNetwork then
+              container.privateNetwork
+            else
+              true;
 
-        extraVeths = mergedExtraVeths;
+          extraVeths = mergedExtraVeths;
 
-        config =
-          { ... }:
-          {
-            imports = containerImports;
+          config =
+            { pkgs, ... }:
+            {
+              imports = containerImports;
 
-            networking.hostName =
-              if container ? logicalName && builtins.isString container.logicalName then
-                container.logicalName
-              else
-                containerName;
+              networking.hostName =
+                if container ? logicalName && builtins.isString container.logicalName then
+                  container.logicalName
+                else
+                  containerName;
 
-            networking.useNetworkd = true;
-            networking.useHostResolvConf = false;
-            services.resolved.enable = false;
+              networking.useNetworkd = true;
+              networking.useHostResolvConf = false;
+              services.resolved.enable = false;
 
-            systemd.network.enable = true;
-            systemd.network.links = renderedInterfaceLinks;
+              systemd.network.enable = true;
 
-            system.stateVersion =
-              if container ? systemStateVersion && builtins.isString container.systemStateVersion then
-                container.systemStateVersion
-              else
-                "24.11";
-          };
-      }
+              systemd.services.rename-container-interfaces = lib.mkIf (renderedInterfaceEntries != [ ]) {
+                wantedBy = [ "network-pre.target" ];
+                before = [
+                  "network-pre.target"
+                  "systemd-networkd.service"
+                ];
+                serviceConfig = {
+                  Type = "oneshot";
+                  RemainAfterExit = true;
+                };
+                path = [ pkgs.iproute2 ];
+                script = renameServiceScript;
+              };
+
+              system.stateVersion =
+                if container ? systemStateVersion && builtins.isString container.systemStateVersion then
+                  container.systemStateVersion
+                else
+                  "24.11";
+            };
+        }
+      )
     )
   ) containerModel.containers
 )
