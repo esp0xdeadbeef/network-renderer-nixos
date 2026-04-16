@@ -47,6 +47,19 @@ let
     else
       null;
 
+  enterpriseNameForNode =
+    node:
+    if
+      builtins.isAttrs node
+      && node ? logicalNode
+      && builtins.isAttrs node.logicalNode
+      && node.logicalNode ? enterprise
+      && builtins.isString node.logicalNode.enterprise
+    then
+      node.logicalNode.enterprise
+    else
+      null;
+
   runtimeRoleForNode =
     node:
     if
@@ -103,6 +116,147 @@ let
     else
       portName;
 
+  runtimeTargetsForNode =
+    nodeName: node:
+    let
+      enterpriseName = enterpriseNameForNode node;
+      siteName = siteNameForNode node;
+      logicalName = logicalNameForNode nodeName node;
+
+      siteRoot =
+        if
+          enterpriseName != null
+          && siteName != null
+          && model ? siteData
+          && builtins.isAttrs model.siteData
+          && builtins.hasAttr enterpriseName model.siteData
+          && builtins.isAttrs model.siteData.${enterpriseName}
+          && builtins.hasAttr siteName model.siteData.${enterpriseName}
+          && builtins.isAttrs model.siteData.${enterpriseName}.${siteName}
+          && model.siteData.${enterpriseName}.${siteName} ? runtimeTargets
+          && builtins.isAttrs model.siteData.${enterpriseName}.${siteName}.runtimeTargets
+        then
+          model.siteData.${enterpriseName}.${siteName}.runtimeTargets
+        else
+          { };
+
+      matchingNames = lib.filter (
+        runtimeTargetName:
+        let
+          runtimeTarget = siteRoot.${runtimeTargetName};
+
+          placementHost =
+            if
+              builtins.isAttrs runtimeTarget
+              && runtimeTarget ? placement
+              && builtins.isAttrs runtimeTarget.placement
+              && runtimeTarget.placement ? host
+              && builtins.isString runtimeTarget.placement.host
+            then
+              runtimeTarget.placement.host
+            else
+              null;
+
+          targetLogicalName =
+            if
+              builtins.isAttrs runtimeTarget
+              && runtimeTarget ? logicalNode
+              && builtins.isAttrs runtimeTarget.logicalNode
+              && runtimeTarget.logicalNode ? name
+              && builtins.isString runtimeTarget.logicalNode.name
+            then
+              runtimeTarget.logicalNode.name
+            else
+              null;
+        in
+        placementHost == boxName && targetLogicalName == logicalName
+      ) (sortedAttrNames siteRoot);
+    in
+    if builtins.length matchingNames <= 1 then
+      map (name: siteRoot.${name}) matchingNames
+    else
+      throw "network-renderer-nixos: deployment host '${boxName}' resolves logical node '${logicalName}' to multiple runtime targets";
+
+  effectiveInterfacesForNode =
+    nodeName: node:
+    let
+      runtimeTargets = runtimeTargetsForNode nodeName node;
+    in
+    if runtimeTargets == [ ] then
+      null
+    else
+      let
+        runtimeTarget = builtins.head runtimeTargets;
+      in
+      if
+        builtins.isAttrs runtimeTarget
+        && runtimeTarget ? effectiveRuntimeRealization
+        && builtins.isAttrs runtimeTarget.effectiveRuntimeRealization
+        && runtimeTarget.effectiveRuntimeRealization ? interfaces
+        && builtins.isAttrs runtimeTarget.effectiveRuntimeRealization.interfaces
+      then
+        runtimeTarget.effectiveRuntimeRealization.interfaces
+      else
+        null;
+
+  interfaceDataForPort =
+    nodeName: node: portName: port:
+    let
+      effectiveInterfaces = effectiveInterfacesForNode nodeName node;
+
+      effectiveInterface =
+        if effectiveInterfaces != null && builtins.hasAttr portName effectiveInterfaces then
+          effectiveInterfaces.${portName}
+        else
+          null;
+
+      containerInterfaceName =
+        if
+          effectiveInterface != null
+          && builtins.isAttrs effectiveInterface
+          && effectiveInterface ? runtimeIfName
+          && builtins.isString effectiveInterface.runtimeIfName
+          && effectiveInterface.runtimeIfName != ""
+        then
+          effectiveInterface.runtimeIfName
+        else if
+          effectiveInterface != null
+          && builtins.isAttrs effectiveInterface
+          && effectiveInterface ? renderedIfName
+          && builtins.isString effectiveInterface.renderedIfName
+          && effectiveInterface.renderedIfName != ""
+        then
+          effectiveInterface.renderedIfName
+        else if
+          effectiveInterface != null
+          && builtins.isAttrs effectiveInterface
+          && effectiveInterface ? containerInterfaceName
+          && builtins.isString effectiveInterface.containerInterfaceName
+          && effectiveInterface.containerInterfaceName != ""
+        then
+          effectiveInterface.containerInterfaceName
+        else
+          containerInterfaceNameForPort portName port;
+    in
+    {
+      hostBridge = hostBridgeForPort node port;
+      inherit containerInterfaceName;
+    }
+    // lib.optionalAttrs (effectiveInterface != null && builtins.isAttrs effectiveInterface) {
+      interface = effectiveInterface;
+    }
+    //
+      lib.optionalAttrs
+        (
+          effectiveInterface == null
+          && builtins.isAttrs port
+          && port ? interface
+          && builtins.isAttrs port.interface
+        )
+        {
+          interface = port.interface;
+        };
+
   isDisabled =
     containerName: nodeName:
     builtins.isAttrs disabled
@@ -120,18 +274,7 @@ let
       deploymentHostName = node.host or null;
       ports =
         if builtins.isAttrs node && node ? ports && builtins.isAttrs node.ports then node.ports else { };
-      interfaces = lib.mapAttrs (
-        portName: port:
-        {
-          hostBridge = hostBridgeForPort node port;
-          containerInterfaceName = containerInterfaceNameForPort portName port;
-        }
-        //
-          lib.optionalAttrs (builtins.isAttrs port && port ? interface && builtins.isAttrs port.interface)
-            {
-              interface = port.interface;
-            }
-      ) ports;
+      interfaces = lib.mapAttrs (portName: port: interfaceDataForPort nodeName node portName port) ports;
       containerName = logicalName;
       runtimeRole = runtimeRoleForNode node;
     in
