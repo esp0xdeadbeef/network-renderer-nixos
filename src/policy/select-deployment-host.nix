@@ -4,76 +4,100 @@
   boxName,
 }:
 let
-  ensureAttrs =
-    name: value:
-    if builtins.isAttrs value then
-      value
-    else
-      throw "network-renderer-nixos: expected ${name} to be an attribute set";
-
-  ensureString =
-    name: value:
-    if builtins.isString value && value != "" then
-      value
-    else
-      throw "network-renderer-nixos: expected ${name} to be a non-empty string";
-
   deploymentHosts =
-    if model ? deploymentHosts then ensureAttrs "model.deploymentHosts" model.deploymentHosts else { };
+    if model ? deploymentHosts && builtins.isAttrs model.deploymentHosts then
+      model.deploymentHosts
+    else
+      { };
 
   renderHosts =
-    if model ? renderHosts then ensureAttrs "model.renderHosts" model.renderHosts else { };
+    if model ? renderHosts && builtins.isAttrs model.renderHosts then model.renderHosts else { };
+
+  renderHostDef = if builtins.hasAttr boxName renderHosts then renderHosts.${boxName} else null;
 
   deploymentHostNameFromRenderHost =
-    renderHostName: renderHostDef:
-    let
-      renderHost = ensureAttrs "render host '${renderHostName}'" renderHostDef;
-    in
-    if
-      renderHost ? deploymentHost
-      && builtins.isString renderHost.deploymentHost
-      && renderHost.deploymentHost != ""
-    then
-      renderHost.deploymentHost
+    if renderHostDef == null then
+      null
     else if
-      renderHost ? deploymentHostName
-      && builtins.isString renderHost.deploymentHostName
-      && renderHost.deploymentHostName != ""
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? deploymentHost
+      && builtins.isString renderHostDef.deploymentHost
+      && renderHostDef.deploymentHost != ""
     then
-      renderHost.deploymentHostName
+      renderHostDef.deploymentHost
     else if
-      renderHost ? deploymentHost
-      && builtins.isAttrs renderHost.deploymentHost
-      && renderHost.deploymentHost ? name
-      && builtins.isString renderHost.deploymentHost.name
-      && renderHost.deploymentHost.name != ""
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? deploymentHostName
+      && builtins.isString renderHostDef.deploymentHostName
+      && renderHostDef.deploymentHostName != ""
     then
-      renderHost.deploymentHost.name
+      renderHostDef.deploymentHostName
+    else if
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? deploymentHostDef
+      && builtins.isAttrs renderHostDef.deploymentHostDef
+      && renderHostDef.deploymentHostDef ? name
+      && builtins.isString renderHostDef.deploymentHostDef.name
+      && renderHostDef.deploymentHostDef.name != ""
+    then
+      renderHostDef.deploymentHostDef.name
+    else if
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? deploymentHostRef
+      && builtins.isAttrs renderHostDef.deploymentHostRef
+      && renderHostDef.deploymentHostRef ? name
+      && builtins.isString renderHostDef.deploymentHostRef.name
+      && renderHostDef.deploymentHostRef.name != ""
+    then
+      renderHostDef.deploymentHostRef.name
+    else if
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? deploymentHostRef
+      && builtins.isString renderHostDef.deploymentHostRef
+      && renderHostDef.deploymentHostRef != ""
+    then
+      renderHostDef.deploymentHostRef
+    else if
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? deploymentHostId
+      && builtins.isString renderHostDef.deploymentHostId
+      && renderHostDef.deploymentHostId != ""
+    then
+      renderHostDef.deploymentHostId
+    else if
+      builtins.isAttrs renderHostDef
+      && renderHostDef ? host
+      && builtins.isString renderHostDef.host
+      && renderHostDef.host != ""
+      && builtins.hasAttr renderHostDef.host deploymentHosts
+    then
+      renderHostDef.host
     else
-      throw "network-renderer-nixos: render host '${renderHostName}' is missing explicit deploymentHost/deploymentHostName";
+      null;
 
   resolvedDeploymentHostName =
-    if builtins.hasAttr boxName deploymentHosts then
-      boxName
-    else if builtins.hasAttr boxName renderHosts then
-      deploymentHostNameFromRenderHost boxName renderHosts.${boxName}
-    else
-      throw ''
-        network-renderer-nixos: deployment host or render host '${boxName}' is missing from control-plane output
-        knownDeploymentHosts=${builtins.toJSON (lib.sort builtins.lessThan (builtins.attrNames deploymentHosts))}
-        knownRenderHosts=${builtins.toJSON (lib.sort builtins.lessThan (builtins.attrNames renderHosts))}
-      '';
-
-  deploymentHostDef =
-    if builtins.hasAttr resolvedDeploymentHostName deploymentHosts then
-      deploymentHosts.${resolvedDeploymentHostName}
-    else
-      throw ''
-        network-renderer-nixos: resolved deployment host '${resolvedDeploymentHostName}' for selector '${boxName}' is missing from control-plane output
-        knownDeploymentHosts=${builtins.toJSON (lib.sort builtins.lessThan (builtins.attrNames deploymentHosts))}
-      '';
+    if builtins.hasAttr boxName deploymentHosts then boxName else deploymentHostNameFromRenderHost;
 in
-{
-  name = resolvedDeploymentHostName;
-  definition = deploymentHostDef;
-}
+if
+  resolvedDeploymentHostName != null && builtins.hasAttr resolvedDeploymentHostName deploymentHosts
+then
+  {
+    name = resolvedDeploymentHostName;
+    definition = deploymentHosts.${resolvedDeploymentHostName};
+    requestedName = boxName;
+    matchedBy = if resolvedDeploymentHostName == boxName then "deploymentHost" else "renderHost";
+    renderHost =
+      if renderHostDef == null then
+        null
+      else
+        {
+          name = boxName;
+          definition = renderHostDef;
+        };
+  }
+else
+  throw ''
+    network-renderer-nixos: deployment host or render host '${boxName}' is missing from control-plane output
+    knownDeploymentHosts=${builtins.toJSON (lib.sort builtins.lessThan (builtins.attrNames deploymentHosts))}
+    knownRenderHosts=${builtins.toJSON (lib.sort builtins.lessThan (builtins.attrNames renderHosts))}
+  ''
