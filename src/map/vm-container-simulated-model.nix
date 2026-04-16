@@ -116,9 +116,82 @@ let
     else
       throw "network-renderer-nixos: interface '${interfaceName}' on runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}' is missing runtimeIfName/renderedIfName/containerInterfaceName";
 
+  hashFragment = value: builtins.substring 0 11 (builtins.hashString "sha256" value);
+
+  directBridgeNameForInterface =
+    interface:
+    let
+      backingRef =
+        if interface ? backingRef && builtins.isAttrs interface.backingRef then
+          interface.backingRef
+        else
+          null;
+
+      linkIdentity =
+        if
+          backingRef != null && backingRef ? id && builtins.isString backingRef.id && backingRef.id != ""
+        then
+          backingRef.id
+        else if
+          backingRef != null
+          && backingRef ? name
+          && builtins.isString backingRef.name
+          && backingRef.name != ""
+        then
+          backingRef.name
+        else if
+          interface ? sourceInterface
+          && builtins.isString interface.sourceInterface
+          && interface.sourceInterface != ""
+        then
+          interface.sourceInterface
+        else
+          null;
+    in
+    if linkIdentity == null then null else "bp-${hashFragment linkIdentity}";
+
+  simulatedBridgeNameForP2pInterface =
+    interface:
+    let
+      backingRef =
+        if interface ? backingRef && builtins.isAttrs interface.backingRef then
+          interface.backingRef
+        else
+          null;
+
+      linkIdentity =
+        if
+          backingRef != null && backingRef ? id && builtins.isString backingRef.id && backingRef.id != ""
+        then
+          backingRef.id
+        else if
+          backingRef != null
+          && backingRef ? name
+          && builtins.isString backingRef.name
+          && backingRef.name != ""
+        then
+          backingRef.name
+        else if
+          interface ? sourceInterface
+          && builtins.isString interface.sourceInterface
+          && interface.sourceInterface != ""
+        then
+          interface.sourceInterface
+        else
+          null;
+    in
+    if linkIdentity == null then
+      throw "network-renderer-nixos: simulated p2p interface requires backingRef.id/backingRef.name/sourceInterface"
+    else
+      "bp-${hashFragment linkIdentity}";
+
   hostBridgeForInterface =
     interface:
     if
+      interface ? sourceKind && builtins.isString interface.sourceKind && interface.sourceKind == "p2p"
+    then
+      simulatedBridgeNameForP2pInterface interface
+    else if
       interface ? hostUplink
       && builtins.isAttrs interface.hostUplink
       && interface.hostUplink ? bridge
@@ -134,6 +207,12 @@ let
       && interface.attach.bridge != ""
     then
       interface.attach.bridge
+    else if
+      interface ? sourceKind
+      && builtins.isString interface.sourceKind
+      && (interface.sourceKind == "direct")
+    then
+      directBridgeNameForInterface interface
     else
       null;
 

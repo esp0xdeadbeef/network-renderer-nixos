@@ -3,6 +3,56 @@ containerModel:
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  safeJson =
+    value:
+    let
+      render =
+        depth: current:
+        let
+          currentType = builtins.typeOf current;
+        in
+        if depth >= 6 then
+          if currentType == "set" then
+            {
+              __type = "set";
+              __keys = sortedAttrNames current;
+            }
+          else if currentType == "list" then
+            {
+              __type = "list";
+              __length = builtins.length current;
+            }
+          else if currentType == "path" then
+            toString current
+          else if currentType == "lambda" then
+            "<lambda>"
+          else
+            current
+        else if currentType == "set" then
+          builtins.listToAttrs (
+            map (name: {
+              inherit name;
+              value = render (depth + 1) current.${name};
+            }) (sortedAttrNames current)
+          )
+        else if currentType == "list" then
+          map (entry: render (depth + 1) entry) current
+        else if currentType == "path" then
+          toString current
+        else if currentType == "lambda" then
+          "<lambda>"
+        else
+          current;
+    in
+    builtins.toJSON (render 0 value);
+
+  throwWithValue =
+    message: value:
+    throw ''
+      ${message}
+      value=${safeJson value}
+    '';
+
   ensureUniqueNames =
     label: names:
     if builtins.length names == builtins.length (lib.unique names) then
@@ -30,6 +80,497 @@ let
       value
     else
       null;
+
+  normalizeOptionalString =
+    label: value:
+    if value == null then
+      null
+    else if builtins.isString value && value != "" then
+      value
+    else
+      throw "network-renderer-nixos: expected ${label} to be a non-empty string";
+
+  normalizeOptionalInt =
+    label: value:
+    if value == null then
+      null
+    else if builtins.isInt value then
+      value
+    else
+      throw "network-renderer-nixos: expected ${label} to be an integer";
+
+  inferRouteFamily =
+    destination: gateway:
+    if gateway != null && lib.hasInfix ":" gateway then
+      "ipv6"
+    else if destination != null && destination != "default" && lib.hasInfix ":" destination then
+      "ipv6"
+    else
+      "ipv4";
+
+  normalizeDefaultGatewayRoute =
+    label: value:
+    let
+      gateway = normalizeOptionalString "${label}.gateway" value;
+      family = inferRouteFamily "default" gateway;
+    in
+    {
+      inherit family gateway;
+      destination = "default";
+      metric = null;
+      onLink = false;
+    };
+
+  hasRouteFields =
+    route:
+    builtins.any (name: builtins.hasAttr name route) [
+      "destination"
+      "to"
+      "prefix"
+      "cidr"
+      "dst"
+      "network"
+      "gateway"
+      "via"
+      "via4"
+      "via6"
+      "nextHop"
+      "next_hop"
+      "gw"
+      "router"
+    ];
+
+  isFamilyRouteMap =
+    value:
+    builtins.isAttrs value
+    && value != { }
+    && lib.all (name: name == "ipv4" || name == "ipv6") (sortedAttrNames value);
+
+  normalizeShorthandRouteAttrset =
+    label: route:
+    let
+      names = sortedAttrNames route;
+    in
+    if hasRouteFields route || isFamilyRouteMap route then
+      route
+    else if builtins.length names == 1 then
+      let
+        onlyName = builtins.head names;
+        onlyValue = route.${onlyName};
+      in
+      if onlyName == "default" then
+        if builtins.isString onlyValue && onlyValue != "" then
+          {
+            destination = "default";
+            gateway = onlyValue;
+          }
+        else if builtins.isAttrs onlyValue then
+          { destination = "default"; } // onlyValue
+        else
+          route
+      else if
+        onlyName == "gateway"
+        || onlyName == "via"
+        || onlyName == "via4"
+        || onlyName == "via6"
+        || onlyName == "nextHop"
+        || onlyName == "next_hop"
+        || onlyName == "gw"
+        || onlyName == "router"
+      then
+        if builtins.isString onlyValue && onlyValue != "" then
+          {
+            destination = "default";
+            "${onlyName}" = onlyValue;
+          }
+        else
+          route
+      else if builtins.isString onlyValue && onlyValue != "" then
+        {
+          destination = onlyName;
+          gateway = onlyValue;
+        }
+      else if builtins.isAttrs onlyValue then
+        {
+          destination = onlyName;
+        }
+        // onlyValue
+      else
+        route
+    else
+      let
+        mappedEntries = lib.concatMap (
+          name:
+          let
+            item = route.${name};
+          in
+          if item == null then
+            [ ]
+          else if builtins.isString item && item != "" then
+            [
+              {
+                destination = name;
+                gateway = item;
+              }
+            ]
+          else if builtins.isAttrs item then
+            [
+              (
+                {
+                  destination = name;
+                }
+                // item
+              )
+            ]
+          else
+            throwWithValue
+              "network-renderer-nixos: expected route map entry '${label}.${name}' to be a non-empty string or attribute set"
+              {
+                label = "${label}.${name}";
+                item = item;
+                route = route;
+              }
+        ) names;
+      in
+      if mappedEntries == [ ] then route else mappedEntries;
+
+  normalizeRouteEntry =
+    label: value:
+    let
+      route =
+        if builtins.isAttrs value then
+          let
+            normalized = normalizeShorthandRouteAttrset label value;
+          in
+          if builtins.isList normalized then
+            throwWithValue
+              "network-renderer-nixos: internal error: normalizeRouteEntry received multi-entry route map"
+              {
+                inherit label value normalized;
+              }
+          else
+            normalized
+        else if builtins.isString value && value != "" then
+          { destination = value; }
+        else
+          throwWithValue
+            "network-renderer-nixos: expected ${label} to be an attribute set or non-empty string"
+            {
+              inherit label value;
+            };
+
+      destination = normalizeOptionalString "${label}.destination" (
+        if route ? destination then
+          route.destination
+        else if route ? to then
+          route.to
+        else if route ? prefix then
+          route.prefix
+        else if route ? cidr then
+          route.cidr
+        else if route ? dst then
+          route.dst
+        else if route ? network then
+          route.network
+        else
+          null
+      );
+
+      gateway = normalizeOptionalString "${label}.gateway" (
+        if route ? gateway then
+          route.gateway
+        else if route ? via then
+          route.via
+        else if route ? via4 then
+          route.via4
+        else if route ? via6 then
+          route.via6
+        else if route ? nextHop then
+          route.nextHop
+        else if route ? next_hop then
+          route.next_hop
+        else if route ? gw then
+          route.gw
+        else if route ? router then
+          route.router
+        else
+          null
+      );
+
+      family = normalizeOptionalString "${label}.family" (route.family or null);
+
+      metric = normalizeOptionalInt "${label}.metric" (route.metric or null);
+
+      onLink =
+        if route ? onLink then
+          if builtins.isBool route.onLink then
+            route.onLink
+          else
+            throwWithValue "network-renderer-nixos: expected ${label}.onLink to be a boolean" {
+              inherit label route;
+              onLink = route.onLink;
+            }
+        else
+          false;
+
+      resolvedFamily = if family != null then family else inferRouteFamily destination gateway;
+
+      _validateFamily =
+        if resolvedFamily == "ipv4" || resolvedFamily == "ipv6" then
+          true
+        else
+          throwWithValue "network-renderer-nixos: unsupported ${label}.family '${resolvedFamily}'" {
+            inherit
+              label
+              route
+              destination
+              gateway
+              family
+              resolvedFamily
+              ;
+          };
+
+      _validateRoute =
+        if destination != null || gateway != null then
+          true
+        else
+          throwWithValue
+            "network-renderer-nixos: route '${label}' requires destination/to/prefix/cidr/dst/network or gateway/via/via4/via6/nextHop/next_hop/gw/router"
+            {
+              inherit label route;
+            };
+    in
+    builtins.seq _validateFamily (
+      builtins.seq _validateRoute {
+        family = resolvedFamily;
+        inherit
+          destination
+          gateway
+          metric
+          onLink
+          ;
+      }
+    );
+
+  routeKey =
+    route:
+    builtins.toJSON {
+      inherit (route)
+        family
+        destination
+        gateway
+        metric
+        onLink
+        ;
+    };
+
+  dedupeRoutes =
+    routes:
+    let
+      folded =
+        builtins.foldl'
+          (
+            acc: route:
+            let
+              key = routeKey route;
+            in
+            if builtins.hasAttr key acc.byKey then
+              acc
+            else
+              {
+                order = acc.order ++ [ key ];
+                byKey = acc.byKey // {
+                  "${key}" = route;
+                };
+              }
+          )
+          {
+            order = [ ];
+            byKey = { };
+          }
+          routes;
+    in
+    map (key: folded.byKey.${key}) folded.order;
+
+  normalizeRouteEntriesValue =
+    label: value:
+    if value == null then
+      [ ]
+    else if builtins.isList value then
+      lib.concatMap (
+        entry:
+        if builtins.isAttrs entry then
+          let
+            normalized = normalizeShorthandRouteAttrset "${label} entry" entry;
+          in
+          if builtins.isList normalized then
+            map (route: normalizeRouteEntry "${label} entry" route) normalized
+          else
+            [ (normalizeRouteEntry "${label} entry" normalized) ]
+        else
+          [ (normalizeRouteEntry "${label} entry" entry) ]
+      ) value
+    else if builtins.isAttrs value then
+      let
+        names = sortedAttrNames value;
+      in
+      if isFamilyRouteMap value then
+        lib.concatMap (
+          familyName:
+          let
+            familyValue = value.${familyName};
+            normalizedFamilyEntries =
+              if familyValue == null then
+                [ ]
+              else if builtins.isList familyValue then
+                lib.concatMap (
+                  entry:
+                  if builtins.isAttrs entry then
+                    let
+                      normalized = normalizeShorthandRouteAttrset "${label}.${familyName} entry" entry;
+                    in
+                    if builtins.isList normalized then
+                      map (
+                        route:
+                        let
+                          normalizedRoute = normalizeRouteEntry "${label}.${familyName} entry" route;
+                        in
+                        if normalizedRoute.family == familyName then
+                          normalizedRoute
+                        else
+                          normalizedRoute // { family = familyName; }
+                      ) normalized
+                    else
+                      let
+                        normalizedRoute = normalizeRouteEntry "${label}.${familyName} entry" normalized;
+                      in
+                      [
+                        (
+                          if normalizedRoute.family == familyName then
+                            normalizedRoute
+                          else
+                            normalizedRoute // { family = familyName; }
+                        )
+                      ]
+                  else
+                    let
+                      normalizedRoute = normalizeRouteEntry "${label}.${familyName} entry" entry;
+                    in
+                    [
+                      (
+                        if normalizedRoute.family == familyName then
+                          normalizedRoute
+                        else
+                          normalizedRoute // { family = familyName; }
+                      )
+                    ]
+                ) familyValue
+              else if builtins.isAttrs familyValue then
+                let
+                  normalized = normalizeShorthandRouteAttrset "${label}.${familyName}" familyValue;
+                in
+                if builtins.isList normalized then
+                  map (
+                    route:
+                    let
+                      normalizedRoute = normalizeRouteEntry "${label}.${familyName}" route;
+                    in
+                    if normalizedRoute.family == familyName then
+                      normalizedRoute
+                    else
+                      normalizedRoute // { family = familyName; }
+                  ) normalized
+                else
+                  let
+                    normalizedRoute = normalizeRouteEntry "${label}.${familyName}" normalized;
+                  in
+                  [
+                    (
+                      if normalizedRoute.family == familyName then
+                        normalizedRoute
+                      else
+                        normalizedRoute // { family = familyName; }
+                    )
+                  ]
+              else if builtins.isString familyValue && familyValue != "" then
+                let
+                  normalizedRoute = normalizeRouteEntry "${label}.${familyName}" familyValue;
+                in
+                [
+                  (
+                    if normalizedRoute.family == familyName then
+                      normalizedRoute
+                    else
+                      normalizedRoute // { family = familyName; }
+                  )
+                ]
+              else
+                throwWithValue
+                  "network-renderer-nixos: expected ${label}.${familyName} to be a list, attribute set, or non-empty string"
+                  {
+                    inherit
+                      label
+                      familyName
+                      familyValue
+                      value
+                      ;
+                  };
+          in
+          normalizedFamilyEntries
+        ) names
+      else
+        let
+          normalizedDirect = normalizeShorthandRouteAttrset label value;
+        in
+        if builtins.isList normalizedDirect then
+          map (route: normalizeRouteEntry label route) normalizedDirect
+        else
+          [ (normalizeRouteEntry label normalizedDirect) ]
+    else if builtins.isString value && value != "" then
+      [ (normalizeRouteEntry label value) ]
+    else
+      throwWithValue
+        "network-renderer-nixos: expected ${label} to be a list, attribute set, or non-empty string"
+        {
+          inherit label value;
+        };
+
+  routesForInterface =
+    rawInterface:
+    let
+      explicitRouteLists =
+        lib.concatMap
+          (
+            attrName:
+            if !(builtins.hasAttr attrName rawInterface) || rawInterface.${attrName} == null then
+              [ ]
+            else
+              normalizeRouteEntriesValue "interface.${attrName}" rawInterface.${attrName}
+          )
+          [
+            "routes"
+            "routeEntries"
+            "staticRoutes"
+          ];
+
+      defaultGatewayRoutes =
+        lib.concatMap
+          (
+            attrName:
+            if !(builtins.hasAttr attrName rawInterface) || rawInterface.${attrName} == null then
+              [ ]
+            else
+              [ (normalizeDefaultGatewayRoute "interface.${attrName}" rawInterface.${attrName}) ]
+          )
+          [
+            "defaultGateway"
+            "defaultGateway4"
+            "defaultGateway6"
+            "gateway4"
+            "gateway6"
+          ];
+    in
+    dedupeRoutes (explicitRouteLists ++ defaultGatewayRoutes);
 
   hostVethNameFor =
     {
@@ -130,6 +671,7 @@ builtins.seq _uniqueRenderedHostVethNames (
           hostBridge = interface.hostBridge;
           address4 = normalizeOptionalAddress (rawInterface.addr4 or null);
           address6 = normalizeOptionalAddress (rawInterface.addr6 or null);
+          routes = routesForInterface rawInterface;
         }
       ) bridgeInterfaceNames;
 
@@ -177,6 +719,18 @@ builtins.seq _uniqueRenderedHostVethNames (
 
       containerImports = containerTemplateImports ++ containerConfigImports;
 
+      renderRouteCommand =
+        entry: route:
+        let
+          ipCmd = if route.family == "ipv6" then "ip -6" else "ip";
+          destination = if route.destination == null then "default" else route.destination;
+          viaClause = lib.optionalString (route.gateway != null) " via ${route.gateway}";
+          devClause = " dev \"${entry.containerInterfaceName}\"";
+          metricClause = lib.optionalString (route.metric != null) " metric ${toString route.metric}";
+          onLinkClause = lib.optionalString route.onLink " onlink";
+        in
+        "${ipCmd} route replace ${destination}${viaClause}${devClause}${metricClause}${onLinkClause}";
+
       renameServiceScript = lib.concatStringsSep "\n" (
         map (
           entry:
@@ -192,6 +746,9 @@ builtins.seq _uniqueRenderedHostVethNames (
           ''
           + lib.optionalString (entry.address6 != null) ''
             ip -6 addr replace ${entry.address6} dev "${entry.containerInterfaceName}"
+          ''
+          + lib.optionalString (entry.routes != [ ]) ''
+            ${lib.concatStringsSep "\n" (map (route: renderRouteCommand entry route) entry.routes)}
           ''
         ) renderedInterfaceEntries
       );
@@ -237,9 +794,30 @@ builtins.seq _uniqueRenderedHostVethNames (
 
               networking.useNetworkd = true;
               networking.useHostResolvConf = false;
+              networking.firewall.enable = false;
               services.resolved.enable = false;
 
               systemd.network.enable = true;
+
+              boot.kernel.sysctl = {
+                "net.ipv4.ip_forward" = 1;
+                "net.ipv6.conf.all.forwarding" = 1;
+                "net.ipv4.conf.all.rp_filter" = 0;
+                "net.ipv4.conf.default.rp_filter" = 0;
+              };
+
+              environment.systemPackages = with pkgs; [
+                bind
+                dig
+                dnsutils
+                iproute2
+                iputils
+                jq
+                mtr
+                nftables
+                tcpdump
+                traceroute
+              ];
 
               systemd.services.rename-container-interfaces = lib.mkIf (renderedInterfaceEntries != [ ]) {
                 wantedBy = [ "network-pre.target" ];
