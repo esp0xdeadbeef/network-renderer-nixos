@@ -8,6 +8,8 @@
   artifacts,
 }:
 let
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+
   filterAttrs =
     predicate: attrs:
     builtins.listToAttrs (
@@ -24,7 +26,61 @@ let
           ]
         else
           [ ]
-      ) (builtins.attrNames attrs)
+      ) (sortedAttrNames attrs)
+    );
+
+  ensureSingleSiteContext =
+    controlPlaneOut:
+    let
+      sourceRoot =
+        if
+          builtins.isAttrs controlPlaneOut
+          && controlPlaneOut ? control_plane_model
+          && builtins.isAttrs controlPlaneOut.control_plane_model
+        then
+          controlPlaneOut.control_plane_model
+        else
+          throw "network-renderer-nixos: expected control_plane_model in controlPlaneOut for container artifact selection";
+
+      siteData =
+        if sourceRoot ? data && builtins.isAttrs sourceRoot.data then
+          sourceRoot.data
+        else
+          throw "network-renderer-nixos: control_plane_model.data is missing for container artifact selection";
+
+      enterpriseNames = sortedAttrNames siteData;
+
+      _singleEnterprise =
+        if builtins.length enterpriseNames == 1 then
+          true
+        else
+          throw "network-renderer-nixos: expected exactly one enterprise in control-plane output for container artifact selection";
+
+      enterpriseName = builtins.head enterpriseNames;
+
+      enterpriseSites = siteData.${enterpriseName};
+
+      siteNames =
+        if builtins.isAttrs enterpriseSites then
+          sortedAttrNames enterpriseSites
+        else
+          throw "network-renderer-nixos: expected enterprise site set for container artifact selection";
+
+      _singleSite =
+        if builtins.length siteNames == 1 then
+          true
+        else
+          throw "network-renderer-nixos: expected exactly one site in control-plane output for container artifact selection";
+
+      siteName = builtins.head siteNames;
+    in
+    builtins.seq _singleEnterprise (
+      builtins.seq _singleSite {
+        inherit
+          enterpriseName
+          siteName
+          ;
+      }
     );
 
   buildForBoxFromControlPlane =
@@ -36,10 +92,12 @@ let
     }:
     let
       model = normalizeControlPlane controlPlaneOut;
+
       deploymentHost = selectDeploymentHost {
         inherit model;
         boxName = boxName;
       };
+
       containerModelBase = mapContainerModel {
         inherit
           model
@@ -49,6 +107,8 @@ let
         boxName = deploymentHost.name;
         deploymentHostDef = deploymentHost.definition;
       };
+
+      siteContext = ensureSingleSiteContext controlPlaneOut;
 
       renderedArtifacts = artifacts.controlPlaneSplitFromControlPlane {
         inherit controlPlaneOut;
@@ -67,83 +127,33 @@ let
         else
           { };
 
-      sitePrefix = "network-artifacts/${boxName}";
+      enterpriseSitePrefix = "network-artifacts/${siteContext.enterpriseName}/${siteContext.siteName}";
 
-      containerModel = containerModelBase // {
+      hostPrefix = "${enterpriseSitePrefix}/${boxName}/host-data/";
+    in
+    renderContainers (
+      containerModelBase
+      // {
         containers = builtins.mapAttrs (
           containerName: container:
           let
-            enterpriseName =
-              if
-                builtins.isAttrs controlPlaneOut
-                && controlPlaneOut ? control_plane_model
-                && builtins.isAttrs controlPlaneOut.control_plane_model
-                && controlPlaneOut.control_plane_model ? data
-                && builtins.isAttrs controlPlaneOut.control_plane_model.data
-              then
-                let
-                  names = builtins.attrNames controlPlaneOut.control_plane_model.data;
-                in
-                if builtins.length names == 1 then builtins.head names else null
-              else
-                null;
+            containerPrefix = "${enterpriseSitePrefix}/${boxName}/containers/${containerName}/";
 
-            enterprisePrefix =
-              if enterpriseName == null then
-                null
-              else
-                let
-                  enterpriseSites = controlPlaneOut.control_plane_model.data.${enterpriseName};
-                  siteNames = builtins.attrNames enterpriseSites;
-                in
-                if builtins.length siteNames == 1 then
-                  "network-artifacts/${enterpriseName}/${builtins.head siteNames}/${boxName}"
-                else
-                  null;
-
-            hostPrefix = if enterprisePrefix == null then null else "${enterprisePrefix}/host-data/";
-
-            containerPrefix =
-              if enterprisePrefix == null then null else "${enterprisePrefix}/containers/${containerName}/";
-
-            siteJsonPath =
-              if enterprisePrefix == null then
-                null
-              else
-                let
-                  segments = builtins.split "/" enterprisePrefix;
-                  enterpriseSegment = builtins.elemAt segments 1;
-                  siteSegment = builtins.elemAt segments 2;
-                in
-                "network-artifacts/${enterpriseSegment}/${siteSegment}/site.json";
-
-            siteDataJsonPath =
-              if enterprisePrefix == null then
-                null
-              else
-                let
-                  segments = builtins.split "/" enterprisePrefix;
-                  enterpriseSegment = builtins.elemAt segments 1;
-                  siteSegment = builtins.elemAt segments 2;
-                in
-                "network-artifacts/${enterpriseSegment}/${siteSegment}/site-data.json";
-
-            artifactEtc = filterAttrs (
+            selectedArtifactEtc = filterAttrs (
               name: _:
-              (hostPrefix != null && lib.hasPrefix hostPrefix name)
-              || (containerPrefix != null && lib.hasPrefix containerPrefix name)
-              || (siteJsonPath != null && name == siteJsonPath)
-              || (siteDataJsonPath != null && name == siteDataJsonPath)
+              name == "${enterpriseSitePrefix}/site.json"
+              || name == "${enterpriseSitePrefix}/site-data.json"
+              || lib.hasPrefix hostPrefix name
+              || lib.hasPrefix containerPrefix name
             ) allEtc;
           in
           container
           // {
-            artifactEtc = artifactEtc;
+            artifactEtc = selectedArtifactEtc;
           }
         ) containerModelBase.containers;
-      };
-    in
-    renderContainers containerModel;
+      }
+    );
 in
 {
   buildForBox =
