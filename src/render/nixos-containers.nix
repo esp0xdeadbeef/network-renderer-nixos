@@ -672,6 +672,7 @@ builtins.seq _uniqueRenderedHostVethNames (
           address4 = normalizeOptionalAddress (rawInterface.addr4 or null);
           address6 = normalizeOptionalAddress (rawInterface.addr6 or null);
           routes = routesForInterface rawInterface;
+          rawInterface = rawInterface;
         }
       ) bridgeInterfaceNames;
 
@@ -753,6 +754,46 @@ builtins.seq _uniqueRenderedHostVethNames (
         ) renderedInterfaceEntries
       );
 
+      containerDebug = builtins.toJSON {
+        renderHostName = containerModel.renderHostName or null;
+        containerName = containerName;
+        deploymentHostName = container.deploymentHostName or null;
+        nodeName = container.nodeName or null;
+        logicalName = container.logicalName or null;
+        runtimeRole = container.runtimeRole or null;
+        interfaceNames = interfaceNames;
+        artifactPaths =
+          if container ? artifactEtc && builtins.isAttrs container.artifactEtc then
+            sortedAttrNames container.artifactEtc
+          else
+            [ ];
+        interfaces = builtins.listToAttrs (
+          map (
+            interfaceName:
+            let
+              interface = container.interfaces.${interfaceName};
+              rawInterface =
+                if interface ? interface && builtins.isAttrs interface.interface then interface.interface else { };
+            in
+            {
+              name = interfaceName;
+              value = {
+                hostBridge = interface.hostBridge or null;
+                containerInterfaceName = interface.containerInterfaceName or null;
+                rawInterface = rawInterface;
+                routes = routesForInterface rawInterface;
+              };
+            }
+          ) interfaceNames
+        );
+      };
+
+      artifactEtc =
+        if container ? artifactEtc && builtins.isAttrs container.artifactEtc then
+          container.artifactEtc
+        else
+          { };
+
       passthrough = builtins.removeAttrs container [
         "containerName"
         "nodeName"
@@ -764,6 +805,7 @@ builtins.seq _uniqueRenderedHostVethNames (
         "config"
         "extraVeths"
         "runtimeRole"
+        "artifactEtc"
       ];
     in
     builtins.seq _uniqueContainerHostVethNames (
@@ -794,6 +836,7 @@ builtins.seq _uniqueRenderedHostVethNames (
 
               networking.useNetworkd = true;
               networking.useHostResolvConf = false;
+              networking.useDHCP = false;
               networking.firewall.enable = false;
               services.resolved.enable = false;
 
@@ -818,6 +861,10 @@ builtins.seq _uniqueRenderedHostVethNames (
                 tcpdump
                 traceroute
               ];
+
+              environment.etc = artifactEtc // {
+                "network-renderer/network-renderer-nixos.json".text = containerDebug;
+              };
 
               systemd.services.rename-container-interfaces = lib.mkIf (renderedInterfaceEntries != [ ]) {
                 wantedBy = [ "network-pre.target" ];

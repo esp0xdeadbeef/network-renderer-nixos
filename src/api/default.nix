@@ -82,6 +82,21 @@ let
   renderContainers = import ../render/nixos-containers.nix { inherit lib; };
   renderArtifactEtc = import ../render/nixos-artifacts.nix { inherit lib; };
   renderNftablesRuntimeTarget = import ../render/nftables-runtime-target.nix { inherit lib; };
+
+  artifactsApi = import ./artifacts.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      mapControlPlaneArtifactTree
+      mapL2ArtifactTree
+      mapRuntimeTargetArtifactContexts
+      selectFirewallRuntimeTargetModel
+      mapAccessServiceArtifactTree
+      renderArtifactEtc
+      renderNftablesRuntimeTarget
+      ;
+  };
 in
 {
   renderer = import ./renderer.nix {
@@ -124,20 +139,8 @@ in
       mapContainerModel
       renderContainers
       ;
+    artifacts = artifactsApi;
   };
 
-  artifacts = import ./artifacts.nix {
-    inherit
-      lib
-      buildControlPlaneOutput
-      normalizeControlPlane
-      mapControlPlaneArtifactTree
-      mapL2ArtifactTree
-      mapRuntimeTargetArtifactContexts
-      selectFirewallRuntimeTargetModel
-      mapAccessServiceArtifactTree
-      renderArtifactEtc
-      renderNftablesRuntimeTarget
-      ;
-  };
+  artifacts = artifactsApi;
 }
