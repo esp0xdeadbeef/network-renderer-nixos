@@ -116,114 +116,12 @@ let
     else
       portName;
 
-  shortRuntimeTargetNameForNode =
-    nodeName:
-    let
-      match = builtins.match "^[^-]+-[^-]+-[^-]+-(.*)$" nodeName;
-    in
-    if match == null then null else builtins.head match;
-
-  resolveMatchingRuntimeTargets =
-    nodeName: node: siteRoot:
-    let
-      logicalName = logicalNameForNode nodeName node;
-      runtimeRole = runtimeRoleForNode node;
-      shortRuntimeTargetName = shortRuntimeTargetNameForNode nodeName;
-
-      candidateNames = lib.unique (
-        lib.filter (name: name != null && name != "") [
-          logicalName
-          shortRuntimeTargetName
-        ]
-      );
-
-      runtimeTargetNames = sortedAttrNames siteRoot;
-
-      filterNames =
-        predicate:
-        lib.filter (
-          runtimeTargetName:
-          let
-            runtimeTarget = siteRoot.${runtimeTargetName};
-
-            placementHost =
-              if
-                builtins.isAttrs runtimeTarget
-                && runtimeTarget ? placement
-                && builtins.isAttrs runtimeTarget.placement
-                && runtimeTarget.placement ? host
-                && builtins.isString runtimeTarget.placement.host
-              then
-                runtimeTarget.placement.host
-              else
-                null;
-
-            targetLogicalName =
-              if
-                builtins.isAttrs runtimeTarget
-                && runtimeTarget ? logicalNode
-                && builtins.isAttrs runtimeTarget.logicalNode
-                && runtimeTarget.logicalNode ? name
-                && builtins.isString runtimeTarget.logicalNode.name
-              then
-                runtimeTarget.logicalNode.name
-              else
-                null;
-
-            targetRole =
-              if
-                builtins.isAttrs runtimeTarget
-                && runtimeTarget ? logicalNode
-                && builtins.isAttrs runtimeTarget.logicalNode
-                && runtimeTarget.logicalNode ? role
-                && builtins.isString runtimeTarget.logicalNode.role
-              then
-                runtimeTarget.logicalNode.role
-              else if
-                builtins.isAttrs runtimeTarget && runtimeTarget ? role && builtins.isString runtimeTarget.role
-              then
-                runtimeTarget.role
-              else
-                null;
-          in
-          placementHost == boxName
-          && predicate {
-            inherit
-              runtimeTargetName
-              targetLogicalName
-              targetRole
-              ;
-          }
-        ) runtimeTargetNames;
-
-      exactByName = filterNames (candidate: lib.elem candidate.runtimeTargetName candidateNames);
-      exactByLogicalName = filterNames (candidate: lib.elem candidate.targetLogicalName candidateNames);
-      exactByRole =
-        if runtimeRole == null then [ ] else filterNames (candidate: candidate.targetRole == runtimeRole);
-
-      resolvedNames =
-        if builtins.length exactByName == 1 then
-          exactByName
-        else if builtins.length exactByLogicalName == 1 then
-          exactByLogicalName
-        else if builtins.length exactByRole == 1 then
-          exactByRole
-        else if builtins.length exactByName > 1 then
-          throw "network-renderer-nixos: deployment host '${boxName}' resolves node '${nodeName}' to multiple runtime targets by name"
-        else if builtins.length exactByLogicalName > 1 then
-          throw "network-renderer-nixos: deployment host '${boxName}' resolves node '${nodeName}' to multiple runtime targets by logical name"
-        else if builtins.length exactByRole > 1 then
-          throw "network-renderer-nixos: deployment host '${boxName}' resolves node '${nodeName}' to multiple runtime targets by role"
-        else
-          [ ];
-    in
-    map (name: siteRoot.${name}) resolvedNames;
-
   runtimeTargetsForNode =
     nodeName: node:
     let
       enterpriseName = enterpriseNameForNode node;
       siteName = siteNameForNode node;
+      logicalName = logicalNameForNode nodeName node;
 
       siteRoot =
         if
@@ -241,8 +139,43 @@ let
           model.siteData.${enterpriseName}.${siteName}.runtimeTargets
         else
           { };
+
+      matchingNames = lib.filter (
+        runtimeTargetName:
+        let
+          runtimeTarget = siteRoot.${runtimeTargetName};
+
+          placementHost =
+            if
+              builtins.isAttrs runtimeTarget
+              && runtimeTarget ? placement
+              && builtins.isAttrs runtimeTarget.placement
+              && runtimeTarget.placement ? host
+              && builtins.isString runtimeTarget.placement.host
+            then
+              runtimeTarget.placement.host
+            else
+              null;
+
+          targetLogicalName =
+            if
+              builtins.isAttrs runtimeTarget
+              && runtimeTarget ? logicalNode
+              && builtins.isAttrs runtimeTarget.logicalNode
+              && runtimeTarget.logicalNode ? name
+              && builtins.isString runtimeTarget.logicalNode.name
+            then
+              runtimeTarget.logicalNode.name
+            else
+              null;
+        in
+        placementHost == boxName && targetLogicalName == logicalName
+      ) (sortedAttrNames siteRoot);
     in
-    resolveMatchingRuntimeTargets nodeName node siteRoot;
+    if builtins.length matchingNames <= 1 then
+      map (name: siteRoot.${name}) matchingNames
+    else
+      throw "network-renderer-nixos: deployment host '${boxName}' resolves logical node '${logicalName}' to multiple runtime targets";
 
   effectiveInterfacesForNode =
     nodeName: node:
@@ -266,16 +199,120 @@ let
       else
         null;
 
-  interfaceDataForPort =
+  effectiveInterfaceCandidatesForPort =
+    portName: port: effectiveInterfaces:
+    let
+      interfaceNameFromPort =
+        if
+          builtins.isAttrs port
+          && port ? interface
+          && builtins.isAttrs port.interface
+          && port.interface ? name
+          && builtins.isString port.interface.name
+          && port.interface.name != ""
+        then
+          port.interface.name
+        else
+          null;
+
+      linkFromPort =
+        if builtins.isAttrs port && port ? link && builtins.isString port.link && port.link != "" then
+          port.link
+        else
+          null;
+
+      matches = lib.filter (
+        interfaceName:
+        let
+          candidate = effectiveInterfaces.${interfaceName};
+
+          runtimeIfName =
+            if
+              builtins.isAttrs candidate
+              && candidate ? runtimeIfName
+              && builtins.isString candidate.runtimeIfName
+              && candidate.runtimeIfName != ""
+            then
+              candidate.runtimeIfName
+            else
+              null;
+
+          renderedIfName =
+            if
+              builtins.isAttrs candidate
+              && candidate ? renderedIfName
+              && builtins.isString candidate.renderedIfName
+              && candidate.renderedIfName != ""
+            then
+              candidate.renderedIfName
+            else
+              null;
+
+          containerInterfaceName =
+            if
+              builtins.isAttrs candidate
+              && candidate ? containerInterfaceName
+              && builtins.isString candidate.containerInterfaceName
+              && candidate.containerInterfaceName != ""
+            then
+              candidate.containerInterfaceName
+            else
+              null;
+
+          sourceInterface =
+            if
+              builtins.isAttrs candidate
+              && candidate ? sourceInterface
+              && builtins.isString candidate.sourceInterface
+              && candidate.sourceInterface != ""
+            then
+              candidate.sourceInterface
+            else
+              null;
+        in
+        interfaceName == portName
+        || (interfaceNameFromPort != null && interfaceName == interfaceNameFromPort)
+        || (runtimeIfName != null && runtimeIfName == portName)
+        || (
+          runtimeIfName != null && interfaceNameFromPort != null && runtimeIfName == interfaceNameFromPort
+        )
+        || (renderedIfName != null && renderedIfName == portName)
+        || (
+          renderedIfName != null && interfaceNameFromPort != null && renderedIfName == interfaceNameFromPort
+        )
+        || (containerInterfaceName != null && containerInterfaceName == portName)
+        || (
+          containerInterfaceName != null
+          && interfaceNameFromPort != null
+          && containerInterfaceName == interfaceNameFromPort
+        )
+        || (linkFromPort != null && sourceInterface != null && sourceInterface == linkFromPort)
+      ) (sortedAttrNames effectiveInterfaces);
+    in
+    matches;
+
+  effectiveInterfaceForPort =
     nodeName: node: portName: port:
     let
       effectiveInterfaces = effectiveInterfacesForNode nodeName node;
+    in
+    if effectiveInterfaces == null then
+      null
+    else
+      let
+        matches = effectiveInterfaceCandidatesForPort portName port effectiveInterfaces;
+      in
+      if builtins.length matches == 0 then
+        null
+      else if builtins.length matches == 1 then
+        effectiveInterfaces.${builtins.head matches}
+      else
+        throw "network-renderer-nixos: deployment host '${boxName}' port '${portName}' resolves to multiple effective interfaces";
 
-      effectiveInterface =
-        if effectiveInterfaces != null && builtins.hasAttr portName effectiveInterfaces then
-          effectiveInterfaces.${portName}
-        else
-          null;
+  interfaceDataForPort =
+    nodeName: node: portName: port:
+    let
+      effectiveInterface = effectiveInterfaceForPort nodeName node portName port;
 
       containerInterfaceName =
         if
