@@ -1,21 +1,23 @@
 # network-renderer-nixos
 
-A deterministic renderer that converts an explicit, platform-independent **control-plane model** into **NixOS-specific configuration**.
+A deterministic renderer that converts an explicit, platform-independent **control-plane model** into **NixOS-specific configuration artifacts**.
 
-This repository is the **emission stage**.
-It does not define topology.
-It does not define forwarding semantics.
-It does not define policy meaning.
+This repository is the **emission stage** of the pipeline.
 
-It takes already-declared network meaning and renders that meaning into NixOS configuration.
+It does **not** define topology.
+It does **not** define forwarding semantics.
+It does **not** define policy meaning.
+It does **not** decide deployment architecture.
+
+It consumes already-resolved upstream meaning and emits NixOS-shaped output from that meaning.
 
 The renderer is intentionally **strict**.
 
 It does not repair missing control-plane data.
 It does not reinterpret upstream contracts.
-It does not invent deployment meaning from partial hints.
+It does not invent deployment meaning from names, defaults, or partial hints.
 
-If upstream data is incomplete, inconsistent, or semantically unresolved, rendering must fail.
+If upstream data is incomplete, inconsistent, or unresolved, rendering must fail.
 
 ---
 
@@ -24,10 +26,10 @@ If upstream data is incomplete, inconsistent, or semantically unresolved, render
 This project exists primarily to support my own infrastructure.
 
 If it happens to be useful to others, great — but **pin a specific version**.
-The internal schema and renderer shape may change between versions.
+The internal schema, emitted artifact layout, and renderer entrypoints may change between versions.
 Backward compatibility is **not guaranteed**.
 
-Pull requests are welcome, but changes that weaken the architectural boundaries are unlikely to be merged.
+Pull requests are welcome, but changes that weaken responsibility boundaries are unlikely to be merged.
 
 This repository is not trying to be a universal network templating engine.
 It is a **contract-first NixOS renderer** for an already-explicit network model.
@@ -39,9 +41,9 @@ It is a **contract-first NixOS renderer** for an already-explicit network model.
 The Nix implementation in this repository is the only normative implementation.
 
 Historical notes, experiments, scratch files, and old layouts are **non-normative**.
-They do not define accepted input shape, renderer guarantees, or failure semantics.
+They do not define accepted input shape, renderer guarantees, artifact layout rules, or failure semantics.
 
-In practice, the renderer behavior defined by the main Nix path is the contract.
+In practice, the behavior defined by the main Nix path and the test suite is the contract.
 
 ---
 
@@ -68,7 +70,7 @@ Something like:
 
 Done.
 
-This repository exists because I chose to build something much stricter and much more explicit instead.
+This repository exists because I chose to build something stricter and much more explicit instead.
 
 The goal is not merely to make packets move.
 The goal is to have:
@@ -76,9 +78,10 @@ The goal is to have:
 * deterministic rendering
 * strict architectural boundaries
 * explicit upstream authority
-* platform-specific emission without platform-specific reinterpretation
-* failure on mismatch instead of silent repair
+* explicit artifact emission
+* no hidden inference
 * reproducible NixOS output from explicit model input
+* hard failure on mismatch instead of silent repair
 
 For a trivial setup, that is overkill.
 
@@ -95,17 +98,19 @@ Its job is to take:
 * explicit control-plane structure
 * explicit realized interface and node bindings
 * explicit renderer-consumable network meaning
+* explicit consumer-side selections where required
 
 and produce:
 
-* explicit NixOS configuration
-* explicit host and service configuration shape
-* deterministic platform output
+* explicit NixOS-oriented artifacts
+* explicit host and service configuration fragments
+* deterministic filesystem output
+* deterministic platform configuration inputs
 
 It is therefore a **renderer**, not a control-plane synthesizer and not a topology compiler.
 
 It does not decide what the network means.
-It decides how already-declared meaning is emitted into NixOS.
+It decides how already-declared meaning is emitted into NixOS-oriented artifacts.
 
 ---
 
@@ -115,23 +120,23 @@ It decides how already-declared meaning is emitted into NixOS.
 
 * consumes explicit control-plane data
 * validates that required renderer inputs exist
-* maps normalized control-plane structure into NixOS configuration
-* renders concrete interface, routing, and service configuration
-* emits deterministic NixOS output for hosts and related runtime targets
+* maps normalized control-plane structure into NixOS-specific artifact data
+* renders concrete interface, routing, firewall, and service inputs
+* emits deterministic host-scoped and container-scoped output
 * preserves upstream meaning instead of reconstructing it
 
 Typical rendered output may include things like:
 
-* interface configuration
-* address assignment
-* route emission
-* firewall configuration
-* resolver and DHCP-related settings
+* interface configuration artifacts
+* address assignment artifacts
+* route emission artifacts
+* firewall/service input artifacts
+* resolver and DHCP-related artifacts
 * host-local service bindings
-* container or runtime-target configuration when explicitly selected by the consumer
-* NixOS module output suitable for evaluation
+* container-scoped runtime data when explicitly selected
+* NixOS module-consumable JSON outputs
 
-The result is **NixOS-specific configuration**, not a new network model.
+The result is **NixOS-specific rendered data**, not a new network model.
 
 ---
 
@@ -146,6 +151,7 @@ This project does **not**:
 * invent policy membership
 * invent BGP peers
 * invent uplink semantics
+* invent DHCP ranges
 * repair missing control-plane data
 * infer deployment meaning from naming conventions
 * reinterpret upstream policy semantics
@@ -167,7 +173,7 @@ This repository is part of a multi-stage pipeline.
 | **Compiler**            | defines communication semantics and canonical staged topology                 |
 | **Forwarding model**    | constructs deterministic forwarding structure from the canonical staged model |
 | **Control plane model** | joins explicit forwarding intent with explicit realization inputs             |
-| **Renderer**            | emits platform-specific configuration                                         |
+| **Renderer**            | emits platform-specific configuration artifacts                               |
 
 Pipeline:
 
@@ -196,7 +202,7 @@ The renderer is not allowed to override that meaning.
 That boundary matters.
 
 The control-plane layer decides the explicit, realized structure that a renderer should consume.
-The renderer decides how that structure becomes valid NixOS configuration.
+The renderer decides how that structure becomes valid NixOS-specific output.
 
 Those are different responsibilities.
 
@@ -207,7 +213,7 @@ It only changes where evaluation starts.
 Even when invoked through a higher-level entrypoint, the renderer still must behave like a renderer:
 
 * it consumes explicit upstream contracts
-* it emits NixOS grammar
+* it emits NixOS-oriented grammar and artifacts
 * it fails on unresolved inputs
 * it does not become a hidden compiler or hidden control-plane solver
 
@@ -233,9 +239,9 @@ Upstream owns:
 
 The renderer owns:
 
-* mapping explicit model data into NixOS options
+* mapping explicit model data into NixOS-specific artifact shape
 * preserving already-established semantics
-* emitting deterministic platform configuration
+* emitting deterministic platform output
 * failing when required renderer inputs are missing or contradictory
 
 No third source of truth is allowed to appear during rendering.
@@ -253,51 +259,24 @@ If the emitted configuration requires a fact, that fact must already be explicit
 
 ---
 
-# Renderer stance
+# Responsibility boundary inside this repository
 
-This repository is **platform-specific** and **semantically conservative**.
+This repository is the **rendering layer**.
 
-Platform-specific means:
+It must not collapse lookup, policy, mapping, and emission into one bucket.
 
-* it emits NixOS configuration
-* it may rely on NixOS module structure
-* it may target NixOS-native facilities for networking, services, and host realization
+That means:
 
-Semantically conservative means:
+* lookup inputs must already be resolved upstream
+* policy meaning must already be explicit upstream
+* mapping must translate between already-known shapes
+* emission must write artifacts from already-resolved inputs only
 
-* it does not invent network meaning
-* it does not reinterpret upstream intent
-* it does not perform policy repair
-* it does not derive missing structure from platform shortcuts
+Rendering files must emit configuration from explicit, resolved data.
+They must not also decide policy, resolve topology, or select targets.
 
-That distinction is important.
-
-This project is allowed to be NixOS-specific.
-It is **not** allowed to be architecture-specific in a way that changes upstream meaning.
-
----
-
-# Consumer boundary
-
-The renderer and the consumer are not the same thing.
-
-That boundary must stay clean.
-
-The renderer should render explicit units and runtime targets from explicit input contracts.
-
-The consumer layer decides things like:
-
-* which rendered hosts or units are enabled
-* which containers should exist on a given host
-* whether a rendered target should autostart
-* extra runtime toggles or capabilities
-* deployment-time inclusion or exclusion choices
-
-Those are **consumer decisions**, not renderer decisions.
-
-The renderer should not embed hidden deployment policy just because it can.
-
-A renderer that silently decides what the user probably wanted is doing the wrong job.
+Composition files may wire modules together, pass inputs through, and merge outputs.
+They must not become implementation buckets.
 
 ---
 
@@ -315,8 +294,107 @@ It does not infer:
 * missing route meaning
 * missing node-role semantics
 * missing container selection policy
+* missing service enablement meaning
+* missing DHCP ranges
 
 It only renders what has already been made explicit upstream and what has explicitly been selected at the consumer boundary.
+
+Hard failure on any assumption is part of the design.
+
+There are no assumptions here.
+There are only explicit options.
+
+Example:
+
+* if DHCP is enabled, required ranges must already be defined
+* if a service requires interface ownership, that ownership must already be explicit
+* if a container artifact must exist, the container target must already be explicit
+
+If the renderer would need to guess, evaluation must fail.
+
+---
+
+# Artifact layout
+
+The renderer emits artifacts into a deterministic directory structure.
+
+Required layout:
+
+```text
+./work/etc/network-artifacts/<enterprise>/<site>/<host>/<hostdata>and<container>/<specific-service-containerdata>.json
+```
+
+This layout is part of the renderer contract.
+
+The intent of the layout is:
+
+* enterprise-scoped separation
+* site-scoped separation
+* host-scoped separation
+* explicit distinction between host data and container-scoped data
+* service-specific JSON artifacts at the leaf
+
+The renderer must emit artifacts into this structure from already-resolved inputs only.
+
+The renderer must not invent path components from guessed semantics.
+Every identity used in the emitted path must already be explicit in the input contract.
+
+---
+
+# Artifact semantics
+
+Rendered artifacts are emission outputs, not new model layers.
+
+That distinction matters.
+
+An emitted JSON file may describe:
+
+* host-local interface data
+* service-specific runtime inputs
+* container-local network data
+* resolver inputs
+* firewall inputs
+* DHCP inputs
+* other NixOS-consumable rendered facts
+
+But those files do not become a new source of truth.
+They are renderer output derived from upstream contracts.
+
+The renderer must preserve that direction:
+
+```text
+explicit upstream model
+  ↓
+renderer mapping
+  ↓
+emitted NixOS artifacts
+```
+
+Not the reverse.
+
+---
+
+# Consumer boundary
+
+The renderer and the consumer are not the same thing.
+
+That boundary must stay clean.
+
+The renderer should render explicit hosts, services, and runtime targets from explicit input contracts.
+
+The consumer layer decides things like:
+
+* which rendered hosts or units are enabled
+* which containers should exist on a given host
+* whether a rendered target should autostart
+* extra runtime toggles or capabilities
+* deployment-time inclusion or exclusion choices
+
+Those are **consumer decisions**, not renderer decisions.
+
+The renderer should not embed hidden deployment policy just because it can.
+
+A renderer that silently decides what the user probably wanted is doing the wrong job.
 
 ---
 
@@ -326,7 +404,8 @@ Given the same explicit renderer inputs, output must be deterministic.
 
 That means:
 
-* same input should produce the same rendered configuration
+* same input should produce the same rendered configuration artifacts
+* same input should produce the same artifact paths
 * missing data should fail the same way every time
 * platform output should not depend on accidental evaluation order
 * renderers should not smuggle in hidden defaults that change meaning silently
@@ -355,7 +434,7 @@ That is exactly what this repository is trying to avoid.
 The renderer should be boring.
 
 Input in.
-Configuration out.
+Artifacts out.
 Crash on mismatch.
 
 ---
@@ -366,7 +445,7 @@ If you use this repository, the expectation is simple:
 
 * provide explicit upstream model data
 * keep responsibility boundaries intact
-* let the renderer emit NixOS-specific configuration
+* let the renderer emit NixOS-specific artifacts
 * do not expect the renderer to solve missing architecture for you
 * do not expect it to reverse-engineer intent from partial data
 
@@ -401,6 +480,66 @@ The genericity boundary is:
 
 ---
 
+# Relationship to the rest of the toolchain
+
+This repository follows the same overall style as the rest of the network toolchain.
+
+The compiler defines architectural meaning.
+The forwarding model defines forwarding-executable structure.
+The control-plane model defines realized control-plane structure.
+The NixOS renderer emits platform-specific artifacts from that already-explicit result.
+
+That separation is intentional.
+It is the reason the renderer must stay strict.
+
+---
+
+# Suggested artifact hierarchy example
+
+A rendered tree may look like this:
+
+```text
+work/
+└── etc/
+    └── network-artifacts/
+        └── acme/
+            └── ams1/
+                └── edge-1/
+                    └── hostdata-and-containers/
+                        ├── routing.json
+                        ├── firewall.json
+                        ├── dns.json
+                        └── container-web/
+                            └── veth.json
+```
+
+The exact filenames may evolve with the contract.
+The important invariant is that artifact placement is deterministic and derived from explicit identity.
+
+---
+
+# Non-goals
+
+This project is not trying to be:
+
+* a universal network templating engine
+* a hidden control-plane solver
+* a topology compiler
+* a policy repair layer
+* a deployment orchestrator
+* a place where missing facts are guessed into existence
+
+It is trying to be:
+
+* deterministic
+* explicit
+* NixOS-specific
+* renderer-scoped
+* conservative about semantic ownership
+* strict about hard failure
+
+---
+
 # Summary
 
 This project is a deterministic NixOS renderer.
@@ -413,7 +552,7 @@ It accepts:
 
 and produces:
 
-* deterministic, explicit, NixOS-specific configuration
+* deterministic, explicit, NixOS-specific artifacts and configuration inputs
 
 It is:
 
@@ -424,7 +563,7 @@ It is:
 * conservative about semantic ownership
 
 Upstream defines what the network means.
-The renderer defines how that meaning is emitted in NixOS.
+The renderer defines how that meaning is emitted into NixOS artifacts.
 The consumer decides what to instantiate or enable at deployment time.
 
 If those layers do not line up, rendering should fail.
