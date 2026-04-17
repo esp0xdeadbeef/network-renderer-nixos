@@ -29,6 +29,13 @@ let
     else
       throw "network-renderer-nixos: expected ${name} to be an integer";
 
+  ensureBool =
+    name: value:
+    if builtins.isBool value then
+      value
+    else
+      throw "network-renderer-nixos: expected ${name} to be a boolean";
+
   model = ensureAttrs "firewallModel" firewallModel;
 
   tableFamily =
@@ -110,10 +117,7 @@ let
       else if rule.family == "ipv6" then
         [ "meta l4proto ipv6-icmp" ]
       else
-        [
-          "meta l4proto icmp"
-          "meta l4proto ipv6-icmp"
-        ]
+        throw "network-renderer-nixos: ICMP firewall rule requires family ipv4 or ipv6"
     else
       throw "network-renderer-nixos: unsupported firewall protocol '${proto}'";
 
@@ -148,7 +152,11 @@ let
       comment =
         if ruleDef ? comment then ensureString "firewall chain rule.comment" ruleDef.comment else null;
 
-      applyTcpMssClamp = if ruleDef ? applyTcpMssClamp then ruleDef.applyTcpMssClamp else false;
+      applyTcpMssClamp =
+        if ruleDef ? applyTcpMssClamp then
+          ensureBool "firewall chain rule.applyTcpMssClamp" ruleDef.applyTcpMssClamp
+        else
+          false;
 
       saddr4s =
         if ruleDef ? saddr4s then ensureList "firewall chain rule.saddr4s" ruleDef.saddr4s else [ ];
@@ -178,21 +186,40 @@ let
           ;
       };
 
-      clauses =
-        (lib.optional (comment != null) "comment \"${escapeString comment}\"")
-        ++ [
-          "iifname \"${escapeString iifname}\""
-          "oifname \"${escapeString oifname}\""
-        ]
-        ++ renderFamilyAddressClauses normalizedRule
-        ++ renderProtoClauses normalizedRule
-        ++ (lib.optional applyTcpMssClamp "tcp flags syn tcp option maxseg size set rt mtu")
-        ++ [
-          "counter"
-          verdict
-        ];
+      matchClauses = [
+        "iifname \"${escapeString iifname}\""
+        "oifname \"${escapeString oifname}\""
+      ]
+      ++ renderFamilyAddressClauses normalizedRule
+      ++ renderProtoClauses normalizedRule
+      ++ (lib.optional applyTcpMssClamp "tcp flags syn tcp option maxseg size set rt mtu");
+
+      tailClauses = [
+        "counter"
+        verdict
+      ]
+      ++ (lib.optional (comment != null) "comment \"${escapeString comment}\"");
     in
-    "    ${lib.concatStringsSep " " clauses};";
+    "    ${lib.concatStringsSep " " (matchClauses ++ tailClauses)};";
+
+  renderAutomaticForwardRules =
+    chainName:
+    let
+      chain = ensureAttrs "firewallModel.chains.${chainName}" chains.${chainName};
+
+      hook =
+        if chain ? hook then
+          ensureString "firewallModel.chains.${chainName}.hook" chain.hook
+        else
+          throw "network-renderer-nixos: firewall chain '${chainName}' is missing hook";
+    in
+    if hook == "forward" then
+      [
+        "    ct state invalid counter drop;"
+        "    ct state established,related counter accept;"
+      ]
+    else
+      [ ];
 
   renderChain =
     chainName:
@@ -236,6 +263,7 @@ let
         "  chain ${chainName} {"
         "    type ${chainType} hook ${hook} priority ${toString priority}; policy ${policy};"
       ]
+      ++ renderAutomaticForwardRules chainName
       ++ renderedRules
       ++ [ "  }" ]
     );

@@ -55,17 +55,46 @@ let
       ensureBool "artifactContext.runtimeTarget.forwardingResponsibility.enforcesPolicy" forwardingResponsibility.enforcesPolicy
     else
       false;
+
+  _policyContextValid =
+    if !(enforcesPolicy || role == "policy") then
+      true
+    else if
+      !(context ? enterpriseName)
+      || !(builtins.isString context.enterpriseName)
+      || context.enterpriseName == ""
+    then
+      throw "network-renderer-nixos: policy firewall selection requires artifactContext.enterpriseName"
+    else if
+      !(context ? siteName) || !(builtins.isString context.siteName) || context.siteName == ""
+    then
+      throw "network-renderer-nixos: policy firewall selection requires artifactContext.siteName"
+    else
+      true;
+
+  _validateSiteInputs =
+    if !(enforcesPolicy || role == "policy") then
+      true
+    else
+      let
+        _siteInputs = lookupSiteServiceInputs {
+          inherit normalizedModel;
+          enterpriseName = context.enterpriseName;
+          siteName = context.siteName;
+        };
+      in
+      builtins.seq _siteInputs true;
 in
-if enforcesPolicy || role == "policy" then
-  mapFirewallPolicyRuntimeTargetModel (
-    context
-    // {
-      siteServiceInputs = lookupSiteServiceInputs {
-        inherit normalizedModel;
-        enterpriseName = context.enterpriseName;
-        siteName = context.siteName;
-      };
-    }
+builtins.seq _policyContextValid (
+  builtins.seq _validateSiteInputs (
+    if enforcesPolicy || role == "policy" then
+      mapFirewallPolicyRuntimeTargetModel {
+        inherit
+          normalizedModel
+          artifactContext
+          ;
+      }
+    else
+      mapFirewallForwardingRuntimeTargetModel artifactContext
   )
-else
-  mapFirewallForwardingRuntimeTargetModel context
+)

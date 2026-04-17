@@ -63,6 +63,7 @@ let
           inherit
             lib
             normalizeCommunicationContract
+            lookupSiteServiceInputs
             ;
         };
       in

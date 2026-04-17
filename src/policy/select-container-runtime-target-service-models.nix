@@ -100,6 +100,15 @@ let
         true
     ) entries;
 
+  traceUpstreamContainerMismatch =
+    runtimeTargetName: containerName: declaredContainer:
+    builtins.trace ''
+      WARNING: network-renderer-nixos tolerated a runtime target/container service mismatch for '${runtimeTargetName}'.
+      artifactContext.containerName='${containerName}'
+      declared container='${declaredContainer}'
+      This should be patched upstream at the control-plane/inventory layer rather than relying on renderer fallback.
+    '' true;
+
   context = ensureAttrs "artifactContext" artifactContext;
 
   runtimeTargetName = ensureString "artifactContext.runtimeTargetName" context.runtimeTargetName;
@@ -159,6 +168,16 @@ let
 
   hasContainerServices = keaAdvertisements != [ ] || radvdAdvertisements != [ ];
 
+  declaredContainerName =
+    if builtins.length declaredContainers == 1 then builtins.head declaredContainers else null;
+
+  allowContainerContextMismatch =
+    hasContainerServices
+    && containerName != null
+    && declaredContainerName != null
+    && containerName != declaredContainerName
+    && declaredContainerName == "default";
+
   _requireContainerPlacement =
     if !hasContainerServices then
       true
@@ -166,10 +185,12 @@ let
       throw "network-renderer-nixos: runtime target '${runtimeTargetName}' carries container services but is not placed in a container artifact context"
     else if builtins.length declaredContainers != 1 then
       throw "network-renderer-nixos: runtime target '${runtimeTargetName}' carries container services but does not resolve to exactly one container"
-    else if builtins.head declaredContainers != containerName then
-      throw "network-renderer-nixos: runtime target '${runtimeTargetName}' container service context does not match declared container '${builtins.head declaredContainers}'"
+    else if builtins.head declaredContainers == containerName then
+      true
+    else if allowContainerContextMismatch then
+      traceUpstreamContainerMismatch runtimeTargetName containerName declaredContainerName
     else
-      true;
+      throw "network-renderer-nixos: runtime target '${runtimeTargetName}' container service context does not match declared container '${builtins.head declaredContainers}'";
 in
 builtins.seq _requireContainerPlacement {
   kea =

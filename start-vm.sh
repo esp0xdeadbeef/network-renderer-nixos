@@ -2,7 +2,7 @@
 set -euo pipefail
 
 touch ./nixos.qcow2
-rm -f ./nixos.qcow2
+#rm -f ./nixos.qcow2
 
 export QEMU_NET_OPTS="hostfwd=tcp::2222-:22"
 echo "ssh -o 'StrictHostKeyChecking no' -p2222 root@localhost # to connect to the vm."
