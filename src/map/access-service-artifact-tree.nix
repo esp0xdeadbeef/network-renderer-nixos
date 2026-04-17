@@ -311,7 +311,7 @@ let
       hostSegment = validPathSegment "host name" model.host;
       containerSegment = validPathSegment "container name" model.container;
     in
-    "${enterpriseSegment}/${siteSegment}/${hostSegment}/containers/${containerSegment}/services/${serviceSegment}/${serviceSegment}.json";
+    "${enterpriseSegment}/${siteSegment}/${hostSegment}/host-data-and-containers/containers/${containerSegment}/services/${serviceSegment}/${serviceSegment}.json";
 
   serviceIndexPath =
     model:
@@ -321,7 +321,7 @@ let
       hostSegment = validPathSegment "host name" model.host;
       containerSegment = validPathSegment "container name" model.container;
     in
-    "${enterpriseSegment}/${siteSegment}/${hostSegment}/containers/${containerSegment}/services/index.json";
+    "${enterpriseSegment}/${siteSegment}/${hostSegment}/host-data-and-containers/containers/${containerSegment}/services/index.json";
 
   sortRuntimeTargets =
     runtimeTargets:

@@ -9,13 +9,28 @@ let
 
   renderer = (builtins.getFlake (toString ./.)).libBySystem.${system};
 
-  vm = renderer.vm.build {
-    inherit (input)
-      intentPath
-      inventoryPath
-      ;
-    boxName = input.boxName or null;
-  };
+  testingSpoofedHostHeadersEnabled =
+    if input ? testingSpoofedHostHeadersEnabled then input.testingSpoofedHostHeadersEnabled else false;
+
+  _requireExplicitTestingOptIn =
+    if testingSpoofedHostHeadersEnabled then
+      true
+    else
+      throw ''
+        network-renderer-nixos: vm.nix test harness requires explicit testing opt-in for spoofed host headers
+        Set `testingSpoofedHostHeadersEnabled = true;` in the selected vm-input file.
+        This path is for testing only and must not be used as production configuration.
+      '';
+
+  vm = builtins.seq _requireExplicitTestingOptIn (
+    renderer.vm.build {
+      inherit (input)
+        intentPath
+        inventoryPath
+        ;
+      boxName = input.boxName or null;
+    }
+  );
 in
 {
   imports = [ vm.artifactModule ];
@@ -33,10 +48,21 @@ in
       assertion = vm.boxName != null;
       message = "vm-input.nix requires a resolved boxName";
     }
+    {
+      assertion = testingSpoofedHostHeadersEnabled == true;
+      message = "vm.nix is a testing-only harness using spoofed host headers; set testingSpoofedHostHeadersEnabled = true explicitly";
+    }
+  ];
+
+  warnings = [
+    "network-renderer-nixos: vm.nix is a testing-only harness."
+    "network-renderer-nixos: spoofed host headers are enabled for this VM harness."
+    "network-renderer-nixos: do not use vm.nix as a production deployment path."
   ];
 
   system.stateVersion = "25.11";
 
+  networking.hostName = "TEST-ONLY-SPOOFED-HOST-HEADERS";
   networking.useNetworkd = true;
   systemd.network.enable = true;
   systemd.network.netdevs = vm.renderedNetdevs;
