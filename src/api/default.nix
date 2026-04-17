@@ -23,11 +23,39 @@ let
 
   importValue = import ../lookup/import-value.nix { inherit lib; };
 
+  attachRendererInputs =
+    {
+      result,
+      intentPath,
+      inventoryPath ? null,
+      intent ? null,
+      inventory ? null,
+    }:
+    let
+      resolvedIntent = if intent != null then intent else importValue intentPath;
+
+      resolvedInventory =
+        if inventory != null then
+          inventory
+        else if inventoryPath == null then
+          { }
+        else
+          importValue inventoryPath;
+
+      normalizedResult = if builtins.isAttrs result then result else { control_plane_model = result; };
+    in
+    normalizedResult
+    // {
+      fabricInputs = resolvedIntent;
+      globalInventory = resolvedInventory;
+      inventory = resolvedInventory;
+    };
+
   buildControlPlaneOutputFromLib =
     if controlPlaneLib == null then
       null
     else if controlPlaneLib ? buildControlPlaneOutput then
-      controlPlaneLib.buildControlPlaneOutput
+      args: attachRendererInputs (args // { result = controlPlaneLib.buildControlPlaneOutput args; })
     else if controlPlaneLib ? compileAndBuildFromPaths then
       {
         intentPath,
@@ -45,39 +73,58 @@ let
               { }
             else
               importValue inventoryPath;
+
+          result =
+            if controlPlaneLib ? build then
+              controlPlaneLib.build {
+                input = resolvedIntent;
+                inventory = resolvedInventory;
+              }
+            else if controlPlaneLib ? compileAndBuild then
+              controlPlaneLib.compileAndBuild {
+                input = resolvedIntent;
+                inventory = resolvedInventory;
+              }
+            else if controlPlaneLib ? getCPM then
+              {
+                control_plane_model = controlPlaneLib.getCPM {
+                  input = resolvedIntent;
+                  inventory = resolvedInventory;
+                };
+              }
+            else if controlPlaneLib ? get_CPM then
+              {
+                control_plane_model = controlPlaneLib.get_CPM {
+                  input = resolvedIntent;
+                  inventory = resolvedInventory;
+                };
+              }
+            else
+              throw ''
+                network-renderer-nixos: src/api/default.nix received inline intent/inventory, but controlPlaneLib does not expose build/compileAndBuild/getCPM/get_CPM
+              '';
         in
-        if controlPlaneLib ? build then
-          controlPlaneLib.build {
-            input = resolvedIntent;
-            inventory = resolvedInventory;
-          }
-        else if controlPlaneLib ? compileAndBuild then
-          controlPlaneLib.compileAndBuild {
-            input = resolvedIntent;
-            inventory = resolvedInventory;
-          }
-        else if controlPlaneLib ? getCPM then
-          {
-            control_plane_model = controlPlaneLib.getCPM {
-              input = resolvedIntent;
-              inventory = resolvedInventory;
-            };
-          }
-        else if controlPlaneLib ? get_CPM then
-          {
-            control_plane_model = controlPlaneLib.get_CPM {
-              input = resolvedIntent;
-              inventory = resolvedInventory;
-            };
-          }
-        else
-          throw ''
-            network-renderer-nixos: src/api/default.nix received inline intent/inventory, but controlPlaneLib does not expose build/compileAndBuild/getCPM/get_CPM
-          ''
+        attachRendererInputs {
+          inherit
+            result
+            intentPath
+            inventoryPath
+            intent
+            inventory
+            ;
+        }
       else
-        controlPlaneLib.compileAndBuildFromPaths {
-          inputPath = intentPath;
-          inherit inventoryPath;
+        attachRendererInputs {
+          result = controlPlaneLib.compileAndBuildFromPaths {
+            inputPath = intentPath;
+            inherit inventoryPath;
+          };
+          inherit
+            intentPath
+            inventoryPath
+            intent
+            inventory
+            ;
         }
     else if controlPlaneLib ? build then
       {
@@ -96,9 +143,17 @@ let
           else
             importValue inventoryPath;
       in
-      controlPlaneLib.build {
-        input = resolvedIntent;
-        inventory = resolvedInventory;
+      attachRendererInputs {
+        result = controlPlaneLib.build {
+          input = resolvedIntent;
+          inventory = resolvedInventory;
+        };
+        inherit
+          intentPath
+          inventoryPath
+          intent
+          inventory
+          ;
       }
     else if controlPlaneLib ? compileAndBuild then
       {
@@ -117,9 +172,17 @@ let
           else
             importValue inventoryPath;
       in
-      controlPlaneLib.compileAndBuild {
-        input = resolvedIntent;
-        inventory = resolvedInventory;
+      attachRendererInputs {
+        result = controlPlaneLib.compileAndBuild {
+          input = resolvedIntent;
+          inventory = resolvedInventory;
+        };
+        inherit
+          intentPath
+          inventoryPath
+          intent
+          inventory
+          ;
       }
     else if controlPlaneLib ? getCPM then
       {
@@ -138,11 +201,19 @@ let
           else
             importValue inventoryPath;
       in
-      {
-        control_plane_model = controlPlaneLib.getCPM {
-          input = resolvedIntent;
-          inventory = resolvedInventory;
+      attachRendererInputs {
+        result = {
+          control_plane_model = controlPlaneLib.getCPM {
+            input = resolvedIntent;
+            inventory = resolvedInventory;
+          };
         };
+        inherit
+          intentPath
+          inventoryPath
+          intent
+          inventory
+          ;
       }
     else if controlPlaneLib ? get_CPM then
       {
@@ -161,11 +232,19 @@ let
           else
             importValue inventoryPath;
       in
-      {
-        control_plane_model = controlPlaneLib.get_CPM {
-          input = resolvedIntent;
-          inventory = resolvedInventory;
+      attachRendererInputs {
+        result = {
+          control_plane_model = controlPlaneLib.get_CPM {
+            input = resolvedIntent;
+            inventory = resolvedInventory;
+          };
         };
+        inherit
+          intentPath
+          inventoryPath
+          intent
+          inventory
+          ;
       }
     else
       null;
