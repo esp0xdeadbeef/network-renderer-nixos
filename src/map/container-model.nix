@@ -1,4 +1,7 @@
-{ lib }:
+{
+  lib,
+  mapContainerRuntimeArtifactModel,
+}:
 {
   model,
   boxName,
@@ -116,7 +119,7 @@ let
     else
       portName;
 
-  runtimeTargetsForNode =
+  runtimeTargetMatchForNode =
     nodeName: node:
     let
       enterpriseName = enterpriseNameForNode node;
@@ -172,21 +175,26 @@ let
         placementHost == boxName && targetLogicalName == logicalName
       ) (sortedAttrNames siteRoot);
     in
-    if builtins.length matchingNames <= 1 then
-      map (name: siteRoot.${name}) matchingNames
+    if builtins.length matchingNames == 0 then
+      null
+    else if builtins.length matchingNames == 1 then
+      {
+        name = builtins.head matchingNames;
+        value = siteRoot.${builtins.head matchingNames};
+      }
     else
       throw "network-renderer-nixos: deployment host '${boxName}' resolves logical node '${logicalName}' to multiple runtime targets";
 
   effectiveInterfacesForNode =
     nodeName: node:
     let
-      runtimeTargets = runtimeTargetsForNode nodeName node;
+      runtimeTargetMatch = runtimeTargetMatchForNode nodeName node;
     in
-    if runtimeTargets == [ ] then
+    if runtimeTargetMatch == null then
       null
     else
       let
-        runtimeTarget = builtins.head runtimeTargets;
+        runtimeTarget = runtimeTargetMatch.value;
       in
       if
         builtins.isAttrs runtimeTarget
@@ -381,6 +389,25 @@ let
       interfaces = lib.mapAttrs (portName: port: interfaceDataForPort nodeName node portName port) ports;
       containerName = logicalName;
       runtimeRole = runtimeRoleForNode node;
+      runtimeTargetMatch = runtimeTargetMatchForNode nodeName node;
+      artifactModel =
+        if runtimeTargetMatch == null then
+          {
+            files = { };
+            nftablesArtifactPath = null;
+          }
+        else
+          mapContainerRuntimeArtifactModel {
+            normalizedModel = model;
+            enterpriseName = enterpriseNameForNode node;
+            siteName = siteNameForNode node;
+            hostName = boxName;
+            inherit
+              containerName
+              ;
+            runtimeTargetName = runtimeTargetMatch.name;
+            runtimeTarget = runtimeTargetMatch.value;
+          };
     in
     if
       platform == "nixos-container"
@@ -399,6 +426,8 @@ let
               interfaces
               runtimeRole
               ;
+            artifactFiles = artifactModel.files;
+            nftablesArtifactPath = artifactModel.nftablesArtifactPath;
           };
         }
       ]

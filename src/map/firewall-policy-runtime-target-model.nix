@@ -1,8 +1,12 @@
 {
   lib,
   normalizeCommunicationContract,
+  lookupSiteServiceInputs,
 }:
-artifactContext:
+{
+  normalizedModel,
+  artifactContext,
+}:
 let
   ensureAttrs =
     name: value:
@@ -42,6 +46,18 @@ let
 
   context = ensureAttrs "artifactContext" artifactContext;
 
+  enterpriseName =
+    if context ? enterpriseName then
+      ensureString "artifactContext.enterpriseName" context.enterpriseName
+    else
+      throw "network-renderer-nixos: artifactContext is missing enterpriseName";
+
+  siteName =
+    if context ? siteName then
+      ensureString "artifactContext.siteName" context.siteName
+    else
+      throw "network-renderer-nixos: artifactContext is missing siteName";
+
   runtimeTargetName =
     if context ? runtimeTargetName then
       ensureString "artifactContext.runtimeTargetName" context.runtimeTargetName
@@ -54,15 +70,13 @@ let
     else
       throw "network-renderer-nixos: artifactContext is missing runtimeTarget";
 
-  siteServiceInputs =
-    if context ? siteServiceInputs then
-      ensureAttrs "artifactContext.siteServiceInputs" context.siteServiceInputs
-    else
-      throw ''
-        network-renderer-nixos: artifactContext is missing siteServiceInputs for runtime target '${runtimeTargetName}'
-        runtimeTarget=${json runtimeTarget}
-        artifactContext=${json context}
-      '';
+  siteServiceInputs = lookupSiteServiceInputs {
+    inherit
+      normalizedModel
+      enterpriseName
+      siteName
+      ;
+  };
 
   communicationContract =
     if siteServiceInputs ? communicationContract then
@@ -76,7 +90,7 @@ let
 
   ownership =
     if siteServiceInputs ? ownership then
-      ensureAttrs "artifactContext.siteServiceInputs.ownership" siteServiceInputs.ownership
+      ensureAttrs "siteServiceInputs.ownership" siteServiceInputs.ownership
     else
       throw ''
         network-renderer-nixos: siteServiceInputs is missing ownership for runtime target '${runtimeTargetName}'
@@ -86,7 +100,7 @@ let
 
   forwardingIntent =
     if runtimeTarget ? forwardingIntent then
-      ensureAttrs "runtime target '${runtimeTargetName}'.forwardingIntent" runtimeTarget.forwardingIntent
+      ensureAttrs "runtimeTarget.forwardingIntent" runtimeTarget.forwardingIntent
     else
       throw "network-renderer-nixos: runtime target '${runtimeTargetName}' is missing forwardingIntent";
 

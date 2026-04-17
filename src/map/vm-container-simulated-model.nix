@@ -1,4 +1,4 @@
-{ lib }:
+{ lib, mapContainerRuntimeArtifactModel }:
 {
   normalizedModel,
   deploymentHostName,
@@ -208,9 +208,7 @@ let
     then
       interface.attach.bridge
     else if
-      interface ? sourceKind
-      && builtins.isString interface.sourceKind
-      && (interface.sourceKind == "direct")
+      interface ? sourceKind && builtins.isString interface.sourceKind && interface.sourceKind == "direct"
     then
       directBridgeNameForInterface interface
     else
@@ -314,6 +312,18 @@ let
 
           containerName = logicalContainerNameForRuntimeTarget runtimeTargetName runtimeTarget;
           runtimeRole = runtimeRoleForRuntimeTarget runtimeTarget;
+
+          artifactModel = mapContainerRuntimeArtifactModel {
+            inherit
+              normalizedModel
+              enterpriseName
+              siteName
+              runtimeTargetName
+              runtimeTarget
+              ;
+            hostName = deploymentHostName;
+            inherit containerName;
+          };
         in
         if declaredContainers == [ ] then
           [ ]
@@ -332,6 +342,8 @@ let
                 interfaces =
                   interfaceModelsForRuntimeTarget enterpriseName siteName runtimeTargetName
                     runtimeTarget;
+                artifactFiles = artifactModel.files;
+                nftablesArtifactPath = artifactModel.nftablesArtifactPath;
               };
             }
           ]
