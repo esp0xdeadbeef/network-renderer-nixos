@@ -19,8 +19,162 @@ let
 
       existing = lib.filter builtins.pathExists candidates;
     in
-    if existing != [ ] then
-      builtins.head existing
+    if existing != [ ] then builtins.head existing else null;
+
+  importValue = import ../lookup/import-value.nix { inherit lib; };
+
+  buildControlPlaneOutputFromLib =
+    if controlPlaneLib == null then
+      null
+    else if controlPlaneLib ? buildControlPlaneOutput then
+      controlPlaneLib.buildControlPlaneOutput
+    else if controlPlaneLib ? compileAndBuildFromPaths then
+      {
+        intentPath,
+        inventoryPath ? null,
+        intent ? null,
+        inventory ? null,
+      }:
+      if intent != null || inventory != null then
+        let
+          resolvedIntent = if intent != null then intent else importValue intentPath;
+          resolvedInventory =
+            if inventory != null then
+              inventory
+            else if inventoryPath == null then
+              { }
+            else
+              importValue inventoryPath;
+        in
+        if controlPlaneLib ? build then
+          controlPlaneLib.build {
+            input = resolvedIntent;
+            inventory = resolvedInventory;
+          }
+        else if controlPlaneLib ? compileAndBuild then
+          controlPlaneLib.compileAndBuild {
+            input = resolvedIntent;
+            inventory = resolvedInventory;
+          }
+        else if controlPlaneLib ? getCPM then
+          {
+            control_plane_model = controlPlaneLib.getCPM {
+              input = resolvedIntent;
+              inventory = resolvedInventory;
+            };
+          }
+        else if controlPlaneLib ? get_CPM then
+          {
+            control_plane_model = controlPlaneLib.get_CPM {
+              input = resolvedIntent;
+              inventory = resolvedInventory;
+            };
+          }
+        else
+          throw ''
+            network-renderer-nixos: src/api/default.nix received inline intent/inventory, but controlPlaneLib does not expose build/compileAndBuild/getCPM/get_CPM
+          ''
+      else
+        controlPlaneLib.compileAndBuildFromPaths {
+          inputPath = intentPath;
+          inherit inventoryPath;
+        }
+    else if controlPlaneLib ? build then
+      {
+        intentPath,
+        inventoryPath ? null,
+        intent ? null,
+        inventory ? null,
+      }:
+      let
+        resolvedIntent = if intent != null then intent else importValue intentPath;
+        resolvedInventory =
+          if inventory != null then
+            inventory
+          else if inventoryPath == null then
+            { }
+          else
+            importValue inventoryPath;
+      in
+      controlPlaneLib.build {
+        input = resolvedIntent;
+        inventory = resolvedInventory;
+      }
+    else if controlPlaneLib ? compileAndBuild then
+      {
+        intentPath,
+        inventoryPath ? null,
+        intent ? null,
+        inventory ? null,
+      }:
+      let
+        resolvedIntent = if intent != null then intent else importValue intentPath;
+        resolvedInventory =
+          if inventory != null then
+            inventory
+          else if inventoryPath == null then
+            { }
+          else
+            importValue inventoryPath;
+      in
+      controlPlaneLib.compileAndBuild {
+        input = resolvedIntent;
+        inventory = resolvedInventory;
+      }
+    else if controlPlaneLib ? getCPM then
+      {
+        intentPath,
+        inventoryPath ? null,
+        intent ? null,
+        inventory ? null,
+      }:
+      let
+        resolvedIntent = if intent != null then intent else importValue intentPath;
+        resolvedInventory =
+          if inventory != null then
+            inventory
+          else if inventoryPath == null then
+            { }
+          else
+            importValue inventoryPath;
+      in
+      {
+        control_plane_model = controlPlaneLib.getCPM {
+          input = resolvedIntent;
+          inventory = resolvedInventory;
+        };
+      }
+    else if controlPlaneLib ? get_CPM then
+      {
+        intentPath,
+        inventoryPath ? null,
+        intent ? null,
+        inventory ? null,
+      }:
+      let
+        resolvedIntent = if intent != null then intent else importValue intentPath;
+        resolvedInventory =
+          if inventory != null then
+            inventory
+          else if inventoryPath == null then
+            { }
+          else
+            importValue inventoryPath;
+      in
+      {
+        control_plane_model = controlPlaneLib.get_CPM {
+          input = resolvedIntent;
+          inventory = resolvedInventory;
+        };
+      }
+    else
+      null;
+
+  buildControlPlaneOutput =
+    if buildControlPlaneOutputFromLib != null then
+      buildControlPlaneOutputFromLib
+    else if fallbackBuildControlPlaneOutputPath != null then
+      import fallbackBuildControlPlaneOutputPath { inherit lib; }
     else
       throw ''
         network-renderer-nixos: src/api/default.nix could not resolve build-control-plane-output.nix
@@ -35,12 +189,6 @@ let
         - src/pipeline/build-control-plane-output.nix
         Provide controlPlaneLib.buildControlPlaneOutput when importing src/api/default.nix if your tree keeps the builder elsewhere.
       '';
-
-  buildControlPlaneOutput =
-    if controlPlaneLib != null && controlPlaneLib ? buildControlPlaneOutput then
-      controlPlaneLib.buildControlPlaneOutput
-    else
-      import fallbackBuildControlPlaneOutputPath { inherit lib; };
 
   helpers = import ../normalize/helpers.nix { inherit lib; };
 
