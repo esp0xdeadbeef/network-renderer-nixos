@@ -4,56 +4,6 @@
 }:
 
 let
-  resolveControlPlaneBuilder =
-    libValue:
-    if libValue == null then
-      null
-    else if libValue ? buildControlPlaneOutput then
-      libValue.buildControlPlaneOutput
-    else if libValue ? compileAndBuildFromPaths then
-      args:
-      libValue.compileAndBuildFromPaths {
-        inputPath = args.intentPath;
-        inventoryPath = args.inventoryPath or null;
-      }
-    else if libValue ? writeCompileAndBuildJSON then
-      args:
-      builtins.fromJSON (
-        builtins.readFile (
-          libValue.writeCompileAndBuildJSON {
-            inputPath = args.intentPath;
-            inventoryPath = args.inventoryPath or null;
-            name = "control-plane-model.json";
-          }
-        )
-      )
-    else if libValue ? build then
-      args:
-      libValue.build {
-        input = if args ? intent && args.intent != null then args.intent else import args.intentPath;
-        inventory =
-          if args ? inventory && args.inventory != null then
-            args.inventory
-          else if args ? inventoryPath && args.inventoryPath != null then
-            import args.inventoryPath
-          else
-            { };
-      }
-    else if libValue ? compileAndBuild then
-      args:
-      libValue.compileAndBuild {
-        input = if args ? intent && args.intent != null then args.intent else import args.intentPath;
-        inventory =
-          if args ? inventory && args.inventory != null then
-            args.inventory
-          else if args ? inventoryPath && args.inventoryPath != null then
-            import args.inventoryPath
-          else
-            { };
-      }
-    else
-      null;
-
   fallbackBuildControlPlaneOutputPath =
     let
       candidates = [
@@ -69,15 +19,8 @@ let
 
       existing = lib.filter builtins.pathExists candidates;
     in
-    if existing != [ ] then builtins.head existing else null;
-
-  resolvedControlPlaneBuilder = resolveControlPlaneBuilder controlPlaneLib;
-
-  buildControlPlaneOutput =
-    if resolvedControlPlaneBuilder != null then
-      resolvedControlPlaneBuilder
-    else if fallbackBuildControlPlaneOutputPath != null then
-      import fallbackBuildControlPlaneOutputPath { inherit lib; }
+    if existing != [ ] then
+      builtins.head existing
     else
       throw ''
         network-renderer-nixos: src/api/default.nix could not resolve build-control-plane-output.nix
@@ -92,6 +35,12 @@ let
         - src/pipeline/build-control-plane-output.nix
         Provide controlPlaneLib.buildControlPlaneOutput when importing src/api/default.nix if your tree keeps the builder elsewhere.
       '';
+
+  buildControlPlaneOutput =
+    if controlPlaneLib != null && controlPlaneLib ? buildControlPlaneOutput then
+      controlPlaneLib.buildControlPlaneOutput
+    else
+      import fallbackBuildControlPlaneOutputPath { inherit lib; };
 
   helpers = import ../normalize/helpers.nix { inherit lib; };
 
@@ -108,23 +57,9 @@ let
 
   selectDeploymentHost = import ../policy/select-deployment-host.nix { inherit lib; };
 
-  lookupSiteServiceInputsRaw = import ../lookup/site-service-inputs.nix {
+  lookupSiteServiceInputs = import ../lookup/site-service-inputs.nix {
     inherit lib;
   };
-
-  lookupSiteServiceInputs =
-    args:
-    if args ? artifactContext then
-      let
-        context = args.artifactContext;
-      in
-      lookupSiteServiceInputsRaw {
-        inherit (args) normalizedModel;
-        enterpriseName = context.enterpriseName;
-        siteName = context.siteName;
-      }
-    else
-      lookupSiteServiceInputsRaw args;
 
   mapFirewallForwardingRuntimeTargetModel =
     import ../map/firewall-forwarding-runtime-target-model.nix
@@ -172,12 +107,9 @@ let
   mapRuntimeTargetArtifactContexts = import ../map/runtime-target-artifact-contexts.nix {
     inherit lib;
   };
-  mapAccessServiceArtifactTree = import ../map/access-service-artifact-tree.nix {
-    inherit lib;
-  };
 
-  renderHost = import ../render/networkd-host.nix { inherit lib; };
-  renderBridges = import ../render/networkd-bridges.nix { inherit lib; };
+  renderHostNetwork = import ../render/networkd-host.nix { inherit lib; };
+  renderBridgeNetwork = import ../render/networkd-bridges.nix { inherit lib; };
   renderContainers = import ../render/nixos-containers.nix { inherit lib; };
   renderArtifactEtc = import ../render/nixos-artifacts.nix { inherit lib; };
   renderNftablesRuntimeTarget = import ../render/nftables-runtime-target.nix { inherit lib; };
@@ -197,235 +129,13 @@ let
       mapContainerRuntimeArtifactModel
       ;
   };
-in
-rec {
-  renderer = {
-    buildControlPlaneFromPaths =
-      {
-        intentPath,
-        inventoryPath,
-      }:
-      buildControlPlaneOutput {
-        inherit
-          intentPath
-          inventoryPath
-          ;
-      };
 
-    buildHostFromPaths =
-      {
-        intentPath,
-        inventoryPath,
-        selector,
-        file ? null,
-      }:
-      let
-        builtControlPlaneOut = buildControlPlaneOutput {
-          inherit
-            intentPath
-            inventoryPath
-            ;
-        };
-
-        normalizedModel = normalizeControlPlane builtControlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          boxName = selector;
-        };
-      in
-      {
-        inherit normalizedModel;
-        hostContext = {
-          boxName = selector;
-          hostName = selector;
-          deploymentHostName = deploymentHost.name;
-          deploymentHost = deploymentHost.definition;
-          file = file;
-        };
-        fabricInputs = {
-          inherit
-            intentPath
-            inventoryPath
-            selector
-            file
-            ;
-        };
-        compilerOut = builtControlPlaneOut.compilerOut or { };
-        forwardingOut = builtControlPlaneOut.forwardingOut or { };
-        controlPlaneOut = builtControlPlaneOut;
-        globalInventory = builtControlPlaneOut.globalInventory or { };
-      };
-  };
-
-  host = {
-    build =
-      {
-        enterpriseName,
-        siteName,
-        boxName,
-        intentPath,
-        inventoryPath,
-      }:
-      let
-        builtControlPlaneOut = buildControlPlaneOutput {
-          inherit
-            intentPath
-            inventoryPath
-            ;
-        };
-
-        normalizedModel = normalizeControlPlane builtControlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          inherit boxName;
-        };
-
-        hostModel = mapHostModel {
-          boxName = deploymentHost.name;
-          deploymentHostDef = deploymentHost.definition;
-        };
-      in
-      renderHost hostModel;
-
-    buildFromControlPlane =
-      {
-        controlPlaneOut,
-        boxName,
-      }:
-      let
-        normalizedModel = normalizeControlPlane controlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          inherit boxName;
-        };
-
-        hostModel = mapHostModel {
-          boxName = deploymentHost.name;
-          deploymentHostDef = deploymentHost.definition;
-        };
-      in
-      renderHost hostModel;
-  };
-
-  bridges = {
-    build =
-      {
-        enterpriseName,
-        siteName,
-        boxName,
-        intentPath,
-        inventoryPath,
-      }:
-      let
-        builtControlPlaneOut = buildControlPlaneOutput {
-          inherit
-            intentPath
-            inventoryPath
-            ;
-        };
-
-        normalizedModel = normalizeControlPlane builtControlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          inherit boxName;
-        };
-
-        bridgeModel = mapBridgeModel {
-          boxName = deploymentHost.name;
-          deploymentHostDef = deploymentHost.definition;
-        };
-      in
-      renderBridges bridgeModel;
-
-    buildFromControlPlane =
-      {
-        controlPlaneOut,
-        boxName,
-      }:
-      let
-        normalizedModel = normalizeControlPlane controlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          inherit boxName;
-        };
-
-        bridgeModel = mapBridgeModel {
-          boxName = deploymentHost.name;
-          deploymentHostDef = deploymentHost.definition;
-        };
-      in
-      renderBridges bridgeModel;
-  };
-
-  containers = {
-    buildForBox =
-      {
-        enterpriseName,
-        siteName,
-        boxName,
-        intentPath,
-        inventoryPath,
-        disabled ? { },
-        defaults ? { },
-      }:
-      let
-        builtControlPlaneOut = buildControlPlaneOutput {
-          inherit
-            intentPath
-            inventoryPath
-            ;
-        };
-
-        normalizedModel = normalizeControlPlane builtControlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          inherit boxName;
-        };
-
-        containerModel = mapContainerModel {
-          model = normalizedModel;
-          boxName = deploymentHost.name;
-          deploymentHostDef = deploymentHost.definition;
-          inherit
-            disabled
-            defaults
-            ;
-        };
-      in
-      renderContainers containerModel;
-
-    buildFromControlPlane =
-      {
-        controlPlaneOut,
-        boxName,
-        disabled ? { },
-        defaults ? { },
-      }:
-      let
-        normalizedModel = normalizeControlPlane controlPlaneOut;
-
-        deploymentHost = selectDeploymentHost {
-          model = normalizedModel;
-          inherit boxName;
-        };
-
-        containerModel = mapContainerModel {
-          model = normalizedModel;
-          boxName = deploymentHost.name;
-          deploymentHostDef = deploymentHost.definition;
-          inherit
-            disabled
-            defaults
-            ;
-        };
-      in
-      renderContainers containerModel;
+  mapAccessServiceArtifactTree = import ../map/access-service-artifact-tree.nix {
+    inherit
+      lib
+      mapRuntimeTargetArtifactContexts
+      selectContainerRuntimeTargetServiceModels
+      ;
   };
 
   artifacts = import ./artifacts.nix {
@@ -442,4 +152,54 @@ rec {
       renderNftablesRuntimeTarget
       ;
   };
+
+  rendererApi = import ./renderer.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      ;
+  };
+
+  hostApi = import ./host.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      mapHostModel
+      ;
+    renderHostNetwork = renderHostNetwork;
+  };
+
+  bridgesApi = import ./bridges.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      mapBridgeModel
+      ;
+    renderBridgeNetwork = renderBridgeNetwork;
+  };
+
+  containersApi = import ./containers.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      mapContainerModel
+      renderContainers
+      artifacts
+      ;
+  };
+in
+{
+  renderer = rendererApi;
+  host = hostApi;
+  bridges = bridgesApi;
+  containers = containersApi;
+  inherit artifacts;
 }
