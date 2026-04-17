@@ -695,7 +695,7 @@ builtins.seq _uniqueRenderedHostVethNames (
                 if container ? systemStateVersion && builtins.isString container.systemStateVersion then
                   container.systemStateVersion
                 else
-                  "24.11";
+                  "25.11";
             };
         }
       )
