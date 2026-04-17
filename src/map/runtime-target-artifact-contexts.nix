@@ -59,10 +59,23 @@ let
     else
       validPathSegment "host name for runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}'" runtimeTarget.placement.host;
 
+  runtimeTargetCarriesContainerServices =
+    runtimeTarget:
+    runtimeTarget ? advertisements
+    && builtins.isAttrs runtimeTarget.advertisements
+    && runtimeTarget.advertisements != { };
+
+  impliedContainerNameForRuntimeTarget =
+    runtimeTargetName: runtimeTarget:
+    if runtimeTargetCarriesContainerServices runtimeTarget then
+      validPathSegment "implied container name for runtime target '${runtimeTargetName}'" runtimeTargetName
+    else
+      null;
+
   containerNamesForRuntimeTarget =
     enterpriseName: siteName: runtimeTargetName: runtimeTarget:
     let
-      containerNames =
+      explicitContainerNames =
         if runtimeTarget ? containers then
           map
             (
@@ -74,6 +87,14 @@ let
             )
         else
           [ ];
+
+      containerNames =
+        if explicitContainerNames != [ ] then
+          explicitContainerNames
+        else
+          lib.optional (impliedContainerNameForRuntimeTarget runtimeTargetName runtimeTarget != null) (
+            impliedContainerNameForRuntimeTarget runtimeTargetName runtimeTarget
+          );
 
       uniqueContainerNames = lib.unique containerNames;
 

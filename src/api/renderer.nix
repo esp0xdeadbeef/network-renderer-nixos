@@ -46,7 +46,7 @@ in
 {
   buildControlPlaneFromPaths =
     {
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,
@@ -66,7 +66,7 @@ in
     {
       selector,
       file ? null,
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,

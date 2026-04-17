@@ -171,7 +171,7 @@ let
 
   controlPlaneOutFromPaths =
     {
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,
@@ -204,6 +204,14 @@ let
     }:
     builtins.toFile fileName (builtins.toJSON (stripRendererInputs controlPlaneOut));
 
+  runtimeTargetHasRenderableForwardingRules =
+    runtimeTarget:
+    runtimeTarget ? forwardingIntent
+    && builtins.isAttrs runtimeTarget.forwardingIntent
+    && runtimeTarget.forwardingIntent ? rules
+    && builtins.isList runtimeTarget.forwardingIntent.rules
+    && runtimeTarget.forwardingIntent.rules != [ ];
+
   renderFirewallArtifactFiles =
     {
       normalizedModel,
@@ -223,9 +231,7 @@ let
             else
               null;
         in
-        runtimeTarget != null
-        && runtimeTarget ? forwardingIntent
-        && builtins.isAttrs runtimeTarget.forwardingIntent
+        runtimeTarget != null && runtimeTargetHasRenderableForwardingRules runtimeTarget
       ) (sortedAttrNames runtimeTargetContexts);
 
       fileEntries = lib.concatMap (
@@ -303,7 +309,7 @@ in
 {
   controlPlaneJSONFromPaths =
     {
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,
@@ -324,7 +330,7 @@ in
 
   controlPlaneFromPaths =
     {
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,
@@ -374,7 +380,7 @@ in
 
   controlPlaneSplitFromPaths =
     {
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,

@@ -28,7 +28,7 @@ in
 {
   build =
     {
-      intentPath,
+      intentPath ? null,
       inventoryPath ? null,
       intent ? null,
       inventory ? null,
