@@ -108,10 +108,12 @@ let
 
   siteArtifactPath = sitePath: "${sitePath}/site.json";
   siteDataArtifactPath = sitePath: "${sitePath}/site-data.json";
-  hostDataPath = hostPath: "${hostPath}/host-data";
+  hostDataAndContainersRoot = hostPath: "${hostPath}/host-data-and-containers";
+  hostDataPath = hostPath: "${hostDataAndContainersRoot hostPath}/host-data";
+  containersPath = hostPath: "${hostDataAndContainersRoot hostPath}/containers";
   hostArtifactPath = hostPath: "${hostDataPath hostPath}/host.json";
   containerArtifactPath =
-    hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
+    hostPath: containerName: "${containersPath hostPath}/${containerName}/container.json";
 
   runtimeTargetArtifactPathForHost =
     hostPath: runtimeTargetSegment:
@@ -119,7 +121,7 @@ let
 
   runtimeTargetArtifactPathForContainer =
     hostPath: containerName: runtimeTargetSegment:
-    "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+    "${containersPath hostPath}/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
 
   contextEntry = artifactPathPrefix: value: {
     name = artifactPathPrefix;
@@ -184,7 +186,7 @@ let
           map (
             containerName:
             let
-              artifactPathPrefix = "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}";
+              artifactPathPrefix = "${containersPath hostPath}/${containerName}/runtime-targets/${runtimeTargetSegment}";
               runtimeTargetArtifactPath =
                 runtimeTargetArtifactPathForContainer hostPath containerName
                   runtimeTargetSegment;

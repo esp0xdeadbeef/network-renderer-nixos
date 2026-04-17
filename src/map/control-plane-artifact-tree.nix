@@ -200,10 +200,12 @@ let
       containerNamesForRuntimeTarget enterpriseName siteName runtimeTargetName runtimeTarget == [ ]
     ) runtimeTargets;
 
-  hostDataPath = hostPath: "${hostPath}/host-data";
+  hostDataAndContainersRoot = hostPath: "${hostPath}/host-data-and-containers";
+  hostDataPath = hostPath: "${hostDataAndContainersRoot hostPath}/host-data";
+  containersPath = hostPath: "${hostDataAndContainersRoot hostPath}/containers";
   hostArtifactPath = hostPath: "${hostDataPath hostPath}/host.json";
   containerArtifactPath =
-    hostPath: containerName: "${hostPath}/containers/${containerName}/container.json";
+    hostPath: containerName: "${containersPath hostPath}/${containerName}/container.json";
 
   hostRuntimeTargetArtifactPath =
     hostPath: runtimeTargetName:
@@ -217,7 +219,7 @@ let
     let
       runtimeTargetSegment = validPathSegment "runtime target name" runtimeTargetName;
     in
-    "${hostPath}/containers/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
+    "${containersPath hostPath}/${containerName}/runtime-targets/${runtimeTargetSegment}/runtime-target.json";
 
   jsonFileEntry = name: value: {
     inherit name;

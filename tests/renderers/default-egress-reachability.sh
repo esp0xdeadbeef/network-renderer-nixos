@@ -32,20 +32,20 @@ nix eval --impure --expr '
     accessVeths = if access != null && access ? extraVeths then access.extraVeths else { };
     accessArtifacts = if access != null && access ? artifactFiles then access.artifactFiles else { };
     accessFirewall =
-      if builtins.hasAttr "acme/ams/hypervisor-a/containers/access-runtime/runtime-targets/access-runtime/firewall/nftables.nft" accessArtifacts then
-        accessArtifacts."acme/ams/hypervisor-a/containers/access-runtime/runtime-targets/access-runtime/firewall/nftables.nft"
+      if builtins.hasAttr "acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/runtime-targets/access-runtime/firewall/nftables.nft" accessArtifacts then
+        accessArtifacts."acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/runtime-targets/access-runtime/firewall/nftables.nft"
       else
         null;
 
     accessKea =
-      if builtins.hasAttr "acme/ams/hypervisor-a/containers/access-runtime/services/kea/kea.json" accessArtifacts then
-        accessArtifacts."acme/ams/hypervisor-a/containers/access-runtime/services/kea/kea.json"
+      if builtins.hasAttr "acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/services/kea/kea.json" accessArtifacts then
+        accessArtifacts."acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/services/kea/kea.json"
       else
         null;
 
     accessRadvd =
-      if builtins.hasAttr "acme/ams/hypervisor-a/containers/access-runtime/services/radvd/radvd.json" accessArtifacts then
-        accessArtifacts."acme/ams/hypervisor-a/containers/access-runtime/services/radvd/radvd.json"
+      if builtins.hasAttr "acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/services/radvd/radvd.json" accessArtifacts then
+        accessArtifacts."acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/services/radvd/radvd.json"
       else
         null;
 
@@ -82,12 +82,12 @@ nix eval --impure --expr '
     && accessRadvd != null
     && accessRadvd.format == "json"
     && hasEtc "network-artifacts/control-plane-model.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data/host.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data/l2/bridges.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data/l2/host-adapters.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/containers/access-runtime/container.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/containers/access-runtime/runtime-targets/access-runtime/runtime-target.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/containers/access-runtime/runtime-targets/access-runtime/firewall/nftables.nft"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/containers/access-runtime/services/kea/kea.json"
-    && hasEtc "network-artifacts/acme/ams/hypervisor-a/containers/access-runtime/services/radvd/radvd.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/host-data/host.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/host-data/l2/bridges.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/host-data/l2/host-adapters.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/container.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/runtime-targets/access-runtime/runtime-target.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/runtime-targets/access-runtime/firewall/nftables.nft"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/services/kea/kea.json"
+    && hasEtc "network-artifacts/acme/ams/hypervisor-a/host-data-and-containers/containers/access-runtime/services/radvd/radvd.json"
 ' >/dev/null

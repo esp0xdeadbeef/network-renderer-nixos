@@ -37,7 +37,10 @@ let
 
   siteRoot = "${enterpriseSegment}/${siteSegment}";
   hostRoot = "${siteRoot}/${hostSegment}";
-  containerRoot = "${hostRoot}/containers/${containerSegment}";
+  hostDataAndContainersRoot = "${hostRoot}/host-data-and-containers";
+  hostDataRoot = "${hostDataAndContainersRoot}/host-data";
+  containersRoot = "${hostDataAndContainersRoot}/containers";
+  containerRoot = "${containersRoot}/${containerSegment}";
   runtimeTargetRoot = "${containerRoot}/runtime-targets/${runtimeTargetSegment}";
 in
 {
@@ -52,7 +55,7 @@ in
 
   siteArtifactPath = "${siteRoot}/site.json";
   siteDataArtifactPath = "${siteRoot}/site-data.json";
-  hostArtifactPath = "${hostRoot}/host-data/host.json";
+  hostArtifactPath = "${hostDataRoot}/host.json";
   containerArtifactPath = "${containerRoot}/container.json";
   runtimeTargetArtifactPath = "${runtimeTargetRoot}/runtime-target.json";
   firewallArtifactPath = "${runtimeTargetRoot}/firewall/nftables.nft";

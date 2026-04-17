@@ -53,10 +53,57 @@
           compileAndBuildControlPlaneFromPaths = controlPlaneLib.compileAndBuildFromPaths;
         };
 
+      mkVmSystem =
+        system:
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [ ./vm.nix ];
+        };
+
+      mkVmRunner =
+        system:
+        let
+          pkgs = mkPkgs system;
+          vmSystem = mkVmSystem system;
+        in
+        pkgs.writeShellScriptBin "network-renderer-nixos-vm" ''
+          set -euo pipefail
+
+          vm_bin_dir="${vmSystem.config.system.build.vm}/bin"
+          runner="$(find "$vm_bin_dir" -maxdepth 1 -type f -name 'run-*-vm' | head -n 1)"
+
+          if [ -z "$runner" ]; then
+            echo "network-renderer-nixos: no VM runner found in $vm_bin_dir" >&2
+            exit 1
+          fi
+
+          exec "$runner" "$@"
+        '';
+
       defaultSystem = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
     in
     {
       lib = mkSystemLib defaultSystem;
       libBySystem = forAll mkSystemLib;
+
+      nixosConfigurations = forAll mkVmSystem;
+
+      packages = forAll (
+        system:
+        let
+          vmSystem = mkVmSystem system;
+        in
+        {
+          vm = vmSystem.config.system.build.vm;
+          vm-runner = mkVmRunner system;
+        }
+      );
+
+      apps = forAll (system: {
+        vm = {
+          type = "app";
+          program = "${self.packages.${system}.vm-runner}/bin/network-renderer-nixos-vm";
+        };
+      });
     };
 }
