@@ -44,6 +44,18 @@ let
     else
       null;
 
+  forwardingIntent =
+    if runtimeTarget ? forwardingIntent then
+      ensureAttrs "artifactContext.runtimeTarget.forwardingIntent" runtimeTarget.forwardingIntent
+    else
+      { };
+
+  forwardingMode =
+    if forwardingIntent ? mode then
+      ensureString "artifactContext.runtimeTarget.forwardingIntent.mode" forwardingIntent.mode
+    else
+      null;
+
   forwardingResponsibility =
     if runtimeTarget ? forwardingResponsibility then
       ensureAttrs "artifactContext.runtimeTarget.forwardingResponsibility" runtimeTarget.forwardingResponsibility
@@ -56,45 +68,16 @@ let
     else
       false;
 
-  _policyContextValid =
-    if !(enforcesPolicy || role == "policy") then
-      true
-    else if
-      !(context ? enterpriseName)
-      || !(builtins.isString context.enterpriseName)
-      || context.enterpriseName == ""
-    then
-      throw "network-renderer-nixos: policy firewall selection requires artifactContext.enterpriseName"
-    else if
-      !(context ? siteName) || !(builtins.isString context.siteName) || context.siteName == ""
-    then
-      throw "network-renderer-nixos: policy firewall selection requires artifactContext.siteName"
-    else
-      true;
-
-  _validateSiteInputs =
-    if !(enforcesPolicy || role == "policy") then
-      true
-    else
-      let
-        _siteInputs = lookupSiteServiceInputs {
-          inherit normalizedModel;
-          enterpriseName = context.enterpriseName;
-          siteName = context.siteName;
-        };
-      in
-      builtins.seq _siteInputs true;
+  useExplicitForwardingModel = forwardingMode == "explicit-transit-mesh-forwarding";
 in
-builtins.seq _policyContextValid (
-  builtins.seq _validateSiteInputs (
-    if enforcesPolicy || role == "policy" then
-      mapFirewallPolicyRuntimeTargetModel {
-        inherit
-          normalizedModel
-          artifactContext
-          ;
-      }
-    else
-      mapFirewallForwardingRuntimeTargetModel artifactContext
-  )
-)
+if useExplicitForwardingModel then
+  mapFirewallForwardingRuntimeTargetModel context
+else if enforcesPolicy || role == "policy" then
+  mapFirewallPolicyRuntimeTargetModel {
+    inherit
+      normalizedModel
+      artifactContext
+      ;
+  }
+else
+  mapFirewallForwardingRuntimeTargetModel context
