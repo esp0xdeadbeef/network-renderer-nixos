@@ -14,6 +14,13 @@ let
       ;
   };
 
+  controlPlaneSource = import ../lookup/control-plane-source-from-paths.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      ;
+  };
+
   helpers = import ../normalize/helpers.nix { inherit lib; };
 
   normalizeControlPlane = import ../normalize/control-plane-output.nix {
@@ -88,7 +95,13 @@ let
 
   renderNftablesRuntimeTarget = import ../render/nftables-runtime-target.nix { inherit lib; };
 
-  mapContainerRuntimeArtifactModel = import ../map/container-runtime-artifact-model.nix {
+  renderSimulatedBridges = import ../render/networkd-simulated-bridges.nix { inherit lib; };
+
+  mapContainerRuntimeArtifactContext = import ../map/container-runtime-artifact-context.nix {
+    inherit lib;
+  };
+
+  mapContainerRuntimeArtifactTree = import ../map/container-runtime-artifact-tree.nix {
     inherit
       lib
       selectFirewallRuntimeTargetModel
@@ -97,11 +110,30 @@ let
       ;
   };
 
+  mapContainerRuntimeArtifactModel = import ../map/container-runtime-artifact-model.nix {
+    inherit
+      lib
+      mapContainerRuntimeArtifactContext
+      mapContainerRuntimeArtifactTree
+      ;
+  };
+
   mapContainerModel = import ../map/container-model.nix {
     inherit
       lib
       mapContainerRuntimeArtifactModel
       ;
+  };
+
+  mapVmContainerSimulatedModel = import ../map/vm-container-simulated-model.nix {
+    inherit
+      lib
+      mapContainerRuntimeArtifactModel
+      ;
+  };
+
+  mapVmSimulatedHostBridgeModel = import ../map/vm-simulated-host-bridge-model.nix {
+    inherit lib;
   };
 
   mapControlPlaneArtifactTree = import ../map/control-plane-artifact-tree.nix { inherit lib; };
@@ -117,6 +149,15 @@ let
       lib
       mapRuntimeTargetArtifactContexts
       selectContainerRuntimeTargetServiceModels
+      ;
+  };
+
+  mapFirewallArtifactTree = import ../map/firewall-artifact-tree.nix {
+    inherit
+      lib
+      mapRuntimeTargetArtifactContexts
+      selectFirewallRuntimeTargetModel
+      renderNftablesRuntimeTarget
       ;
   };
 
@@ -154,15 +195,13 @@ let
   artifactsApi = import ./artifacts.nix {
     inherit
       lib
-      buildControlPlaneOutput
+      controlPlaneSource
       normalizeControlPlane
       mapControlPlaneArtifactTree
       mapL2ArtifactTree
-      mapRuntimeTargetArtifactContexts
-      selectFirewallRuntimeTargetModel
+      mapFirewallArtifactTree
       mapAccessServiceArtifactTree
       renderArtifactEtc
-      renderNftablesRuntimeTarget
       ;
   };
 
@@ -177,6 +216,25 @@ let
       ;
     artifacts = artifactsApi;
   };
+
+  vmApi = import ./vm.nix {
+    inherit
+      lib
+      importValue
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      mapHostModel
+      mapBridgeModel
+      mapVmContainerSimulatedModel
+      mapVmSimulatedHostBridgeModel
+      renderHostNetwork
+      renderBridgeNetwork
+      renderSimulatedBridges
+      renderContainers
+      ;
+    artifacts = artifactsApi;
+  };
 in
 {
   renderer = rendererApi;
@@ -184,4 +242,5 @@ in
   bridges = bridgesApi;
   containers = containersApi;
   artifacts = artifactsApi;
+  vm = vmApi;
 }
