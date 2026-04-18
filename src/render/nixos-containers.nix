@@ -99,6 +99,22 @@ let
     else
       throw "network-renderer-nixos: expected ${label} to be an integer";
 
+  normalizeOptionalBool =
+    label: value:
+    if value == null then
+      null
+    else if builtins.isBool value then
+      value
+    else
+      throw "network-renderer-nixos: expected ${label} to be a boolean";
+
+  ensureAttrs =
+    label: value:
+    if builtins.isAttrs value then
+      value
+    else
+      throwWithValue "network-renderer-nixos: expected ${label} to be an attribute set" value;
+
   inferRouteFamily =
     destination: gateway:
     if gateway != null && lib.hasInfix ":" gateway then
@@ -293,9 +309,52 @@ let
     in
     parseFamily "ipv4" ++ parseFamily "ipv6";
 
+  normalizeInterfaceIpConfig =
+    label: value:
+    if value == null then
+      { }
+    else
+      let
+        cfg = ensureAttrs label value;
+      in
+      {
+        enable = normalizeOptionalBool "${label}.enable" (cfg.enable or null);
+        dhcp = normalizeOptionalBool "${label}.dhcp" (cfg.dhcp or null);
+        acceptRA = normalizeOptionalBool "${label}.acceptRA" (cfg.acceptRA or null);
+        dhcpv6PD = normalizeOptionalBool "${label}.dhcpv6PD" (cfg.dhcpv6PD or null);
+        method = normalizeOptionalString "${label}.method" (cfg.method or null);
+      };
+
+  interfaceUsesDhcp4 = ip4: (ip4.dhcp or false) || (ip4.method or null) == "dhcp";
+
+  interfaceUsesDhcp6 = ip6: (ip6.dhcp or false) || (ip6.method or null) == "dhcp";
+
+  interfaceUsesAcceptRA = ip6: (ip6.acceptRA or false) || (ip6.method or null) == "slaac";
+
+  interfaceUsesDynamicL3 =
+    ip4: ip6: interfaceUsesDhcp4 ip4 || interfaceUsesDhcp6 ip6 || interfaceUsesAcceptRA ip6;
+
+  networkdDhcpValue =
+    ip4: ip6:
+    let
+      use4 = interfaceUsesDhcp4 ip4;
+      use6 = interfaceUsesDhcp6 ip6;
+    in
+    if use4 && use6 then
+      "yes"
+    else if use4 then
+      "ipv4"
+    else if use6 then
+      "ipv6"
+    else
+      null;
+
   routesForInterface =
     rawInterface:
     let
+      ip4 = normalizeInterfaceIpConfig "interface.ipv4" (rawInterface.ipv4 or null);
+      ip6 = normalizeInterfaceIpConfig "interface.ipv6" (rawInterface.ipv6 or null);
+
       parsedRuntimeTargetRoutes =
         if rawInterface ? routes && rawInterface.routes != null then
           parseRuntimeTargetRoutes rawInterface.routes
@@ -318,8 +377,15 @@ let
             "gateway4"
             "gateway6"
           ];
+
+      staticRoutes = lib.filter (route: route.gateway != null) (
+        parsedRuntimeTargetRoutes ++ defaultGatewayRoutes
+      );
     in
-    dedupeRoutes (parsedRuntimeTargetRoutes ++ defaultGatewayRoutes);
+    if interfaceUsesDynamicL3 ip4 ip6 then
+      dedupeRoutes staticRoutes
+    else
+      dedupeRoutes (parsedRuntimeTargetRoutes ++ defaultGatewayRoutes);
 
   normalizeArtifactEntry =
     containerName: artifactPath: artifact:
@@ -460,6 +526,10 @@ builtins.seq _uniqueRenderedHostVethNames (
           interface = container.interfaces.${interfaceName};
           rawInterface =
             if interface ? interface && builtins.isAttrs interface.interface then interface.interface else { };
+
+          ip4 = normalizeInterfaceIpConfig "interface.ipv4" (rawInterface.ipv4 or null);
+          ip6 = normalizeInterfaceIpConfig "interface.ipv6" (rawInterface.ipv6 or null);
+
           hostVethName = hostVethNameFor {
             deploymentHostName =
               if container ? deploymentHostName && builtins.isString container.deploymentHostName then
@@ -482,6 +552,8 @@ builtins.seq _uniqueRenderedHostVethNames (
           address4 = normalizeOptionalAddress (rawInterface.addr4 or null);
           address6 = normalizeOptionalAddress (rawInterface.addr6 or null);
           routes = routesForInterface rawInterface;
+          dhcp = networkdDhcpValue ip4 ip6;
+          ipv6AcceptRA = if interfaceUsesAcceptRA ip6 then true else false;
         }
       ) bridgeInterfaceNames;
 
@@ -563,6 +635,24 @@ builtins.seq _uniqueRenderedHostVethNames (
         ) renderedInterfaceEntries
       );
 
+      renderedInterfaceNetworks = builtins.listToAttrs (
+        map (entry: {
+          name = "10-${entry.containerInterfaceName}";
+          value = {
+            matchConfig.Name = entry.containerInterfaceName;
+          }
+          // lib.optionalAttrs (entry.dhcp != null || entry.ipv6AcceptRA) {
+            networkConfig =
+              (lib.optionalAttrs (entry.dhcp != null) {
+                DHCP = entry.dhcp;
+              })
+              // (lib.optionalAttrs entry.ipv6AcceptRA {
+                IPv6AcceptRA = true;
+              });
+          };
+        }) renderedInterfaceEntries
+      );
+
       forwardingServiceScript = ''
         echo 1 > /proc/sys/net/ipv4/ip_forward
         echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
@@ -642,6 +732,7 @@ builtins.seq _uniqueRenderedHostVethNames (
               services.resolved.enable = false;
 
               systemd.network.enable = true;
+              systemd.network.networks = renderedInterfaceNetworks;
 
               networking.nftables.enable = lib.mkIf (nftablesRuleset != null) true;
               networking.nftables.ruleset = lib.mkIf (nftablesRuleset != null) nftablesRuleset;
