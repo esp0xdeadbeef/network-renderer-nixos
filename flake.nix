@@ -4,106 +4,77 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    nixos-network-compiler.url = "github:esp0xdeadbeef/nixos-network-compiler";
+
     network-control-plane-model.url = "github:esp0xdeadbeef/network-control-plane-model";
-    network-control-plane-model.inputs.nixpkgs.follows = "nixpkgs";
+
+    network-forwarding-model.url = "github:esp0xdeadbeef/network-forwarding-model";
+    network-forwarding-model.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
     {
       self,
       nixpkgs,
+      nixos-network-compiler,
       network-control-plane-model,
+      network-forwarding-model,
+      ...
     }:
     let
+      lib = nixpkgs.lib;
       systems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
+      forAllSystems = lib.genAttrs systems;
 
-      forAll = f: nixpkgs.lib.genAttrs systems f;
-
-      mkPkgs = system: import nixpkgs { inherit system; };
-
-      mkApi =
-        system:
-        let
-          pkgs = mkPkgs system;
-        in
-        import ./src/api/default.nix {
-          lib = pkgs.lib;
-          controlPlaneLib = network-control-plane-model.lib.${system};
+      api = import ./s88/Enterprise/default.nix {
+        inherit lib;
+        repoRoot = ./.;
+        flakeInputs = {
+          inherit
+            nixpkgs
+            nixos-network-compiler
+            network-control-plane-model
+            network-forwarding-model
+            ;
         };
-
-      mkSystemLib =
-        system:
-        let
-          api = mkApi system;
-
-          controlPlaneLib =
-            if network-control-plane-model ? libBySystem then
-              network-control-plane-model.libBySystem.${system}
-            else
-              network-control-plane-model.lib.${system};
-        in
-        api
-        // {
-          controlPlane = controlPlaneLib;
-          writeControlPlaneJSON = controlPlaneLib.writeCompileAndBuildJSON;
-          compileAndBuildControlPlane = controlPlaneLib.compileAndBuild;
-          compileAndBuildControlPlaneFromPaths = controlPlaneLib.compileAndBuildFromPaths;
-        };
-
-      mkVmSystem =
-        system:
-        nixpkgs.lib.nixosSystem {
-          inherit system;
-          modules = [ ./vm.nix ];
-        };
-
-      mkVmRunner =
-        system:
-        let
-          pkgs = mkPkgs system;
-          vmSystem = mkVmSystem system;
-        in
-        pkgs.writeShellScriptBin "network-renderer-nixos-vm" ''
-          set -euo pipefail
-
-          vm_bin_dir="${vmSystem.config.system.build.vm}/bin"
-          runner="$(find "$vm_bin_dir" -maxdepth 1 -type f -name 'run-*-vm' | head -n 1)"
-
-          if [ -z "$runner" ]; then
-            echo "network-renderer-nixos: no VM runner found in $vm_bin_dir" >&2
-            exit 1
-          fi
-
-          exec "$runner" "$@"
-        '';
-
-      defaultSystem = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
+      };
     in
     {
-      lib = mkSystemLib defaultSystem;
-      libBySystem = forAll mkSystemLib;
+      lib = api;
 
-      nixosConfigurations = forAll mkVmSystem;
-
-      packages = forAll (
+      packages = forAllSystems (
         system:
         let
-          vmSystem = mkVmSystem system;
+          pkgs = import nixpkgs { inherit system; };
+          renderDryConfig = import ./s88/ControlModule/tools/render-dry-config-app.nix {
+            inherit pkgs self;
+          };
         in
         {
-          vm = vmSystem.config.system.build.vm;
-          vm-runner = mkVmRunner system;
+          render-dry-config = renderDryConfig;
+          default = renderDryConfig;
         }
       );
 
-      apps = forAll (system: {
-        vm = {
-          type = "app";
-          program = "${self.packages.${system}.vm-runner}/bin/network-renderer-nixos-vm";
-        };
-      });
+      apps = forAllSystems (
+        system:
+        let
+          program = "${self.packages.${system}.render-dry-config}/bin/render-dry-config";
+        in
+        {
+          render-dry-config = {
+            type = "app";
+            inherit program;
+          };
+
+          default = {
+            type = "app";
+            inherit program;
+          };
+        }
+      );
     };
 }

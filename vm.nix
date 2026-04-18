@@ -10,7 +10,12 @@ let
     let
       candidate = ./vm-input-test.nix;
     in
-    if builtins.pathExists candidate then candidate else ./vm-input.nix;
+    if builtins.pathExists candidate then
+      candidate
+    else if builtins.pathExists ./vm-input-home.nix then
+      ./vm-input-home.nix
+    else
+      throw "network-renderer-nixos: missing vm input file (expected ./vm-input-test.nix or ./vm-input-home.nix)";
 
   vmInput = import vmInputPath;
 
@@ -22,24 +27,28 @@ let
 
   boxName = vmInput.boxName;
 
-  system = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
+  flake = builtins.getFlake (toString ./.);
+  api = flake.lib;
 
-  renderer = (builtins.getFlake (toString ./.)).libBySystem.${system};
+  haveBuildPaths = vmInput ? intentPath && vmInput ? inventoryPath;
 
-  vmBuild = renderer.vm.build {
+  _requireBuildPaths =
+    if haveBuildPaths then
+      true
+    else
+      throw "network-renderer-nixos: vm input must define (intentPath + inventoryPath) (the VM harness does not accept raw CPM-only inputs)";
+
+  hostBuild = api.renderer.buildHostFromPaths {
+    selector = boxName;
     intentPath = vmInput.intentPath;
     inventoryPath = vmInput.inventoryPath;
-    inherit boxName;
-    simulatedContainerDefaults = {
-      autoStart = true;
-      privateNetwork = true;
-    };
   };
+
+  renderedHost = hostBuild.renderedHost;
 in
 {
   imports = [
     "${modulesPath}/virtualisation/qemu-vm.nix"
-    vmBuild.artifactModule
   ];
 
   warnings = [
@@ -54,15 +63,15 @@ in
   boot.loader.grub.enable = false;
   boot.isContainer = false;
 
-  networking.hostName = vmBuild.boxName;
+  networking.hostName = boxName;
   networking.useNetworkd = true;
   networking.useDHCP = false;
   networking.nftables.enable = false;
   networking.firewall.enable = false;
 
   systemd.network.enable = true;
-  systemd.network.netdevs = vmBuild.renderedNetdevs;
-  systemd.network.networks = vmBuild.renderedNetworks;
+  systemd.network.netdevs = renderedHost.netdevs or { };
+  systemd.network.networks = renderedHost.networks or { };
 
   virtualisation = {
     memorySize = 4096;
@@ -115,5 +124,10 @@ in
     curl
   ];
 
-  containers = vmBuild.renderedContainers;
+  containers = renderedHost.containers or { };
+
+  environment.etc."network-artifacts/compiler.json".text = builtins.toJSON hostBuild.compilerOut;
+  environment.etc."network-artifacts/forwarding.json".text = builtins.toJSON hostBuild.forwardingOut;
+  environment.etc."network-artifacts/control-plane.json".text =
+    builtins.toJSON hostBuild.controlPlaneOut;
 }

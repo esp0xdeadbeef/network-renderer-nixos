@@ -1,0 +1,133 @@
+{
+  "control_plane_model": {
+    "meta": {},
+    "endpoints": {},
+    "deployment": {
+      "hosts": {
+        "hypervisor-a": {
+          "uplinks": {
+            "runtime-a": {
+              "parent": "eth0",
+              "bridge": "br-runtime-a",
+              "mode": "bridge"
+            },
+            "wan-a": {
+              "parent": "eth1",
+              "bridge": "br-wan-a",
+              "mode": "vlan",
+              "vlan": 100
+            }
+          },
+          "bridgeNetworks": {}
+        }
+      }
+    },
+    "render": {
+      "hosts": {
+        "hypervisor-a": {
+          "deploymentHost": "hypervisor-a"
+        }
+      }
+    },
+    "realization": {
+      "nodes": {}
+    },
+    "data": {
+      "acme": {
+        "lab": {
+          "runtimeTargets": {
+            "rt-a": {
+              "placement": {
+                "host": "hypervisor-a"
+              },
+              "logicalNode": {
+                "enterprise": "acme",
+                "site": "lab",
+                "name": "c-a",
+                "role": "simulated"
+              },
+              "effectiveRuntimeRealization": {
+                "interfaces": {
+                  "lan": {
+                    "runtimeIfName": "eth1",
+                    "sourceKind": "p2p",
+                    "backingRef": {
+                      "id": "p2p-rt-a"
+                    }
+                  }
+                }
+              }
+            },
+            "rt-b": {
+              "placement": {
+                "host": "hypervisor-a"
+              },
+              "logicalNode": {
+                "enterprise": "acme",
+                "site": "lab",
+                "name": "c-b",
+                "role": "simulated"
+              },
+              "effectiveRuntimeRealization": {
+                "interfaces": {
+                  "lan": {
+                    "runtimeIfName": "eth1",
+                    "sourceKind": "p2p",
+                    "backingRef": {
+                      "id": "p2p-rt-b"
+                    }
+                  }
+                }
+              }
+            },
+            "rt-c": {
+              "placement": {
+                "host": "hypervisor-a"
+              },
+              "logicalNode": {
+                "enterprise": "acme",
+                "site": "lab",
+                "name": "c-c",
+                "role": "simulated"
+              },
+              "effectiveRuntimeRealization": {
+                "interfaces": {
+                  "lan": {
+                    "runtimeIfName": "eth1",
+                    "sourceKind": "p2p",
+                    "backingRef": {
+                      "id": "p2p-rt-c"
+                    }
+                  }
+                }
+              }
+            },
+            "rt-d": {
+              "placement": {
+                "host": "hypervisor-a"
+              },
+              "logicalNode": {
+                "enterprise": "acme",
+                "site": "lab",
+                "name": "c-d",
+                "role": "simulated"
+              },
+              "effectiveRuntimeRealization": {
+                "interfaces": {
+                  "lan": {
+                    "runtimeIfName": "eth1",
+                    "sourceKind": "p2p",
+                    "backingRef": {
+                      "id": "p2p-rt-d"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
