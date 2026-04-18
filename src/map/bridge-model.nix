@@ -16,6 +16,8 @@ let
     else
       { };
 
+  transitVlanInterfaceNameFor = name: "vt-${name}";
+
   mapBridge =
     name: bridgeDef:
     let
@@ -61,7 +63,7 @@ let
         parentBridgeName
         vlanId
         ;
-      vlanInterfaceName = "vlan-${bridgeName}";
+      vlanInterfaceName = transitVlanInterfaceNameFor name;
     };
 
   bridgeModels = lib.mapAttrs mapBridge transitBridges;
