@@ -9,11 +9,11 @@ let
     acc: bridgeName:
     let
       bridge = bridgeModel.bridges.${bridgeName};
-      existing = acc.${bridge.parentBridgeName} or [ ];
+      existing = acc.${bridge.parentLinkName} or [ ];
     in
     acc
     // {
-      ${bridge.parentBridgeName} = existing ++ [ bridge.vlanInterfaceName ];
+      ${bridge.parentLinkName} = existing ++ [ bridge.vlanInterfaceName ];
     }
   ) { } bridgeNames;
 
@@ -60,11 +60,11 @@ let
   );
 
   parentNetworks = builtins.listToAttrs (
-    map (parentBridgeName: {
-      name = "60-${parentBridgeName}-vlans";
+    map (parentLinkName: {
+      name = "60-${parentLinkName}-vlans";
       value = {
-        matchConfig.Name = parentBridgeName;
-        networkConfig.VLAN = lib.unique parentVlanMap.${parentBridgeName};
+        matchConfig.Name = parentLinkName;
+        networkConfig.VLAN = lib.unique parentVlanMap.${parentLinkName};
       };
     }) (builtins.attrNames parentVlanMap)
   );
