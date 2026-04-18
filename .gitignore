@@ -28,3 +28,6 @@ output-solver-signed.json
 vib.sh
 work/
 *.json
+
+# Keep committed CPM fixtures for the test suite.
+!tests/fixtures/**/*.json

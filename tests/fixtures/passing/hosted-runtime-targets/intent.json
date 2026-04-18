@@ -1,0 +1,57 @@
+{
+  "control_plane_model": {
+    "meta": {},
+    "endpoints": {},
+    "deployment": {
+      "hosts": {
+        "hypervisor-a": {
+          "uplinks": {
+            "runtime-a": {
+              "parent": "eth0",
+              "bridge": "br-runtime-a",
+              "mode": "bridge"
+            },
+            "wan-a": {
+              "parent": "eth1",
+              "bridge": "br-wan-a",
+              "mode": "vlan",
+              "vlan": 100
+            }
+          },
+          "bridgeNetworks": {}
+        }
+      }
+    },
+    "render": {
+      "hosts": {
+        "lab-host": {
+          "deploymentHost": "hypervisor-a"
+        }
+      }
+    },
+    "realization": {
+      "nodes": {}
+    },
+    "data": {
+      "acme": {
+        "lab": {
+          "runtimeTargets": {
+            "noop-target": {
+              "placement": {
+                "host": "hypervisor-a"
+              },
+              "logicalNode": {
+                "enterprise": "acme",
+                "site": "lab",
+                "name": "noop-target"
+              },
+              "effectiveRuntimeRealization": {
+                "interfaces": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
