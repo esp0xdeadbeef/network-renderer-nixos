@@ -1,120 +1,288 @@
-{
-  pkgs,
-  ...
-}:
+{ lib, pkgs, ... }:
+
 let
-  input = import ./vm-input-home.nix;
+  inherit (lib)
+    all
+    attrNames
+    concatLists
+    filter
+    foldl'
+    genAttrs
+    hasAttrByPath
+    isAttrs
+    isList
+    isString
+    mapAttrs
+    mapAttrsToList
+    mkForce
+    nameValuePair
+    optional
+    optionalAttrs
+    stringLength
+    ;
 
-  system = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
+  fail = msg: throw "network-renderer-nixos: ${msg}";
 
-  renderer = (builtins.getFlake (toString ./.)).libBySystem.${system};
+  isNonEmptyString = value: isString value && stringLength value > 0;
 
-  testingSpoofedHostHeadersEnabled =
-    if input ? testingSpoofedHostHeadersEnabled then input.testingSpoofedHostHeadersEnabled else false;
+  vmInput = import ./vm-input-test.nix;
+  inventory = import vmInput.inventoryPath;
 
-  _requireExplicitTestingOptIn =
-    if testingSpoofedHostHeadersEnabled then
-      true
+  realizationNodes =
+    if
+      inventory ? realization && inventory.realization ? nodes && isAttrs inventory.realization.nodes
+    then
+      inventory.realization.nodes
     else
-      throw ''
-        network-renderer-nixos: vm.nix test harness requires explicit testing opt-in for spoofed host headers
-        Set `testingSpoofedHostHeadersEnabled = true;` in the selected vm-input file.
-        This path is for testing only and must not be used as production configuration.
-      '';
+      fail "inventory.realization.nodes is required";
 
-  vm = builtins.seq _requireExplicitTestingOptIn (
-    renderer.vm.build {
-      inherit (input)
-        intentPath
-        inventoryPath
-        ;
-      boxName = input.boxName or null;
+  deploymentHosts =
+    if inventory ? deployment && inventory.deployment ? hosts && isAttrs inventory.deployment.hosts then
+      inventory.deployment.hosts
+    else
+      { };
+
+  normalizeInventoryContainerEntry =
+    runtimeTarget: logicalName: entry:
+    if isNonEmptyString entry then
+      {
+        name = logicalName;
+        logicalName = logicalName;
+        runtimeName = entry;
+        container = entry;
+      }
+    else if isAttrs entry then
+      let
+        runtimeName =
+          if entry ? runtimeName && isNonEmptyString entry.runtimeName then
+            entry.runtimeName
+          else if entry ? container && isNonEmptyString entry.container then
+            entry.container
+          else if entry ? name && isNonEmptyString entry.name then
+            entry.name
+          else
+            fail "expected runtime target '${runtimeTarget}' container entry '${logicalName}' to define runtimeName";
+      in
+      entry
+      // {
+        name = logicalName;
+        logicalName = logicalName;
+        runtimeName = runtimeName;
+        container = runtimeName;
+      }
+    else
+      fail "expected runtime target '${runtimeTarget}' container entry '${logicalName}' to be an attribute set or non-empty string";
+
+  normalizeInventoryContainers =
+    runtimeTarget: node:
+    let
+      rawContainers = node.containers or null;
+    in
+    if rawContainers == null then
+      {
+        default = {
+          name = "default";
+          logicalName = "default";
+          runtimeName = runtimeTarget;
+          container = runtimeTarget;
+        };
+      }
+    else if !isAttrs rawContainers then
+      fail "expected runtime target '${runtimeTarget}' containers to be an attribute set"
+    else
+      mapAttrs (
+        logicalName: entry: normalizeInventoryContainerEntry runtimeTarget logicalName entry
+      ) rawContainers;
+
+  runtimeTargets = mapAttrs (
+    runtimeTarget: node:
+    let
+      normalizedContainers = normalizeInventoryContainers runtimeTarget node;
+      containerNames = attrNames normalizedContainers;
+      primaryContainer =
+        if normalizedContainers ? default then
+          normalizedContainers.default
+        else if builtins.length containerNames == 1 then
+          normalizedContainers.${builtins.head containerNames}
+        else
+          fail "expected runtime target '${runtimeTarget}' to define a default container or exactly one container";
+      hostName =
+        if node ? host && isNonEmptyString node.host then
+          node.host
+        else
+          fail "runtime target '${runtimeTarget}' must define host";
+      hostDef = if deploymentHosts ? ${hostName} then deploymentHosts.${hostName} else { };
+    in
+    node
+    // {
+      __containers = normalizedContainers;
+      __primaryContainer = primaryContainer;
+      __primaryContainerName = primaryContainer.runtimeName;
+      __hostDef = hostDef;
     }
-  );
+  ) realizationNodes;
+
+  nixosContainerTargets = filter (
+    runtimeTarget:
+    let
+      node = runtimeTargets.${runtimeTarget};
+    in
+    (node.platform or null) == "nixos-container"
+  ) (attrNames runtimeTargets);
+
+  containerPortList =
+    node:
+    if node ? ports && isAttrs node.ports then
+      mapAttrsToList (
+        portName: port:
+        let
+          attach =
+            if port ? attach && isAttrs port.attach then
+              port.attach
+            else
+              fail "runtime target '${node.__primaryContainerName}' port '${portName}' is missing attach";
+          iface =
+            if port ? interface && isAttrs port.interface then
+              port.interface
+            else
+              fail "runtime target '${node.__primaryContainerName}' port '${portName}' is missing interface";
+          ifaceName =
+            if iface ? name && isNonEmptyString iface.name then
+              iface.name
+            else
+              fail "runtime target '${node.__primaryContainerName}' port '${portName}' is missing interface.name";
+          bridgeName =
+            if attach ? bridge && isNonEmptyString attach.bridge then
+              attach.bridge
+            else
+              fail "runtime target '${node.__primaryContainerName}' port '${portName}' is missing attach.bridge";
+        in
+        {
+          inherit
+            portName
+            attach
+            iface
+            ifaceName
+            bridgeName
+            ;
+        }
+      ) node.ports
+    else
+      [ ];
+
+  mkInterfaceAddresses = iface: {
+    ipv4 = optional (iface ? addr4 && isNonEmptyString iface.addr4) {
+      address = builtins.head (lib.splitString "/" iface.addr4);
+      prefixLength = lib.toInt (builtins.elemAt (lib.splitString "/" iface.addr4) 1);
+    };
+    ipv6 = optional (iface ? addr6 && isNonEmptyString iface.addr6) {
+      address = builtins.head (lib.splitString "/" iface.addr6);
+      prefixLength = lib.toInt (builtins.elemAt (lib.splitString "/" iface.addr6) 1);
+    };
+  };
+
+  mkInterfaceConfig =
+    iface:
+    let
+      addrs = mkInterfaceAddresses iface;
+    in
+    {
+      useDHCP = mkForce false;
+      ipv4.addresses = addrs.ipv4;
+      ipv6.addresses = addrs.ipv6;
+    };
+
+  mkExtraVeth = port: {
+    hostBridge = port.bridgeName;
+    containerInterface = port.ifaceName;
+  };
+
+  mkArtifactEtcEntries =
+    runtimeTarget: node:
+    let
+      portsJson = builtins.toJSON (node.ports or { });
+      containersJson = builtins.toJSON node.__containers;
+      nodeJson = builtins.toJSON node;
+    in
+    {
+      "network-artifacts/runtime-target".text = runtimeTarget;
+      "network-artifacts/runtime-target.json".text = nodeJson;
+      "network-artifacts/ports.json".text = portsJson;
+      "network-artifacts/containers.json".text = containersJson;
+    };
+
+  mkContainer =
+    runtimeTarget:
+    let
+      node = runtimeTargets.${runtimeTarget};
+      containerName = node.__primaryContainerName;
+      ports = containerPortList node;
+      interfaceConfigs = foldl' (
+        acc: port:
+        acc
+        // {
+          ${port.ifaceName} = mkInterfaceConfig port.iface;
+        }
+      ) { } ports;
+      extraVeths = map mkExtraVeth ports;
+      etcEntries = mkArtifactEtcEntries runtimeTarget node;
+    in
+    {
+      autoStart = true;
+      ephemeral = false;
+      privateNetwork = false;
+      extraVeths = extraVeths;
+
+      config =
+        { ... }:
+        {
+          networking.hostName = containerName;
+          networking.useDHCP = mkForce false;
+          networking.useHostResolvConf = mkForce false;
+          networking.nftables.enable = true;
+          networking.interfaces = interfaceConfigs;
+
+          environment.shells = [ pkgs.bashInteractive ];
+          users.defaultUserShell = pkgs.bashInteractive;
+          users.users.root.shell = pkgs.bashInteractive;
+          programs.bash.enable = true;
+          programs.zsh.enable = mkForce false;
+
+          environment.etc = etcEntries;
+
+          system.stateVersion = "24.11";
+        };
+    };
+
 in
 {
-  imports = [ vm.artifactModule ];
+  environment.shells = [ pkgs.bashInteractive ];
+  users.defaultUserShell = pkgs.bashInteractive;
+  users.users.root.shell = pkgs.bashInteractive;
+  programs.bash.enable = true;
+  programs.zsh.enable = mkForce false;
 
-  assertions = [
-    {
-      assertion = input.intentPath != null;
-      message = "vm-input.nix requires intentPath";
-    }
-    {
-      assertion = input.inventoryPath != null;
-      message = "vm-input.nix requires inventoryPath";
-    }
-    {
-      assertion = vm.boxName != null;
-      message = "vm-input.nix requires a resolved boxName";
-    }
-    {
-      assertion = testingSpoofedHostHeadersEnabled == true;
-      message = "vm.nix is a testing-only harness using spoofed host headers; set testingSpoofedHostHeadersEnabled = true explicitly";
-    }
-  ];
+  assertions = concatLists (
+    map (
+      runtimeTarget:
+      let
+        node = runtimeTargets.${runtimeTarget};
+        containers = node.__containers;
+      in
+      [
+        {
+          assertion = all (
+            logicalName:
+            let
+              entry = containers.${logicalName};
+            in
+            isAttrs entry && isNonEmptyString entry.runtimeName
+          ) (attrNames containers);
+          message = "network-renderer-nixos: expected runtime target '${runtimeTarget}' container entries to define non-empty runtimeName values";
+        }
+      ]
+    ) nixosContainerTargets
+  );
 
-  warnings = [
-    "network-renderer-nixos: vm.nix is a testing-only harness."
-    "network-renderer-nixos: spoofed host headers are enabled for this VM harness."
-    "network-renderer-nixos: do not use vm.nix as a production deployment path."
-  ];
-
-  system.stateVersion = "25.11";
-
-  networking.hostName = "TEST-ONLY-SPOOFED-HOST-HEADERS";
-  networking.useNetworkd = true;
-  systemd.network.enable = true;
-  systemd.network.netdevs = vm.renderedNetdevs;
-  systemd.network.networks = vm.renderedNetworks;
-
-  boot.enableContainers = true;
-  containers = vm.renderedContainers;
-
-  systemd.services."container@" = {
-    after = [ "systemd-networkd.service" ];
-    requires = [ "systemd-networkd.service" ];
-  };
-
-  networking.useDHCP = true;
-  services.resolved.enable = true;
-
-  boot.kernel.sysctl = {
-    "net.ipv4.ip_forward" = 1;
-    "net.ipv6.conf.all.forwarding" = 1;
-    "net.bridge.bridge-nf-call-iptables" = 0;
-    "net.bridge.bridge-nf-call-ip6tables" = 0;
-    "net.bridge.bridge-nf-call-arptables" = 0;
-    "net.ipv4.conf.all.rp_filter" = 0;
-    "net.ipv4.conf.default.rp_filter" = 0;
-  };
-
-  boot.kernelModules = [ "br_netfilter" ];
-
-  virtualisation.docker.enable = true;
-
-  environment.systemPackages = with pkgs; [
-    containerlab
-    iproute2
-    jq
-    gron
-    tmux
-    neovim
-    tcpdump
-    traceroute
-    nftables
-  ];
-
-  networking.nftables.enable = true;
-
-  users.users.root.shell = pkgs.bash;
-
-  virtualisation.memorySize = 1024 * 24;
-  virtualisation.cores = 22;
-  environment.etc.hosts.enable = false;
-  services.openssh.enable = true;
-
-  nixos-shell.mounts = {
-    cache = "none";
-  };
+  containers = genAttrs nixosContainerTargets mkContainer;
 }

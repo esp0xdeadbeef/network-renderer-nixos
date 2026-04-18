@@ -136,10 +136,8 @@ in
       };
 
       simulatedControlPlaneOut = buildControlPlaneOutput {
-        inherit
-          intentPath
-          inventoryPath
-          ;
+        inherit intentPath;
+        inventoryPath = effectiveInventoryPath;
       };
 
       simulatedModel = normalizeControlPlane simulatedControlPlaneOut;

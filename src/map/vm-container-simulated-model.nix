@@ -67,17 +67,31 @@ let
     else
       { };
 
+  normalizeContainerNameForRuntimeTarget =
+    runtimeTargetName: containerValue:
+    if builtins.isString containerValue then
+      ensureString "container name for runtime target '${runtimeTargetName}'" containerValue
+    else
+      let
+        container = ensureAttrs "control_plane_model.data.*.*.runtimeTargets.${runtimeTargetName}.containers entry" containerValue;
+      in
+      if container ? runtimeName then
+        ensureString "runtime container name for runtime target '${runtimeTargetName}'" container.runtimeName
+      else if container ? container then
+        ensureString "container field for runtime target '${runtimeTargetName}'" container.container
+      else if container ? name then
+        ensureString "container name for runtime target '${runtimeTargetName}'" container.name
+      else if container ? logicalName then
+        ensureString "logical container name for runtime target '${runtimeTargetName}'" container.logicalName
+      else
+        throw "network-renderer-nixos: runtime target '${runtimeTargetName}' container entry must define runtimeName, container, name, or logicalName";
+
   containerNamesForRuntimeTarget =
     enterpriseName: siteName: runtimeTargetName: runtimeTarget:
     if runtimeTarget ? containers then
-      map
-        (
-          containerName:
-          ensureString "container name for runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}'" containerName
-        )
-        (
-          ensureList "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.containers" runtimeTarget.containers
-        )
+      map (containerValue: normalizeContainerNameForRuntimeTarget runtimeTargetName containerValue) (
+        ensureList "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.containers" runtimeTarget.containers
+      )
     else
       [ ];
 
@@ -310,7 +324,11 @@ let
             else
               throw "network-renderer-nixos: vm simulated container model requires runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}' to resolve to exactly one container placement";
 
-          containerName = logicalContainerNameForRuntimeTarget runtimeTargetName runtimeTarget;
+          containerName =
+            if declaredContainers == [ ] then
+              logicalContainerNameForRuntimeTarget runtimeTargetName runtimeTarget
+            else
+              builtins.head declaredContainers;
           runtimeRole = runtimeRoleForRuntimeTarget runtimeTarget;
 
           artifactModel = mapContainerRuntimeArtifactModel {
