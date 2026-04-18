@@ -652,6 +652,7 @@ builtins.seq _uniqueRenderedHostVethNames (
                 bind
                 dig
                 dnsutils
+                gron
                 iproute2
                 iputils
                 jq
