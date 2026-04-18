@@ -178,19 +178,6 @@ in
         (bridgeRendered.networks or { })
       ) (simulatedBridgeRendered.networks or { });
 
-      renderedNetworking = {
-        vlans =
-          if hostRendered ? networking && hostRendered.networking ? vlans then
-            hostRendered.networking.vlans
-          else
-            { };
-        bridges =
-          if hostRendered ? networking && hostRendered.networking ? bridges then
-            hostRendered.networking.bridges
-          else
-            { };
-      };
-
       renderedContainers = renderContainers simulatedContainerModel;
 
       artifactModule = artifacts.controlPlaneSplitFromControlPlane {
