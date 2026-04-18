@@ -16,7 +16,12 @@ let
     else
       { };
 
-  transitVlanInterfaceNameFor = name: "vt-${name}";
+  transitVlanInterfaceNameFor =
+    parentLinkName: vlanId:
+    if builtins.isString parentLinkName && parentLinkName != "" && builtins.isInt vlanId then
+      "${parentLinkName}.${toString vlanId}"
+    else
+      throw "network-renderer-nixos: transit bridge on host '${boxName}' requires string parent link and integer vlan id";
 
   parentLinkNameForUplink =
     parentUplinkName: parentUplink:
@@ -27,13 +32,15 @@ let
       && parentUplink.mode == "vlan"
     then
       if
-        parentUplink ? vlanInterfaceName
-        && builtins.isString parentUplink.vlanInterfaceName
-        && parentUplink.vlanInterfaceName != ""
+        parentUplink ? parent
+        && builtins.isString parentUplink.parent
+        && parentUplink.parent != ""
+        && parentUplink ? vlan
+        && builtins.isInt parentUplink.vlan
       then
-        parentUplink.vlanInterfaceName
+        "${parentUplink.parent}.${toString parentUplink.vlan}"
       else
-        throw "network-renderer-nixos: parent uplink '${parentUplinkName}' on host '${boxName}' is missing vlanInterfaceName"
+        throw "network-renderer-nixos: parent uplink '${parentUplinkName}' on host '${boxName}' is missing parent/vlan"
     else if
       builtins.isAttrs parentUplink
       && parentUplink ? parent
@@ -43,6 +50,7 @@ let
       parentUplink.parent
     else
       throw "network-renderer-nixos: parent uplink '${parentUplinkName}' on host '${boxName}' is missing parent";
+
   mapBridge =
     name: bridgeDef:
     let
@@ -67,10 +75,12 @@ let
           throw "network-renderer-nixos: transit bridge '${name}' on host '${boxName}' references unknown uplink '${parentUplinkName}'";
 
       vlanId =
-        if builtins.isAttrs bridgeDef && bridgeDef ? vlan then
+        if builtins.isAttrs bridgeDef && bridgeDef ? vlan && builtins.isInt bridgeDef.vlan then
           bridgeDef.vlan
         else
           throw "network-renderer-nixos: transit bridge '${name}' on host '${boxName}' is missing vlan";
+
+      parentLinkName = parentLinkNameForUplink parentUplinkName parentUplink;
     in
     {
       inherit
@@ -78,9 +88,9 @@ let
         bridgeName
         parentUplinkName
         vlanId
+        parentLinkName
         ;
-      parentLinkName = parentLinkNameForUplink parentUplinkName parentUplink;
-      vlanInterfaceName = transitVlanInterfaceNameFor name;
+      vlanInterfaceName = transitVlanInterfaceNameFor parentLinkName vlanId;
     };
 
   bridgeModels = lib.mapAttrs mapBridge transitBridges;

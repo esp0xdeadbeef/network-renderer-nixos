@@ -3,8 +3,6 @@ bridgeModel:
 let
   bridgeNames = builtins.attrNames bridgeModel.bridges;
 
-  keepaliveNameFor = bridgeName: "ka-${bridgeName}";
-
   parentVlanMap = lib.foldl' (
     acc: bridgeName:
     let
@@ -22,7 +20,6 @@ let
       bridgeName:
       let
         bridge = bridgeModel.bridges.${bridgeName};
-        keepaliveName = keepaliveNameFor bridge.bridgeName;
       in
       [
         {
@@ -46,15 +43,6 @@ let
             };
           };
         }
-        {
-          name = keepaliveName;
-          value = {
-            netdevConfig = {
-              Kind = "dummy";
-              Name = keepaliveName;
-            };
-          };
-        }
       ]
     ) bridgeNames
   );
@@ -67,30 +55,6 @@ let
         networkConfig.VLAN = lib.unique parentVlanMap.${parentLinkName};
       };
     }) (builtins.attrNames parentVlanMap)
-  );
-
-  keepaliveNetworks = builtins.listToAttrs (
-    map (
-      bridgeName:
-      let
-        bridge = bridgeModel.bridges.${bridgeName};
-        keepaliveName = keepaliveNameFor bridge.bridgeName;
-      in
-      {
-        name = "65-${keepaliveName}";
-        value = {
-          matchConfig.Name = keepaliveName;
-          networkConfig = {
-            Bridge = bridge.bridgeName;
-            ConfigureWithoutCarrier = true;
-          };
-          linkConfig = {
-            ActivationPolicy = "always-up";
-            RequiredForOnline = "no";
-          };
-        };
-      }
-    ) bridgeNames
   );
 
   childNetworks = builtins.listToAttrs (
@@ -122,7 +86,7 @@ let
     ) bridgeNames
   );
 
-  renderedNetworks = parentNetworks // keepaliveNetworks // childNetworks;
+  renderedNetworks = parentNetworks // childNetworks;
 in
 {
   bridgeNameMap = bridgeModel.bridgeNameMap;

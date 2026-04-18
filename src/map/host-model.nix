@@ -16,6 +16,13 @@ let
     else
       { };
 
+  vlanInterfaceNameFor =
+    parent: vlanId:
+    if builtins.isString parent && parent != "" && builtins.isInt vlanId then
+      "${parent}.${toString vlanId}"
+    else
+      throw "network-renderer-nixos: deployment host '${boxName}' VLAN uplink requires string parent and integer vlan id";
+
   mapUplink =
     name: uplink:
     let
@@ -40,7 +47,7 @@ let
     if mode == "vlan" then
       let
         vlanId =
-          if uplink ? vlan then
+          if uplink ? vlan && builtins.isInt uplink.vlan then
             uplink.vlan
           else
             throw "network-renderer-nixos: deployment host '${boxName}' uplink '${name}' is missing vlan";
@@ -54,7 +61,7 @@ let
           vlanId
           ;
         kind = "vlan-bridge";
-        vlanInterfaceName = "vlan-${name}";
+        vlanInterfaceName = vlanInterfaceNameFor parent vlanId;
         networkOptions = bridgeNetworks.${bridgeName} or { };
       }
     else
