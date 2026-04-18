@@ -170,28 +170,6 @@ let
       ;
   };
 
-  hostApi = import ./host.nix {
-    inherit
-      lib
-      buildControlPlaneOutput
-      normalizeControlPlane
-      selectDeploymentHost
-      mapHostModel
-      renderHostNetwork
-      ;
-  };
-
-  bridgesApi = import ./bridges.nix {
-    inherit
-      lib
-      buildControlPlaneOutput
-      normalizeControlPlane
-      selectDeploymentHost
-      mapBridgeModel
-      renderBridgeNetwork
-      ;
-  };
-
   artifactsApi = import ./artifacts.nix {
     inherit
       lib
@@ -203,6 +181,30 @@ let
       mapAccessServiceArtifactTree
       renderArtifactEtc
       ;
+  };
+
+  hostApi = import ./host.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      mapHostModel
+      renderHostNetwork
+      ;
+    artifacts = artifactsApi;
+  };
+
+  bridgesApi = import ./bridges.nix {
+    inherit
+      lib
+      buildControlPlaneOutput
+      normalizeControlPlane
+      selectDeploymentHost
+      mapBridgeModel
+      renderBridgeNetwork
+      ;
+    artifacts = artifactsApi;
   };
 
   containersApi = import ./containers.nix {

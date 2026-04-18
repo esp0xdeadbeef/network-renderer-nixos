@@ -1,5 +1,4 @@
 {
-  config,
   lib,
   pkgs,
   modulesPath,
@@ -21,41 +20,26 @@ let
     else
       false;
 
-  enterpriseName = vmInput.enterpriseName;
-  siteName = vmInput.siteName;
-  requestedBoxName = vmInput.boxName;
+  boxName = vmInput.boxName;
 
   system = if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux";
+
   renderer = (builtins.getFlake (toString ./.)).libBySystem.${system};
 
-  renderedVm = renderer.vm.build {
+  vmBuild = renderer.vm.build {
     intentPath = vmInput.intentPath;
     inventoryPath = vmInput.inventoryPath;
-    boxName = requestedBoxName;
+    inherit boxName;
     simulatedContainerDefaults = {
       autoStart = true;
       privateNetwork = true;
     };
   };
-
-  artifactRootHostDrv =
-    pkgs.runCommand
-      "network-renderer-nixos-vm-artifacts-${
-        builtins.replaceStrings [ "." ":" "/" "@" ] [ "-" "-" "-" "-" ] enterpriseName
-      }-${builtins.replaceStrings [ "." ":" "/" "@" ] [ "-" "-" "-" "-" ] siteName}"
-      { }
-      ''
-        mkdir -p "$out/${enterpriseName}/${siteName}"
-        cp -R ${vmInput.inventoryPath} "$out/${enterpriseName}/${siteName}/inventory.nix"
-        cp -R ${vmInput.intentPath} "$out/${enterpriseName}/${siteName}/intent.nix"
-      '';
-
-  artifactRootHost = "${artifactRootHostDrv}";
 in
 {
   imports = [
     "${modulesPath}/virtualisation/qemu-vm.nix"
-    renderedVm.artifactModule
+    vmBuild.artifactModule
   ];
 
   warnings = [
@@ -70,15 +54,15 @@ in
   boot.loader.grub.enable = false;
   boot.isContainer = false;
 
-  networking.hostName = renderedVm.boxName;
+  networking.hostName = vmBuild.boxName;
   networking.useNetworkd = true;
   networking.useDHCP = false;
   networking.nftables.enable = false;
   networking.firewall.enable = false;
 
   systemd.network.enable = true;
-  systemd.network.netdevs = renderedVm.renderedNetdevs;
-  systemd.network.networks = renderedVm.renderedNetworks;
+  systemd.network.netdevs = vmBuild.renderedNetdevs;
+  systemd.network.networks = vmBuild.renderedNetworks;
 
   virtualisation = {
     memorySize = 4096;
@@ -131,18 +115,5 @@ in
     curl
   ];
 
-  environment.etc."network-artifacts-source".source = artifactRootHost;
-
-  containers = lib.mapAttrs (
-    _: container:
-    container
-    // {
-      bindMounts = (container.bindMounts or { }) // {
-        "/etc/network-artifacts-source" = {
-          hostPath = artifactRootHost;
-          isReadOnly = true;
-        };
-      };
-    }
-  ) renderedVm.renderedContainers;
+  containers = vmBuild.renderedContainers;
 }

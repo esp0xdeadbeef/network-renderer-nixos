@@ -5,6 +5,7 @@
   selectDeploymentHost,
   mapBridgeModel,
   renderBridgeNetwork,
+  artifacts,
 }:
 let
   buildFromControlPlane =
@@ -22,8 +23,14 @@ let
         boxName = deploymentHost.name;
         deploymentHostDef = deploymentHost.definition;
       };
+      renderedBridges = renderBridgeNetwork bridgeModel;
+      artifactModule = artifacts.controlPlaneSplitFromControlPlane {
+        inherit controlPlaneOut;
+        fileName = "control-plane-model.json";
+        directory = "network-artifacts";
+      };
     in
-    renderBridgeNetwork bridgeModel;
+    lib.recursiveUpdate renderedBridges artifactModule;
 in
 {
   build =
