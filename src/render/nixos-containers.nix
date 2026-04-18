@@ -627,8 +627,6 @@ builtins.seq _uniqueRenderedHostVethNames (
                 entry.address6
               ];
               routes = routeEntries;
-            }
-            // lib.optionalAttrs (entry.dhcp != null || entry.ipv6AcceptRA) {
               networkConfig =
                 (lib.optionalAttrs (entry.dhcp != null) {
                   DHCP = entry.dhcp;
