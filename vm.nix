@@ -59,6 +59,8 @@ in
   networking.useDHCP = false;
   networking.nftables.enable = false;
   networking.firewall.enable = false;
+  networking.vlans = vmBuild.renderedNetworking.vlans or { };
+  networking.bridges = vmBuild.renderedNetworking.bridges or { };
 
   systemd.network.enable = true;
   systemd.network.netdevs = vmBuild.renderedNetdevs;

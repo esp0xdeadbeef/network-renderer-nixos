@@ -64,7 +64,7 @@ let
         vlanInterfaceName = vlanInterfaceNameFor parent vlanId;
         networkOptions = bridgeNetworks.${bridgeName} or { };
       }
-    else
+    else if mode == "bridge" then
       {
         inherit
           name
@@ -74,7 +74,20 @@ let
           ;
         kind = "bridge";
         networkOptions = bridgeNetworks.${bridgeName} or { };
-      };
+      }
+    else if mode == "trunk" then
+      {
+        inherit
+          name
+          parent
+          bridgeName
+          mode
+          ;
+        kind = "trunk-parent";
+        networkOptions = { };
+      }
+    else
+      throw "network-renderer-nixos: deployment host '${boxName}' uplink '${name}' has unsupported mode '${mode}'";
 
   uplinkModels = lib.mapAttrs mapUplink uplinks;
 in
