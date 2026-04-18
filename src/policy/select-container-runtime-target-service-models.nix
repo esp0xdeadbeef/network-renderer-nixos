@@ -109,6 +109,25 @@ let
       This should be patched upstream at the control-plane/inventory layer rather than relying on renderer fallback.
     '' true;
 
+  normalizeDeclaredContainerName =
+    runtimeTargetName: index: value:
+    if builtins.isString value then
+      ensureString "runtime target '${runtimeTargetName}' container entry" value
+    else
+      let
+        container = ensureAttrs "runtime target '${runtimeTargetName}' container entry" value;
+      in
+      if container ? runtimeName then
+        ensureString "runtime target '${runtimeTargetName}' container entry.runtimeName" container.runtimeName
+      else if container ? container then
+        ensureString "runtime target '${runtimeTargetName}' container entry.container" container.container
+      else if container ? name then
+        ensureString "runtime target '${runtimeTargetName}' container entry.name" container.name
+      else if container ? logicalName then
+        ensureString "runtime target '${runtimeTargetName}' container entry.logicalName" container.logicalName
+      else
+        throw "network-renderer-nixos: runtime target '${runtimeTargetName}' container entry ${toString index} must define runtimeName, container, name, or logicalName";
+
   context = ensureAttrs "artifactContext" artifactContext;
 
   runtimeTargetName = ensureString "artifactContext.runtimeTargetName" context.runtimeTargetName;
@@ -127,9 +146,13 @@ let
 
   declaredContainers =
     if runtimeTarget ? containers then
-      map (name: ensureString "runtime target '${runtimeTargetName}' container entry" name) (
-        ensureList "runtime target '${runtimeTargetName}'.containers" runtimeTarget.containers
-      )
+      let
+        containerEntries = ensureList "runtime target '${runtimeTargetName}'.containers" runtimeTarget.containers;
+      in
+      map (
+        index:
+        normalizeDeclaredContainerName runtimeTargetName index (builtins.elemAt containerEntries index)
+      ) (lib.range 0 ((builtins.length containerEntries) - 1))
     else
       [ ];
 

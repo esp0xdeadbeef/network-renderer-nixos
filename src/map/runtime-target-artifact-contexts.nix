@@ -72,19 +72,36 @@ let
     else
       null;
 
+  normalizeContainerNameForRuntimeTarget =
+    runtimeTargetName: containerValue:
+    if builtins.isString containerValue then
+      validPathSegment "container name for runtime target '${runtimeTargetName}'" containerValue
+    else
+      let
+        container = ensureAttrs "control_plane_model.data.*.*.runtimeTargets.${runtimeTargetName}.containers entry" containerValue;
+      in
+      if container ? runtimeName then
+        validPathSegment "runtime container name for runtime target '${runtimeTargetName}'" container.runtimeName
+      else if container ? container then
+        validPathSegment "container field for runtime target '${runtimeTargetName}'" container.container
+      else if container ? name then
+        validPathSegment "container name for runtime target '${runtimeTargetName}'" container.name
+      else if container ? logicalName then
+        validPathSegment "logical container name for runtime target '${runtimeTargetName}'" container.logicalName
+      else
+        throw "network-renderer-nixos: runtime target '${runtimeTargetName}' container entry must define runtimeName, container, name, or logicalName";
+
   containerNamesForRuntimeTarget =
     enterpriseName: siteName: runtimeTargetName: runtimeTarget:
     let
       explicitContainerNames =
         if runtimeTarget ? containers then
-          map
-            (
-              containerName:
-              validPathSegment "container name for runtime target '${runtimeTargetName}' in '${enterpriseName}.${siteName}'" containerName
-            )
-            (
-              ensureList "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.containers" runtimeTarget.containers
-            )
+          let
+            entries = ensureList "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.containers" runtimeTarget.containers;
+          in
+          map (
+            containerValue: normalizeContainerNameForRuntimeTarget runtimeTargetName containerValue
+          ) entries
         else
           [ ];
 
