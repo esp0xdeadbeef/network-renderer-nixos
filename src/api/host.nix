@@ -5,6 +5,7 @@
   selectDeploymentHost,
   mapHostModel,
   renderHostNetwork,
+  artifacts,
 }:
 let
   buildFromControlPlane =
@@ -22,8 +23,14 @@ let
         boxName = deploymentHost.name;
         deploymentHostDef = deploymentHost.definition;
       };
+      renderedHost = renderHostNetwork hostModel;
+      artifactModule = artifacts.controlPlaneSplitFromControlPlane {
+        inherit controlPlaneOut;
+        fileName = "control-plane-model.json";
+        directory = "network-artifacts";
+      };
     in
-    renderHostNetwork hostModel;
+    lib.recursiveUpdate renderedHost artifactModule;
 in
 {
   build =
