@@ -2,7 +2,7 @@
 set -euo pipefail
 
 touch ./nixos.qcow2
-rm ./nixos.qcow2
+#rm ./nixos.qcow2
 echo "ssh -o 'StrictHostKeyChecking no' -p2222 root@localhost # to connect to the vm."
 
 FLAKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
