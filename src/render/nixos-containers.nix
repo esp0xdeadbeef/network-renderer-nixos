@@ -331,9 +331,6 @@ let
 
   interfaceUsesAcceptRA = ip6: (ip6.acceptRA or false) || (ip6.method or null) == "slaac";
 
-  interfaceUsesDynamicL3 =
-    ip4: ip6: interfaceUsesDhcp4 ip4 || interfaceUsesDhcp6 ip6 || interfaceUsesAcceptRA ip6;
-
   networkdDhcpValue =
     ip4: ip6:
     let
@@ -352,9 +349,6 @@ let
   routesForInterface =
     rawInterface:
     let
-      ip4 = normalizeInterfaceIpConfig "interface.ipv4" (rawInterface.ipv4 or null);
-      ip6 = normalizeInterfaceIpConfig "interface.ipv6" (rawInterface.ipv6 or null);
-
       parsedRuntimeTargetRoutes =
         if rawInterface ? routes && rawInterface.routes != null then
           parseRuntimeTargetRoutes rawInterface.routes
@@ -377,15 +371,8 @@ let
             "gateway4"
             "gateway6"
           ];
-
-      staticRoutes = lib.filter (route: route.gateway != null) (
-        parsedRuntimeTargetRoutes ++ defaultGatewayRoutes
-      );
     in
-    if interfaceUsesDynamicL3 ip4 ip6 then
-      dedupeRoutes staticRoutes
-    else
-      dedupeRoutes (parsedRuntimeTargetRoutes ++ defaultGatewayRoutes);
+    dedupeRoutes (parsedRuntimeTargetRoutes ++ defaultGatewayRoutes);
 
   normalizeArtifactEntry =
     containerName: artifactPath: artifact:
@@ -553,7 +540,7 @@ builtins.seq _uniqueRenderedHostVethNames (
           address6 = normalizeOptionalAddress (rawInterface.addr6 or null);
           routes = routesForInterface rawInterface;
           dhcp = networkdDhcpValue ip4 ip6;
-          ipv6AcceptRA = if interfaceUsesAcceptRA ip6 then true else false;
+          ipv6AcceptRA = interfaceUsesAcceptRA ip6;
         }
       ) bridgeInterfaceNames;
 
@@ -601,56 +588,57 @@ builtins.seq _uniqueRenderedHostVethNames (
 
       containerImports = containerTemplateImports ++ containerConfigImports;
 
-      renderRouteCommand =
-        entry: route:
-        let
-          ipCmd = if route.family == "ipv6" then "ip -6" else "ip";
-          destination = if route.destination == null then "default" else route.destination;
-          viaClause = lib.optionalString (route.gateway != null) " via ${route.gateway}";
-          devClause = " dev \"${entry.containerInterfaceName}\"";
-          metricClause = lib.optionalString (route.metric != null) " metric ${toString route.metric}";
-          onLinkClause = lib.optionalString route.onLink " onlink";
-        in
-        "${ipCmd} route replace ${destination}${viaClause}${devClause}${metricClause}${onLinkClause}";
-
       renameServiceScript = lib.concatStringsSep "\n" (
-        map (
-          entry:
-          ''
-            if ip link show dev "${entry.hostVethName}" >/dev/null 2>&1; then
-              ip link set dev "${entry.hostVethName}" down || true
-              ip link set dev "${entry.hostVethName}" name "${entry.containerInterfaceName}"
-            fi
-            ip link set dev "${entry.containerInterfaceName}" up
-          ''
-          + lib.optionalString (entry.address4 != null) ''
-            ip addr replace ${entry.address4} dev "${entry.containerInterfaceName}"
-          ''
-          + lib.optionalString (entry.address6 != null) ''
-            ip -6 addr replace ${entry.address6} dev "${entry.containerInterfaceName}"
-          ''
-          + lib.optionalString (entry.routes != [ ]) ''
-            ${lib.concatStringsSep "\n" (map (route: renderRouteCommand entry route) entry.routes)}
-          ''
-        ) renderedInterfaceEntries
+        map (entry: ''
+          if ip link show dev "${entry.hostVethName}" >/dev/null 2>&1; then
+            ip link set dev "${entry.hostVethName}" down || true
+            ip link set dev "${entry.hostVethName}" name "${entry.containerInterfaceName}"
+          fi
+          ip link set dev "${entry.containerInterfaceName}" up
+        '') renderedInterfaceEntries
       );
 
       renderedInterfaceNetworks = builtins.listToAttrs (
-        map (entry: {
-          name = "10-${entry.containerInterfaceName}";
-          value = {
-            matchConfig.Name = entry.containerInterfaceName;
+        map (
+          entry:
+          let
+            routeEntries = map (
+              route:
+              {
+                Destination = route.destination;
+              }
+              // lib.optionalAttrs (route.gateway != null) {
+                Gateway = route.gateway;
+              }
+              // lib.optionalAttrs (route.metric != null) {
+                Metric = route.metric;
+              }
+              // lib.optionalAttrs route.onLink {
+                GatewayOnLink = true;
+              }
+            ) entry.routes;
+          in
+          {
+            name = "10-${entry.containerInterfaceName}";
+            value = {
+              matchConfig.Name = entry.containerInterfaceName;
+              address = lib.filter (value: value != null) [
+                entry.address4
+                entry.address6
+              ];
+              routes = routeEntries;
+            }
+            // lib.optionalAttrs (entry.dhcp != null || entry.ipv6AcceptRA) {
+              networkConfig =
+                (lib.optionalAttrs (entry.dhcp != null) {
+                  DHCP = entry.dhcp;
+                })
+                // (lib.optionalAttrs entry.ipv6AcceptRA {
+                  IPv6AcceptRA = true;
+                });
+            };
           }
-          // lib.optionalAttrs (entry.dhcp != null || entry.ipv6AcceptRA) {
-            networkConfig =
-              (lib.optionalAttrs (entry.dhcp != null) {
-                DHCP = entry.dhcp;
-              })
-              // (lib.optionalAttrs entry.ipv6AcceptRA {
-                IPv6AcceptRA = true;
-              });
-          };
-        }) renderedInterfaceEntries
+        ) renderedInterfaceEntries
       );
 
       forwardingServiceScript = ''
