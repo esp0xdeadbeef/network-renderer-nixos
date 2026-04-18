@@ -1,17 +1,67 @@
 { lib }:
 hostModel:
 let
-  uplinkNames = builtins.attrNames hostModel.uplinks;
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  keepaliveNameFor = bridgeName: "ka-${bridgeName}";
+  uplinkNames = sortedAttrNames hostModel.uplinks;
 
-  bridgeUplinkNames = lib.filter (
+  renderedUplinkNames = lib.filter (
     uplinkName:
     let
       uplink = hostModel.uplinks.${uplinkName};
     in
     uplink.kind == "bridge" || uplink.kind == "vlan-bridge"
   ) uplinkNames;
+
+  keepaliveNameFor = bridgeName: "ka-${bridgeName}";
+
+  parentGrouped = builtins.foldl' (
+    acc: uplinkName:
+    let
+      uplink = hostModel.uplinks.${uplinkName};
+      parentName = uplink.parent;
+
+      existing =
+        if builtins.hasAttr parentName acc then
+          acc.${parentName}
+        else
+          {
+            vlanInterfaces = [ ];
+            bridgeUplinks = [ ];
+          };
+
+      updated =
+        if uplink.kind == "vlan-bridge" then
+          existing
+          // {
+            vlanInterfaces = existing.vlanInterfaces ++ [ uplink.vlanInterfaceName ];
+          }
+        else
+          existing
+          // {
+            bridgeUplinks = existing.bridgeUplinks ++ [ uplink ];
+          };
+    in
+    acc
+    // {
+      "${parentName}" = updated;
+    }
+  ) { } renderedUplinkNames;
+
+  parentNames = sortedAttrNames parentGrouped;
+
+  _validateParentUsage = builtins.foldl' (
+    acc: parentName:
+    let
+      parentGroup = parentGrouped.${parentName};
+    in
+    if builtins.length parentGroup.bridgeUplinks > 1 then
+      throw "network-renderer-nixos: parent '${parentName}' resolves to multiple direct bridge uplinks"
+    else if parentGroup.bridgeUplinks != [ ] && parentGroup.vlanInterfaces != [ ] then
+      throw "network-renderer-nixos: parent '${parentName}' cannot be both a direct bridge uplink and a VLAN parent"
+    else
+      acc
+  ) true parentNames;
 
   netdevs = builtins.listToAttrs (
     lib.concatMap (
@@ -23,54 +73,111 @@ let
       if uplink.kind == "vlan-bridge" then
         [
           {
-            name = keepaliveName;
-            value = {
-              netdevConfig = {
-                Kind = "dummy";
-                Name = keepaliveName;
-              };
-            };
-          }
-        ]
-      else if uplink.kind == "bridge" then
-        [
-          {
-            name = keepaliveName;
-            value = {
-              netdevConfig = {
-                Kind = "dummy";
-                Name = keepaliveName;
-              };
-            };
-          }
-        ]
-      else
-        [ ]
-    ) uplinkNames
-  );
-
-  networkingVlans = builtins.listToAttrs (
-    lib.concatMap (
-      uplinkName:
-      let
-        uplink = hostModel.uplinks.${uplinkName};
-      in
-      if uplink.kind == "vlan-bridge" then
-        [
-          {
             name = uplink.vlanInterfaceName;
             value = {
-              id = uplink.vlanId;
-              interface = uplink.parent;
+              netdevConfig = {
+                Kind = "vlan";
+                Name = uplink.vlanInterfaceName;
+              };
+              vlanConfig = {
+                Id = uplink.vlanId;
+              };
+            };
+          }
+          {
+            name = uplink.bridgeName;
+            value = {
+              netdevConfig = {
+                Kind = "bridge";
+                Name = uplink.bridgeName;
+              };
+            };
+          }
+          {
+            name = keepaliveName;
+            value = {
+              netdevConfig = {
+                Kind = "dummy";
+                Name = keepaliveName;
+              };
             };
           }
         ]
       else
-        [ ]
-    ) uplinkNames
+        [
+          {
+            name = uplink.bridgeName;
+            value = {
+              netdevConfig = {
+                Kind = "bridge";
+                Name = uplink.bridgeName;
+              };
+            };
+          }
+          {
+            name = keepaliveName;
+            value = {
+              netdevConfig = {
+                Kind = "dummy";
+                Name = keepaliveName;
+              };
+            };
+          }
+        ]
+    ) renderedUplinkNames
   );
 
-  networkingBridges = builtins.listToAttrs (
+  parentNetworks = builtins.listToAttrs (
+    map (
+      parentName:
+      let
+        parentGroup = parentGrouped.${parentName};
+      in
+      {
+        name = "10-${parentName}";
+        value =
+          if parentGroup.vlanInterfaces != [ ] then
+            {
+              matchConfig.Name = parentName;
+              networkConfig.VLAN = lib.unique parentGroup.vlanInterfaces;
+            }
+          else
+            let
+              uplink = builtins.head parentGroup.bridgeUplinks;
+            in
+            {
+              matchConfig.Name = parentName;
+              networkConfig.Bridge = uplink.bridgeName;
+            };
+      }
+    ) parentNames
+  );
+
+  keepaliveNetworks = builtins.listToAttrs (
+    map (
+      uplinkName:
+      let
+        uplink = hostModel.uplinks.${uplinkName};
+        keepaliveName = keepaliveNameFor uplink.bridgeName;
+      in
+      {
+        name = "15-${keepaliveName}";
+        value = {
+          matchConfig.Name = keepaliveName;
+          networkConfig = {
+            Bridge = uplink.bridgeName;
+            ConfigureWithoutCarrier = true;
+          };
+          linkConfig = {
+            ActivationPolicy = "always-up";
+            RequiredForOnline = "no";
+          };
+        };
+      }
+    ) renderedUplinkNames
+  );
+
+  childNetworks = builtins.listToAttrs (
     lib.concatMap (
       uplinkName:
       let
@@ -79,117 +186,55 @@ let
       if uplink.kind == "vlan-bridge" then
         [
           {
-            name = uplink.bridgeName;
+            name = "20-${uplink.vlanInterfaceName}";
             value = {
-              interfaces = [ uplink.vlanInterfaceName ];
+              matchConfig.Name = uplink.vlanInterfaceName;
+              networkConfig.Bridge = uplink.bridgeName;
             };
           }
-        ]
-      else if uplink.kind == "bridge" then
-        [
           {
-            name = uplink.bridgeName;
+            name = "30-${uplink.bridgeName}";
             value = {
-              interfaces = [ uplink.parent ];
+              matchConfig.Name = uplink.bridgeName;
+              networkConfig = uplink.networkOptions // {
+                ConfigureWithoutCarrier = true;
+              };
+              linkConfig = {
+                ActivationPolicy = "always-up";
+                RequiredForOnline = "no";
+              };
             };
           }
         ]
       else
-        [ ]
-    ) uplinkNames
-  );
-
-  renderedNetworks =
-    builtins.listToAttrs (
-      map (
-        uplinkName:
-        let
-          uplink = hostModel.uplinks.${uplinkName};
-          keepaliveName = keepaliveNameFor uplink.bridgeName;
-
-          dhcpValue =
-            if uplink.networkOptions ? DHCP then
-              uplink.networkOptions.DHCP
-            else if uplink.networkOptions ? dhcp then
-              uplink.networkOptions.dhcp
-            else
-              null;
-
-          ipv6AcceptRAValue =
-            if uplink.networkOptions ? IPv6AcceptRA then
-              uplink.networkOptions.IPv6AcceptRA
-            else if uplink.networkOptions ? ipv6AcceptRA then
-              uplink.networkOptions.ipv6AcceptRA
-            else
-              null;
-
-          passthroughNetworkOptions = builtins.removeAttrs uplink.networkOptions [
-            "DHCP"
-            "dhcp"
-            "IPv6AcceptRA"
-            "ipv6AcceptRA"
-          ];
-        in
-        {
-          name = "30-${uplink.bridgeName}";
-          value = {
-            matchConfig.Name = uplink.bridgeName;
-            linkConfig = {
-              ActivationPolicy = "always-up";
-              RequiredForOnline = "no";
-            };
-            networkConfig =
-              passthroughNetworkOptions
-              // (lib.optionalAttrs (dhcpValue != null) {
-                DHCP = dhcpValue;
-              })
-              // (lib.optionalAttrs (ipv6AcceptRAValue != null) {
-                IPv6AcceptRA = ipv6AcceptRAValue;
-              })
-              // {
+        [
+          {
+            name = "20-${uplink.bridgeName}";
+            value = {
+              matchConfig.Name = uplink.bridgeName;
+              networkConfig = uplink.networkOptions // {
                 ConfigureWithoutCarrier = true;
               };
-          };
-        }
-      ) bridgeUplinkNames
-    )
-    // builtins.listToAttrs (
-      map (
-        uplinkName:
-        let
-          uplink = hostModel.uplinks.${uplinkName};
-          keepaliveName = keepaliveNameFor uplink.bridgeName;
-        in
-        {
-          name = "15-${keepaliveName}";
-          value = {
-            matchConfig.Name = keepaliveName;
-            networkConfig = {
-              Bridge = uplink.bridgeName;
-              ConfigureWithoutCarrier = true;
+              linkConfig = {
+                ActivationPolicy = "always-up";
+                RequiredForOnline = "no";
+              };
             };
-            linkConfig = {
-              ActivationPolicy = "always-up";
-              RequiredForOnline = "no";
-            };
-          };
-        }
-      ) bridgeUplinkNames
-    );
+          }
+        ]
+    ) renderedUplinkNames
+  );
+
+  renderedNetworks = parentNetworks // keepaliveNetworks // childNetworks;
 in
-{
+builtins.seq _validateParentUsage {
   hostName = hostModel.hostName;
   deploymentHostName = hostModel.deploymentHostName;
   netdevs = netdevs;
   networks = renderedNetworks;
-  networking = {
-    vlans = networkingVlans;
-    bridges = networkingBridges;
-  };
   debug = hostModel.debug // {
     renderedNetdevs = builtins.attrNames netdevs;
     renderedNetworks = builtins.attrNames renderedNetworks;
-    renderedVlans = builtins.attrNames networkingVlans;
-    renderedBridges = builtins.attrNames networkingBridges;
+    renderedParentNetworks = builtins.attrNames parentNetworks;
   };
 }
