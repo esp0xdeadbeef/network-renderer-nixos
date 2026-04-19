@@ -7,6 +7,9 @@ source "${repo_root}/tests/lib/test-common.sh"
 # External tests first (matches how this repo is used in prod).
 "${repo_root}/tests/cases/external-examples.sh"
 
+# Renderer-level validation (no VM boot): VLAN trunk lanes should synthesize VLAN netdevs.
+"${repo_root}/tests/cases/vlan-trunk-lanes.sh"
+
 # render-all.sh used to fail-fast on warnings, which makes it hard to use for
 # scanning external examples (some warning alarms are upstream/missing CPM data).
 # Keep a smoke test that ensures render-all can run a known-warning example and
