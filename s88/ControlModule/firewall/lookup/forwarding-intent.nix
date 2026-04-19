@@ -462,6 +462,22 @@ let
     ];
   };
 
+  nodeNat = firstAttrsFromPaths {
+    roots = [ runtimeTarget ];
+    paths = [
+      [ "natIntent" ]
+      [ "nat" ]
+      [
+        "egress"
+        "natIntent"
+      ]
+      [
+        "egress"
+        "nat"
+      ]
+    ];
+  };
+
   nodeForwardingEnabled = boolLikeFromPaths {
     roots = [
       runtimeTarget
@@ -505,8 +521,10 @@ let
       runtimeTarget
       nodeForwarding
       nodeEgress
+      nodeNat
     ];
     paths = [
+      [ "enabled" ]
       [ "natEnabled" ]
       [ "nat" ]
       [
@@ -546,6 +564,7 @@ let
         nodeForwarding
       ];
       paths = [
+        [ "localInterfaces" ]
         [ "localAdapterInterfaces" ]
         [ "localAdapters" ]
         [
@@ -583,6 +602,8 @@ let
         nodeEgress
       ];
       paths = [
+        [ "uplinkInterfaces" ]
+        [ "uplinkInterfaceNames" ]
         [ "uplinkInterfaces" ]
         [ "uplinks" ]
         [
@@ -633,6 +654,7 @@ let
         nodeForwarding
       ];
       paths = [
+        [ "transitInterfaces" ]
         [ "transitInterfaces" ]
         [ "transits" ]
         [
@@ -691,6 +713,8 @@ let
         nodeEgress
       ];
       paths = [
+        [ "uplinkInterfaces" ]
+        [ "uplinkInterfaceNames" ]
         [ "exitInterfaces" ]
         [ "upstreamSelectionInterfaces" ]
         [
@@ -714,6 +738,7 @@ let
         runtimeTarget
         nodeForwarding
         nodeEgress
+        nodeNat
       ];
       paths = [
         [ "natInterfaces" ]
@@ -757,6 +782,7 @@ let
         runtimeTarget
         nodeForwarding
         nodeEgress
+        nodeNat
       ];
       paths = [
         [ "clampMssInterfaces" ]
@@ -865,7 +891,35 @@ let
           comment = pair.comment;
         };
 
-  normalizedExplicitForwardPairs = lib.filter (pair: pair != null) (
+  normalizeForwardRule =
+    rule:
+    if !builtins.isAttrs rule then
+      null
+    else
+      let
+        inIfs = resolveInterfaceTokens (attrOr rule "fromInterface" [ ]);
+        outIfs = resolveInterfaceTokens (attrOr rule "toInterface" [ ]);
+        action = if rule ? action && builtins.isString rule.action then rule.action else "accept";
+      in
+      if inIfs == [ ] || outIfs == [ ] then
+        null
+      else
+        {
+          "in" = inIfs;
+          "out" = outIfs;
+          inherit action;
+        };
+
+  normalizedExplicitForwardPairsFromRules = lib.filter (pair: pair != null) (
+    map normalizeForwardRule (
+      if nodeForwarding ? rules && builtins.isList nodeForwarding.rules then
+        lib.filter builtins.isAttrs nodeForwarding.rules
+      else
+        [ ]
+    )
+  );
+
+  normalizedExplicitForwardPairsFromPairs = lib.filter (pair: pair != null) (
     map normalizeForwardPair (
       lib.concatMap asList (valuesFromPaths {
         roots = [
@@ -895,6 +949,12 @@ let
       })
     )
   );
+
+  normalizedExplicitForwardPairs =
+    if normalizedExplicitForwardPairsFromRules != [ ] then
+      normalizedExplicitForwardPairsFromRules
+    else
+      normalizedExplicitForwardPairsFromPairs;
 
   accessForwardPairs =
     if normalizedExplicitForwardPairs != [ ] then

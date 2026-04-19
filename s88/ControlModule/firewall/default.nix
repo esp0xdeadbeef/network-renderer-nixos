@@ -49,6 +49,9 @@ let
     inherit
       lib
       interfaceView
+      runtimeTarget
+      roleName
+      unitName
       ;
     currentSite = communication.currentSite;
     communicationContract = communication.communicationContract;
