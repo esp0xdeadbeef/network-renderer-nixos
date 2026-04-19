@@ -21,10 +21,14 @@ let
   };
 in
 {
-  imports = [
-    "${outPath}/library/10-vms/nixos-shell-vm/host-config-routers-without-network"
-    ../../EquipmentModule/default.nix
-  ];
+
+  imports =
+    lib.optionals (
+      (hostContext.includeLegacyHostConfig or false)
+      || (globalInventory.includeLegacyHostConfig or false)
+      || (config.includeLegacyHostConfig or false)
+    ) [ "${outPath}/library/10-vms/nixos-shell-vm/host-config-routers-without-network" ]
+    ++ [ ../../EquipmentModule/default.nix ];
 
   _module.args = {
     fabricInputs = routerInputs.fabricInputs;
