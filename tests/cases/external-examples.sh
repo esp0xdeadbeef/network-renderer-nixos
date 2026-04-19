@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-search_root="${1:-${repo_root}/../network-labs}"
+search_root="${1:-$(flake_input_path network-labs)}"
 search_root="$(realpath "$search_root")"
 
 if [[ ! -d "$search_root" ]]; then

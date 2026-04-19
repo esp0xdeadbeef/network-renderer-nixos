@@ -7,6 +7,24 @@ log() { echo "==> $*"; }
 fail() { echo "$*" >&2; exit 1; }
 pass() { echo "PASS $*"; }
 
+_jq() {
+  if command -v jq >/dev/null 2>&1; then
+    jq "$@"
+  else
+    nix run \
+      --no-write-lock-file \
+      --extra-experimental-features 'nix-command flakes' \
+      "path:${repo_root}#jq" -- "$@"
+  fi
+}
+
+flake_input_path() {
+  local input_name="$1"
+
+  nix flake archive --json "path:${repo_root}" \
+    | _jq -er ".inputs[\"${input_name}\"].path"
+}
+
 should_dump_on_warning() {
   local stderr_file="$1"
   grep -qF "advertisement still defaults from renderer policy" "$stderr_file"
@@ -32,7 +50,7 @@ archive_json_artifacts() {
 
 has_advertisement_default_alarm() {
   local render_json="$1"
-  jq -e '
+  _jq -e '
     [
       .containers
       | to_entries[]

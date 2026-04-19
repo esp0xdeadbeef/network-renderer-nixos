@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${repo_root}/tests/lib/test-common.sh"
 
 # External tests first (matches how this repo is used in prod).
 "${repo_root}/tests/cases/external-examples.sh"
@@ -10,9 +11,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # scanning external examples (some warning alarms are upstream/missing CPM data).
 # Keep a smoke test that ensures render-all can run a known-warning example and
 # still exit 0 by default.
-if [[ -d /home/deadbeef/github/network-labs/examples/multi-enterprise ]]; then
+labs_root="$(flake_input_path network-labs)"
+if [[ -d "${labs_root}/examples/multi-enterprise" ]]; then
   echo "==> Smoke: render-all.sh should not fail on warnings by default"
-  "${repo_root}/render-all.sh" "/home/deadbeef/github/network-labs/examples/multi-enterprise"
+  "${repo_root}/render-all.sh" "${labs_root}/examples/multi-enterprise"
 fi
 
 # Regression: vm build API exists and returns an attrset (no lambda-vs-set drift).
