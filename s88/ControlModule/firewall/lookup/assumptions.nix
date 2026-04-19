@@ -63,6 +63,9 @@ let
           lib
           interfaceView
           runtimeTarget
+          roleName
+          unitName
+          containerName
           ;
         currentSite = communication.currentSite;
         communicationContract = communication.communicationContract;

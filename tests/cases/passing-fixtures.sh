@@ -36,6 +36,11 @@ render_fixture() {
       >/dev/null \
       2> >(tee "${tmp_dir}/render.stderr" >&2)
 
+    # Policy endpoint binding gaps should be a hard error (not a warning / partial render).
+    if rg -qF "firewall-policy-endpoint-bindings-missing" "${tmp_dir}/render.stderr"; then
+      fail "FAIL $(basename "${rel}"): policy endpoint bindings were not authoritative"
+    fi
+
     if should_dump_on_warning "${tmp_dir}/render.stderr"; then
       archive_json_artifacts "$(basename "${rel}")" "${tmp_dir}"
     fi

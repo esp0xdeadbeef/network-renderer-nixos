@@ -5,6 +5,9 @@
   communicationContract ? { },
   ownership ? { },
   runtimeTarget ? { },
+  roleName ? null,
+  unitName ? null,
+  containerName ? null,
   ...
 }:
 
@@ -253,6 +256,94 @@ let
         ${builtins.toJSON (map adjacencyLinkName matches)}
       '';
 
+  transitEdges = lib.concatMap (
+    adjacency:
+    let
+      units = adjacencyUnits adjacency;
+    in
+    if builtins.length units == 2 then
+      let
+        a = builtins.elemAt units 0;
+        b = builtins.elemAt units 1;
+      in
+      [
+        {
+          from = a;
+          to = b;
+        }
+        {
+          from = b;
+          to = a;
+        }
+      ]
+    else
+      [ ]
+  ) transitAdjacencies;
+
+  neighborsOf =
+    unit: sortedStrings (map (edge: edge.to) (lib.filter (edge: edge.from == unit) transitEdges));
+
+  lastElem =
+    list:
+    let
+      n = builtins.length list;
+    in
+    if n == 0 then null else builtins.elemAt list (n - 1);
+
+  findPath =
+    {
+      start,
+      goal,
+    }:
+    let
+      go =
+        visited: frontier:
+        if frontier == [ ] then
+          null
+        else
+          let
+            path = builtins.head frontier;
+            rest = builtins.tail frontier;
+            node = lastElem path;
+          in
+          if node == null then
+            null
+          else if node == goal then
+            path
+          else
+            let
+              candidates = neighborsOf node;
+              nexts = lib.filter (n: !(builtins.elem n visited)) candidates;
+              visited' = visited ++ nexts;
+              frontier' = rest ++ (map (n: path ++ [ n ]) nexts);
+            in
+            go visited' frontier';
+    in
+    if start == null || goal == null then null else go [ start ] [ [ start ] ];
+
+  firstHopInterfaceToUnit =
+    targetUnit:
+    if currentNodeName == null || targetUnit == null then
+      null
+    else
+      let
+        path = findPath {
+          start = currentNodeName;
+          goal = targetUnit;
+        };
+        hop = if path != null && builtins.length path >= 2 then builtins.elemAt path 1 else null;
+        adjacency =
+          if hop != null then
+            adjacencyForPair {
+              a = currentNodeName;
+              b = hop;
+            }
+          else
+            null;
+        linkName = if adjacency != null then adjacencyLinkName adjacency else null;
+      in
+      if linkName != null then interfaceNameForLink linkName else null;
+
   tenantAttachments =
     if currentSite ? attachments && builtins.isList currentSite.attachments then
       lib.filter (
@@ -272,17 +363,8 @@ let
       map (
         attachment:
         let
-          adjacency =
-            if currentNodeName != null then
-              adjacencyForPair {
-                a = attachment.unit;
-                b = currentNodeName;
-              }
-            else
-              null;
 
-          linkName = if adjacency != null then adjacencyLinkName adjacency else null;
-          interfaceName = if linkName != null then interfaceNameForLink linkName else null;
+          interfaceName = firstHopInterfaceToUnit attachment.unit;
         in
         if interfaceName != null then
           {
@@ -540,6 +622,31 @@ let
   );
 
   authoritativeBindings = authorityGaps == [ ];
+
+  entityName =
+    if builtins.isString containerName && containerName != "" then
+      containerName
+    else if builtins.isString unitName && unitName != "" then
+      unitName
+    else if runtimeTarget ? unitName && builtins.isString runtimeTarget.unitName then
+      runtimeTarget.unitName
+    else
+      null;
+
+  strictMode = roleName == "policy";
+
+  _ =
+    if strictMode && !authoritativeBindings then
+      throw ''
+        s88/ControlModule/firewall/mapping/policy-endpoints.nix: refusing to synthesize policy endpoint bindings
+
+        container: ${toString entityName}
+        role: policy
+        gaps:
+        ${builtins.concatStringsSep "\n" (map (line: "  - ${line}") authorityGaps)}
+      ''
+    else
+      null;
 in
 {
   inherit

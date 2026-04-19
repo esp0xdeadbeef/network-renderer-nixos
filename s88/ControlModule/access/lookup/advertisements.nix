@@ -439,8 +439,135 @@ let
   derivedDhcp4Entries = lib.filter (entry: entry.derivedDhcp4) interfaceEntries;
   derivedRadvdEntries = lib.filter (entry: entry.derivedRadvd) interfaceEntries;
 
+  cpmAdvertisements =
+    if runtimeTarget ? advertisements && builtins.isAttrs runtimeTarget.advertisements then
+      runtimeTarget.advertisements
+    else
+      { };
+
+  authoritativeDhcp4 =
+    let
+      raw =
+        if cpmAdvertisements ? dhcp4 && builtins.isList cpmAdvertisements.dhcp4 then
+          cpmAdvertisements.dhcp4
+        else
+          [ ];
+    in
+    lib.filter (entry: builtins.isAttrs entry && (entry.enabled or true) != false) raw;
+
+  authoritativeIpv6Ra =
+    let
+      raw =
+        if cpmAdvertisements ? ipv6Ra && builtins.isList cpmAdvertisements.ipv6Ra then
+          cpmAdvertisements.ipv6Ra
+        else
+          [ ];
+    in
+    lib.filter (entry: builtins.isAttrs entry && (entry.enabled or true) != false) raw;
+
+  poolStringFrom =
+    pool:
+    if builtins.isString pool then
+      pool
+    else if
+      builtins.isAttrs pool
+      && builtins.isString (pool.start or null)
+      && builtins.isString (pool.end or null)
+    then
+      "${pool.start} - ${pool.end}"
+    else
+      null;
+
+  authoritativeDhcp4Scopes = builtins.genList (
+    idx:
+    let
+      adv = builtins.elemAt authoritativeDhcp4 idx;
+      interfaceName =
+        if builtins.isString (adv.interface or null) && adv.interface != "" then
+          adv.interface
+        else if builtins.isString (adv.bindInterface or null) && adv.bindInterface != "" then
+          adv.bindInterface
+        else
+          null;
+
+      stem = safeStem (
+        if builtins.isString (adv.id or null) && adv.id != "" then
+          adv.id
+        else if interfaceName != null then
+          interfaceName
+        else
+          "dhcp4-${builtins.toString (idx + 1)}"
+      );
+
+      subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
+      pool = poolStringFrom (adv.pool or null);
+      router =
+        if builtins.isString (adv.router or null) && adv.router != "" then
+          adv.router
+        else if builtins.isString (adv.routerAddress or null) && adv.routerAddress != "" then
+          adv.routerAddress
+        else
+          null;
+      dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
+      domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
+    in
+    {
+      serviceName = "lan-${stem}";
+      fileStem = stem;
+      interfaceKey = interfaceName;
+      inherit
+        interfaceName
+        subnet
+        pool
+        router
+        dnsServers
+        domain
+        ;
+      subnetId = idx + 1;
+    }
+  ) (builtins.length authoritativeDhcp4);
+
+  authoritativeRadvdScopes = builtins.genList (
+    idx:
+    let
+      adv = builtins.elemAt authoritativeIpv6Ra idx;
+      interfaceName =
+        if builtins.isString (adv.interface or null) && adv.interface != "" then
+          adv.interface
+        else if builtins.isString (adv.bindInterface or null) && adv.bindInterface != "" then
+          adv.bindInterface
+        else
+          null;
+
+      stem = safeStem (
+        if interfaceName != null then interfaceName else "radvd-${builtins.toString (idx + 1)}"
+      );
+
+      prefixes = if adv ? prefixes then asStringList adv.prefixes else [ ];
+      rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
+      domain =
+        let
+          dnssl = if adv ? dnssl then asStringList adv.dnssl else [ ];
+        in
+        if dnssl != [ ] then builtins.head dnssl else "lan.";
+    in
+    {
+      serviceName = "lan-${stem}";
+      fileStem = stem;
+      interfaceKey = interfaceName;
+      inherit
+        interfaceName
+        prefixes
+        rdnss
+        domain
+        ;
+    }
+  ) (builtins.length authoritativeIpv6Ra);
+
+  haveAuthoritativeAdvertisements = authoritativeDhcp4 != [ ] || authoritativeIpv6Ra != [ ];
+
   derivedAlarms =
-    lib.optionals (derivedDhcp4Entries != [ ]) [
+    lib.optionals (!haveAuthoritativeAdvertisements && derivedDhcp4Entries != [ ]) [
       (isa.mkDesignAssumptionAlarm {
         alarmId = "access-dhcp4-derived";
         summary = "DHCPv4 advertisement still defaults from renderer policy when explicit DHCP allocation data is absent";
@@ -462,7 +589,7 @@ let
         authorityText = "Control plane should provide authoritative DHCP allocation data.";
       })
     ]
-    ++ lib.optionals (derivedRadvdEntries != [ ]) [
+    ++ lib.optionals (!haveAuthoritativeAdvertisements && derivedRadvdEntries != [ ]) [
       (isa.mkDesignAssumptionAlarm {
         alarmId = "access-radvd-derived";
         summary = "IPv6 RA advertisement still defaults from renderer policy when explicit IPv6 advertisement data is absent";
@@ -486,9 +613,11 @@ let
   warnings = isa.warningsFromAlarms alarms;
 in
 {
+  dhcp4Scopes = if haveAuthoritativeAdvertisements then authoritativeDhcp4Scopes else dhcp4Scopes;
+
+  radvdScopes = if haveAuthoritativeAdvertisements then authoritativeRadvdScopes else radvdScopes;
+
   inherit
-    dhcp4Scopes
-    radvdScopes
     alarms
     warnings
     ;
