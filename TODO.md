@@ -248,8 +248,8 @@ And the broken fixture passes:
 - [ ] Map each rewrite file to keep/replace/delete.
 - [ ] Recreate legacy-style top-level render/test scripts.
 - [ ] Simplify `flake.nix` to wire the direct path only.
-- [ ] Replace `renderer.vm` export with a set-based API surface.
-- [ ] Remove extra lambda layer causing `renderer.vm.build` failure.
+- [x] Replace `renderer.vm` export with a set-based API surface.
+- [x] Remove extra lambda layer causing `renderer.vm.build` failure.
 - [ ] Separate plain artifact data from Nix module/function payloads.
 - [ ] Remove JSON conversion from container/vm config paths.
 - [ ] Keep NixOS container `config` values native.
