@@ -21,6 +21,28 @@ let
 
   ensureAttrs = value: if builtins.isAttrs value then value else { };
 
+  deploymentHostNameFromHostContext =
+    if hostContext != null && builtins.isAttrs hostContext then
+      if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
+        hostContext.deploymentHostName
+      else if
+        hostContext ? deploymentHostNames
+        && builtins.isList hostContext.deploymentHostNames
+        && builtins.length hostContext.deploymentHostNames == 1
+        && builtins.isString (builtins.head hostContext.deploymentHostNames)
+      then
+        builtins.head hostContext.deploymentHostNames
+      else
+        null
+    else
+      null;
+
+  deploymentHostFromHostContext =
+    if hostContext != null && builtins.isAttrs hostContext && hostContext ? deploymentHost then
+      ensureAttrs hostContext.deploymentHost
+    else
+      { };
+
   cpmRoot =
     if cpm == null then
       { }
@@ -99,13 +121,17 @@ let
       null;
 
   deploymentHostName =
-    if deploymentHostNameFromRenderHost != null then
+    if deploymentHostNameFromHostContext != null then
+      deploymentHostNameFromHostContext
+    else if deploymentHostNameFromRenderHost != null then
       deploymentHostNameFromRenderHost
     else
       requestedHostName;
 
   deploymentHost =
-    if
+    if deploymentHostFromHostContext != { } then
+      deploymentHostFromHostContext
+    else if
       builtins.hasAttr deploymentHostName cpmDeploymentHosts
       && builtins.isAttrs cpmDeploymentHosts.${deploymentHostName}
     then
@@ -135,7 +161,11 @@ let
           else
             { };
         deploymentHostName = requestedHostName;
-        deploymentHost = { };
+        deploymentHost =
+          let
+            hosts = ensureAttrs (inventory.deployment.hosts or { });
+          in
+          if builtins.hasAttr requestedHostName hosts then hosts.${requestedHostName} else { };
         realizationNode = null;
       }
     else
