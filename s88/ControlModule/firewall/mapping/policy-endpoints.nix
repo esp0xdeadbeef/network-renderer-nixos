@@ -234,6 +234,8 @@ let
     {
       a,
       b,
+
+      linkNameMatches ? null,
     }:
     let
       matches = lib.filter (
@@ -243,18 +245,42 @@ let
         in
         builtins.length units == 2 && builtins.elem a units && builtins.elem b units
       ) transitAdjacencies;
-    in
-    if matches == [ ] then
-      null
-    else if builtins.length matches == 1 then
-      builtins.head matches
-    else
-      throw ''
-        s88/ControlModule/firewall/mapping/policy-endpoints.nix: multiple transit adjacencies matched '${a}' and '${b}'
 
-        matches:
-        ${builtins.toJSON (map adjacencyLinkName matches)}
-      '';
+      matchesByLink =
+        if linkNameMatches == null then
+          [ ]
+        else
+          lib.filter (
+            adjacency:
+            let
+              ln = adjacencyLinkName adjacency;
+            in
+            ln != null && linkNameMatches ln
+          ) matches;
+
+      chosen =
+        if builtins.length matchesByLink == 1 then
+          builtins.head matchesByLink
+        else if builtins.length matchesByLink > 1 then
+          throw ''
+            s88/ControlModule/firewall/mapping/policy-endpoints.nix: lane selector matched multiple transit adjacencies for '${a}' and '${b}'
+
+            matches:
+            ${builtins.toJSON (map adjacencyLinkName matchesByLink)}
+          ''
+        else if builtins.length matches == 1 then
+          builtins.head matches
+        else if matches == [ ] then
+          null
+        else
+          throw ''
+            s88/ControlModule/firewall/mapping/policy-endpoints.nix: multiple transit adjacencies matched '${a}' and '${b}'
+
+            matches:
+            ${builtins.toJSON (map adjacencyLinkName matches)}
+          '';
+    in
+    chosen;
 
   transitEdges = lib.concatMap (
     adjacency:
@@ -337,6 +363,12 @@ let
             adjacencyForPair {
               a = currentNodeName;
               b = hop;
+
+              linkNameMatches =
+                if builtins.isString targetUnit && targetUnit != "" then
+                  (ln: builtins.match ".*--access-${targetUnit}($|--).*" ln != null)
+                else
+                  null;
             }
           else
             null;
@@ -393,26 +425,31 @@ let
     else
       [ ];
 
-  upstreamInterfaceName =
+  upstreamInterfaceNames =
     let
-      adjacency =
+      matches =
         if currentNodeName != null && upstreamSelectorNodeName != null then
-          adjacencyForPair {
-            a = currentNodeName;
-            b = upstreamSelectorNodeName;
-          }
+          lib.filter (
+            adjacency:
+            let
+              units = adjacencyUnits adjacency;
+            in
+            builtins.length units == 2
+            && builtins.elem currentNodeName units
+            && builtins.elem upstreamSelectorNodeName units
+          ) transitAdjacencies
         else
-          null;
+          [ ];
 
-      linkName = if adjacency != null then adjacencyLinkName adjacency else null;
-      interfaceName = if linkName != null then interfaceNameForLink linkName else null;
+      linkNames = lib.filter (ln: ln != null) (map adjacencyLinkName matches);
+      ifNames = lib.filter (n: n != null) (map interfaceNameForLink linkNames);
     in
-    if interfaceName != null then
-      interfaceName
+    if ifNames != [ ] then
+      sortedStrings ifNames
     else if explicitWanNames != [ ] then
-      builtins.head explicitWanNames
+      [ (builtins.head explicitWanNames) ]
     else
-      null;
+      [ ];
 
   ownershipEndpoints =
     if ownership ? endpoints && builtins.isList ownership.endpoints then
@@ -500,8 +537,7 @@ let
       token;
 
   allKnownInterfaces = sortedStrings (
-    (builtins.attrValues tenantInterfaceByName)
-    ++ lib.optionals (upstreamInterfaceName != null) [ upstreamInterfaceName ]
+    (builtins.attrValues tenantInterfaceByName) ++ upstreamInterfaceNames
   );
 
   resolveStringEndpoint =
@@ -512,7 +548,7 @@ let
     if token == "any" then
       allKnownInterfaces
     else if token == "wan" || token == "external-wan" || token == "upstream" then
-      lib.optionals (upstreamInterfaceName != null) [ upstreamInterfaceName ]
+      upstreamInterfaceNames
     else if builtins.hasAttr token tenantInterfaceByName then
       [ tenantInterfaceByName.${token} ]
     else if builtins.hasAttr token serviceInterfacesByName then
@@ -545,7 +581,7 @@ let
         || (endpoint.name or null) == "upstream"
       )
     then
-      lib.optionals (upstreamInterfaceName != null) [ upstreamInterfaceName ]
+      upstreamInterfaceNames
     else if
       kind == "service" && endpoint ? name && builtins.hasAttr endpoint.name serviceInterfacesByName
     then
@@ -616,7 +652,7 @@ let
     ++ lib.optionals (missingTenantBindings != [ ]) [
       "tenant attachments could not be bound to policy transit interfaces: ${builtins.toJSON missingTenantBindings}"
     ]
-    ++ lib.optionals (upstreamSelectorNodeName != null && upstreamInterfaceName == null) [
+    ++ lib.optionals (upstreamSelectorNodeName != null && upstreamInterfaceNames == [ ]) [
       "upstream-selector transit binding could not be resolved for the policy node"
     ]
   );
