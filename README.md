@@ -316,28 +316,21 @@ If the renderer would need to guess, evaluation must fail.
 
 # Artifact layout
 
-The renderer emits artifacts into a deterministic directory structure.
+This repository’s primary “renderer output” is a set of deterministic JSON artifacts written to the *current working directory* by the `render-dry-config` app.
 
-Required layout:
+Run it directly:
 
-```text
-./work/etc/network-artifacts/<enterprise>/<site>/<host>/<hostdata>and<container>/<specific-service-containerdata>.json
+```bash
+nix run .#render-dry-config -- --debug ./output-control-plane-model.json
 ```
 
-This layout is part of the renderer contract.
+Or use the wrapper that renders in a temp dir and then copies artifacts into `./work/etc/network-artifacts/`:
 
-The intent of the layout is:
+```bash
+./check-artifacts.sh
+```
 
-* enterprise-scoped separation
-* site-scoped separation
-* host-scoped separation
-* explicit distinction between host data and container-scoped data
-* service-specific JSON artifacts at the leaf
-
-The renderer must emit artifacts into this structure from already-resolved inputs only.
-
-The renderer must not invent path components from guessed semantics.
-Every identity used in the emitted path must already be explicit in the input contract.
+When building a NixOS VM via `libBySystem.<system>.vm.build`, the VM module also exposes the upstream stage outputs under `/etc/network-artifacts/{compiler,forwarding,control-plane}.json`.
 
 ---
 
@@ -496,25 +489,22 @@ It is the reason the renderer must stay strict.
 
 # Suggested artifact hierarchy example
 
-A rendered tree may look like this:
+A typical `./check-artifacts.sh` output tree looks like this:
 
 ```text
 work/
 └── etc/
     └── network-artifacts/
-        └── acme/
-            └── ams1/
-                └── edge-1/
-                    └── hostdata-and-containers/
-                        ├── routing.json
-                        ├── firewall.json
-                        ├── dns.json
-                        └── container-web/
-                            └── veth.json
+        ├── 10-metadata.json
+        ├── 11-source-paths.json
+        ├── 30-hosts.json
+        ├── 31-nodes.json
+        ├── 32-containers.json
+        ├── 90-dry-config.json
+        └── 90-render.json
 ```
 
-The exact filenames may evolve with the contract.
-The important invariant is that artifact placement is deterministic and derived from explicit identity.
+If `--debug` is enabled, extra files like `04-control-plane.rendered.json` and `35-host-renderings.json` are also emitted.
 
 ---
 
@@ -569,4 +559,3 @@ The consumer decides what to instantiate or enable at deployment time.
 If those layers do not line up, rendering should fail.
 
 That is the design.
-
