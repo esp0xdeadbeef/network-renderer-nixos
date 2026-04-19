@@ -3,6 +3,17 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+_jq() {
+  if command -v jq >/dev/null 2>&1; then
+    jq "$@"
+  else
+    nix run \
+      --no-write-lock-file \
+      --extra-experimental-features 'nix-command flakes' \
+      "path:${repo_root}#jq" -- "$@"
+  fi
+}
+
 dump_generated_artifacts() {
   echo
   echo "[!] Dumping generated JSON artifacts:"
@@ -11,7 +22,7 @@ dump_generated_artifacts() {
   for j in ./[0-9][0-9]-*.json; do
     [ -e "$j" ] || continue
     echo "===== $j ====="
-    jq -c . "$j" 2>/dev/null || cat "$j"
+    _jq -c . "$j" 2>/dev/null || cat "$j"
     echo
   done
 }
@@ -33,7 +44,7 @@ archive_generated_artifacts() {
 }
 
 has_advertisement_default_alarm() {
-  jq -e '
+  _jq -e '
     [
       .containers
       | to_entries[]
@@ -46,7 +57,11 @@ has_advertisement_default_alarm() {
   ' ./90-render.json >/dev/null 2>&1
 }
 
-lab_root="/home/deadbeef/github/network-labs/examples/single-wan"
+labs_root="$(
+  nix flake archive --json "path:${repo_root}" \
+    | _jq -er '.inputs["network-labs"].path'
+)"
+lab_root="${labs_root}/examples/single-wan"
 
 intent_path="$(realpath "${lab_root}/intent.nix")"
 inventory_path="$(realpath "${lab_root}/inventory.nix")"
@@ -86,7 +101,7 @@ fi
 
 if [ ! -f ./90-render.json ]; then
   if [ -f ./90-dry-config.json ]; then
-    jq '.render' ./90-dry-config.json > ./90-render.json
+    _jq '.render' ./90-dry-config.json > ./90-render.json
   else
     echo "[!] Missing render artifact: ./90-render.json" >&2
     exit 1
@@ -100,4 +115,4 @@ fi
 
 ./test-split-box-render.sh "$tmp_dir/cpm.json" ./90-render.json
 
-jq -c . ./90-render.json
+_jq -c . ./90-render.json
