@@ -65,6 +65,24 @@
             parentUplink = "trunk";
           };
 
+          tr104 = {
+            name = "tr104";
+            vlan = 404;
+            parentUplink = "trunk";
+          };
+
+          tr105 = {
+            name = "tr105";
+            vlan = 405;
+            parentUplink = "trunk";
+          };
+
+          tr106 = {
+            name = "tr106";
+            vlan = 406;
+            parentUplink = "trunk";
+          };
+
           tr200 = {
             name = "tr200";
             vlan = 500;
@@ -74,6 +92,24 @@
           tr201 = {
             name = "tr201";
             vlan = 501;
+            parentUplink = "trunk";
+          };
+
+          tr210 = {
+            name = "tr210";
+            vlan = 510;
+            parentUplink = "trunk";
+          };
+
+          tr211 = {
+            name = "tr211";
+            vlan = 511;
+            parentUplink = "trunk";
+          };
+
+          tr212 = {
+            name = "tr212";
+            vlan = 512;
             parentUplink = "trunk";
           };
 
@@ -367,15 +403,25 @@
         };
 
         ports = {
-          policy = {
-            link = "p2p-s-router-downstream-selector-s-router-policy-only";
-            attach = {
-              kind = "bridge";
-              bridge = "tr103";
-            };
-            interface = {
-              name = "policy";
-            };
+          policy-access-admin = {
+            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-admin";
+            attach.kind = "bridge";
+            attach.bridge = "tr104";
+            interface.name = "policy-admin";
+          };
+
+          policy-access-client = {
+            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-client";
+            attach.kind = "bridge";
+            attach.bridge = "tr105";
+            interface.name = "policy-client";
+          };
+
+          policy-access-mgmt = {
+            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-mgmt";
+            attach.kind = "bridge";
+            attach.bridge = "tr106";
+            interface.name = "policy-mgmt";
           };
 
           access-admin = {
@@ -430,26 +476,46 @@
         };
 
         ports = {
-          upstream-selector = {
-            link = "p2p-s-router-policy-only-s-router-upstream-selector";
-            attach = {
-              kind = "bridge";
-              bridge = "tr201";
-            };
-            interface = {
-              name = "upstream";
-            };
+          upstream-access-admin-wan = {
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
+            attach.kind = "bridge";
+            attach.bridge = "tr210";
+            interface.name = "upstream-admin";
           };
 
-          downstream-selector = {
-            link = "p2p-s-router-downstream-selector-s-router-policy-only";
-            attach = {
-              kind = "bridge";
-              bridge = "tr103";
-            };
-            interface = {
-              name = "downstream";
-            };
+          upstream-access-client-wan = {
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
+            attach.kind = "bridge";
+            attach.bridge = "tr211";
+            interface.name = "upstream-client";
+          };
+
+          upstream-access-mgmt-wan = {
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
+            attach.kind = "bridge";
+            attach.bridge = "tr212";
+            interface.name = "upstream-mgmt";
+          };
+
+          downstream-access-admin = {
+            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-admin";
+            attach.kind = "bridge";
+            attach.bridge = "tr104";
+            interface.name = "downstream-admin";
+          };
+
+          downstream-access-client = {
+            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-client";
+            attach.kind = "bridge";
+            attach.bridge = "tr105";
+            interface.name = "downstream-client";
+          };
+
+          downstream-access-mgmt = {
+            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-mgmt";
+            attach.kind = "bridge";
+            attach.bridge = "tr106";
+            interface.name = "downstream-mgmt";
           };
         };
       };
@@ -482,15 +548,25 @@
             };
           };
 
-          policy = {
-            link = "p2p-s-router-policy-only-s-router-upstream-selector";
-            attach = {
-              kind = "bridge";
-              bridge = "tr201";
-            };
-            interface = {
-              name = "policy";
-            };
+          policy-access-admin-wan = {
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
+            attach.kind = "bridge";
+            attach.bridge = "tr210";
+            interface.name = "policy-admin";
+          };
+
+          policy-access-client-wan = {
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
+            attach.kind = "bridge";
+            attach.bridge = "tr211";
+            interface.name = "policy-client";
+          };
+
+          policy-access-mgmt-wan = {
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
+            attach.kind = "bridge";
+            attach.bridge = "tr212";
+            interface.name = "policy-mgmt";
           };
         };
       };

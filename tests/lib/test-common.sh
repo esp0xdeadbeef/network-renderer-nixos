@@ -89,4 +89,12 @@ build_cpm_json() {
     --impure --json \
     --file "${repo_root}/tests/nix/build-cpm-from-paths.nix" \
     > "${output_path}"
+
+  # render-dry-config resolves inventory relative to the CPM file's directory unless
+  # an explicit inventoryPath is passed. Keep tests self-contained by copying the
+  # inputs next to the generated CPM JSON.
+  local out_dir
+  out_dir="$(dirname "${output_path}")"
+  cp -f "${inventory_path}" "${out_dir}/inventory.nix"
+  cp -f "${intent_path}" "${out_dir}/intent.nix"
 }

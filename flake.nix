@@ -11,9 +11,7 @@
     network-forwarding-model.url = "github:esp0xdeadbeef/network-forwarding-model";
     network-forwarding-model.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Used by test scripts as a flake-locked source of intent/inventory fixtures.
     network-labs.url = "github:esp0xdeadbeef/network-labs";
-    network-labs.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
