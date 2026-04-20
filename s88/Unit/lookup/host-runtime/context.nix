@@ -94,6 +94,14 @@ let
     else
       { };
 
+  inventoryDeploymentHosts =
+    if
+      inventory ? deployment && builtins.isAttrs inventory.deployment && inventory.deployment ? hosts
+    then
+      ensureAttrs inventory.deployment.hosts
+    else
+      { };
+
   renderHostConfig =
     if
       builtins.hasAttr requestedHostName cpmRenderHosts
@@ -132,6 +140,11 @@ let
     if deploymentHostFromHostContext != { } then
       deploymentHostFromHostContext
     else if
+      builtins.hasAttr deploymentHostName inventoryDeploymentHosts
+      && builtins.isAttrs inventoryDeploymentHosts.${deploymentHostName}
+    then
+      inventoryDeploymentHosts.${deploymentHostName}
+    else if
       builtins.hasAttr deploymentHostName cpmDeploymentHosts
       && builtins.isAttrs cpmDeploymentHosts.${deploymentHostName}
     then
@@ -148,8 +161,8 @@ let
         hostname = requestedHostName;
         renderHosts = { };
         renderHostConfig = { };
-        deploymentHosts = ensureAttrs (inventory.deployment.hosts or { });
-        deploymentHostNames = [ requestedHostName ];
+        deploymentHosts = inventoryDeploymentHosts;
+        deploymentHostNames = [ deploymentHostName ];
         realizationNodes =
           if
             inventory ? realization
@@ -160,12 +173,7 @@ let
             inventory.realization.nodes
           else
             { };
-        deploymentHostName = requestedHostName;
-        deploymentHost =
-          let
-            hosts = ensureAttrs (inventory.deployment.hosts or { });
-          in
-          if builtins.hasAttr requestedHostName hosts then hosts.${requestedHostName} else { };
+        inherit deploymentHostName deploymentHost;
         realizationNode = null;
       }
     else

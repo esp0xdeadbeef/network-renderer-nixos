@@ -97,8 +97,17 @@ let
   nixpkgsLib = flake.lib.flakeInputs.nixpkgs.lib;
   api = flake.lib.renderer;
   cpm = api.loadControlPlane (builtins.toPath ${cpm_path_nix});
+  # Keep parity with render-dry-config: prefer inventory.nix located next to the CPM
+  # JSON, falling back to an embedded inventory only when present.
+  cpmPathStr = toString (builtins.toPath ${cpm_path_nix});
+  cpmDir = builtins.dirOf cpmPathStr;
+  inventoryPathStr = "\${cpmDir}/inventory.nix";
+  inventoryPath = builtins.toPath inventoryPathStr;
+
   inventory =
-    if builtins.isAttrs cpm && cpm ? globalInventory && builtins.isAttrs cpm.globalInventory then
+    if builtins.pathExists inventoryPath then
+      api.loadInventory inventoryPath
+    else if builtins.isAttrs cpm && cpm ? globalInventory && builtins.isAttrs cpm.globalInventory then
       cpm.globalInventory
     else if builtins.isAttrs cpm && cpm ? inventory && builtins.isAttrs cpm.inventory then
       cpm.inventory
