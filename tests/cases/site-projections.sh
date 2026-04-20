@@ -12,7 +12,11 @@ run_case() {
 
   local case_dir="${labs_root}/examples/${example_name}"
   local intent_path="${case_dir}/intent.nix"
-  local inventory_path="${case_dir}/inventory.nix"
+  local inventory_path="${case_dir}/inventory-nixos.nix"
+
+  if [[ ! -f "${inventory_path}" ]]; then
+    inventory_path="${case_dir}/inventory.nix"
+  fi
 
   [[ -f "${intent_path}" ]] || fail "missing intent.nix: ${intent_path}"
   [[ -f "${inventory_path}" ]] || fail "missing inventory.nix: ${inventory_path}"
@@ -68,4 +72,3 @@ run_case "single-wan-uplink-ebgp" '
 '
 
 exit 0
-

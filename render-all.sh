@@ -266,7 +266,10 @@ fi
 echo "[*] Found ${#intent_paths[@]} intent.nix files under: $search_root"
 
   for intent_path in "${intent_paths[@]}"; do
-  inventory_path="$(dirname "$intent_path")/inventory.nix"
+  inventory_path="$(dirname "$intent_path")/inventory-nixos.nix"
+  if [ ! -f "$inventory_path" ]; then
+    inventory_path="$(dirname "$intent_path")/inventory.nix"
+  fi
   if [ ! -f "$inventory_path" ]; then
     continue
   fi
