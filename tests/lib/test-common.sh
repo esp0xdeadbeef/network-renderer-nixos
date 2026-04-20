@@ -95,6 +95,18 @@ build_cpm_json() {
   # inputs next to the generated CPM JSON.
   local out_dir
   out_dir="$(dirname "${output_path}")"
-  cp -f "${inventory_path}" "${out_dir}/inventory.nix"
+
+  # If the selected inventory is a wrapper (e.g. inventory-nixos.nix importing
+  # ./inventory.nix), copying it to ./inventory.nix would self-import and blow up.
+  local inv_to_copy="${inventory_path}"
+  if [[ "$(basename "${inventory_path}")" == "inventory-nixos.nix" ]]; then
+    local sibling
+    sibling="$(dirname "${inventory_path}")/inventory.nix"
+    if [[ -f "${sibling}" ]]; then
+      inv_to_copy="${sibling}"
+    fi
+  fi
+
+  cp -f "${inv_to_copy}" "${out_dir}/inventory.nix"
   cp -f "${intent_path}" "${out_dir}/intent.nix"
 }
