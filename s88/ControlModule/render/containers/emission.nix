@@ -43,6 +43,12 @@ in
 
   privateNetwork = true;
 
+  hostBridge =
+    if renderedModel ? hostBridge && builtins.isString renderedModel.hostBridge then
+      renderedModel.hostBridge
+    else
+      null;
+
   bindMounts =
     if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
       renderedModel.bindMounts
