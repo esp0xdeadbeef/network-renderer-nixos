@@ -42,15 +42,29 @@ for intent_path in "${intent_paths[@]}"; do
     cd "${tmp_dir}"
     build_cpm_json "${intent_path}" "${inventory_path}" "${tmp_dir}/cpm.json"
 
-    nix run \
-      --no-write-lock-file \
-      --extra-experimental-features 'nix-command flakes' \
-      "${repo_root}"#render-dry-config \
-      -- \
-      --debug \
-      "${tmp_dir}/cpm.json" \
-      >/dev/null \
-      2> >(tee "${tmp_dir}/render.stderr" >&2)
+    REPO_ROOT="${repo_root}" \
+    CPM_PATH="${tmp_dir}/cpm.json" \
+    INVENTORY_PATH="${inventory_path}" \
+      nix eval \
+        --extra-experimental-features 'nix-command flakes' \
+        --impure --json \
+        --expr '
+          let
+            repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
+            cpmPath = builtins.getEnv "CPM_PATH";
+            inventoryPath = builtins.getEnv "INVENTORY_PATH";
+            flake = builtins.getFlake repoRoot;
+          in
+          flake.lib.renderer.renderDryConfig {
+            inherit cpmPath inventoryPath;
+            exampleDir = builtins.dirOf cpmPath;
+            debug = true;
+          }
+        ' \
+        > "${tmp_dir}/90-dry-config.json" \
+        2> >(tee "${tmp_dir}/render.stderr" >&2)
+
+    jq '.render' "${tmp_dir}/90-dry-config.json" > "${tmp_dir}/90-render.json"
 
     if should_dump_on_warning "${tmp_dir}/render.stderr"; then
       archive_json_artifacts "$(basename "$(dirname "${intent_path}")")" "${tmp_dir}"
