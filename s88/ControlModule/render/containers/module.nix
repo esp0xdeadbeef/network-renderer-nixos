@@ -62,7 +62,7 @@ in
   ...
 }:
 let
-  containerNetworks = import ../container-networks.nix {
+  containerNetworkRender = import ../container-networks.nix {
     inherit
       lib
       uplinks
@@ -70,6 +70,10 @@ let
       ;
     containerModel = renderedModel;
   };
+
+  containerNetworks = containerNetworkRender.networks;
+
+  containerKernelSysctl = containerNetworkRender.kernelSysctl or { };
 
   accessServices =
     if roleName == "access" then
@@ -97,6 +101,7 @@ in
     {
       networking.hostName = resolvedHostName;
       systemd.network.networks = containerNetworks;
+      boot.kernel.sysctl = containerKernelSysctl;
       warnings = warningMessages;
     }
 
