@@ -219,6 +219,29 @@ Even when invoked through a higher-level entrypoint, the renderer still must beh
 
 ---
 
+# Required consumer-side selections
+
+Some inputs are legitimately consumer-side deployment choices rather than shared network semantics.
+
+The most important current case is host WAN attachment.
+
+If a host realizes more than one WAN-facing group, this renderer requires an explicit host-side choice:
+
+* `render.hosts.<host>.wanUplink`
+* `render.hosts.<host>.wanGroupToUplink`
+* `deployment.hosts.<host>.wanUplink`
+* `deployment.hosts.<host>.wanGroupToUplink`
+
+That data belongs in inventory or renderer-side render config, not in `intent.nix`.
+
+This is intentional:
+
+* upstream stages define WAN-facing logical groups
+* this renderer binds those groups to concrete host uplinks
+* if that binding is ambiguous, rendering must fail
+
+---
+
 # Source of truth
 
 The source of truth split is hard.

@@ -44,6 +44,12 @@ nix eval \
 # Keep at least one in-repo fixture for repeatable CI-like checks.
 "${repo_root}/tests/cases/passing-fixtures.sh" "$@"
 
+# Regression: local multi-enterprise dual-wan overlay examples must render.
+"${repo_root}/tests/test-dual-wan-branch-overlay.sh"
+
+# Regression: strict renderer must fail when required WAN group binding is absent.
+"${repo_root}/tests/test-missing-wan-group-assignment.sh"
+
 # Regression: multi-WAN external endpoint bindings must render policy rules.
 "${repo_root}/tests/test-multi-wan-firewall.sh"
 
