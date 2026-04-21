@@ -159,6 +159,27 @@ let
     }) networkManagerWanInterfaces
   );
 
+  networkManagerActivationServices = builtins.listToAttrs (
+    map (interfaceName: {
+      name = "s88-networkmanager-${interfaceName}";
+      value = {
+        description = "Activate NetworkManager WAN profile on ${interfaceName}";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "NetworkManager.service" ];
+        wants = [ "NetworkManager.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        path = [ pkgs.networkmanager ];
+        script = ''
+          nmcli connection reload
+          nmcli connection up s88-${interfaceName} ifname ${interfaceName}
+        '';
+      };
+    }) networkManagerWanInterfaces
+  );
+
   accessServices =
     if roleName == "access" then
       import ../../access/render/default.nix {
@@ -194,6 +215,7 @@ in
         interfaceName: "interface-name:${interfaceName}"
       ) networkdManagedInterfaces;
       environment.etc = networkManagerConnections;
+      systemd.services = networkManagerActivationServices;
     })
 
     (lib.optionalAttrs (containerIpv6AcceptRAInterfaces != [ ]) {
