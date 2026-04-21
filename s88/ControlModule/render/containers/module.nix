@@ -196,6 +196,13 @@ let
       renderedModel
       ;
   };
+
+  bgpServices = import ./bgp-services.nix {
+    inherit
+      lib
+      renderedModel
+      ;
+  };
 in
 {
   imports = lib.optionals (profilePath != null) [ profilePath ];
@@ -229,6 +236,7 @@ in
 
     accessServices
     dnsServices
+    bgpServices
 
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
