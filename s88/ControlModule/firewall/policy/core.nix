@@ -408,11 +408,6 @@ let
         "\"${builtins.head wanNames}\""
       else
         "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") wanNames)} }"
-    } oifname ${
-      if builtins.length lanNames == 1 then
-        "\"${builtins.head lanNames}\""
-      else
-        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") lanNames)} }"
     } ${matchExpr} accept comment \"${relationNameOf { id = entry.relationName; }}\""
   ) serviceNatEntries;
 

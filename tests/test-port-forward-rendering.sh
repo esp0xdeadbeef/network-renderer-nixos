@@ -35,6 +35,33 @@ core_rules="$(
     '
 )"
 
+policy_rules="$(
+  REPO_ROOT="${repo_root}" \
+  INTENT_PATH="${intent_path}" \
+  INVENTORY_PATH="${inventory_path}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --raw --expr '
+      let
+        repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
+        intentPath = builtins.getEnv "INTENT_PATH";
+        inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        flake = builtins.getFlake repoRoot;
+        system = "x86_64-linux";
+        hostBuild = flake.lib.renderer.buildHostFromPaths {
+          selector = "s-router-test";
+          inherit system intentPath inventoryPath;
+        };
+        container = hostBuild.renderedHost.containers.s-router-policy-only;
+        evaluated = flake.inputs.nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [ container.config ];
+        };
+      in
+      evaluated.config.networking.nftables.ruleset
+    '
+)"
+
 grep -q 'dnat to 10.20.10.10' <<<"${core_rules}" \
   || fail "missing jump-host DNAT target in core rules"
 grep -q 'tcp dport 22 dnat to 10.20.10.10' <<<"${core_rules}" \
@@ -45,5 +72,12 @@ grep -q 'tcp dport 80 dnat to 10.20.15.10' <<<"${core_rules}" \
   || fail "missing admin-web HTTP port-forward rule"
 grep -q 'tcp dport 443 dnat to 10.20.15.10' <<<"${core_rules}" \
   || fail "missing admin-web HTTPS port-forward rule"
+grep -q 'allow-wan-to-admin-web' <<<"${policy_rules}" \
+  || fail "missing admin-web forward rule on policy-only"
+grep -q 'iifname "s-router-' <<<"${policy_rules}" \
+  || fail "missing policy-only ingress selector for WAN-exposed service"
+if grep -q 'allow-wan-to-admin-web".*oifname' <<<"${policy_rules}"; then
+  fail "policy-only WAN service forward rule is over-constrained by oifname"
+fi
 
 pass "port-forward-rendering"
