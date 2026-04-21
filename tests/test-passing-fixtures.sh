@@ -43,3 +43,6 @@ nix eval \
 
 # Keep at least one in-repo fixture for repeatable CI-like checks.
 "${repo_root}/tests/cases/passing-fixtures.sh" "$@"
+
+# Regression: multi-WAN external endpoint bindings must render policy rules.
+"${repo_root}/tests/test-multi-wan-firewall.sh"

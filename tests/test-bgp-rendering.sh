@@ -110,9 +110,9 @@ printf '%s' "${core_json}" | _jq -e '.config | contains("neighbor 203.0.113.1 re
 printf '%s' "${core_json}" | _jq -e '.config | contains("neighbor 10.19.0.5 remote-as 65000")' >/dev/null
 printf '%s' "${policy_json}" | _jq -e '.config | contains("route-reflector-client")' >/dev/null
 printf '%s' "${access_json}" | _jq -e '.config | contains("network 10.20.10.0/24")' >/dev/null
-printf '%s' "${access_json}" | _jq -e '.config | contains("network fd42:dead:beef:0010:0000:0000:0000:0000/64")' >/dev/null
+printf '%s' "${access_json}" | _jq -e '.config | test("network fd42:dead:beef:(10::|0010:0000:0000:0000:0000)/64")' >/dev/null
 printf '%s' "${fallback_json}" | _jq -e '.bgpdEnable == true' >/dev/null
 printf '%s' "${fallback_json}" | _jq -e '.config | contains("network 10.20.10.0/24")' >/dev/null
-printf '%s' "${fallback_json}" | _jq -e '.config | contains("network fd42:dead:beef:0010:0000:0000:0000:0000/64")' >/dev/null
+printf '%s' "${fallback_json}" | _jq -e '.config | test("network fd42:dead:beef:(10::|0010:0000:0000:0000:0000)/64")' >/dev/null
 
 pass "bgp-rendering:single-wan-uplink-ebgp"
