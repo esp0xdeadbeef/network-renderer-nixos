@@ -24,6 +24,7 @@ let
   loopback = renderedModel.loopback or { };
   interfaces = renderedModel.interfaces or { };
   renderedNetworks = renderedModel.networks or { };
+  runtimeTargetNetworks = runtimeTarget.networks or { };
 
   uniqueBy =
     keyFn: values:
@@ -124,14 +125,14 @@ let
       )
     );
 
-  tenantNetworksFromRenderedNetworks =
-    family:
+  tenantNetworksFromAttrs =
+    family: attrs:
     lib.unique (
       lib.filter builtins.isString (
         map (
           networkName:
           let
-            network = renderedNetworks.${networkName};
+            network = attrs.${networkName};
           in
           if !builtins.isAttrs network then
             null
@@ -139,7 +140,7 @@ let
             network.ipv4 or null
           else
             network.ipv6 or null
-        ) (sortedAttrNames renderedNetworks)
+        ) (sortedAttrNames attrs)
       )
     );
 
@@ -147,7 +148,8 @@ let
     lib.filter builtins.isString (
       (lib.optional (!isIpv6 (loopback.addr4 or null)) (loopback.addr4 or null))
       ++ (tenantNetworksForFamily 4)
-      ++ (tenantNetworksFromRenderedNetworks 4)
+      ++ (tenantNetworksFromAttrs 4 renderedNetworks)
+      ++ (tenantNetworksFromAttrs 4 runtimeTargetNetworks)
     )
   );
 
@@ -155,7 +157,8 @@ let
     lib.filter builtins.isString (
       (lib.optional (isIpv6 (loopback.addr6 or null)) (loopback.addr6 or null))
       ++ (tenantNetworksForFamily 6)
-      ++ (tenantNetworksFromRenderedNetworks 6)
+      ++ (tenantNetworksFromAttrs 6 renderedNetworks)
+      ++ (tenantNetworksFromAttrs 6 runtimeTargetNetworks)
     )
   );
 
