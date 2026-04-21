@@ -188,9 +188,11 @@ let
       }
     ) (sortedAttrNames interfaces)
   );
-  hasIpv6AcceptRAWan = lib.any needsIpv6AcceptRA (builtins.attrValues interfaces);
+  ipv6AcceptRAInterfaces = map interfaceNameFor (
+    lib.filter needsIpv6AcceptRA (builtins.attrValues interfaces)
+  );
 in
 {
   networks = loopbackUnit // interfaceUnits;
-  hasIpv6AcceptRAWan = hasIpv6AcceptRAWan;
+  ipv6AcceptRAInterfaces = ipv6AcceptRAInterfaces;
 }
