@@ -7,6 +7,14 @@
 
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+  networkManagerInterfaces =
+    if
+      containerModel ? networkManagerWanInterfaces
+      && builtins.isList containerModel.networkManagerWanInterfaces
+    then
+      lib.filter builtins.isString containerModel.networkManagerWanInterfaces
+    else
+      [ ];
 
   hasIpv6Address = address: builtins.isString address && lib.hasInfix ":" address;
 
@@ -166,30 +174,41 @@ let
   interfaces = containerModel.interfaces or { };
 
   interfaceUnits = builtins.listToAttrs (
-    map (
-      ifName:
-      let
-        iface = interfaces.${ifName};
-        interfaceName = interfaceNameFor iface;
-        routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
-        dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
-      in
-      {
-        name = "10-${interfaceName}";
-        value = {
-          matchConfig.Name = interfaceName;
-          networkConfig = {
-            ConfigureWithoutCarrier = true;
+    lib.filter (entry: entry != null) (
+      map (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+          interfaceName = interfaceNameFor iface;
+          routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
+          dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
+        in
+        if builtins.elem interfaceName networkManagerInterfaces then
+          null
+        else
+          {
+            name = "10-${interfaceName}";
+            value = {
+              matchConfig.Name = interfaceName;
+              networkConfig = {
+                ConfigureWithoutCarrier = true;
+              }
+              // dynamicWanNetworkConfig;
+              address = iface.addresses or [ ];
+              routes = routes;
+            };
           }
-          // dynamicWanNetworkConfig;
-          address = iface.addresses or [ ];
-          routes = routes;
-        };
-      }
-    ) (sortedAttrNames interfaces)
+      ) (sortedAttrNames interfaces)
+    )
   );
   ipv6AcceptRAInterfaces = map interfaceNameFor (
-    lib.filter needsIpv6AcceptRA (builtins.attrValues interfaces)
+    lib.filter (
+      iface:
+      let
+        interfaceName = interfaceNameFor iface;
+      in
+      needsIpv6AcceptRA iface && !(builtins.elem interfaceName networkManagerInterfaces)
+    ) (builtins.attrValues interfaces)
   );
 in
 {

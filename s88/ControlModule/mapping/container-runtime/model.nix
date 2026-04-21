@@ -120,6 +120,16 @@ let
       lanInterfaceNames = map interfaceNameFor (
         lib.filter (ifName: renderedInterfaces.${ifName}.sourceKind != "wan") interfaceNames
       );
+
+      networkManagerWanInterfaces = map interfaceNameFor (
+        lib.filter (
+          ifName:
+          let
+            iface = renderedInterfaces.${ifName};
+          in
+          (iface.usePrimaryHostBridge or false) && iface.sourceKind == "wan"
+        ) interfaceNames
+      );
     in
     {
       inherit
@@ -132,6 +142,7 @@ let
         renderedInterfaces
         wanInterfaceNames
         lanInterfaceNames
+        networkManagerWanInterfaces
         ;
 
       deploymentHostName = lookup.deploymentHostName;
