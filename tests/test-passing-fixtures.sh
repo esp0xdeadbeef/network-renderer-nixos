@@ -46,3 +46,6 @@ nix eval \
 
 # Regression: multi-WAN external endpoint bindings must render policy rules.
 "${repo_root}/tests/test-multi-wan-firewall.sh"
+
+# Regression: WAN-exposed services must synthesize concrete DNAT rules.
+"${repo_root}/tests/test-port-forward-rendering.sh"

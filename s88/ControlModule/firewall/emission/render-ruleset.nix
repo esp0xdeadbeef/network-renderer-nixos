@@ -10,6 +10,8 @@
   inputRules ? [ ],
   outputRules ? [ ],
   natInterfaces ? [ ],
+  natPreroutingRules4 ? [ ],
+  natPreroutingRules6 ? [ ],
   clampMssInterfaces ? [ ],
 }:
 
@@ -88,6 +90,8 @@ let
       "${builtins.concatStringsSep "\n" (map (rule: "    ${rule}") rules)}\n";
 
   natIfs = sortedStrings natInterfaces;
+  prerouting4 = lib.filter (rule: builtins.isString rule && rule != "") natPreroutingRules4;
+  prerouting6 = lib.filter (rule: builtins.isString rule && rule != "") natPreroutingRules6;
   clampIfs = sortedStrings clampMssInterfaces;
 in
 ''
@@ -109,23 +113,35 @@ in
   ${renderChainRules outputRules}  }
   }
 ''
-+ lib.optionalString (natIfs != [ ]) ''
++ lib.optionalString (natIfs != [ ] || prerouting4 != [ ]) ''
 
-  table ip nat {
+    table ip nat {
+      chain prerouting {
+        type nat hook prerouting priority -100; policy accept;
+    ${renderChainRules prerouting4}  }
+
+  ${lib.optionalString (natIfs != [ ]) ''
     chain postrouting {
       type nat hook postrouting priority 100; policy accept;
       oifname ${renderIfExpr natIfs} masquerade
     }
-  }
+  ''}
+    }
 ''
-+ lib.optionalString (natIfs != [ ]) ''
++ lib.optionalString (natIfs != [ ] || prerouting6 != [ ]) ''
 
-  table ip6 nat {
+    table ip6 nat {
+      chain prerouting {
+        type nat hook prerouting priority -100; policy accept;
+    ${renderChainRules prerouting6}  }
+
+  ${lib.optionalString (natIfs != [ ]) ''
     chain postrouting {
       type nat hook postrouting priority 100; policy accept;
       oifname ${renderIfExpr natIfs} masquerade
     }
-  }
+  ''}
+    }
 ''
 + lib.optionalString (clampIfs != [ ]) ''
 

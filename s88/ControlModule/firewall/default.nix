@@ -2,6 +2,7 @@
 
 args@{
   cpm,
+  inventory ? { },
   flakeInputs ? null,
   runtimeTarget ? { },
   unitKey ? null,
@@ -69,6 +70,7 @@ let
         ;
       communicationContract = communication.communicationContract;
       ownership = communication.ownership;
+      inherit inventory;
     }
   );
 in

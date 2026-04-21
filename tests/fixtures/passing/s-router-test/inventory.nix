@@ -1,4 +1,16 @@
 {
+  endpoints = {
+    web01 = {
+      ipv4 = [ "10.20.15.10" ];
+      ipv6 = [ "fd42:dead:beef:15::10" ];
+    };
+
+    s-sigma = {
+      ipv4 = [ "10.20.10.10" ];
+      ipv6 = [ "fd42:dead:beef:10::10" ];
+    };
+  };
+
   deployment = {
     hosts = {
       s-router-test = {
