@@ -74,6 +74,36 @@ let
   containerNetworks = containerNetworkRender.networks;
 
   containerIpv6AcceptRAInterfaces = containerNetworkRender.ipv6AcceptRAInterfaces or [ ];
+  networkManagerWanInterfaces =
+    if
+      renderedModel ? networkManagerWanInterfaces
+      && builtins.isList renderedModel.networkManagerWanInterfaces
+    then
+      lib.filter builtins.isString renderedModel.networkManagerWanInterfaces
+    else
+      [ ];
+
+  networkdManagedInterfaces =
+    lib.filter
+      (
+        interfaceName:
+        builtins.isString interfaceName && !(builtins.elem interfaceName networkManagerWanInterfaces)
+      )
+      (
+        map (
+          iface:
+          if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+            iface.containerInterfaceName
+          else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
+            iface.hostInterfaceName
+          else if iface ? interfaceName && builtins.isString iface.interfaceName then
+            iface.interfaceName
+          else if iface ? ifName && builtins.isString iface.ifName then
+            iface.ifName
+          else
+            null
+        ) (builtins.attrValues (renderedModel.interfaces or { }))
+      );
 
   ipv6AcceptRAServices = builtins.listToAttrs (
     map (interfaceName: {
@@ -105,6 +135,30 @@ let
     }) containerIpv6AcceptRAInterfaces
   );
 
+  networkManagerConnections = builtins.listToAttrs (
+    map (interfaceName: {
+      name = "NetworkManager/system-connections/s88-${interfaceName}.nmconnection";
+      value = {
+        mode = "0600";
+        text = ''
+          [connection]
+          id=s88-${interfaceName}
+          type=ethernet
+          interface-name=${interfaceName}
+          autoconnect=true
+
+          [ethernet]
+
+          [ipv4]
+          method=auto
+
+          [ipv6]
+          method=auto
+        '';
+      };
+    }) networkManagerWanInterfaces
+  );
+
   accessServices =
     if roleName == "access" then
       import ../../access/render/default.nix {
@@ -133,6 +187,14 @@ in
       systemd.network.networks = containerNetworks;
       warnings = warningMessages;
     }
+
+    (lib.optionalAttrs (networkManagerWanInterfaces != [ ]) {
+      networking.networkmanager.enable = lib.mkForce true;
+      networking.networkmanager.unmanaged = map (
+        interfaceName: "interface-name:${interfaceName}"
+      ) networkdManagedInterfaces;
+      environment.etc = networkManagerConnections;
+    })
 
     (lib.optionalAttrs (containerIpv6AcceptRAInterfaces != [ ]) {
       boot.kernel.sysctl = {
