@@ -8,6 +8,8 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  hasIpv6Address = address: builtins.isString address && lib.hasInfix ":" address;
+
   interfaceNameFor =
     iface:
     if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
@@ -56,6 +58,7 @@ let
     let
       isWan = (iface.sourceKind or null) == "wan";
       addresses = iface.addresses or [ ];
+      hasStaticIpv6 = lib.any hasIpv6Address addresses;
 
       assignedUplink =
         if
@@ -117,14 +120,13 @@ let
     else
       {
         IPv6AcceptRA = false;
-        LinkLocalAddressing = "no";
+        LinkLocalAddressing = if hasStaticIpv6 then "ipv6" else "no";
       };
 
-  mkIpv6AcceptRASysctl =
+  needsIpv6AcceptRA =
     iface:
     let
       isWan = (iface.sourceKind or null) == "wan";
-      interfaceName = interfaceNameFor iface;
 
       assignedUplink =
         if
@@ -138,16 +140,12 @@ let
           uplinks.${wanUplinkName}
         else
           { };
-
-      ipv6AcceptRA =
-        assignedUplink ? ipv6
-        && builtins.isAttrs assignedUplink.ipv6
-        && (assignedUplink.ipv6.enable or false)
-        && (assignedUplink.ipv6.acceptRA or false);
     in
-    lib.optionalAttrs (isWan && ipv6AcceptRA) {
-      "net.ipv6.conf.${interfaceName}.accept_ra" = 2;
-    };
+    isWan
+    && assignedUplink ? ipv6
+    && builtins.isAttrs assignedUplink.ipv6
+    && (assignedUplink.ipv6.enable or false)
+    && (assignedUplink.ipv6.acceptRA or false);
 
   loopback = containerModel.loopback or { };
 
@@ -190,10 +188,9 @@ let
       }
     ) (sortedAttrNames interfaces)
   );
-
-  wanInterfaceSysctls = lib.mkMerge (map mkIpv6AcceptRASysctl (builtins.attrValues interfaces));
+  hasIpv6AcceptRAWan = lib.any needsIpv6AcceptRA (builtins.attrValues interfaces);
 in
 {
   networks = loopbackUnit // interfaceUnits;
-  kernelSysctl = wanInterfaceSysctls;
+  hasIpv6AcceptRAWan = hasIpv6AcceptRAWan;
 }

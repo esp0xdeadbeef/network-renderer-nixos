@@ -73,7 +73,7 @@ let
 
   containerNetworks = containerNetworkRender.networks;
 
-  containerKernelSysctl = containerNetworkRender.kernelSysctl or { };
+  containerNeedsIpv6AcceptRAWan = containerNetworkRender.hasIpv6AcceptRAWan or false;
 
   accessServices =
     if roleName == "access" then
@@ -101,9 +101,15 @@ in
     {
       networking.hostName = resolvedHostName;
       systemd.network.networks = containerNetworks;
-      boot.kernel.sysctl = containerKernelSysctl;
       warnings = warningMessages;
     }
+
+    (lib.optionalAttrs containerNeedsIpv6AcceptRAWan {
+      boot.kernel.sysctl = {
+        "net.ipv6.conf.all.accept_ra" = 2;
+        "net.ipv6.conf.default.accept_ra" = 2;
+      };
+    })
 
     accessServices
     dnsServices
