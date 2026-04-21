@@ -118,6 +118,15 @@ in
     }
   }
 ''
++ lib.optionalString (natIfs != [ ]) ''
+
+  table ip6 nat {
+    chain postrouting {
+      type nat hook postrouting priority 100; policy accept;
+      oifname ${renderIfExpr natIfs} masquerade
+    }
+  }
+''
 + lib.optionalString (clampIfs != [ ]) ''
 
   table inet mangle {
