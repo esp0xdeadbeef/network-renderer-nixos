@@ -23,6 +23,7 @@ let
 
   loopback = renderedModel.loopback or { };
   interfaces = renderedModel.interfaces or { };
+  renderedNetworks = renderedModel.networks or { };
 
   uniqueBy =
     keyFn: values:
@@ -62,14 +63,31 @@ let
           ifName:
           let
             iface = interfaces.${ifName};
+            sourceKind =
+              if builtins.isString (iface.sourceKind or null) then
+                iface.sourceKind
+              else if
+                iface ? semanticInterface
+                && builtins.isAttrs iface.semanticInterface
+                && builtins.isString (iface.semanticInterface.sourceKind or null)
+              then
+                iface.semanticInterface.sourceKind
+              else
+                null;
             semantic =
               if iface ? semanticInterface && builtins.isAttrs iface.semanticInterface then
                 iface.semanticInterface
               else
+                iface;
+            routeTree =
+              if semantic ? routes && builtins.isAttrs semantic.routes then
+                semantic.routes
+              else if iface ? routes && builtins.isAttrs iface.routes then
+                iface.routes
+              else
                 { };
-            routeTree = if semantic ? routes && builtins.isAttrs semantic.routes then semantic.routes else { };
           in
-          if (iface.sourceKind or null) != "tenant" then
+          if sourceKind != "tenant" then
             [ ]
           else
             (
@@ -106,10 +124,30 @@ let
       )
     );
 
+  tenantNetworksFromRenderedNetworks =
+    family:
+    lib.unique (
+      lib.filter builtins.isString (
+        map (
+          networkName:
+          let
+            network = renderedNetworks.${networkName};
+          in
+          if !builtins.isAttrs network then
+            null
+          else if family == 4 then
+            network.ipv4 or null
+          else
+            network.ipv6 or null
+        ) (sortedAttrNames renderedNetworks)
+      )
+    );
+
   networks4 = lib.unique (
     lib.filter builtins.isString (
       (lib.optional (!isIpv6 (loopback.addr4 or null)) (loopback.addr4 or null))
       ++ (tenantNetworksForFamily 4)
+      ++ (tenantNetworksFromRenderedNetworks 4)
     )
   );
 
@@ -117,6 +155,7 @@ let
     lib.filter builtins.isString (
       (lib.optional (isIpv6 (loopback.addr6 or null)) (loopback.addr6 or null))
       ++ (tenantNetworksForFamily 6)
+      ++ (tenantNetworksFromRenderedNetworks 6)
     )
   );
 
