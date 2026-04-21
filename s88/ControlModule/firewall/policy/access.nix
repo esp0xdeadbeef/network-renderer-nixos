@@ -87,6 +87,12 @@ let
       wanNames
     else
       [ ];
+
+  inputRules = [
+    ''
+      icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
+    ''
+  ];
 in
 if interfaceEntries == [ ] then
   null
@@ -96,5 +102,5 @@ else
     inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
-    inherit forwardPairs clampMssInterfaces;
+    inherit inputRules forwardPairs clampMssInterfaces;
   }
