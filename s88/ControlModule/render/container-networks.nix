@@ -120,6 +120,35 @@ let
         LinkLocalAddressing = "no";
       };
 
+  mkIpv6AcceptRASysctl =
+    iface:
+    let
+      isWan = (iface.sourceKind or null) == "wan";
+      interfaceName = interfaceNameFor iface;
+
+      assignedUplink =
+        if
+          isWan
+          && iface ? assignedUplinkName
+          && iface.assignedUplinkName != null
+          && builtins.hasAttr iface.assignedUplinkName uplinks
+        then
+          uplinks.${iface.assignedUplinkName}
+        else if isWan && wanUplinkName != null && builtins.hasAttr wanUplinkName uplinks then
+          uplinks.${wanUplinkName}
+        else
+          { };
+
+      ipv6AcceptRA =
+        assignedUplink ? ipv6
+        && builtins.isAttrs assignedUplink.ipv6
+        && (assignedUplink.ipv6.enable or false)
+        && (assignedUplink.ipv6.acceptRA or false);
+    in
+    lib.optionalAttrs (isWan && ipv6AcceptRA) {
+      "net.ipv6.conf.${interfaceName}.accept_ra" = 2;
+    };
+
   loopback = containerModel.loopback or { };
 
   loopbackAddresses = lib.filter builtins.isString [
@@ -161,5 +190,10 @@ let
       }
     ) (sortedAttrNames interfaces)
   );
+
+  wanInterfaceSysctls = lib.mkMerge (map mkIpv6AcceptRASysctl (builtins.attrValues interfaces));
 in
-loopbackUnit // interfaceUnits
+{
+  networks = loopbackUnit // interfaceUnits;
+  kernelSysctl = wanInterfaceSysctls;
+}
