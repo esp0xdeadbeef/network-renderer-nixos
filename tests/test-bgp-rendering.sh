@@ -50,6 +50,57 @@ core_json="$(eval_container_frr "s-router-core-wan")"
 policy_json="$(eval_container_frr "s-router-policy")"
 access_json="$(eval_container_frr "s-router-access-mgmt")"
 
+fallback_json="$(
+  REPO_ROOT="${repo_root}" nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --json --expr '
+      let
+        repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake repoRoot;
+        helper = import (flake.outPath + "/s88/ControlModule/render/containers/bgp-services.nix");
+        renderedModel = {
+          loopback = {
+            addr4 = "10.19.0.2/32";
+            addr6 = "fd42:dead:beef:1900:0:0:0:2/128";
+          };
+          runtimeTarget = {
+            routingMode = "bgp";
+            bgp = {
+              asn = 65000;
+              neighbors = [
+                {
+                  peer_addr4 = "10.19.0.5/32";
+                  peer_addr6 = "fd42:dead:beef:1900:0:0:0:5/128";
+                  peer_asn = 65000;
+                  update_source = "lo";
+                }
+              ];
+            };
+          };
+          interfaces = {
+            tenant-mgmt = {
+              sourceKind = "tenant";
+              addr4 = "10.20.10.0/24";
+              addr6 = "fd42:dead:beef:0010:0000:0000:0000:0000/64";
+              routes = {
+                ipv4 = [ ];
+                ipv6 = [ ];
+              };
+            };
+          };
+        };
+        evaluated = helper {
+          lib = flake.inputs.nixpkgs.lib;
+          inherit renderedModel;
+        };
+      in
+      {
+        bgpdEnable = evaluated.services.frr.bgpd.enable or false;
+        config = evaluated.services.frr.config or "";
+      }
+    '
+)"
+
 printf '%s' "${core_json}" | _jq -e '.bgpdEnable == true' >/dev/null
 printf '%s' "${policy_json}" | _jq -e '.bgpdEnable == true' >/dev/null
 printf '%s' "${access_json}" | _jq -e '.bgpdEnable == true' >/dev/null
@@ -60,5 +111,8 @@ printf '%s' "${core_json}" | _jq -e '.config | contains("neighbor 10.19.0.5 remo
 printf '%s' "${policy_json}" | _jq -e '.config | contains("route-reflector-client")' >/dev/null
 printf '%s' "${access_json}" | _jq -e '.config | contains("network 10.20.10.0/24")' >/dev/null
 printf '%s' "${access_json}" | _jq -e '.config | contains("network fd42:dead:beef:0010:0000:0000:0000:0000/64")' >/dev/null
+printf '%s' "${fallback_json}" | _jq -e '.bgpdEnable == true' >/dev/null
+printf '%s' "${fallback_json}" | _jq -e '.config | contains("network 10.20.10.0/24")' >/dev/null
+printf '%s' "${fallback_json}" | _jq -e '.config | contains("network fd42:dead:beef:0010:0000:0000:0000:0000/64")' >/dev/null
 
 pass "bgp-rendering:single-wan-uplink-ebgp"
