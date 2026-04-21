@@ -1,0 +1,119 @@
+{
+  lib,
+  pkgs,
+  renderedModel,
+}:
+
+let
+  runtimeTarget =
+    if renderedModel ? runtimeTarget && builtins.isAttrs renderedModel.runtimeTarget then
+      renderedModel.runtimeTarget
+    else
+      { };
+
+  dnsService =
+    if
+      runtimeTarget ? services && builtins.isAttrs runtimeTarget.services && runtimeTarget.services ? dns
+    then
+      runtimeTarget.services.dns
+    else
+      null;
+in
+if !(builtins.isAttrs dnsService) then
+  { }
+else
+  let
+    listenAddresses = lib.unique (
+      [
+        "127.0.0.1"
+        "::1"
+      ]
+      ++ (
+        if dnsService ? listen && builtins.isList dnsService.listen then
+          lib.filter builtins.isString dnsService.listen
+        else
+          [ ]
+      )
+    );
+
+    listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
+    listen6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) listenAddresses;
+
+    allowFrom = lib.unique (
+      [
+        "127.0.0.0/8"
+        "::1/128"
+      ]
+      ++ (
+        if dnsService ? allowFrom && builtins.isList dnsService.allowFrom then
+          lib.filter builtins.isString dnsService.allowFrom
+        else
+          [ ]
+      )
+    );
+
+    forwarders =
+      if dnsService ? forwarders && builtins.isList dnsService.forwarders then
+        lib.filter builtins.isString dnsService.forwarders
+      else if dnsService ? upstreams && builtins.isList dnsService.upstreams then
+        lib.filter builtins.isString dnsService.upstreams
+      else
+        [ ];
+
+    accessControl = map (cidr: "${cidr} allow") allowFrom;
+
+    nftRules =
+      (map (
+        addr:
+        "${pkgs.nftables}/bin/nft add rule inet router input ip daddr ${addr} udp dport 53 accept comment \"allow-dns-service\""
+      ) listen4)
+      ++ (map (
+        addr:
+        "${pkgs.nftables}/bin/nft add rule inet router input ip daddr ${addr} tcp dport 53 accept comment \"allow-dns-service\""
+      ) listen4)
+      ++ (map (
+        addr:
+        "${pkgs.nftables}/bin/nft add rule inet router input ip6 daddr ${addr} udp dport 53 accept comment \"allow-dns-service\""
+      ) listen6)
+      ++ (map (
+        addr:
+        "${pkgs.nftables}/bin/nft add rule inet router input ip6 daddr ${addr} tcp dport 53 accept comment \"allow-dns-service\""
+      ) listen6);
+  in
+  {
+    services.unbound = {
+      enable = true;
+      settings = {
+        server = {
+          interface = listenAddresses;
+          "access-control" = accessControl;
+          "do-ip4" = true;
+          "do-ip6" = true;
+        };
+        forward-zone = lib.optional (forwarders != [ ]) {
+          name = ".";
+          "forward-addr" = forwarders;
+        };
+      };
+    };
+
+    systemd.services.nft-allow-dns-service = {
+      description = "Allow DNS to local unbound listeners";
+      wantedBy = [ "multi-user.target" ];
+      wants = [ "nftables.service" ];
+      after = [ "nftables.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        set -euo pipefail
+
+        if ${pkgs.nftables}/bin/nft list chain inet router input | grep -q 'allow-dns-service'; then
+          exit 0
+        fi
+
+        ${lib.concatStringsSep "\n        " nftRules}
+      '';
+    };
+  }

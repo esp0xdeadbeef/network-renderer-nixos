@@ -79,6 +79,14 @@ let
       }
     else
       { };
+
+  dnsServices = import ./dns-services.nix {
+    inherit
+      lib
+      pkgs
+      renderedModel
+      ;
+  };
 in
 {
   imports = lib.optionals (profilePath != null) [ profilePath ];
@@ -93,6 +101,7 @@ in
     }
 
     accessServices
+    dnsServices
 
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;

@@ -172,6 +172,60 @@ let
     else
       null;
 
+  interfaceMatchesName =
+    iface: name:
+    builtins.isString name
+    && name != ""
+    && (
+      (iface ? ifName && builtins.isString iface.ifName && iface.ifName == name)
+      || (
+        iface ? containerInterfaceName
+        && builtins.isString iface.containerInterfaceName
+        && iface.containerInterfaceName == name
+      )
+      || (iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName == name)
+      || (
+        iface ? hostInterfaceName
+        && builtins.isString iface.hostInterfaceName
+        && iface.hostInterfaceName == name
+      )
+      || (
+        iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName == name
+      )
+    );
+
+  resolveAuthoritativeInterfaceName =
+    rawName:
+    if !(builtins.isString rawName) || rawName == "" then
+      null
+    else if builtins.hasAttr rawName containerInterfaces then
+      let
+        resolved = actualInterfaceNameFor containerInterfaces.${rawName};
+      in
+      if resolved != null then resolved else rawName
+    else if builtins.hasAttr rawName runtimeInterfaces then
+      let
+        resolved = actualInterfaceNameFor runtimeInterfaces.${rawName};
+      in
+      if resolved != null then resolved else rawName
+    else
+      let
+        runtimeMatches = lib.filter (iface: interfaceMatchesName iface rawName) (
+          builtins.attrValues runtimeInterfaces
+        );
+        containerMatches = lib.filter (iface: interfaceMatchesName iface rawName) (
+          builtins.attrValues containerInterfaces
+        );
+        matches = runtimeMatches ++ containerMatches;
+      in
+      if builtins.length matches >= 1 then
+        let
+          resolved = actualInterfaceNameFor (builtins.head matches);
+        in
+        if resolved != null then resolved else rawName
+      else
+        rawName;
+
   semanticInterfaceFor =
     {
       containerIface,
@@ -482,13 +536,14 @@ let
     idx:
     let
       adv = builtins.elemAt authoritativeDhcp4 idx;
-      interfaceName =
+      interfaceName = resolveAuthoritativeInterfaceName (
         if builtins.isString (adv.interface or null) && adv.interface != "" then
           adv.interface
         else if builtins.isString (adv.bindInterface or null) && adv.bindInterface != "" then
           adv.bindInterface
         else
-          null;
+          null
+      );
 
       stem = safeStem (
         if builtins.isString (adv.id or null) && adv.id != "" then
@@ -531,13 +586,14 @@ let
     idx:
     let
       adv = builtins.elemAt authoritativeIpv6Ra idx;
-      interfaceName =
+      interfaceName = resolveAuthoritativeInterfaceName (
         if builtins.isString (adv.interface or null) && adv.interface != "" then
           adv.interface
         else if builtins.isString (adv.bindInterface or null) && adv.bindInterface != "" then
           adv.bindInterface
         else
-          null;
+          null
+      );
 
       stem = safeStem (
         if interfaceName != null then interfaceName else "radvd-${builtins.toString (idx + 1)}"
