@@ -63,6 +63,16 @@ let
         interfaces = runtimeTarget.interfaces or { };
       };
 
+      primaryHostBridgeInterfaceNames = lib.filter (
+        ifName: renderedInterfaces.${ifName}.usePrimaryHostBridge or false
+      ) (lookup.sortedAttrNames renderedInterfaces);
+
+      primaryHostBridge =
+        if builtins.length primaryHostBridgeInterfaceNames == 1 then
+          renderedInterfaces.${builtins.head primaryHostBridgeInterfaceNames}.renderedHostBridgeName
+        else
+          null;
+
       roleName = lookup.roleForUnit unitName;
       roleConfig = lookup.roleConfigForUnit unitName;
       containerConfig = lookup.containerConfigForUnit unitName;
@@ -130,6 +140,7 @@ let
       unitName = emittedUnitName;
       inherit containerName;
       profilePath = profilePath;
+      hostBridge = primaryHostBridge;
       interfaces = renderedInterfaces;
       loopback = runtimeTarget.loopback or { };
       veths = interfaces.vethsForInterfaces renderedInterfaces;

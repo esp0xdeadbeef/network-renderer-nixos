@@ -127,6 +127,23 @@ let
       interfaces,
     }:
     let
+      bridgeEligibleWanIfNames = lib.filter (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+          attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
+        in
+        sourceKindForInterface iface == "wan"
+        && attachTarget ? renderedHostBridgeName
+        && builtins.isString attachTarget.renderedHostBridgeName
+      ) (lookup.sortedAttrNames interfaces);
+
+      primaryHostBridgeIfName =
+        if builtins.length bridgeEligibleWanIfNames == 1 then
+          builtins.head bridgeEligibleWanIfNames
+        else
+          null;
+
       entries = map (
         ifName:
         let
@@ -139,6 +156,7 @@ let
           };
 
           hostVethName = hostNaming.shorten "${containerName}-${desiredInterfaceName}";
+          usePrimaryHostBridge = primaryHostBridgeIfName == ifName;
         in
         {
           inherit ifName;
@@ -146,16 +164,17 @@ let
             inherit
               ifName
               sourceKind
-              hostVethName
               desiredInterfaceName
+              usePrimaryHostBridge
               ;
+            hostVethName = if usePrimaryHostBridge then null else hostVethName;
             renderedIfName = iface.renderedIfName or ifName;
-            containerInterfaceName = hostVethName;
+            containerInterfaceName = if usePrimaryHostBridge then "eth0" else hostVethName;
             addresses = iface.addresses or [ ];
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = hostVethName;
+            hostInterfaceName = if usePrimaryHostBridge then null else hostVethName;
             connectivity = iface.connectivity or { };
             backingRef = iface.backingRef or { };
             hostBridge = iface.hostBridge or null;
@@ -201,8 +220,8 @@ let
 
   vethsForInterfaces =
     interfaces:
-    builtins.listToAttrs (
-      map (
+    let
+      entries = map (
         ifName:
         let
           iface = interfaces.${ifName};
@@ -216,14 +235,18 @@ let
             else
               ifName;
         in
-        {
-          name = hostVethName;
-          value = {
-            hostBridge = iface.renderedHostBridgeName;
-          };
-        }
-      ) (lookup.sortedAttrNames interfaces)
-    );
+        if iface.usePrimaryHostBridge or false then
+          null
+        else
+          {
+            name = hostVethName;
+            value = {
+              hostBridge = iface.renderedHostBridgeName;
+            };
+          }
+      ) (lookup.sortedAttrNames interfaces);
+    in
+    builtins.listToAttrs (lib.filter (entry: entry != null) entries);
 in
 {
   inherit
