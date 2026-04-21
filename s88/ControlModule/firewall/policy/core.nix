@@ -90,6 +90,12 @@ let
     else
       wanNames;
 
+  inputRules = [
+    ''
+      icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
+    ''
+  ];
+
   _validateCoreAdapterCount =
     if builtins.length adapterNames == 1 then
       throw ''
@@ -112,5 +118,10 @@ else
     inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
-    inherit forwardPairs natInterfaces clampMssInterfaces;
+    inherit
+      inputRules
+      forwardPairs
+      natInterfaces
+      clampMssInterfaces
+      ;
   }
