@@ -59,6 +59,9 @@ let
         }
         // lib.optionalAttrs (route ? dst && route.dst != null) {
           Destination = route.dst;
+        }
+        // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) {
+          Metric = route.metric;
         };
 
   mkDynamicWanNetworkConfig =
