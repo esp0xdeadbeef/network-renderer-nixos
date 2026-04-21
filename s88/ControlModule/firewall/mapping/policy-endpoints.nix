@@ -451,6 +451,55 @@ let
     else
       [ ];
 
+  upstreamAdjacencyLinkNames = lib.filter (ln: ln != null) (
+    map adjacencyLinkName (
+      if currentNodeName != null && upstreamSelectorNodeName != null then
+        lib.filter (
+          adjacency:
+          let
+            units = adjacencyUnits adjacency;
+          in
+          builtins.length units == 2
+          && builtins.elem currentNodeName units
+          && builtins.elem upstreamSelectorNodeName units
+        ) transitAdjacencies
+      else
+        [ ]
+    )
+  );
+
+  upstreamInterfacesForUplink =
+    uplinkName:
+    let
+      candidates =
+        if !builtins.isString uplinkName || uplinkName == "" then
+          [ ]
+        else
+          let
+            raw = [
+              uplinkName
+              "uplink-${uplinkName}"
+            ];
+          in
+          if lib.hasPrefix "uplink-" uplinkName then
+            raw
+            ++ [
+              lib.removePrefix
+              "uplink-"
+              uplinkName
+            ]
+          else
+            raw;
+
+      matches = lib.filter (
+        ln:
+        lib.any (
+          candidate: builtins.isString candidate && candidate != "" && lib.hasInfix candidate ln
+        ) candidates
+      ) upstreamAdjacencyLinkNames;
+    in
+    sortedStrings (lib.filter (n: n != null) (map interfaceNameForLink matches));
+
   ownershipEndpoints =
     if ownership ? endpoints && builtins.isList ownership.endpoints then
       lib.filter (
@@ -544,11 +593,14 @@ let
     endpoint:
     let
       token = normalizeToken endpoint;
+      uplinkMatches = upstreamInterfacesForUplink token;
     in
     if token == "any" then
       allKnownInterfaces
     else if token == "wan" || token == "external-wan" || token == "upstream" then
       upstreamInterfaceNames
+    else if uplinkMatches != [ ] then
+      uplinkMatches
     else if builtins.hasAttr token tenantInterfaceByName then
       [ tenantInterfaceByName.${token} ]
     else if builtins.hasAttr token serviceInterfacesByName then
@@ -582,6 +634,19 @@ let
       )
     then
       upstreamInterfaceNames
+    else if kind == "external" && endpoint ? uplinks && builtins.isList endpoint.uplinks then
+      let
+        resolved = sortedStrings (
+          lib.concatMap (
+            uplinkName:
+            let
+              matches = resolveStringEndpoint uplinkName;
+            in
+            if matches != [ ] then matches else upstreamInterfaceNames
+          ) endpoint.uplinks
+        );
+      in
+      resolved
     else if
       kind == "service" && endpoint ? name && builtins.hasAttr endpoint.name serviceInterfacesByName
     then
