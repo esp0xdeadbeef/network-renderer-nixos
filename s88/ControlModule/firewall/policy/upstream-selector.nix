@@ -56,6 +56,12 @@ let
           comment = "upstream-selector-${inIf}-to-${outIf}";
         }) (lib.filter (candidate: candidate != inIf) transitNames)
       ) transitNames;
+
+  inputRules = [
+    ''
+      icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
+    ''
+  ];
 in
 if interfaceEntries == [ ] then
   null
@@ -65,5 +71,5 @@ else
     inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
-    inherit forwardPairs;
+    inherit inputRules forwardPairs;
   }
