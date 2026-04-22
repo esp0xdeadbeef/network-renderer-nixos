@@ -8,8 +8,143 @@ let
 
   interfaceNameMaxLength = 15;
 
+  semanticTokenAliases = {
+    upstream = "up";
+    downstream = "down";
+    selector = "sel";
+    policy = "pol";
+    access = "acc";
+    branch = "branch";
+    client = "client";
+    admin = "admin";
+    mgmt = "mgmt";
+    management = "mgmt";
+    tenant = "tenant";
+    transit = "transit";
+    overlay = "ovly";
+    east = "e";
+    west = "w";
+    north = "n";
+    south = "s";
+    core = "core";
+    dmz = "dmz";
+    wan = "wan";
+    uplink = "up";
+    isp = "isp";
+  };
+
   validInterfaceName =
     name: builtins.isString name && name != "" && builtins.stringLength name <= interfaceNameMaxLength;
+
+  firstValidInterfaceName =
+    names:
+    let
+      validNames = lib.filter validInterfaceName names;
+    in
+    if validNames != [ ] then builtins.head validNames else null;
+
+  aliasToken =
+    token: if builtins.hasAttr token semanticTokenAliases then semanticTokenAliases.${token} else token;
+
+  truncateToken =
+    maxLen: token:
+    let
+      tokenLen = builtins.stringLength token;
+    in
+    if tokenLen <= maxLen then token else builtins.substring 0 maxLen token;
+
+  semanticBaseInterfaceName =
+    desiredInterfaceName:
+    let
+      rawTokens = lib.filter (token: token != "") (lib.splitString "-" desiredInterfaceName);
+      aliasedTokens = map aliasToken rawTokens;
+      candidateNames = [
+        desiredInterfaceName
+        (lib.concatStringsSep "-" aliasedTokens)
+        (lib.concatStringsSep "-" (map (truncateToken 4) aliasedTokens))
+        (lib.concatStringsSep "-" (map (truncateToken 3) aliasedTokens))
+        (lib.concatStringsSep "" (map (truncateToken 1) aliasedTokens))
+        (builtins.substring 0 interfaceNameMaxLength desiredInterfaceName)
+      ];
+      selected = firstValidInterfaceName candidateNames;
+    in
+    if selected != null then
+      selected
+    else
+      throw ''
+        s88/CM/network/mapping/container-runtime.nix: could not derive a valid container interface name
+
+        desiredInterfaceName:
+        ${builtins.toJSON desiredInterfaceName}
+      '';
+
+  uniqueInterfaceNameCandidate =
+    baseName: index:
+    if index <= 1 then
+      baseName
+    else
+      let
+        suffix = "-${toString index}";
+        prefixLen = interfaceNameMaxLength - builtins.stringLength suffix;
+        prefix =
+          if prefixLen > 0 then builtins.substring 0 prefixLen baseName else builtins.substring 0 1 baseName;
+      in
+      "${prefix}${suffix}";
+
+  resolveUniqueInterfaceName =
+    {
+      baseName,
+      usedNames,
+      index ? 1,
+    }:
+    let
+      candidate = uniqueInterfaceNameCandidate baseName index;
+    in
+    if !(builtins.hasAttr candidate usedNames) then
+      candidate
+    else
+      resolveUniqueInterfaceName {
+        inherit baseName usedNames;
+        index = index + 1;
+      };
+
+  assignUniqueContainerInterfaceNames =
+    entries:
+    let
+      resolved =
+        builtins.foldl'
+          (
+            acc: entry:
+            let
+              baseName = entry.value.containerInterfaceBaseName;
+              resolvedName = resolveUniqueInterfaceName {
+                inherit baseName;
+                usedNames = acc.usedNames;
+              };
+            in
+            {
+              usedNames = acc.usedNames // {
+                ${resolvedName} = true;
+              };
+              entries = acc.entries ++ [
+                (
+                  entry
+                  // {
+                    value = entry.value // {
+                      containerInterfaceName = resolvedName;
+                    };
+                  }
+                )
+              ];
+            }
+          )
+          {
+            usedNames = { };
+            entries = [ ];
+          }
+          entries;
+    in
+    resolved.entries;
 
   sourceKindForInterface =
     iface:
@@ -144,7 +279,7 @@ let
         else
           null;
 
-      entries = map (
+      entriesRaw = map (
         ifName:
         let
           iface = interfaces.${ifName};
@@ -169,7 +304,9 @@ let
               ;
             hostVethName = if usePrimaryHostBridge then null else hostVethName;
             renderedIfName = iface.renderedIfName or ifName;
-            containerInterfaceName = if usePrimaryHostBridge then "eth0" else hostVethName;
+            containerInterfaceBaseName =
+              if usePrimaryHostBridge then "eth0" else semanticBaseInterfaceName desiredInterfaceName;
+            containerInterfaceName = if usePrimaryHostBridge then "eth0" else null;
             addresses = iface.addresses or [ ];
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
@@ -192,6 +329,8 @@ let
           };
         }
       ) (lookup.sortedAttrNames interfaces);
+
+      entries = assignUniqueContainerInterfaceNames entriesRaw;
 
       interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
 
