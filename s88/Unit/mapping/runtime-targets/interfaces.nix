@@ -113,10 +113,13 @@ let
 
   normalizeRoutes =
     routes:
-    let
-      routeTree = if builtins.isAttrs routes then routes else { };
-    in
-    (routeList (routeTree.ipv4 or [ ])) ++ (routeList (routeTree.ipv6 or [ ]));
+    if builtins.isList routes then
+      routeList routes
+    else
+      let
+        routeTree = if builtins.isAttrs routes then routes else { };
+      in
+      (routeList (routeTree.ipv4 or [ ])) ++ (routeList (routeTree.ipv6 or [ ]));
 
   identityPartToString =
     value:
