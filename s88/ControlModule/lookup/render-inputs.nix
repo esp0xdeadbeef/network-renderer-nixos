@@ -33,7 +33,9 @@ let
       requestedInventoryPath
     else
       firstExistingPath [
+        (if resolvedExampleDir != null then "${resolvedExampleDir}/inventory-nixos.nix" else null)
         (if resolvedExampleDir != null then "${resolvedExampleDir}/inventory.nix" else null)
+        (if resolvedExampleDir != null then "${resolvedExampleDir}/inputs/inventory-nixos.nix" else null)
         (if resolvedExampleDir != null then "${resolvedExampleDir}/inputs/inventory.nix" else null)
       ];
 

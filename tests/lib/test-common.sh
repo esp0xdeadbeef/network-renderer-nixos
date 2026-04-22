@@ -102,6 +102,7 @@ build_cpm_json() {
   if [[ "$(basename "${inventory_path}")" == "inventory-nixos.nix" ]]; then
     local sibling
     sibling="$(dirname "${inventory_path}")/inventory.nix"
+    cp -f "${inventory_path}" "${out_dir}/inventory-nixos.nix"
     if [[ -f "${sibling}" ]]; then
       inv_to_copy="${sibling}"
     fi

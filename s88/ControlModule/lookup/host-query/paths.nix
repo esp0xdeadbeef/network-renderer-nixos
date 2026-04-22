@@ -50,11 +50,17 @@ let
       ];
 
       inventoryCandidates = [
+        "${outPath}/library/100-fabric-routing/inputs/inventory-nixos.nix"
         "${outPath}/library/100-fabric-routing/inputs/inventory.nix"
+        "${outPath}/library/100-fabric-routing/inventory-nixos.nix"
         "${outPath}/library/100-fabric-routing/inventory.nix"
+        "${outPath}/inputs/inventory-nixos.nix"
         "${outPath}/inputs/inventory.nix"
+        "${outPath}/inventory-nixos.nix"
         "${outPath}/inventory.nix"
+        "${resolvedFabricRoot}/inputs/inventory-nixos.nix"
         "${resolvedFabricRoot}/inputs/inventory.nix"
+        "${resolvedFabricRoot}/inventory-nixos.nix"
         "${resolvedFabricRoot}/inventory.nix"
       ];
     in
