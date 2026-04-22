@@ -73,7 +73,7 @@ for intent_path in "${intent_paths[@]}"; do
       archive_json_artifacts "$(basename "$(dirname "${intent_path}")")" "${tmp_dir}"
     fi
 
-    "${repo_root}/test-split-box-render.sh" "${tmp_dir}/cpm.json" ./90-render.json >/dev/null
+    "${repo_root}/test-split-box-render.sh" "${tmp_dir}/cpm.json" ./90-render.json "${inventory_path}" >/dev/null
   )
 
   trap - RETURN

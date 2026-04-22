@@ -2,10 +2,10 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: ./test-split-box-render.sh <control-plane.(nix|json)> [render.json]" >&2
+  echo "usage: ./test-split-box-render.sh <control-plane.(nix|json)> [render.json] [inventory.nix]" >&2
 }
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
   usage
   exit 1
 fi
@@ -16,10 +16,21 @@ repo_root="$script_dir"
 cpm_path="$(realpath "$1")"
 render_json_input="${2:-./90-render.json}"
 render_json="$(realpath "$render_json_input")"
+inventory_path_input="${3:-}"
 
 if [ ! -f "$cpm_path" ]; then
   echo "[!] Missing CPM path: $cpm_path" >&2
   exit 1
+fi
+
+if [ -n "$inventory_path_input" ]; then
+  inventory_path_override="$(realpath "$inventory_path_input")"
+  if [ ! -f "$inventory_path_override" ]; then
+    echo "[!] Missing inventory path: $inventory_path_override" >&2
+    exit 1
+  fi
+else
+  inventory_path_override=""
 fi
 
 require_cmd() {
@@ -90,6 +101,7 @@ for box in "${boxes[@]}"; do
   repo_root_nix="$(nix_quote "$repo_root")"
   cpm_path_nix="$(nix_quote "$cpm_path")"
   box_name_nix="$(nix_quote "$box")"
+  inventory_path_override_nix="$(nix_quote "$inventory_path_override")"
 
   expr="$(cat <<EOF
 let
@@ -97,15 +109,24 @@ let
   nixpkgsLib = flake.lib.flakeInputs.nixpkgs.lib;
   api = flake.lib.renderer;
   cpm = api.loadControlPlane (builtins.toPath ${cpm_path_nix});
-  # Keep parity with render-dry-config: prefer inventory.nix located next to the CPM
-  # JSON, falling back to an embedded inventory only when present.
+  # Keep parity with renderer tests: prefer inventory-nixos.nix located next to the
+  # CPM JSON, then fall back to inventory.nix, then to any embedded inventory.
   cpmPathStr = toString (builtins.toPath ${cpm_path_nix});
   cpmDir = builtins.dirOf cpmPathStr;
+  inventoryNixosPathStr = "\${cpmDir}/inventory-nixos.nix";
   inventoryPathStr = "\${cpmDir}/inventory.nix";
+  inventoryOverridePathStr = ${inventory_path_override_nix};
+  inventoryNixosPath = builtins.toPath inventoryNixosPathStr;
   inventoryPath = builtins.toPath inventoryPathStr;
+  inventoryOverridePath =
+    if inventoryOverridePathStr == "" then null else builtins.toPath inventoryOverridePathStr;
 
   inventory =
-    if builtins.pathExists inventoryPath then
+    if inventoryOverridePath != null && builtins.pathExists inventoryOverridePath then
+      api.loadInventory inventoryOverridePath
+    else if builtins.pathExists inventoryNixosPath then
+      api.loadInventory inventoryNixosPath
+    else if builtins.pathExists inventoryPath then
       api.loadInventory inventoryPath
     else if builtins.isAttrs cpm && cpm ? globalInventory && builtins.isAttrs cpm.globalInventory then
       cpm.globalInventory
