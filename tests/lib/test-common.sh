@@ -90,20 +90,24 @@ build_cpm_json() {
     --file "${repo_root}/tests/nix/build-cpm-from-paths.nix" \
     > "${output_path}"
 
-  # render-dry-config resolves inventory relative to the CPM file's directory unless
-  # an explicit inventoryPath is passed. Keep tests self-contained by copying the
-  # inputs next to the generated CPM JSON.
   local out_dir
   out_dir="$(dirname "${output_path}")"
 
+  # Keep tests self-contained by copying inputs next to generated artifacts.
   # If the selected inventory is a wrapper (e.g. inventory-nixos.nix importing
-  # ./inventory.nix), copying it to ./inventory.nix would self-import and blow up.
+  # ./inventory-base.nix or ./inventory.nix), copy sibling files too so relative
+  # imports still resolve inside the temp output directory.
   local inv_to_copy="${inventory_path}"
   if [[ "$(basename "${inventory_path}")" == "inventory-nixos.nix" ]]; then
     local sibling
+    local sibling_base
     sibling="$(dirname "${inventory_path}")/inventory.nix"
+    sibling_base="$(dirname "${inventory_path}")/inventory-base.nix"
     cp -f "${inventory_path}" "${out_dir}/inventory-nixos.nix"
-    if [[ -f "${sibling}" ]]; then
+    if [[ -f "${sibling_base}" ]]; then
+      cp -f "${sibling_base}" "${out_dir}/inventory-base.nix"
+      inv_to_copy="${sibling_base}"
+    elif [[ -f "${sibling}" ]]; then
       inv_to_copy="${sibling}"
     fi
   fi
