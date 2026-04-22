@@ -42,15 +42,6 @@ let
       null
     else
       let
-        isOverlayRoute =
-          (builtins.isString (route.proto or null) && route.proto == "overlay")
-          || (
-            route ? intent
-            && builtins.isAttrs route.intent
-            && builtins.isString (route.intent.kind or null)
-            && route.intent.kind == "overlay-reachability"
-          );
-
         gateway =
           if route ? via4 && route.via4 != null then
             route.via4
@@ -59,21 +50,13 @@ let
           else
             null;
       in
-      if
-        gateway == null
-        && (!isOverlayRoute || !(route ? dst) || !builtins.isString route.dst || route.dst == "")
-      then
+      if gateway == null then
         null
       else
-        (
-          if gateway == null then
-            { }
-          else
-            {
-              Gateway = gateway;
-              GatewayOnLink = true;
-            }
-        )
+        {
+          Gateway = gateway;
+          GatewayOnLink = true;
+        }
         // lib.optionalAttrs (route ? dst && route.dst != null) {
           Destination = route.dst;
         }

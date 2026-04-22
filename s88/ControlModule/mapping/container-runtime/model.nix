@@ -6,6 +6,129 @@
 }:
 
 let
+  stripPrefixLength =
+    value:
+    if !(builtins.isString value) then
+      null
+    else
+      let
+        parts = lib.splitString "/" value;
+      in
+      if builtins.length parts > 0 then builtins.elemAt parts 0 else null;
+
+  firstAddressMatching =
+    {
+      addresses,
+      predicate,
+    }:
+    let
+      values =
+        if builtins.isList addresses then
+          lib.filter (
+            value: builtins.isString value && predicate value && (stripPrefixLength value) != null
+          ) addresses
+        else
+          [ ];
+    in
+    if values == [ ] then null else stripPrefixLength (builtins.head values);
+
+  overlaySiteNameForInterface =
+    iface:
+    let
+      backingId =
+        if iface ? backingRef && builtins.isAttrs iface.backingRef then
+          iface.backingRef.id or null
+        else
+          null;
+      parts = if builtins.isString backingId then lib.splitString "::" backingId else [ ];
+    in
+    if builtins.length parts >= 3 then builtins.elemAt parts 1 else null;
+
+  overlayNameForInterface =
+    iface:
+    if
+      iface ? backingRef
+      && builtins.isAttrs iface.backingRef
+      && builtins.isString (iface.backingRef.name or null)
+    then
+      iface.backingRef.name
+    else
+      null;
+
+  overlayRouteLike =
+    route:
+    builtins.isAttrs route
+    && (
+      (builtins.isString (route.proto or null) && route.proto == "overlay")
+      || (
+        route ? intent
+        && builtins.isAttrs route.intent
+        && builtins.isString (route.intent.kind or null)
+        && route.intent.kind == "overlay-reachability"
+      )
+    );
+
+  enrichOverlayRoutesForInterface =
+    {
+      overlayEndpoints,
+      iface,
+    }:
+    let
+      ifaceOverlayName = overlayNameForInterface iface;
+      routes = if iface ? routes && builtins.isList iface.routes then iface.routes else [ ];
+    in
+    map (
+      route:
+      if
+        !overlayRouteLike route
+        || (route ? via4 && route.via4 != null)
+        || (route ? via6 && route.via6 != null)
+      then
+        route
+      else
+        let
+          peerSite = if route ? peerSite && builtins.isString route.peerSite then route.peerSite else null;
+          overlayName =
+            if route ? overlay && builtins.isString route.overlay then route.overlay else ifaceOverlayName;
+          endpointKey =
+            if peerSite != null && overlayName != null then "${peerSite}::${overlayName}" else null;
+          nextHop = if endpointKey != null then overlayEndpoints.${endpointKey} or { } else { };
+        in
+        route
+        // lib.optionalAttrs (!(route ? via4) && nextHop ? via4 && nextHop.via4 != null) {
+          via4 = nextHop.via4;
+        }
+        // lib.optionalAttrs (!(route ? via6) && nextHop ? via6 && nextHop.via6 != null) {
+          via6 = nextHop.via6;
+        }
+    ) routes;
+
+  enrichOverlayRoutesForContainer =
+    {
+      overlayEndpoints,
+      containerRuntime,
+    }:
+    let
+      interfacesRaw = containerRuntime.interfaces or { };
+      interfaces = builtins.mapAttrs (
+        _: iface:
+        if (iface.sourceKind or null) == "overlay" then
+          iface
+          // {
+            routes = enrichOverlayRoutesForInterface {
+              inherit overlayEndpoints iface;
+            };
+          }
+        else
+          iface
+      ) interfacesRaw;
+    in
+    containerRuntime
+    // {
+      interfaces = interfaces;
+      renderedInterfaces = interfaces;
+    };
+
   normalizedEmittedInterfacesForRuntimeTarget =
     {
       emittedUnitName,
@@ -157,12 +280,52 @@ let
       veths = interfaces.vethsForInterfaces renderedInterfaces;
     };
 
-  renderedContainers = builtins.listToAttrs (
+  renderedContainersBase = builtins.listToAttrs (
     map (unitName: {
       name = naming.emittedUnitNameForUnit unitName;
       value = mkContainerRuntime unitName;
     }) lookup.enabledUnits
   );
+
+  overlayEndpoints = builtins.foldl' (
+    acc: containerRuntime:
+    let
+      interfaces = containerRuntime.interfaces or { };
+    in
+    builtins.foldl' (
+      inner: ifName:
+      let
+        iface = interfaces.${ifName};
+        siteName = overlaySiteNameForInterface iface;
+        overlayName = overlayNameForInterface iface;
+        key = if siteName != null && overlayName != null then "${siteName}::${overlayName}" else null;
+        via4 = firstAddressMatching {
+          addresses = iface.addresses or [ ];
+          predicate = value: !(lib.hasInfix ":" value);
+        };
+        via6 = firstAddressMatching {
+          addresses = iface.addresses or [ ];
+          predicate = value: lib.hasInfix ":" value;
+        };
+      in
+      if (iface.sourceKind or null) != "overlay" || key == null then
+        inner
+      else
+        inner
+        // {
+          ${key} = {
+            inherit via4 via6;
+          };
+        }
+    ) acc (lookup.sortedAttrNames interfaces)
+  ) { } (builtins.attrValues renderedContainersBase);
+
+  renderedContainers = builtins.mapAttrs (
+    _: containerRuntime:
+    enrichOverlayRoutesForContainer {
+      inherit overlayEndpoints containerRuntime;
+    }
+  ) renderedContainersBase;
 
 in
 builtins.seq naming.validateUniqueEmittedRuntimeUnitNames (renderedContainers)
