@@ -60,6 +60,22 @@ else
       else
         [ ];
 
+    explicitOutgoingInterfaces =
+      if dnsService ? outgoingInterfaces && builtins.isList dnsService.outgoingInterfaces then
+        lib.filter builtins.isString dnsService.outgoingInterfaces
+      else
+        [ ];
+
+    inferredOutgoingInterfaces = lib.filter (
+      addr:
+      !(builtins.elem addr [
+        "127.0.0.1"
+        "::1"
+      ])
+    ) listenAddresses;
+
+    outgoingInterfaces = lib.unique (explicitOutgoingInterfaces ++ inferredOutgoingInterfaces);
+
     accessControl = map (cidr: "${cidr} allow") allowFrom;
 
     nftRules =
@@ -89,6 +105,9 @@ else
           "access-control" = accessControl;
           "do-ip4" = true;
           "do-ip6" = true;
+        }
+        // lib.optionalAttrs (outgoingInterfaces != [ ]) {
+          "outgoing-interface" = outgoingInterfaces;
         };
         forward-zone = lib.optional (forwarders != [ ]) {
           name = ".";
