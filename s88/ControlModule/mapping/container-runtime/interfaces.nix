@@ -109,8 +109,11 @@ let
     {
       containerName,
       desiredInterfaceName,
+      adapterName ? null,
     }:
     let
+      adapterTokenSource =
+        if builtins.isString adapterName && adapterName != "" then adapterName else desiredInterfaceName;
       containerToken = compactSemanticName {
         name = containerName;
         maxLen = 4;
@@ -118,13 +121,13 @@ let
         removeTokens = nonDistinctContainerTokens;
       };
       interfaceToken = compactSemanticName {
-        name = desiredInterfaceName;
+        name = adapterTokenSource;
         maxLen = 6;
         fallback = "if";
       };
 
       hashSuffix = builtins.substring 0 3 (
-        builtins.hashString "sha256" "${containerName}:${desiredInterfaceName}"
+        builtins.hashString "sha256" "${containerName}:${desiredInterfaceName}:${adapterTokenSource}"
       );
     in
     "${containerToken}-${interfaceToken}-${hashSuffix}";
@@ -399,12 +402,15 @@ let
               ;
             hostVethBaseName = semanticHostVethBaseName {
               inherit containerName desiredInterfaceName;
+              adapterName = if iface ? adapterName then iface.adapterName else null;
             };
             hostVethName = if usePrimaryHostBridge then null else null;
             renderedIfName = iface.renderedIfName or ifName;
             containerInterfaceBaseName =
               if usePrimaryHostBridge then "eth0" else semanticBaseInterfaceName desiredInterfaceName;
             containerInterfaceName = if usePrimaryHostBridge then "eth0" else null;
+            adapterName =
+              if iface ? adapterName && builtins.isString iface.adapterName then iface.adapterName else null;
             addresses = iface.addresses or [ ];
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;

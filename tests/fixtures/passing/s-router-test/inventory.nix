@@ -168,6 +168,7 @@
         ports = {
           upstream-selector = {
             link = "p2p-s-router-core-wan-s-router-upstream-selector";
+            adapterName = "core-upstream";
             attach = {
               kind = "bridge";
               bridge = "tr200";
@@ -210,6 +211,7 @@
         ports = {
           transit-downstream-selector = {
             link = "p2p-s-router-access-admin-s-router-downstream-selector";
+            adapterName = "access-admin-downstream";
             attach = {
               kind = "bridge";
               bridge = "tr100";
@@ -279,6 +281,7 @@
         ports = {
           transit-downstream-selector = {
             link = "p2p-s-router-access-client-s-router-downstream-selector";
+            adapterName = "access-client-downstream";
             attach = {
               kind = "bridge";
               bridge = "tr102";
@@ -348,6 +351,7 @@
         ports = {
           transit-downstream-selector = {
             link = "p2p-s-router-access-mgmt-s-router-downstream-selector";
+            adapterName = "access-mgmt-downstream";
             attach = {
               kind = "bridge";
               bridge = "tr101";
@@ -417,6 +421,7 @@
         ports = {
           policy-access-admin = {
             link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-admin";
+            adapterName = "dsel-policy-admin";
             attach.kind = "bridge";
             attach.bridge = "tr104";
             interface.name = "policy-admin";
@@ -424,6 +429,7 @@
 
           policy-access-client = {
             link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-client";
+            adapterName = "dsel-policy-client";
             attach.kind = "bridge";
             attach.bridge = "tr105";
             interface.name = "policy-client";
@@ -431,6 +437,7 @@
 
           policy-access-mgmt = {
             link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-mgmt";
+            adapterName = "dsel-policy-mgmt";
             attach.kind = "bridge";
             attach.bridge = "tr106";
             interface.name = "policy-mgmt";
@@ -438,6 +445,7 @@
 
           access-admin = {
             link = "p2p-s-router-access-admin-s-router-downstream-selector";
+            adapterName = "dsel-access-admin";
             attach = {
               kind = "bridge";
               bridge = "tr100";
@@ -449,6 +457,7 @@
 
           access-client = {
             link = "p2p-s-router-access-client-s-router-downstream-selector";
+            adapterName = "dsel-access-client";
             attach = {
               kind = "bridge";
               bridge = "tr102";
@@ -460,6 +469,7 @@
 
           access-mgmt = {
             link = "p2p-s-router-access-mgmt-s-router-downstream-selector";
+            adapterName = "dsel-access-mgmt";
             attach = {
               kind = "bridge";
               bridge = "tr101";
@@ -490,6 +500,7 @@
         ports = {
           upstream-access-admin-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
+            adapterName = "policy-upstream-admin";
             attach.kind = "bridge";
             attach.bridge = "tr210";
             interface.name = "upstream-admin";
@@ -497,6 +508,7 @@
 
           upstream-access-client-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
+            adapterName = "policy-upstream-client";
             attach.kind = "bridge";
             attach.bridge = "tr211";
             interface.name = "upstream-client";
@@ -504,6 +516,7 @@
 
           upstream-access-mgmt-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
+            adapterName = "policy-upstream-mgmt";
             attach.kind = "bridge";
             attach.bridge = "tr212";
             interface.name = "upstream-mgmt";
@@ -511,6 +524,7 @@
 
           downstream-access-admin = {
             link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-admin";
+            adapterName = "policy-downstream-admin";
             attach.kind = "bridge";
             attach.bridge = "tr104";
             interface.name = "downstream-admin";
@@ -518,6 +532,7 @@
 
           downstream-access-client = {
             link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-client";
+            adapterName = "policy-downstream-client";
             attach.kind = "bridge";
             attach.bridge = "tr105";
             interface.name = "downstream-client";
@@ -525,6 +540,7 @@
 
           downstream-access-mgmt = {
             link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-mgmt";
+            adapterName = "policy-downstream-mgmt";
             attach.kind = "bridge";
             attach.bridge = "tr106";
             interface.name = "downstream-mgmt";
@@ -551,6 +567,7 @@
         ports = {
           core = {
             link = "p2p-s-router-core-wan-s-router-upstream-selector";
+            adapterName = "upstream-core";
             attach = {
               kind = "bridge";
               bridge = "tr200";
@@ -562,6 +579,7 @@
 
           policy-access-admin-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
+            adapterName = "upstream-policy-admin";
             attach.kind = "bridge";
             attach.bridge = "tr210";
             interface.name = "policy-admin";
@@ -569,6 +587,7 @@
 
           policy-access-client-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
+            adapterName = "upstream-policy-client";
             attach.kind = "bridge";
             attach.bridge = "tr211";
             interface.name = "policy-client";
@@ -576,6 +595,7 @@
 
           policy-access-mgmt-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
+            adapterName = "upstream-policy-mgmt";
             attach.kind = "bridge";
             attach.bridge = "tr212";
             interface.name = "policy-mgmt";
