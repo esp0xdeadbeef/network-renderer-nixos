@@ -65,9 +65,6 @@ lab_root="${labs_root}/examples/single-wan"
 
 intent_path="$(realpath "${lab_root}/intent.nix")"
 inventory_path="${lab_root}/inventory-nixos.nix"
-if [[ ! -f "${inventory_path}" ]]; then
-  inventory_path="${lab_root}/inventory.nix"
-fi
 inventory_path="$(realpath "${inventory_path}")"
 
 if [[ ! -f "$intent_path" ]]; then
@@ -75,7 +72,7 @@ if [[ ! -f "$intent_path" ]]; then
   exit 1
 fi
 if [[ ! -f "$inventory_path" ]]; then
-  echo "[!] Missing inventory.nix: ${inventory_path}" >&2
+  echo "[!] Missing inventory-nixos.nix: ${inventory_path}" >&2
   exit 1
 fi
 

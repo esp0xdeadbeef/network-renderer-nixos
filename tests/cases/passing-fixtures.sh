@@ -10,12 +10,12 @@ render_fixture() {
   resolve_fixture_dir_into fixture_dir "$rel"
 
   local intent_nix="${fixture_dir}/intent.nix"
-  local inventory_nix="${fixture_dir}/inventory.nix"
+  local inventory_nix="${fixture_dir}/inventory-nixos.nix"
   if [[ ! -f "$intent_nix" ]]; then
     fail "FAIL $(basename "$rel"): missing intent.nix"
   fi
   if [[ ! -f "$inventory_nix" ]]; then
-    fail "FAIL $(basename "$rel"): missing inventory.nix"
+    fail "FAIL $(basename "$rel"): missing inventory-nixos.nix"
   fi
 
   local tmp_dir
