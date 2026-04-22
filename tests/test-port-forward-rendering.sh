@@ -74,7 +74,7 @@ grep -q 'tcp dport 443 dnat to 10.20.15.10' <<<"${core_rules}" \
   || fail "missing admin-web HTTPS port-forward rule"
 grep -q 'allow-wan-to-admin-web' <<<"${policy_rules}" \
   || fail "missing admin-web forward rule on policy-only"
-grep -q 'iifname "s-router-' <<<"${policy_rules}" \
+grep -Eq 'iifname "(s-router-|upstream-)' <<<"${policy_rules}" \
   || fail "missing policy-only ingress selector for WAN-exposed service"
 if grep -q 'allow-wan-to-admin-web".*oifname' <<<"${policy_rules}"; then
   fail "policy-only WAN service forward rule is over-constrained by oifname"
