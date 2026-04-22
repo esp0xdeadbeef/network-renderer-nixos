@@ -164,54 +164,5 @@ let
     }) lookup.enabledUnits
   );
 
-  allHostVethNames = lib.concatMap (
-    containerName:
-    let
-      container = renderedContainers.${containerName};
-    in
-    lookup.sortedAttrNames (container.veths or { })
-  ) (lookup.sortedAttrNames renderedContainers);
-
-  duplicateHostVethNames =
-    let
-      tracked =
-        builtins.foldl'
-          (
-            acc: hostVethName:
-            if builtins.hasAttr hostVethName acc.seen then
-              acc
-              // {
-                duplicates = acc.duplicates // {
-                  ${hostVethName} = true;
-                };
-              }
-            else
-              acc
-              // {
-                seen = acc.seen // {
-                  ${hostVethName} = true;
-                };
-              }
-          )
-          {
-            seen = { };
-            duplicates = { };
-          }
-          allHostVethNames;
-    in
-    builtins.attrNames tracked.duplicates;
-
-  validateUniqueHostVethNames =
-    if duplicateHostVethNames == [ ] then
-      true
-    else
-      throw ''
-        s88/CM/network/mapping/container-runtime/model.nix: host veth names must be globally unique
-
-        duplicate host veth names:
-        ${builtins.toJSON duplicateHostVethNames}
-      '';
 in
-builtins.seq naming.validateUniqueEmittedRuntimeUnitNames (
-  builtins.seq validateUniqueHostVethNames renderedContainers
-)
+builtins.seq naming.validateUniqueEmittedRuntimeUnitNames (renderedContainers)

@@ -3,5 +3,5 @@
   testingSpoofedHostHeadersEnabled = true;
 
   intentPath = ./tests/fixtures/passing/s-router-test/intent.nix;
-  inventoryPath = ./tests/fixtures/passing/s-router-test/inventory.nix;
+  inventoryPath = ./tests/fixtures/passing/s-router-test/inventory-nixos.nix;
 }

@@ -6,7 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 fixture_dir="${repo_root}/tests/fixtures/passing/s-router-test"
 intent_path="${fixture_dir}/intent.nix"
-inventory_path="${fixture_dir}/inventory.nix"
+inventory_path="${fixture_dir}/inventory-nixos.nix"
 
 core_rules="$(
   REPO_ROOT="${repo_root}" \

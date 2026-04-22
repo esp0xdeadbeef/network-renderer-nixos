@@ -8,17 +8,41 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 case_dir="${search_root}/dual-wan-branch-overlay"
 intent_path="${case_dir}/intent.nix"
-inventory_path="${case_dir}/inventory.nix"
+inventory_path="${case_dir}/inventory-nixos.nix"
 
 [[ -f "${intent_path}" ]] || fail "missing intent.nix: ${intent_path}"
-[[ -f "${inventory_path}" ]] || fail "missing inventory.nix: ${inventory_path}"
+[[ -f "${inventory_path}" ]] || fail "missing inventory-nixos.nix: ${inventory_path}"
 
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-missing-wan-map.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
 (
   cd "${tmp_dir}"
-  build_cpm_json "${intent_path}" "${inventory_path}" "${tmp_dir}/cpm.json"
+  cat > "${tmp_dir}/inventory-missing-wan-group.nix" <<EOF
+let
+  base = import ${inventory_path};
+in
+base
+// {
+  deployment =
+    base.deployment
+    // {
+      hosts =
+        base.deployment.hosts
+        // {
+          lab-host =
+            base.deployment.hosts.lab-host
+            // {
+              wanGroupToUplink = builtins.removeAttrs
+                (base.deployment.hosts.lab-host.wanGroupToUplink or { })
+                [ "enterpriseB::site-b::b-router-core" ];
+            };
+        };
+    };
+}
+EOF
+
+  build_cpm_json "${intent_path}" "${tmp_dir}/inventory-missing-wan-group.nix" "${tmp_dir}/cpm.json"
 
   set +e
   nix run \

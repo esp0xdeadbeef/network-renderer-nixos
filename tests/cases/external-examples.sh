@@ -25,9 +25,6 @@ skipped=0
 for intent_path in "${intent_paths[@]}"; do
   inventory_path="$(dirname "$intent_path")/inventory-nixos.nix"
   if [[ ! -f "$inventory_path" ]]; then
-    inventory_path="$(dirname "$intent_path")/inventory.nix"
-  fi
-  if [[ ! -f "$inventory_path" ]]; then
     skipped=$((skipped + 1))
     continue
   fi
@@ -83,7 +80,7 @@ for intent_path in "${intent_paths[@]}"; do
 done
 
 if (( ran == 0 )); then
-  fail "no runnable test cases found (need dirs containing both intent.nix and inventory.nix) under: ${search_root}"
+  fail "no runnable test cases found (need dirs containing both intent.nix and inventory-nixos.nix) under: ${search_root}"
 fi
 
 log "Completed: ran=${ran} skipped(no-inventory)=${skipped}"

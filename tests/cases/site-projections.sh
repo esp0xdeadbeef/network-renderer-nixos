@@ -14,12 +14,8 @@ run_case() {
   local intent_path="${case_dir}/intent.nix"
   local inventory_path="${case_dir}/inventory-nixos.nix"
 
-  if [[ ! -f "${inventory_path}" ]]; then
-    inventory_path="${case_dir}/inventory.nix"
-  fi
-
   [[ -f "${intent_path}" ]] || fail "missing intent.nix: ${intent_path}"
-  [[ -f "${inventory_path}" ]] || fail "missing inventory.nix: ${inventory_path}"
+  [[ -f "${inventory_path}" ]] || fail "missing inventory-nixos.nix: ${inventory_path}"
 
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-sites.${example_name}.XXXXXX")"
