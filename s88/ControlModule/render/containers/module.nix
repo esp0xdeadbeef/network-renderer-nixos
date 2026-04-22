@@ -80,6 +80,40 @@ let
   containerNetworks = containerNetworkRender.networks;
 
   containerIpv6AcceptRAInterfaces = containerNetworkRender.ipv6AcceptRAInterfaces or [ ];
+  containerInterfaceRenameLinks = builtins.listToAttrs (
+    lib.filter (entry: entry != null) (
+      map (
+        iface:
+        let
+          initialInterfaceName =
+            if iface ? hostVethName && builtins.isString iface.hostVethName then iface.hostVethName else null;
+          finalInterfaceName =
+            if
+              iface ? containerInterfaceName
+              && builtins.isString iface.containerInterfaceName
+              && iface.containerInterfaceName != ""
+            then
+              iface.containerInterfaceName
+            else
+              null;
+        in
+        if
+          initialInterfaceName != null
+          && finalInterfaceName != null
+          && initialInterfaceName != finalInterfaceName
+        then
+          {
+            name = "10-${finalInterfaceName}";
+            value = {
+              matchConfig.OriginalName = initialInterfaceName;
+              linkConfig.Name = finalInterfaceName;
+            };
+          }
+        else
+          null
+      ) (builtins.attrValues (renderedModel.interfaces or { }))
+    )
+  );
   networkManagerWanInterfaces =
     if
       renderedModel ? networkManagerWanInterfaces
@@ -219,6 +253,7 @@ in
 
     {
       networking.hostName = resolvedHostName;
+      systemd.network.links = containerInterfaceRenameLinks;
       systemd.network.networks = containerNetworks;
       warnings = warningMessages;
     }
