@@ -113,17 +113,21 @@ let
     let
       containerToken = compactSemanticName {
         name = containerName;
-        maxLen = 6;
+        maxLen = 4;
         fallback = "unit";
         removeTokens = nonDistinctContainerTokens;
       };
       interfaceToken = compactSemanticName {
         name = desiredInterfaceName;
-        maxLen = 8;
+        maxLen = 6;
         fallback = "if";
       };
+
+      hashSuffix = builtins.substring 0 3 (
+        builtins.hashString "sha256" "${containerName}:${desiredInterfaceName}"
+      );
     in
-    "${containerToken}-${interfaceToken}";
+    "${containerToken}-${interfaceToken}-${hashSuffix}";
 
   uniqueInterfaceNameCandidate =
     baseName: index:

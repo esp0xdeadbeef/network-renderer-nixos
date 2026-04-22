@@ -13,6 +13,9 @@ source "${repo_root}/tests/lib/test-common.sh"
 # Renderer must expose site-scoped CPM outputs (overlays/ipv6/routing) without guessing.
 "${repo_root}/tests/cases/site-projections.sh"
 
+# Regression: rendered host veth names must be globally unique and dual-ISP cores must be disjoint.
+"${repo_root}/tests/cases/host-veth-consumer-sufficiency.sh"
+
 # render-all.sh used to fail-fast on warnings, which makes it hard to use for
 # scanning external examples (some warning alarms are upstream/missing CPM data).
 # Keep a smoke test that ensures render-all can run a known-warning example and
