@@ -4,8 +4,6 @@
 }:
 
 let
-  hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
-
   interfaceNameMaxLength = 15;
 
   semanticTokenAliases = {
@@ -32,6 +30,13 @@ let
     uplink = "up";
     isp = "isp";
   };
+
+  nonDistinctContainerTokens = [
+    "s"
+    "router"
+    "network"
+    "container"
+  ];
 
   validInterfaceName =
     name: builtins.isString name && name != "" && builtins.stringLength name <= interfaceNameMaxLength;
@@ -77,6 +82,48 @@ let
         desiredInterfaceName:
         ${builtins.toJSON desiredInterfaceName}
       '';
+
+  semanticTokensForName =
+    name: map aliasToken (lib.filter (token: token != "") (lib.splitString "-" name));
+
+  compactSemanticName =
+    {
+      name,
+      maxLen,
+      fallback,
+      removeTokens ? [ ],
+    }:
+    let
+      allTokens = semanticTokensForName name;
+      preferredTokens = lib.filter (token: !(builtins.elem token removeTokens)) allTokens;
+      selectedTokens = if preferredTokens != [ ] then preferredTokens else allTokens;
+      compact = lib.concatStringsSep "" (map (truncateToken 3) selectedTokens);
+      normalized = if compact != "" then compact else fallback;
+    in
+    if builtins.stringLength normalized <= maxLen then
+      normalized
+    else
+      builtins.substring 0 maxLen normalized;
+
+  semanticHostVethBaseName =
+    {
+      containerName,
+      desiredInterfaceName,
+    }:
+    let
+      containerToken = compactSemanticName {
+        name = containerName;
+        maxLen = 6;
+        fallback = "unit";
+        removeTokens = nonDistinctContainerTokens;
+      };
+      interfaceToken = compactSemanticName {
+        name = desiredInterfaceName;
+        maxLen = 8;
+        fallback = "if";
+      };
+    in
+    "${containerToken}-${interfaceToken}";
 
   uniqueInterfaceNameCandidate =
     baseName: index:
@@ -137,6 +184,51 @@ let
                 )
               ];
             }
+          )
+          {
+            usedNames = { };
+            entries = [ ];
+          }
+          entries;
+    in
+    resolved.entries;
+
+  assignUniqueHostVethNames =
+    entries:
+    let
+      resolved =
+        builtins.foldl'
+          (
+            acc: entry:
+            if entry.value.usePrimaryHostBridge or false then
+              {
+                usedNames = acc.usedNames;
+                entries = acc.entries ++ [ entry ];
+              }
+            else
+              let
+                baseName = entry.value.hostVethBaseName;
+                resolvedName = resolveUniqueInterfaceName {
+                  inherit baseName;
+                  usedNames = acc.usedNames;
+                };
+              in
+              {
+                usedNames = acc.usedNames // {
+                  ${resolvedName} = true;
+                };
+                entries = acc.entries ++ [
+                  (
+                    entry
+                    // {
+                      value = entry.value // {
+                        hostVethName = resolvedName;
+                        hostInterfaceName = resolvedName;
+                      };
+                    }
+                  )
+                ];
+              }
           )
           {
             usedNames = { };
@@ -290,7 +382,6 @@ let
             inherit ifName iface attachTarget;
           };
 
-          hostVethName = hostNaming.shorten "${containerName}-${desiredInterfaceName}";
           usePrimaryHostBridge = primaryHostBridgeIfName == ifName;
         in
         {
@@ -302,7 +393,10 @@ let
               desiredInterfaceName
               usePrimaryHostBridge
               ;
-            hostVethName = if usePrimaryHostBridge then null else hostVethName;
+            hostVethBaseName = semanticHostVethBaseName {
+              inherit containerName desiredInterfaceName;
+            };
+            hostVethName = if usePrimaryHostBridge then null else null;
             renderedIfName = iface.renderedIfName or ifName;
             containerInterfaceBaseName =
               if usePrimaryHostBridge then "eth0" else semanticBaseInterfaceName desiredInterfaceName;
@@ -311,7 +405,7 @@ let
             routes = iface.routes or [ ];
             renderedHostBridgeName = attachTarget.renderedHostBridgeName;
             assignedUplinkName = attachTarget.assignedUplinkName or null;
-            hostInterfaceName = if usePrimaryHostBridge then null else hostVethName;
+            hostInterfaceName = if usePrimaryHostBridge then null else null;
             connectivity = iface.connectivity or { };
             backingRef = iface.backingRef or { };
             hostBridge = iface.hostBridge or null;
@@ -330,7 +424,7 @@ let
         }
       ) (lookup.sortedAttrNames interfaces);
 
-      entries = assignUniqueContainerInterfaceNames entriesRaw;
+      entries = assignUniqueContainerInterfaceNames (assignUniqueHostVethNames entriesRaw);
 
       interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
 
