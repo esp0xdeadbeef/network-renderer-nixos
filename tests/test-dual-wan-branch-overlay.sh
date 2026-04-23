@@ -123,6 +123,13 @@ run_one() {
               "(.|\\n)*deny-direct-dns-egress(.|\\n)*iifname \\\"tenant-mgmt\\\" oifname \\\"transit\\\" accept(.|\\n)*"
               accessMgmtRules
             != null;
+          hasCoreOverlayInputAccept =
+            let
+              coreRules = nftRules rendered.containers."s-router-core-isp-b";
+              branchCoreRules = nftRules rendered.containers."b-router-core";
+            in
+            lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
+            && lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
           hasPolicyMgmtIngressRoutes =
             builtins.isList (policyMgmtUplink.routes or [ ])
             && builtins.any
@@ -170,6 +177,7 @@ run_one() {
           && hasIngressTableRoutes
           && hasServiceDnsPolicy
           && hasDirectDnsDropOrdering
+          && hasCoreOverlayInputAccept
           && hasPolicyMgmtIngressRoutes
           && hasDnsOutgoingInterfaces
           && hasHostValidationService
