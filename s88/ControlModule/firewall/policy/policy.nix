@@ -110,6 +110,12 @@ let
     relation:
     if relation ? id && builtins.isString relation.id then
       relation.id
+    else if
+      builtins.isAttrs (relation.source or null)
+      && relation.source ? id
+      && builtins.isString relation.source.id
+    then
+      relation.source.id
     else if relation ? name && builtins.isString relation.name then
       relation.name
     else
