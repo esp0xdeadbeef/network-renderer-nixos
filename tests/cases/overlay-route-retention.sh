@@ -62,6 +62,12 @@ trap 'rm -rf "${tmp_dir}"' EXIT
     | map(.dst)
     | index("fd42:dead:beef:20::/64") != null
   ' ./90-dry-config.json >/dev/null
+
+  _jq -e '
+    .render.nodes["enterpriseA::site-a::enterpriseA-site-a-s-router-core-isp-b"].interfaces["overlay-east-west"].renderedHostBridgeName
+    ==
+    .render.nodes["enterpriseB::site-b::enterpriseB-site-b-b-router-core"].interfaces["overlay-east-west"].renderedHostBridgeName
+  ' ./90-dry-config.json >/dev/null
 )
 
 pass "overlay route retention"
