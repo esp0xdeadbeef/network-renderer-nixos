@@ -116,7 +116,7 @@ let
             dnsA: $dns4,
             dnsAAAA: $dns6
           }"
-      2>/dev/null || jq -n "{ error: \"check-failed\" }"
+      2>/dev/null || jq -n "{ error: \"check-failed\" }"'
     }
 
     while true; do
