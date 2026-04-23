@@ -54,7 +54,23 @@ let
     map (
       entry:
       if
-        entry ? sourceKind && entry.sourceKind == "overlay" && entry ? name && builtins.isString entry.name
+        (
+          (entry ? sourceKind && entry.sourceKind == "overlay")
+          || (
+            entry ? backingRef
+            && builtins.isAttrs entry.backingRef
+            && (entry.backingRef.kind or null) == "overlay"
+          )
+          || (
+            entry ? iface
+            && builtins.isAttrs entry.iface
+            && entry.iface ? backingRef
+            && builtins.isAttrs entry.iface.backingRef
+            && (entry.iface.backingRef.kind or null) == "overlay"
+          )
+        )
+        && entry ? name
+        && builtins.isString entry.name
       then
         entry.name
       else
