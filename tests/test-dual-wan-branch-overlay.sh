@@ -51,6 +51,12 @@ run_one() {
                 renderedHostNetwork = hostBuild.renderedHost;
               };
             }).config;
+          validationLoop =
+            let
+              unit =
+                hostEvaluated.systemd.services.s88-network-validation.script;
+            in
+            builtins.readFile unit;
           builtContainers = flake.lib.containers.buildForBox {
             boxName = "lab-host";
             inherit system intentPath inventoryPath;
@@ -119,6 +125,10 @@ run_one() {
             && builtins.elem
               "s88-network-validation-status"
               (map (pkg: pkg.pname or pkg.name or "") hostEvaluated.environment.systemPackages);
+          hasEscapedValidationJqVars =
+            lib.hasInfix "systemState: \\$system_state" validationLoop
+            && lib.hasInfix "dnsA: \\$dns4" validationLoop
+            && lib.hasInfix "dnsAAAA: \\$dns6" validationLoop;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -139,6 +149,7 @@ run_one() {
           && hasServiceDnsPolicy
           && hasPolicyMgmtIngressRoutes
           && hasHostValidationService
+          && hasEscapedValidationJqVars
           && bgpOk
       ' >/dev/null
 
