@@ -66,15 +66,7 @@ else
       else
         [ ];
 
-    inferredOutgoingInterfaces = lib.filter (
-      addr:
-      !(builtins.elem addr [
-        "127.0.0.1"
-        "::1"
-      ])
-    ) listenAddresses;
-
-    outgoingInterfaces = lib.unique (explicitOutgoingInterfaces ++ inferredOutgoingInterfaces);
+    outgoingInterfaces = lib.unique explicitOutgoingInterfaces;
 
     tenantInterfaceNames = lib.unique (
       map
