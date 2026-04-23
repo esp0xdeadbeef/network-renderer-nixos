@@ -47,6 +47,7 @@ run_one() {
           containerA = builtContainers."s-router-core-isp-b";
           containerB = builtContainers."b-router-core";
           downstreamSelector = builtContainers."s-router-downstream-selector";
+          policyOnly = builtContainers."s-router-policy-only";
           evalContainer = container:
             (flake.inputs.nixpkgs.lib.nixosSystem {
               inherit system;
@@ -56,8 +57,10 @@ run_one() {
           coreRulesA = evalContainer builtContainers."s-router-core-isp-a";
           coreRulesB = evalContainer builtContainers."s-router-core-isp-b";
           downstreamConfig = evalContainer downstreamSelector;
+          policyConfig = evalContainer policyOnly;
           downstreamIngress =
             downstreamConfig.systemd.network.networks."10-access-mgmt";
+          policyRules = policyConfig.networking.nftables.ruleset;
           hasNebulaForward =
             rules:
             lib.hasInfix "tcp dport 4242 dnat to 10.20.30.10" rules
@@ -76,6 +79,9 @@ run_one() {
                 (route.Table or null) == 2004
                 && (route.Gateway or null) == "10.10.0.23")
               (downstreamIngress.routes or [ ]);
+          hasServiceDnsPolicy =
+            lib.hasInfix "comment \\\"allow-sitea-tenants-to-mgmt-dns\\\"" policyRules
+            && lib.hasInfix "oifname \\\"downstream-mgmt\\\"" policyRules;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -93,6 +99,7 @@ run_one() {
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-b")
           && hasIngressPolicyRouting
           && hasIngressTableRoutes
+          && hasServiceDnsPolicy
           && bgpOk
       ' >/dev/null
 

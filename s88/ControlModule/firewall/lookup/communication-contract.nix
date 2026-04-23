@@ -61,6 +61,30 @@ let
     else
       { };
 
+  mergeCommunicationContracts =
+    primary: secondary:
+    let
+      p = canonicalCommunicationContract primary;
+      s = canonicalCommunicationContract secondary;
+      validServices =
+        services:
+        builtins.isList services
+        && lib.all (
+          service: builtins.isAttrs service && builtins.isString (service.name or null) && service.name != ""
+        ) services;
+    in
+    {
+      relations = if p.relations or [ ] != [ ] then p.relations else s.relations or [ ];
+      services =
+        if validServices (p.services or [ ]) && p.services or [ ] != [ ] then
+          p.services
+        else
+          s.services or [ ];
+      trafficTypes = if p.trafficTypes or [ ] != [ ] then p.trafficTypes else s.trafficTypes or [ ];
+      interfaceTags = if p.interfaceTags or { } != { } then p.interfaceTags else s.interfaceTags or { };
+      ownership = if p.ownership or { } != { } then p.ownership else s.ownership or { };
+    };
+
   logicalNode =
     if runtimeTarget ? logicalNode && builtins.isAttrs runtimeTarget.logicalNode then
       runtimeTarget.logicalNode
@@ -192,20 +216,18 @@ let
   communicationContract = firstNonEmptyAttrs [
     (
       if currentSite ? communicationContract && builtins.isAttrs currentSite.communicationContract then
-        canonicalCommunicationContract currentSite.communicationContract
+        mergeCommunicationContracts currentSite currentSite.communicationContract
       else
-        { }
+        canonicalCommunicationContract currentSite
     )
-    (canonicalCommunicationContract currentSite)
     (
       if
         forwardingSite ? communicationContract && builtins.isAttrs forwardingSite.communicationContract
       then
-        canonicalCommunicationContract forwardingSite.communicationContract
+        mergeCommunicationContracts forwardingSite forwardingSite.communicationContract
       else
-        { }
+        canonicalCommunicationContract forwardingSite
     )
-    (canonicalCommunicationContract forwardingSite)
   ];
 
   ownership = firstNonEmptyAttrs [
