@@ -247,7 +247,9 @@ let
         else
           null;
       tenantKey = policyTenantKeyFor targetName;
-      isSelector = lib.any isDownstreamSelectorInterface interfaceNames;
+      isSelector = lib.any (
+        name: isDownstreamSelectorInterface renderedInterfaceNames.${name}
+      ) interfaceNames;
       isPolicy =
         lib.any (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
         && lib.any (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) interfaceNames;
