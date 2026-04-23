@@ -264,6 +264,7 @@ let
             else
               [
                 {
+                  Family = "both";
                   IncomingInterface = interfaceName;
                   Priority = tableId;
                   Table = tableId;
