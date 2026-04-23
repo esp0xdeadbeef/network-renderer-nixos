@@ -60,6 +60,8 @@ run_one() {
           policyConfig = evalContainer policyOnly;
           downstreamIngress =
             downstreamConfig.systemd.network.networks."10-access-mgmt";
+          policyMgmtUplink =
+            policyConfig.systemd.network.networks."10-up-mgmt-a";
           policyRules = policyConfig.networking.nftables.ruleset;
           hasNebulaForward =
             rules:
@@ -82,6 +84,13 @@ run_one() {
           hasServiceDnsPolicy =
             lib.hasInfix "comment \\\"allow-sitea-tenants-to-mgmt-dns\\\"" policyRules
             && lib.hasInfix "oifname \\\"downstream-mgmt\\\"" policyRules;
+          hasPolicyMgmtIngressRoutes =
+            builtins.isList (policyMgmtUplink.routes or [ ])
+            && builtins.any
+              (route:
+                (route.Table or null) == 2004
+                && (route.Gateway or null) == "10.10.0.45")
+              (policyMgmtUplink.routes or [ ]);
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -100,6 +109,7 @@ run_one() {
           && hasIngressPolicyRouting
           && hasIngressTableRoutes
           && hasServiceDnsPolicy
+          && hasPolicyMgmtIngressRoutes
           && bgpOk
       ' >/dev/null
 
