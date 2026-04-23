@@ -234,6 +234,61 @@ let
       value = interfaceNameFor interfaces.${ifName};
     }) interfaceNames
   );
+  policyRoutingByInterface =
+    builtins.foldl'
+      (
+        acc: entry:
+        let
+          index = entry.index;
+          ifName = entry.ifName;
+          interfaceName = renderedInterfaceNames.${ifName};
+          tableId = 2000 + index;
+          sourceIfNames = routeSourceInterfacesFor interfaceName;
+          tableRoutesForSource =
+            sourceIfName:
+            let
+              sourceIface = interfaces.${sourceIfName} or { };
+            in
+            lib.filter (route: route != null) (
+              map (route: if builtins.isAttrs route then mkRoute (route // { table = tableId; }) else null) (
+                sourceIface.routes or [ ]
+              )
+            );
+          rulesForTarget =
+            if sourceIfNames == [ ] then
+              [ ]
+            else
+              [
+                {
+                  IncomingInterface = interfaceName;
+                  Priority = tableId;
+                  Table = tableId;
+                }
+              ];
+          routesByInterface = builtins.foldl' (
+            routesAcc: sourceIfName:
+            routesAcc
+            // {
+              ${sourceIfName} = (routesAcc.${sourceIfName} or [ ]) ++ tableRoutesForSource sourceIfName;
+            }
+          ) { } sourceIfNames;
+        in
+        {
+          routes = lib.recursiveUpdate acc.routes routesByInterface;
+          rules = acc.rules // {
+            ${ifName} = (acc.rules.${ifName} or [ ]) ++ rulesForTarget;
+          };
+        }
+      )
+      {
+        routes = { };
+        rules = { };
+      }
+      (
+        lib.imap0 (index: ifName: {
+          inherit index ifName;
+        }) interfaceNames
+      );
 
   routeSourceInterfacesFor =
     targetName:
@@ -275,31 +330,10 @@ let
         let
           iface = interfaces.${ifName};
           interfaceName = renderedInterfaceNames.${ifName};
-          tableId = 2000 + index;
-          baseRoutes = lib.concatMap (
-            sourceIfName:
-            let
-              sourceIface = interfaces.${sourceIfName} or { };
-            in
-            sourceIface.routes or [ ]
-          ) (routeSourceInterfacesFor interfaceName);
-          routes = lib.filter (route: route != null) (map mkRoute baseRoutes);
-          policyTableRoutes = lib.filter (route: route != null) (
-            map (
-              route: if builtins.isAttrs route then mkRoute (route // { table = tableId; }) else null
-            ) baseRoutes
-          );
-          routingPolicyRules =
-            if policyTableRoutes == [ ] then
-              [ ]
-            else
-              [
-                {
-                  IncomingInterface = interfaceName;
-                  Priority = tableId;
-                  Table = tableId;
-                }
-              ];
+          routes =
+            (lib.filter (route: route != null) (map mkRoute (iface.routes or [ ])))
+            ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
+          routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
           dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
         in
         if builtins.elem interfaceName networkManagerInterfaces then
@@ -314,7 +348,7 @@ let
               }
               // dynamicWanNetworkConfig;
               address = iface.addresses or [ ];
-              routes = routes ++ policyTableRoutes;
+              routes = routes;
               routingPolicyRules = routingPolicyRules;
             };
           }
