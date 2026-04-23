@@ -36,6 +36,43 @@ let
         ${builtins.toJSON iface}
       '';
 
+  stringHasPrefix = prefix: value: builtins.isString value && lib.hasPrefix prefix value;
+
+  downstreamPairKeyFor =
+    name:
+    if stringHasPrefix "access-" name then
+      builtins.substring 7 (builtins.stringLength name - 7) name
+    else if stringHasPrefix "policy-" name then
+      builtins.substring 7 (builtins.stringLength name - 7) name
+    else
+      null;
+
+  policyTenantKeyFor =
+    name:
+    if stringHasPrefix "downstr-" name then
+      builtins.substring 8 (builtins.stringLength name - 8) name
+    else if stringHasPrefix "downstream-" name then
+      builtins.substring 11 (builtins.stringLength name - 11) name
+    else if stringHasPrefix "up-admin" name || name == "up-adm-ew" then
+      "admin"
+    else if stringHasPrefix "up-client" name || name == "up-cli-ew" then
+      "client"
+    else if stringHasPrefix "up-cl2" name then
+      "client2"
+    else if stringHasPrefix "up-mgmt" name || name == "up-mgt-ew" then
+      "mgmt"
+    else if stringHasPrefix "up-branch" name || stringHasPrefix "upstream-branch" name then
+      "branch"
+    else
+      null;
+
+  isDownstreamSelectorInterface = name: downstreamPairKeyFor name != null;
+
+  isPolicyDownstreamInterface =
+    name: stringHasPrefix "downstr-" name || stringHasPrefix "downstream-" name;
+
+  isPolicyUpstreamInterface = name: stringHasPrefix "up-" name || stringHasPrefix "upstream-" name;
+
   mkRoute =
     route:
     if !builtins.isAttrs route then
@@ -190,8 +227,35 @@ let
   };
 
   interfaces = containerModel.interfaces or { };
-
   interfaceNames = sortedAttrNames interfaces;
+
+  routeSourceInterfacesFor =
+    targetName:
+    let
+      pairKey = downstreamPairKeyFor targetName;
+      pairPrefix =
+        if stringHasPrefix "access-" targetName then
+          "policy-"
+        else if stringHasPrefix "policy-" targetName then
+          "access-"
+        else
+          null;
+      tenantKey = policyTenantKeyFor targetName;
+      isSelector = lib.any isDownstreamSelectorInterface interfaceNames;
+      isPolicy =
+        lib.any isPolicyDownstreamInterface interfaceNames
+        && lib.any isPolicyUpstreamInterface interfaceNames;
+    in
+    if isSelector && pairKey != null && pairPrefix != null then
+      lib.filter (name: name == "${pairPrefix}${pairKey}") interfaceNames
+    else if isPolicy && tenantKey != null then
+      lib.filter (
+        name:
+        isPolicyDownstreamInterface name
+        || (isPolicyUpstreamInterface name && policyTenantKeyFor name == tenantKey)
+      ) interfaceNames
+    else
+      [ targetName ];
 
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
@@ -201,7 +265,13 @@ let
           iface = interfaces.${ifName};
           interfaceName = interfaceNameFor iface;
           tableId = 2000 + index;
-          baseRoutes = iface.routes or [ ];
+          baseRoutes = lib.concatMap (
+            sourceIfName:
+            let
+              sourceIface = interfaces.${sourceIfName} or { };
+            in
+            sourceIface.routes or [ ]
+          ) (routeSourceInterfacesFor ifName);
           routes = lib.filter (route: route != null) (map mkRoute baseRoutes);
           policyTableRoutes = lib.filter (route: route != null) (
             map (

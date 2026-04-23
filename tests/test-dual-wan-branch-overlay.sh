@@ -52,20 +52,26 @@ run_one() {
           coreRulesA = evalContainer rendered.containers."s-router-core-isp-a";
           coreRulesB = evalContainer rendered.containers."s-router-core-isp-b";
           downstreamConfig = evalContainer downstreamSelector;
-          downstreamTransit =
-            downstreamConfig.systemd.network.networks."10-policy-mgmt"
-              or downstreamConfig.systemd.network.networks."10-policy-admin";
+          downstreamIngress =
+            downstreamConfig.systemd.network.networks."10-access-mgmt";
           hasNebulaForward =
             rules:
             lib.hasInfix "tcp dport 4242 dnat to 10.20.30.10" rules
             && lib.hasInfix "udp dport 4242 dnat to 10.20.30.10" rules;
           hasIngressPolicyRouting =
-            builtins.isList (downstreamTransit.routingPolicyRules or [ ])
+            builtins.isList (downstreamIngress.routingPolicyRules or [ ])
             && builtins.any
               (rule:
-                (rule.IncomingInterface or null) == "policy-mgmt"
+                (rule.IncomingInterface or null) == "access-mgmt"
                 && builtins.isInt (rule.Table or null))
-              (downstreamTransit.routingPolicyRules or [ ]);
+              (downstreamIngress.routingPolicyRules or [ ]);
+          hasIngressTableRoutes =
+            builtins.isList (downstreamIngress.routes or [ ])
+            && builtins.any
+              (route:
+                (route.Table or null) == 2004
+                && (route.Gateway or null) == "10.10.0.23")
+              (downstreamIngress.routes or [ ]);
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -82,6 +88,7 @@ run_one() {
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-a")
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-b")
           && hasIngressPolicyRouting
+          && hasIngressTableRoutes
           && bgpOk
       ' >/dev/null
 
