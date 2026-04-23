@@ -76,6 +76,24 @@ else
 
     outgoingInterfaces = lib.unique (explicitOutgoingInterfaces ++ inferredOutgoingInterfaces);
 
+    tenantInterfaceNames = lib.unique (
+      map
+        (
+          iface:
+          if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+            iface.containerInterfaceName
+          else if iface ? interfaceName && builtins.isString iface.interfaceName then
+            iface.interfaceName
+          else
+            null
+        )
+        (
+          lib.filter (iface: builtins.isAttrs iface && (iface.sourceKind or null) == "tenant") (
+            builtins.attrValues (renderedModel.interfaces or { })
+          )
+        )
+    );
+
     accessControl = map (cidr: "${cidr} allow") allowFrom;
 
     nftRules =
@@ -95,6 +113,11 @@ else
         addr:
         "${pkgs.nftables}/bin/nft add rule inet router input ip6 daddr ${addr} tcp dport 53 accept comment \"allow-dns-service\""
       ) listen6);
+
+    directDnsLeakRules = lib.concatMap (ifName: [
+      "${pkgs.nftables}/bin/nft add rule inet router forward iifname \\\"${ifName}\\\" udp dport 53 drop comment \"deny-direct-dns-egress\""
+      "${pkgs.nftables}/bin/nft add rule inet router forward iifname \\\"${ifName}\\\" tcp dport 53 drop comment \"deny-direct-dns-egress\""
+    ]) tenantInterfaceNames;
   in
   {
     services.unbound = {
@@ -128,11 +151,13 @@ else
       script = ''
         set -euo pipefail
 
-        if ${pkgs.nftables}/bin/nft list chain inet router input | grep -q 'allow-dns-service'; then
-          exit 0
+        if ! ${pkgs.nftables}/bin/nft list chain inet router input | grep -q 'allow-dns-service'; then
+          ${lib.concatStringsSep "\n          " nftRules}
         fi
 
-        ${lib.concatStringsSep "\n        " nftRules}
+        if ! ${pkgs.nftables}/bin/nft list chain inet router forward | grep -q 'deny-direct-dns-egress'; then
+          ${lib.concatStringsSep "\n          " directDnsLeakRules}
+        fi
       '';
     };
   }
