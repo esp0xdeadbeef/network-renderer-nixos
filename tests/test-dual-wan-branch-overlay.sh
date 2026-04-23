@@ -35,22 +35,26 @@ run_one() {
             inherit system intentPath inventoryPath;
           };
           rendered = hostBuild.renderedHost;
+          builtContainers = flake.lib.containers.buildForBox {
+            boxName = "lab-host";
+            inherit system intentPath inventoryPath;
+          };
           cpm = hostBuild.controlPlaneOut.control_plane_model;
           overlayA = cpm.data.enterpriseA."site-a".overlays."east-west";
           overlayB = cpm.data.enterpriseB."site-b".overlays."east-west";
           policyA = cpm.data.enterpriseA."site-a".runtimeTargets."enterpriseA-site-a-s-router-policy";
           policyB = cpm.data.enterpriseB."site-b".runtimeTargets."enterpriseB-site-b-b-router-policy";
-          containerA = rendered.containers."s-router-core-isp-b";
-          containerB = rendered.containers."b-router-core";
-          downstreamSelector = rendered.containers."s-router-downstream-selector";
+          containerA = builtContainers."s-router-core-isp-b";
+          containerB = builtContainers."b-router-core";
+          downstreamSelector = builtContainers."s-router-downstream-selector";
           evalContainer = container:
             (flake.inputs.nixpkgs.lib.nixosSystem {
               inherit system;
               modules = [ container.config ];
             }).config;
           nftRules = container: (evalContainer container).networking.nftables.ruleset;
-          coreRulesA = evalContainer rendered.containers."s-router-core-isp-a";
-          coreRulesB = evalContainer rendered.containers."s-router-core-isp-b";
+          coreRulesA = evalContainer builtContainers."s-router-core-isp-a";
+          coreRulesB = evalContainer builtContainers."s-router-core-isp-b";
           downstreamConfig = evalContainer downstreamSelector;
           downstreamIngress =
             downstreamConfig.systemd.network.networks."10-access-mgmt";

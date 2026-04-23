@@ -280,7 +280,7 @@ let
               sourceIface = interfaces.${sourceIfName} or { };
             in
             sourceIface.routes or [ ]
-          ) (routeSourceInterfacesFor ifName);
+          ) (routeSourceInterfacesFor interfaceName);
           routes = lib.filter (route: route != null) (map mkRoute baseRoutes);
           policyTableRoutes = lib.filter (route: route != null) (
             map (
