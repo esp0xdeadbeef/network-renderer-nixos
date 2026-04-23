@@ -267,6 +267,13 @@ let
                   Family = "both";
                   IncomingInterface = interfaceName;
                   Priority = tableId;
+                  Table = 254;
+                  SuppressPrefixLength = 0;
+                }
+                {
+                  Family = "both";
+                  IncomingInterface = interfaceName;
+                  Priority = 10000 + tableId;
                   Table = tableId;
                 }
               ];
