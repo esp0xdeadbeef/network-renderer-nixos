@@ -35,6 +35,22 @@ run_one() {
             inherit system intentPath inventoryPath;
           };
           rendered = hostBuild.renderedHost;
+          hostEvaluated =
+            (flake.inputs.nixpkgs.lib.nixosSystem {
+              inherit system;
+              modules = [
+                (builtins.toPath (repoRoot + "/s88/EquipmentModule/host/default.nix"))
+                {
+                  networking.hostName = "lab-host";
+                }
+              ];
+              specialArgs = {
+                controlPlaneOut = hostBuild.controlPlaneOut;
+                globalInventory = hostBuild.globalInventory;
+                hostContext = hostBuild.hostContext;
+                renderedHostNetwork = hostBuild.renderedHost;
+              };
+            }).config;
           builtContainers = flake.lib.containers.buildForBox {
             boxName = "lab-host";
             inherit system intentPath inventoryPath;
@@ -97,6 +113,12 @@ run_one() {
                 (route.Table or null) == 2004
                 && (route.Gateway or null) == "10.10.0.45")
               (policyMgmtUplink.routes or [ ]);
+          hasHostValidationService =
+            builtins.hasAttr "s88-network-validation" hostEvaluated.systemd.services
+            && builtins.hasAttr "s88-network-validation/plan.json" hostEvaluated.environment.etc
+            && builtins.elem
+              "s88-network-validation-status"
+              (map (pkg: pkg.pname or pkg.name or "") hostEvaluated.environment.systemPackages);
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -116,6 +138,7 @@ run_one() {
           && hasIngressTableRoutes
           && hasServiceDnsPolicy
           && hasPolicyMgmtIngressRoutes
+          && hasHostValidationService
           && bgpOk
       ' >/dev/null
 
