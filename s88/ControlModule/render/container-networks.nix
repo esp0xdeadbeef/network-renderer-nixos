@@ -68,6 +68,10 @@ let
 
   isDownstreamSelectorInterface = name: downstreamPairKeyFor name != null;
 
+  isUpstreamSelectorCoreInterface = name: stringHasPrefix "core-" name;
+
+  isUpstreamSelectorPolicyInterface = name: stringHasPrefix "pol-" name;
+
   isPolicyDownstreamInterface =
     name: stringHasPrefix "downstr-" name || stringHasPrefix "downstream-" name;
 
@@ -305,12 +309,23 @@ let
       isSelector = lib.any (
         name: isDownstreamSelectorInterface renderedInterfaceNames.${name}
       ) interfaceNames;
+      isUpstreamSelector =
+        lib.any (name: isUpstreamSelectorCoreInterface renderedInterfaceNames.${name}) interfaceNames
+        && lib.any (name: isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name}) interfaceNames;
       isPolicy =
         lib.any (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
         && lib.any (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) interfaceNames;
     in
     if isSelector && pairKey != null && pairPrefix != null then
       lib.filter (name: renderedInterfaceNames.${name} == "${pairPrefix}${pairKey}") interfaceNames
+    else if isUpstreamSelector && isUpstreamSelectorCoreInterface targetName then
+      lib.filter (
+        name:
+        let
+          renderedName = renderedInterfaceNames.${name};
+        in
+        isUpstreamSelectorPolicyInterface renderedName
+      ) interfaceNames
     else if isPolicy && tenantKey != null then
       lib.filter (
         name:
