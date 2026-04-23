@@ -28,6 +28,7 @@ run_one() {
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
           exampleName = builtins.getEnv "EXAMPLE_NAME";
           flake = builtins.getFlake repoRoot;
+          lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
           hostBuild = flake.lib.renderer.buildHostFromPaths {
             selector = "lab-host";
@@ -41,6 +42,17 @@ run_one() {
           policyB = cpm.data.enterpriseB."site-b".runtimeTargets."enterpriseB-site-b-b-router-policy";
           containerA = rendered.containers."s-router-core-isp-b";
           containerB = rendered.containers."b-router-core";
+          evalContainer = container:
+            (flake.inputs.nixpkgs.lib.nixosSystem {
+              inherit system;
+              modules = [ container.config ];
+            }).config.networking.nftables.ruleset;
+          coreRulesA = evalContainer rendered.containers."s-router-core-isp-a";
+          coreRulesB = evalContainer rendered.containers."s-router-core-isp-b";
+          hasNebulaForward =
+            rules:
+            lib.hasInfix "tcp dport 4242 dnat to 10.20.30.10" rules
+            && lib.hasInfix "udp dport 4242 dnat to 10.20.30.10" rules;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -54,6 +66,8 @@ run_one() {
           && builtins.isAttrs containerB
           && overlayA.terminateOn == [ "s-router-core-isp-b" ]
           && overlayB.terminateOn == [ "b-router-core" ]
+          && hasNebulaForward coreRulesA
+          && hasNebulaForward coreRulesB
           && bgpOk
       ' >/dev/null
 

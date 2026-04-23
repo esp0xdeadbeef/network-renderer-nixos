@@ -50,6 +50,12 @@ let
     else
       [ ];
 
+  wanEntries =
+    if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? wanEntries then
+      lib.filter builtins.isAttrs interfaceView.wanEntries
+    else
+      [ ];
+
   interfaceNamesFromRuntime =
     if builtins.isAttrs interfaces then
       map (
@@ -290,15 +296,46 @@ let
     else
       [ ];
 
+  wanInterfacesForExternalEndpoint =
+    endpoint:
+    let
+      externalName = endpoint.name or null;
+      requestedUplinks =
+        if endpoint ? uplinks && builtins.isList endpoint.uplinks then
+          lib.filter builtins.isString endpoint.uplinks
+        else
+          [ ];
+      fromNamedWan = builtins.elem externalName [
+        "wan"
+        "external-wan"
+        "upstream"
+      ];
+      fromRequestedUplinks = sortedStrings (
+        map (entry: entry.name) (
+          lib.filter (
+            entry:
+            builtins.isString (entry.assignedUplinkName or null)
+            && builtins.elem entry.assignedUplinkName requestedUplinks
+          ) wanEntries
+        )
+      );
+    in
+    if requestedUplinks != [ ] then
+      fromRequestedUplinks
+    else if fromNamedWan then
+      wanNames
+    else
+      [ ];
+
   isWanToServiceAllow =
     relation:
     (relation.action or "allow") == "allow"
     && builtins.isAttrs (relation.from or null)
     && (relation.from.kind or null) == "external"
-    && (relation.from.name or null) == "wan"
     && builtins.isAttrs (relation.to or null)
     && (relation.to.kind or null) == "service"
     && builtins.isString (relation.to.name or null)
+    && wanInterfacesForExternalEndpoint relation.from != [ ]
     && builtins.hasAttr relation.to.name serviceDefinitions;
 
   serviceNatEntries = lib.concatMap (
@@ -306,6 +343,7 @@ let
     let
       serviceName = relation.to.name;
       relationName = relationNameOf relation;
+      ingressIfNames = wanInterfacesForExternalEndpoint relation.from;
       service = serviceDefinitions.${serviceName};
       trafficTypeName =
         if relation ? trafficType && builtins.isString relation.trafficType then
@@ -371,7 +409,12 @@ let
             null
           else
             {
-              inherit relationName serviceName target;
+              inherit
+                relationName
+                serviceName
+                target
+                ingressIfNames
+                ;
               family = traffic.family;
               proto = traffic.proto;
               dport = traffic.dport;
@@ -469,6 +512,11 @@ let
   portForwardForwardRules = map (
     entry:
     let
+      ingressSelector =
+        if builtins.length entry.ingressIfNames == 1 then
+          "\"${builtins.head entry.ingressIfNames}\""
+        else
+          "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") entry.ingressIfNames)} }";
       matchExpr = joinMatchParts [
         (renderInetFamilyMatch entry.family)
         (renderFamilyDaddr {
@@ -479,42 +527,39 @@ let
         })
       ];
     in
-    "iifname ${
-      if builtins.length wanNames == 1 then
-        "\"${builtins.head wanNames}\""
-      else
-        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") wanNames)} }"
-    } ${matchExpr} accept comment \"${relationNameOf { id = entry.relationName; }}\""
+    "iifname ${ingressSelector} ${matchExpr} accept comment \"${
+      relationNameOf { id = entry.relationName; }
+    }\""
   ) serviceNatEntries;
 
   natPreroutingRules4 = map (
     entry:
     let
+      ingressSelector =
+        if builtins.length entry.ingressIfNames == 1 then
+          "\"${builtins.head entry.ingressIfNames}\""
+        else
+          "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") entry.ingressIfNames)} }";
       l4Match = renderL4Match {
         inherit (entry) proto dport;
       };
     in
-    "iifname ${
-      if builtins.length wanNames == 1 then
-        "\"${builtins.head wanNames}\""
-      else
-        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") wanNames)} }"
-    } ${l4Match} dnat to ${entry.target} comment \"${entry.relationName}\""
+    "iifname ${ingressSelector} ${l4Match} dnat to ${entry.target} comment \"${entry.relationName}\""
   ) (lib.filter (entry: entry.family == "ipv4") serviceNatEntries);
 
   natPreroutingRules6 = map (
     entry:
     let
+      ingressSelector =
+        if builtins.length entry.ingressIfNames == 1 then
+          "\"${builtins.head entry.ingressIfNames}\""
+        else
+          "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") entry.ingressIfNames)} }";
       l4Match = renderL4Match {
         inherit (entry) proto dport;
       };
     in
-    "iifname ${
-      if builtins.length wanNames == 1 then
-        "\"${builtins.head wanNames}\""
-      else
-        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") wanNames)} }"
-    } ${l4Match} dnat to ${entry.target} comment \"${entry.relationName}\""
+    "iifname ${ingressSelector} ${l4Match} dnat to ${entry.target} comment \"${entry.relationName}\""
   ) (lib.filter (entry: entry.family == "ipv6") serviceNatEntries);
 
   clampMssInterfaces =
