@@ -18,6 +18,10 @@ let
     dnsProbeName = "example.com";
   };
 
+  checksAggregationFilter = pkgs.writeText "s88-network-validation-checks.jq" ''
+    map({ (.key): .value }) | add
+  '';
+
   validationScript = pkgs.writeShellScript "s88-network-validation-loop" ''
     set -euo pipefail
 
@@ -163,7 +167,7 @@ let
           '{ key: $container, value: $result }' >>"$tmp_checks"
       done
 
-      checks_json="$(${pkgs.jq}/bin/jq -cs "map({ (.key): .value }) | add" "$tmp_checks")"
+      checks_json="$(${pkgs.jq}/bin/jq -csf ${checksAggregationFilter} "$tmp_checks")"
 
       ${pkgs.jq}/bin/jq -n \
         --arg updatedAt "$now" \
