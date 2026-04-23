@@ -44,8 +44,27 @@ let
     else
       [ ];
 
+  interfaceEntries =
+    if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? interfaceEntries then
+      lib.filter builtins.isAttrs interfaceView.interfaceEntries
+    else
+      [ ];
+
+  overlayNames = sortedStrings (
+    map (
+      entry:
+      if
+        entry ? sourceKind && entry.sourceKind == "overlay" && entry ? name && builtins.isString entry.name
+      then
+        entry.name
+      else
+        null
+    ) interfaceEntries
+  );
+
   wanNames = sortedStrings (interfaceWanNames ++ wanIfs);
   lanNames = sortedStrings (interfaceLanNames ++ lanIfs);
+  forwardEgressNames = sortedStrings (wanNames ++ overlayNames);
 
   adapterNames = sortedStrings (wanNames ++ lanNames);
 
@@ -373,12 +392,12 @@ let
     if useExplicitForwarding then
       forwardingIntent.coreForwardPairs or [ ]
     else
-      lib.optionals (lanNames != [ ] && wanNames != [ ]) [
+      lib.optionals (lanNames != [ ] && forwardEgressNames != [ ]) [
         {
           "in" = lanNames;
-          "out" = wanNames;
+          "out" = forwardEgressNames;
           action = "accept";
-          comment = "core-lan-to-wan";
+          comment = "core-lan-to-egress";
         }
       ];
 
