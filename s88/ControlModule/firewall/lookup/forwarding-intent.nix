@@ -863,6 +863,23 @@ let
     else
       fallbackWanNames;
 
+  overlayInterfaceNames = sortedStrings (
+    map (entry: entry.name) (
+      lib.filter (
+        entry:
+        let
+          kind = entry.sourceKind or null;
+        in
+        kind == "overlay"
+        || (
+          entry ? backingRef
+          && builtins.isAttrs entry.backingRef
+          && (entry.backingRef.kind or null) == "overlay"
+        )
+      ) interfaceEntries
+    )
+  );
+
   normalizeForwardPair =
     pair:
     if !builtins.isAttrs pair then
@@ -985,7 +1002,7 @@ let
         )
       ];
 
-  coreForwardPairs =
+  baseCoreForwardPairs =
     if normalizedExplicitForwardPairs != [ ] then
       normalizedExplicitForwardPairs
     else
@@ -1002,6 +1019,33 @@ let
             null
         )
       ];
+
+  overlayCoreForwardPairs = lib.filter (pair: pair != null) [
+    (
+      if resolvedLanNames != [ ] && overlayInterfaceNames != [ ] then
+        {
+          "in" = resolvedLanNames;
+          "out" = overlayInterfaceNames;
+          action = "accept";
+          comment = "core-lan-to-overlay";
+        }
+      else
+        null
+    )
+    (
+      if resolvedLanNames != [ ] && overlayInterfaceNames != [ ] then
+        {
+          "in" = overlayInterfaceNames;
+          "out" = resolvedLanNames;
+          action = "accept";
+          comment = "core-overlay-to-lan";
+        }
+      else
+        null
+    )
+  ];
+
+  coreForwardPairs = baseCoreForwardPairs ++ overlayCoreForwardPairs;
 
   upstreamSelectorForwardPairs =
     if normalizedExplicitForwardPairs != [ ] then
