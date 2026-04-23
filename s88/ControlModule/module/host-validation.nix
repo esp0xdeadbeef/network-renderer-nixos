@@ -163,7 +163,7 @@ let
           '{ key: $container, value: $result }' >>"$tmp_checks"
       done
 
-      checks_json="$(${pkgs.jq}/bin/jq -cs 'map({ (.key): .value }) | add' "$tmp_checks")"
+      checks_json="$(${pkgs.jq}/bin/jq -cs "map({ (.key): .value }) | add" "$tmp_checks")"
 
       ${pkgs.jq}/bin/jq -n \
         --arg updatedAt "$now" \
