@@ -228,6 +228,12 @@ let
 
   interfaces = containerModel.interfaces or { };
   interfaceNames = sortedAttrNames interfaces;
+  renderedInterfaceNames = builtins.listToAttrs (
+    map (ifName: {
+      name = ifName;
+      value = interfaceNameFor interfaces.${ifName};
+    }) interfaceNames
+  );
 
   routeSourceInterfacesFor =
     targetName:
@@ -243,19 +249,22 @@ let
       tenantKey = policyTenantKeyFor targetName;
       isSelector = lib.any isDownstreamSelectorInterface interfaceNames;
       isPolicy =
-        lib.any isPolicyDownstreamInterface interfaceNames
-        && lib.any isPolicyUpstreamInterface interfaceNames;
+        lib.any (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
+        && lib.any (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) interfaceNames;
     in
     if isSelector && pairKey != null && pairPrefix != null then
-      lib.filter (name: name == "${pairPrefix}${pairKey}") interfaceNames
+      lib.filter (name: renderedInterfaceNames.${name} == "${pairPrefix}${pairKey}") interfaceNames
     else if isPolicy && tenantKey != null then
       lib.filter (
         name:
-        isPolicyDownstreamInterface name
-        || (isPolicyUpstreamInterface name && policyTenantKeyFor name == tenantKey)
+        let
+          renderedName = renderedInterfaceNames.${name};
+        in
+        isPolicyDownstreamInterface renderedName
+        || (isPolicyUpstreamInterface renderedName && policyTenantKeyFor renderedName == tenantKey)
       ) interfaceNames
     else
-      [ targetName ];
+      lib.filter (name: renderedInterfaceNames.${name} == targetName) interfaceNames;
 
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
@@ -263,7 +272,7 @@ let
         index: ifName:
         let
           iface = interfaces.${ifName};
-          interfaceName = interfaceNameFor iface;
+          interfaceName = renderedInterfaceNames.${ifName};
           tableId = 2000 + index;
           baseRoutes = lib.concatMap (
             sourceIfName:
