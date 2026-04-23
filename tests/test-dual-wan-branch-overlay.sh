@@ -64,6 +64,8 @@ run_one() {
           cpm = hostBuild.controlPlaneOut.control_plane_model;
           overlayA = cpm.data.enterpriseA."site-a".overlays."east-west";
           overlayB = cpm.data.enterpriseB."site-b".overlays."east-west";
+          renderedOverlayA = rendered.sites.enterpriseA."site-a".overlays."east-west";
+          renderedOverlayB = rendered.sites.enterpriseB."site-b".overlays."east-west";
           policyA = cpm.data.enterpriseA."site-a".runtimeTargets."enterpriseA-site-a-s-router-policy";
           policyB = cpm.data.enterpriseB."site-b".runtimeTargets."enterpriseB-site-b-b-router-policy";
           containerA = builtContainers."s-router-core-isp-b";
@@ -180,6 +182,8 @@ run_one() {
           && builtins.isAttrs containerB
           && overlayA.terminateOn == [ "s-router-core-isp-b" ]
           && overlayB.terminateOn == [ "b-router-core" ]
+          && renderedOverlayA.nodes."nebula-core".addr4 == "100.96.10.10/32"
+          && renderedOverlayB.nodes."branch-node01".addr4 == "100.96.10.20/32"
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-a")
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-b")
           && hasIngressPolicyRouting
