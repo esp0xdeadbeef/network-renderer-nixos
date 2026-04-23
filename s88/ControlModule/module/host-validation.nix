@@ -108,15 +108,15 @@ let
           --argjson dns_service "$dns_service" \
           --arg dns4 "$dns4" \
           --arg dns6 "$dns6" \
-          '{
+          "{
             systemState: $system_state,
             defaultRoute4: $default4,
             defaultRoute6: $default6,
             dnsService: $dns_service,
             dnsA: $dns4,
             dnsAAAA: $dns6
-          }'
-      2>/dev/null || jq -n '{ error: "check-failed" }'
+          }"
+      2>/dev/null || jq -n "{ error: \"check-failed\" }"
     }
 
     while true; do
