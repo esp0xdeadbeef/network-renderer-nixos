@@ -500,6 +500,8 @@ let
     in
     sortedStrings (lib.filter (n: n != null) (map interfaceNameForLink matches));
 
+  wanEndpointNames = if explicitWanNames != [ ] then explicitWanNames else upstreamInterfaceNames;
+
   ownershipEndpoints =
     if ownership ? endpoints && builtins.isList ownership.endpoints then
       lib.filter (
@@ -601,7 +603,9 @@ let
     in
     if token == "any" then
       allKnownInterfaces
-    else if token == "wan" || token == "external-wan" || token == "upstream" then
+    else if token == "wan" || token == "external-wan" then
+      wanEndpointNames
+    else if token == "upstream" then
       upstreamInterfaceNames
     else if uplinkMatches != [ ] then
       uplinkMatches
@@ -631,12 +635,10 @@ let
       )
     else if
       kind == "external"
-      && (
-        (endpoint.name or null) == "wan"
-        || (endpoint.name or null) == "external-wan"
-        || (endpoint.name or null) == "upstream"
-      )
+      && ((endpoint.name or null) == "wan" || (endpoint.name or null) == "external-wan")
     then
+      wanEndpointNames
+    else if kind == "external" && (endpoint.name or null) == "upstream" then
       upstreamInterfaceNames
     else if kind == "external" && endpoint ? uplinks && builtins.isList endpoint.uplinks then
       let
@@ -646,7 +648,7 @@ let
             let
               matches = resolveStringEndpoint uplinkName;
             in
-            if matches != [ ] then matches else upstreamInterfaceNames
+            if matches != [ ] then matches else wanEndpointNames
           ) endpoint.uplinks
         );
       in
