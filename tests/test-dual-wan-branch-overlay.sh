@@ -78,6 +78,8 @@ run_one() {
           nftRules = container: (evalContainer container).networking.nftables.ruleset;
           accessAdminRules = nftRules rendered.containers."s-router-access-admin";
           accessMgmtRules = nftRules rendered.containers."s-router-access-mgmt";
+          accessAdminConfig = evalContainer rendered.containers."s-router-access-admin";
+          accessMgmtConfig = evalContainer rendered.containers."s-router-access-mgmt";
           downstreamConfig = evalContainer downstreamSelector;
           policyConfig = evalContainer policyOnly;
           downstreamIngress =
@@ -128,6 +130,17 @@ run_one() {
                 (route.Table or null) == 2004
                 && (route.Gateway or null) == "10.10.0.45")
               (policyMgmtUplink.routes or [ ]);
+          hasDnsOutgoingInterfaces =
+            let
+              adminOutgoing =
+                accessAdminConfig.services.unbound.settings.server."outgoing-interface" or [ ];
+              mgmtOutgoing =
+                accessMgmtConfig.services.unbound.settings.server."outgoing-interface" or [ ];
+            in
+            builtins.elem "10.20.15.1" adminOutgoing
+            && builtins.elem "fd42:dead:beef:15::1" adminOutgoing
+            && builtins.elem "10.20.10.1" mgmtOutgoing
+            && builtins.elem "fd42:dead:beef:10::1" mgmtOutgoing;
           hasHostValidationService =
             builtins.hasAttr "s88-network-validation" hostEvaluated.systemd.services
             && builtins.hasAttr "s88-network-validation/plan.json" hostEvaluated.environment.etc
@@ -158,6 +171,7 @@ run_one() {
           && hasServiceDnsPolicy
           && hasDirectDnsDropOrdering
           && hasPolicyMgmtIngressRoutes
+          && hasDnsOutgoingInterfaces
           && hasHostValidationService
           && hasEscapedValidationJqVars
           && bgpOk
