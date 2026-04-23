@@ -50,6 +50,41 @@ let
     else
       [ ];
 
+  interfaceNamesFromRuntime =
+    if builtins.isAttrs interfaces then
+      map (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+        in
+        if
+          iface ? containerInterfaceName
+          && builtins.isString iface.containerInterfaceName
+          && iface.containerInterfaceName != ""
+        then
+          iface.containerInterfaceName
+        else if
+          iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != ""
+        then
+          iface.interfaceName
+        else if
+          iface ? hostInterfaceName
+          && builtins.isString iface.hostInterfaceName
+          && iface.hostInterfaceName != ""
+        then
+          iface.hostInterfaceName
+        else if
+          iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != ""
+        then
+          iface.renderedIfName
+        else if iface ? ifName && builtins.isString iface.ifName && iface.ifName != "" then
+          iface.ifName
+        else
+          null
+      ) (lib.sort builtins.lessThan (builtins.attrNames interfaces))
+    else
+      [ ];
+
   overlayNames = sortedStrings (
     map (
       entry:
@@ -78,9 +113,15 @@ let
     ) interfaceEntries
   );
 
+  overlayNamesFromRuntime = sortedStrings (
+    lib.filter (
+      name: builtins.isString name && (lib.hasPrefix "overlay" name || lib.hasPrefix "ovl-" name)
+    ) interfaceNamesFromRuntime
+  );
+
   wanNames = sortedStrings (interfaceWanNames ++ wanIfs);
   lanNames = sortedStrings (interfaceLanNames ++ lanIfs);
-  forwardEgressNames = sortedStrings (wanNames ++ overlayNames);
+  forwardEgressNames = sortedStrings (wanNames ++ overlayNames ++ overlayNamesFromRuntime);
 
   adapterNames = sortedStrings (wanNames ++ lanNames);
 
