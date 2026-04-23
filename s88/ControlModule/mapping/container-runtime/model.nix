@@ -76,8 +76,44 @@ let
     let
       ifaceOverlayName = overlayNameForInterface iface;
       routes = if iface ? routes && builtins.isList iface.routes then iface.routes else [ ];
+
+      resolveNextHopForRoute =
+        route:
+        let
+          peerSite = if route ? peerSite && builtins.isString route.peerSite then route.peerSite else null;
+          overlayName =
+            if route ? overlay && builtins.isString route.overlay then route.overlay else ifaceOverlayName;
+          endpointKey =
+            if peerSite != null && overlayName != null then "${peerSite}::${overlayName}" else null;
+          nextHop = if endpointKey != null then overlayEndpoints.${endpointKey} or { } else { };
+        in
+        {
+          via4 = if nextHop ? via4 then nextHop.via4 else null;
+          via6 = if nextHop ? via6 then nextHop.via6 else null;
+        };
+
+      peerLinkRoutes = lib.unique (
+        lib.concatMap (
+          route:
+          if !overlayRouteLike route then
+            [ ]
+          else
+            let
+              nextHop = resolveNextHopForRoute route;
+            in
+            (lib.optional (nextHop.via4 != null) {
+              dst = "${nextHop.via4}/32";
+              scope = "link";
+            })
+            ++ (lib.optional (nextHop.via6 != null) {
+              dst = "${nextHop.via6}/128";
+              scope = "link";
+            })
+        ) routes
+      );
     in
-    map (
+    peerLinkRoutes
+    ++ map (
       route:
       if
         !overlayRouteLike route
@@ -87,18 +123,13 @@ let
         route
       else
         let
-          peerSite = if route ? peerSite && builtins.isString route.peerSite then route.peerSite else null;
-          overlayName =
-            if route ? overlay && builtins.isString route.overlay then route.overlay else ifaceOverlayName;
-          endpointKey =
-            if peerSite != null && overlayName != null then "${peerSite}::${overlayName}" else null;
-          nextHop = if endpointKey != null then overlayEndpoints.${endpointKey} or { } else { };
+          nextHop = resolveNextHopForRoute route;
         in
         route
-        // lib.optionalAttrs (!(route ? via4) && nextHop ? via4 && nextHop.via4 != null) {
+        // lib.optionalAttrs (!(route ? via4) && nextHop.via4 != null) {
           via4 = nextHop.via4;
         }
-        // lib.optionalAttrs (!(route ? via6) && nextHop ? via6 && nextHop.via6 != null) {
+        // lib.optionalAttrs (!(route ? via6) && nextHop.via6 != null) {
           via6 = nextHop.via6;
         }
     ) routes;
