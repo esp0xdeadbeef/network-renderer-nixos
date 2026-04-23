@@ -124,6 +124,7 @@ let
       name: builtins.isString name && (lib.hasPrefix "overlay" name || lib.hasPrefix "ovl-" name)
     ) interfaceNamesFromRuntime
   );
+  overlayIngressNames = sortedStrings (overlayNames ++ overlayNamesFromRuntime);
 
   wanNames = sortedStrings (interfaceWanNames ++ wanIfs);
   lanNames = sortedStrings (interfaceLanNames ++ lanIfs);
@@ -572,7 +573,15 @@ let
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
     ''
-  ];
+  ]
+  ++ lib.optional (overlayIngressNames != [ ]) ''
+    iifname ${
+      if builtins.length overlayIngressNames == 1 then
+        "\"${builtins.head overlayIngressNames}\""
+      else
+        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") overlayIngressNames)} }"
+    } accept comment "allow-overlay-to-core"
+  '';
 
   _validateCoreAdapterCount =
     if builtins.length adapterNames == 1 then
