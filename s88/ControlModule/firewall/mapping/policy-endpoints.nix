@@ -500,7 +500,39 @@ let
     in
     sortedStrings (lib.filter (n: n != null) (map interfaceNameForLink matches));
 
-  wanEndpointNames = if explicitWanNames != [ ] then explicitWanNames else upstreamInterfaceNames;
+  routesOf =
+    entry:
+    let
+      routes = entryFieldOr entry "routes" null;
+    in
+    if builtins.isAttrs routes then
+      lib.concatLists (builtins.attrValues routes)
+    else if builtins.isList routes then
+      routes
+    else
+      [ ];
+
+  routeIsDefault =
+    route:
+    builtins.isAttrs route && ((route.dst or null) == "0.0.0.0/0" || (route.dst or null) == "::/0");
+
+  exitUpstreamInterfaceNames = sortedStrings (
+    map (entry: entry.name) (
+      lib.filter (
+        entry:
+        builtins.elem (entry.name or null) upstreamInterfaceNames
+        && builtins.any routeIsDefault (routesOf entry)
+      ) interfaceEntries
+    )
+  );
+
+  wanEndpointNames =
+    if explicitWanNames != [ ] then
+      explicitWanNames
+    else if exitUpstreamInterfaceNames != [ ] then
+      exitUpstreamInterfaceNames
+    else
+      upstreamInterfaceNames;
 
   ownershipEndpoints =
     if ownership ? endpoints && builtins.isList ownership.endpoints then
