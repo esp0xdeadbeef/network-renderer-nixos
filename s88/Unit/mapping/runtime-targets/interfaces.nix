@@ -274,12 +274,23 @@ let
 
       upstream = identityPartToString (iface.upstream or null);
 
+      bridgeBackingRefId =
+        if
+          sourceKind == "overlay"
+          && backingRef ? name
+          && builtins.isString backingRef.name
+          && backingRef.name != ""
+        then
+          "overlay::${backingRef.name}"
+        else
+          backingRefId;
+
       segments = lib.filter builtins.isString (
         [
           "rt"
           sourceKind
           backingRefKind
-          backingRefId
+          bridgeBackingRefId
         ]
         ++ lib.optionals (upstream != null) [ upstream ]
       );
