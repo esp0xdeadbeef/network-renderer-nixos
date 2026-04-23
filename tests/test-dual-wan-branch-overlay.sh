@@ -76,8 +76,8 @@ run_one() {
               modules = [ container.config ];
             }).config;
           nftRules = container: (evalContainer container).networking.nftables.ruleset;
-          coreRulesA = evalContainer builtContainers."s-router-core-isp-a";
-          coreRulesB = evalContainer builtContainers."s-router-core-isp-b";
+          accessAdminRules = nftRules rendered.containers."s-router-access-admin";
+          accessMgmtRules = nftRules rendered.containers."s-router-access-mgmt";
           downstreamConfig = evalContainer downstreamSelector;
           policyConfig = evalContainer policyOnly;
           downstreamIngress =
@@ -112,6 +112,15 @@ run_one() {
           hasServiceDnsPolicy =
             lib.hasInfix "comment \\\"allow-sitea-tenants-to-mgmt-dns\\\"" policyRules
             && lib.hasInfix "oifname \\\"downstream-mgmt\\\"" policyRules;
+          hasDirectDnsDropOrdering =
+            builtins.match
+              "(.|\\n)*deny-direct-dns-egress(.|\\n)*iifname \\\"tenant-admin\\\" oifname \\\"transit\\\" accept(.|\\n)*"
+              accessAdminRules
+            != null
+            && builtins.match
+              "(.|\\n)*deny-direct-dns-egress(.|\\n)*iifname \\\"tenant-mgmt\\\" oifname \\\"transit\\\" accept(.|\\n)*"
+              accessMgmtRules
+            != null;
           hasPolicyMgmtIngressRoutes =
             builtins.isList (policyMgmtUplink.routes or [ ])
             && builtins.any
@@ -147,6 +156,7 @@ run_one() {
           && hasIngressPolicyRouting
           && hasIngressTableRoutes
           && hasServiceDnsPolicy
+          && hasDirectDnsDropOrdering
           && hasPolicyMgmtIngressRoutes
           && hasHostValidationService
           && hasEscapedValidationJqVars
