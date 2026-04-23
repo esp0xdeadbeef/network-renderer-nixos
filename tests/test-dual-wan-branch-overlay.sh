@@ -72,7 +72,13 @@ run_one() {
             && builtins.any
               (rule:
                 (rule.IncomingInterface or null) == "access-mgmt"
-                && builtins.isInt (rule.Table or null))
+                && (rule.Table or null) == 254
+                && (rule.SuppressPrefixLength or null) == 0)
+              (downstreamIngress.routingPolicyRules or [ ])
+            && builtins.any
+              (rule:
+                (rule.IncomingInterface or null) == "access-mgmt"
+                && (rule.Table or null) == 2004)
               (downstreamIngress.routingPolicyRules or [ ]);
           hasIngressTableRoutes =
             builtins.isList (downstreamIngress.routes or [ ])
