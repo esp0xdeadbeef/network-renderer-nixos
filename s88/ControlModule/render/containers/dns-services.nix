@@ -107,8 +107,8 @@ else
       ) listen6);
 
     directDnsLeakRules = lib.concatMap (ifName: [
-      "${pkgs.nftables}/bin/nft add rule inet router forward iifname \\\"${ifName}\\\" udp dport 53 drop comment \"deny-direct-dns-egress\""
-      "${pkgs.nftables}/bin/nft add rule inet router forward iifname \\\"${ifName}\\\" tcp dport 53 drop comment \"deny-direct-dns-egress\""
+      "${pkgs.nftables}/bin/nft insert rule inet router forward iifname \\\"${ifName}\\\" udp dport 53 drop comment \"deny-direct-dns-egress\""
+      "${pkgs.nftables}/bin/nft insert rule inet router forward iifname \\\"${ifName}\\\" tcp dport 53 drop comment \"deny-direct-dns-egress\""
     ]) tenantInterfaceNames;
   in
   {
