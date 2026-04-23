@@ -538,7 +538,11 @@ let
           else
             [ ];
 
-        providerTenants = lib.filter (tenant: tenant != null) (map providerTenantFor providers);
+        providerTenants =
+          if service ? providerTenants && builtins.isList service.providerTenants then
+            lib.filter builtins.isString service.providerTenants
+          else
+            lib.filter (tenant: tenant != null) (map providerTenantFor providers);
 
         interfaces = sortedStrings (
           lib.filter (iface: iface != null) (
