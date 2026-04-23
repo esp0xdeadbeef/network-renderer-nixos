@@ -279,7 +279,13 @@ let
           ) { } sourceIfNames;
         in
         {
-          routes = lib.recursiveUpdate acc.routes routesByInterface;
+          routes = builtins.foldl' (
+            routesAcc: sourceIfName:
+            routesAcc
+            // {
+              ${sourceIfName} = (routesAcc.${sourceIfName} or [ ]) ++ (routesByInterface.${sourceIfName} or [ ]);
+            }
+          ) acc.routes (builtins.attrNames routesByInterface);
           rules = acc.rules // {
             ${ifName} = (acc.rules.${ifName} or [ ]) ++ rulesForTarget;
           };
