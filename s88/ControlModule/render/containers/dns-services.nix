@@ -66,7 +66,11 @@ else
       else
         [ ];
 
-    outgoingInterfaces = lib.unique explicitOutgoingInterfaces;
+    derivedOutgoingInterfaces = lib.filter (addr: addr != "127.0.0.1" && addr != "::1") listenAddresses;
+
+    outgoingInterfaces = lib.unique (
+      if explicitOutgoingInterfaces != [ ] then explicitOutgoingInterfaces else derivedOutgoingInterfaces
+    );
 
     tenantInterfaceNames = lib.unique (
       map
