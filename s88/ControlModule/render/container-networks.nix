@@ -72,6 +72,9 @@ let
         // lib.optionalAttrs (destination != null) {
           Destination = destination;
         }
+        // lib.optionalAttrs (route ? table && builtins.isInt route.table) {
+          Table = route.table;
+        }
         // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) {
           Metric = route.metric;
         };
@@ -188,14 +191,34 @@ let
 
   interfaces = containerModel.interfaces or { };
 
+  interfaceNames = sortedAttrNames interfaces;
+
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
-      map (
-        ifName:
+      lib.imap0 (
+        index: ifName:
         let
           iface = interfaces.${ifName};
           interfaceName = interfaceNameFor iface;
-          routes = lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]));
+          tableId = 2000 + index;
+          baseRoutes = iface.routes or [ ];
+          routes = lib.filter (route: route != null) (map mkRoute baseRoutes);
+          policyTableRoutes = lib.filter (route: route != null) (
+            map (
+              route: if builtins.isAttrs route then mkRoute (route // { table = tableId; }) else null
+            ) baseRoutes
+          );
+          routingPolicyRules =
+            if policyTableRoutes == [ ] then
+              [ ]
+            else
+              [
+                {
+                  IncomingInterface = interfaceName;
+                  Priority = tableId;
+                  Table = tableId;
+                }
+              ];
           dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
         in
         if builtins.elem interfaceName networkManagerInterfaces then
@@ -210,10 +233,11 @@ let
               }
               // dynamicWanNetworkConfig;
               address = iface.addresses or [ ];
-              routes = routes;
+              routes = routes ++ policyTableRoutes;
+              routingPolicyRules = routingPolicyRules;
             };
           }
-      ) (sortedAttrNames interfaces)
+      ) interfaceNames
     )
   );
   ipv6AcceptRAInterfaces = map interfaceNameFor (
