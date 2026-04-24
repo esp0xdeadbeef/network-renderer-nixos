@@ -18,6 +18,50 @@ let
       runtimeTarget.services.mdns
     else
       null;
+
+  renderedInterfaces =
+    if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces then
+      builtins.attrValues renderedModel.interfaces
+    else
+      [ ];
+
+  resolveInterfaceNames =
+    requested:
+    lib.unique (
+      lib.concatMap (
+        request:
+        let
+          matching = lib.filter (
+            iface:
+            builtins.isAttrs iface
+            && builtins.any (candidate: candidate == request) (
+              lib.filter builtins.isString [
+                (iface.containerInterfaceName or null)
+                (iface.hostInterfaceName or null)
+                (iface.interfaceName or null)
+                (iface.ifName or null)
+                (iface.name or null)
+              ]
+            )
+          ) renderedInterfaces;
+          resolved = map (
+            iface:
+            if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+              iface.containerInterfaceName
+            else if iface ? interfaceName && builtins.isString iface.interfaceName then
+              iface.interfaceName
+            else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
+              iface.hostInterfaceName
+            else if iface ? ifName && builtins.isString iface.ifName then
+              iface.ifName
+            else
+              null
+          ) matching;
+          cleaned = lib.filter builtins.isString resolved;
+        in
+        if cleaned != [ ] then cleaned else [ request ]
+      ) requested
+    );
 in
 if !(builtins.isAttrs mdnsService) then
   { }
@@ -25,13 +69,13 @@ else
   let
     allowInterfaces =
       if mdnsService ? allowInterfaces && builtins.isList mdnsService.allowInterfaces then
-        lib.filter builtins.isString mdnsService.allowInterfaces
+        resolveInterfaceNames (lib.filter builtins.isString mdnsService.allowInterfaces)
       else
         [ ];
 
     denyInterfaces =
       if mdnsService ? denyInterfaces && builtins.isList mdnsService.denyInterfaces then
-        lib.filter builtins.isString mdnsService.denyInterfaces
+        resolveInterfaceNames (lib.filter builtins.isString mdnsService.denyInterfaces)
       else
         [ ];
 
