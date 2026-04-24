@@ -2,9 +2,10 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-search_root="${repo_root}/../network-labs/examples"
 
 source "${repo_root}/tests/lib/test-common.sh"
+
+search_root="$(flake_input_path network-labs)/examples"
 
 run_one() {
   local example_name="$1"
@@ -182,6 +183,10 @@ run_one() {
           && builtins.isAttrs containerB
           && overlayA.terminateOn == [ "s-router-core-isp-b" ]
           && overlayB.terminateOn == [ "b-router-core" ]
+          && renderedOverlayA.ipam.ipv4.prefix == "100.96.10.0/24"
+          && renderedOverlayA.ipam.ipv6.prefix == "fd42:dead:beef:ee::/64"
+          && renderedOverlayB.ipam.ipv4.prefix == "100.96.10.0/24"
+          && renderedOverlayB.ipam.ipv6.prefix == "fd42:dead:beef:ee::/64"
           && renderedOverlayA.nodes."nebula-core".addr4 == "100.96.10.10/32"
           && renderedOverlayB.nodes."branch-node01".addr4 == "100.96.10.20/32"
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-a")
