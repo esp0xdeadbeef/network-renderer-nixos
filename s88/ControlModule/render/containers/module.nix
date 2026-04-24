@@ -176,35 +176,20 @@ let
         ) (builtins.attrValues (renderedModel.interfaces or { }))
       );
 
-  ipv6AcceptRAServices = builtins.listToAttrs (
-    map (interfaceName: {
-      name = "s88-ipv6-accept-ra-${interfaceName}";
-      value = {
-        description = "Enable IPv6 router advertisements on ${interfaceName}";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "systemd-networkd.service" ];
-        wants = [ "systemd-networkd.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          for _ in $(seq 1 30); do
-            if [ -e /proc/sys/net/ipv6/conf/${interfaceName}/accept_ra ]; then
-              ${pkgs.procps}/bin/sysctl -w net.ipv6.conf.${interfaceName}.accept_ra=2
-              ${pkgs.iproute2}/bin/ip link set dev ${interfaceName} down
-              sleep 1
-              ${pkgs.iproute2}/bin/ip link set dev ${interfaceName} up
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "interface ${interfaceName} did not appear" >&2
-          exit 1
-        '';
-      };
-    }) containerIpv6AcceptRAInterfaces
-  );
+  ipv6AcceptRASysctls =
+    if containerIpv6AcceptRAInterfaces == [ ] then
+      { }
+    else
+      {
+        "net.ipv6.conf.all.accept_ra" = 2;
+        "net.ipv6.conf.default.accept_ra" = 2;
+      }
+      // builtins.listToAttrs (
+        map (interfaceName: {
+          name = "net.ipv6.conf.${interfaceName}.accept_ra";
+          value = 2;
+        }) containerIpv6AcceptRAInterfaces
+      );
 
   networkManagerConnections = builtins.listToAttrs (
     map (interfaceName: {
@@ -298,12 +283,7 @@ in
     })
 
     (lib.optionalAttrs (containerIpv6AcceptRAInterfaces != [ ]) {
-      boot.kernel.sysctl = {
-        "net.ipv6.conf.all.accept_ra" = 2;
-        "net.ipv6.conf.default.accept_ra" = 2;
-      };
-
-      systemd.services = ipv6AcceptRAServices;
+      boot.kernel.sysctl = ipv6AcceptRASysctls;
     })
 
     (lib.optionalAttrs (containerInterfaceRenameService != { }) {

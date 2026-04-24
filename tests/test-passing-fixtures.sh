@@ -35,10 +35,11 @@ nix eval \
     let
       f = builtins.getFlake (toString '"${repo_root}"');
       s = builtins.currentSystem;
+      exampleDir = f.inputs.network-labs.outPath + "/examples/single-wan";
       v = f.libBySystem.${s}.renderer.vm.build {
-        intentPath = '"${repo_root}"'/tests/fixtures/passing/s-router-test/intent.nix;
-        inventoryPath = '"${repo_root}"'/tests/fixtures/passing/s-router-test/inventory-nixos.nix;
-        boxName = "s-router-test";
+        intentPath = exampleDir + "/intent.nix";
+        inventoryPath = exampleDir + "/inventory-nixos.nix";
+        boxName = "lab-host";
       };
     in
     v.boxName

@@ -83,6 +83,7 @@ run_one() {
           accessMgmtRules = nftRules rendered.containers."s-router-access-mgmt";
           accessAdminConfig = evalContainer rendered.containers."s-router-access-admin";
           accessMgmtConfig = evalContainer rendered.containers."s-router-access-mgmt";
+          siteCoreWanAConfig = evalContainer rendered.containers."s-router-core-isp-a";
           siteCoreConfig = evalContainer containerA;
           branchCoreConfig = evalContainer containerB;
           downstreamConfig = evalContainer downstreamSelector;
@@ -203,6 +204,15 @@ run_one() {
             && builtins.elem "fd42:dead:beef:15::1" adminOutgoing
             && builtins.elem "10.20.10.1" mgmtOutgoing
             && builtins.elem "fd42:dead:beef:10::1" mgmtOutgoing;
+          hasDeclarativeIpv6AcceptRA =
+            let
+              sysctls = siteCoreWanAConfig.boot.kernel.sysctl or { };
+              services = siteCoreWanAConfig.systemd.services or { };
+            in
+            (sysctls."net.ipv6.conf.all.accept_ra" or null) == 2
+            && (sysctls."net.ipv6.conf.default.accept_ra" or null) == 2
+            && (sysctls."net.ipv6.conf.upstream.accept_ra" or null) == 2
+            && !(builtins.hasAttr "s88-ipv6-accept-ra-upstream" services);
           hasHostValidationService =
             builtins.hasAttr "s88-network-validation" hostEvaluated.systemd.services
             && builtins.hasAttr "s88-network-validation/plan.json" hostEvaluated.environment.etc
@@ -243,6 +253,7 @@ run_one() {
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
           && hasDnsOutgoingInterfaces
+          && hasDeclarativeIpv6AcceptRA
           && hasHostValidationService
           && hasEscapedValidationJqVars
           && bgpOk

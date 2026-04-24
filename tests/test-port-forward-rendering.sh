@@ -4,9 +4,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-fixture_dir="${repo_root}/tests/fixtures/passing/s-router-test"
-intent_path="${fixture_dir}/intent.nix"
-inventory_path="${fixture_dir}/inventory-nixos.nix"
+example_dir="$(flake_input_path network-labs)/examples/single-wan"
+intent_path="${example_dir}/intent.nix"
+inventory_path="${example_dir}/inventory-nixos.nix"
 
 core_rules="$(
   REPO_ROOT="${repo_root}" \
@@ -22,7 +22,7 @@ core_rules="$(
         flake = builtins.getFlake repoRoot;
         system = "x86_64-linux";
         hostBuild = flake.lib.renderer.buildHostFromPaths {
-          selector = "s-router-test";
+          selector = "lab-host";
           inherit system intentPath inventoryPath;
         };
         container = hostBuild.renderedHost.containers.s-router-core-wan;
@@ -49,10 +49,10 @@ policy_rules="$(
         flake = builtins.getFlake repoRoot;
         system = "x86_64-linux";
         hostBuild = flake.lib.renderer.buildHostFromPaths {
-          selector = "s-router-test";
+          selector = "lab-host";
           inherit system intentPath inventoryPath;
         };
-        container = hostBuild.renderedHost.containers.s-router-policy-only;
+        container = hostBuild.renderedHost.containers.s-router-policy;
         evaluated = flake.inputs.nixpkgs.lib.nixosSystem {
           inherit system;
           modules = [ container.config ];
@@ -74,10 +74,11 @@ grep -q 'tcp dport 443 dnat to 10.20.15.10' <<<"${core_rules}" \
   || fail "missing admin-web HTTPS port-forward rule"
 grep -q 'allow-wan-to-admin-web' <<<"${policy_rules}" \
   || fail "missing admin-web forward rule on policy-only"
-grep -Eq 'iifname "(s-router-|upstream-)' <<<"${policy_rules}" \
-  || fail "missing policy-only ingress selector for WAN-exposed service"
-if grep -q 'allow-wan-to-admin-web".*oifname' <<<"${policy_rules}"; then
-  fail "policy-only WAN service forward rule is over-constrained by oifname"
-fi
+grep -q 'iifname "ens3" oifname "ens7" meta l4proto tcp tcp dport { 80, 443 } accept comment "allow-wan-to-admin-web"' <<<"${policy_rules}" \
+  || fail "missing WAN ingress rule for admin-web on first uplink"
+grep -q 'iifname "ens4" oifname "ens7" meta l4proto tcp tcp dport { 80, 443 } accept comment "allow-wan-to-admin-web"' <<<"${policy_rules}" \
+  || fail "missing WAN ingress rule for admin-web on second uplink"
+grep -q 'iifname "ens5" oifname "ens7" meta l4proto tcp tcp dport { 80, 443 } accept comment "allow-wan-to-admin-web"' <<<"${policy_rules}" \
+  || fail "missing WAN ingress rule for admin-web on third uplink"
 
 pass "port-forward-rendering"
