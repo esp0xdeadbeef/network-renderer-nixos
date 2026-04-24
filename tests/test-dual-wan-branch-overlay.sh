@@ -83,13 +83,33 @@ run_one() {
           accessMgmtRules = nftRules rendered.containers."s-router-access-mgmt";
           accessAdminConfig = evalContainer rendered.containers."s-router-access-admin";
           accessMgmtConfig = evalContainer rendered.containers."s-router-access-mgmt";
+          siteCoreConfig = evalContainer containerA;
+          branchCoreConfig = evalContainer containerB;
           downstreamConfig = evalContainer downstreamSelector;
           policyConfig = evalContainer policyOnly;
           downstreamIngress =
             downstreamConfig.systemd.network.networks."10-access-mgmt";
+          siteCoreOverlay =
+            siteCoreConfig.systemd.network.networks."10-overlay-west";
+          siteCoreUpstream =
+            siteCoreConfig.systemd.network.networks."10-upstream";
+          branchCoreOverlay =
+            branchCoreConfig.systemd.network.networks."10-overlay-west";
+          branchCoreUpstream =
+            branchCoreConfig.systemd.network.networks."10-upstream";
           policyMgmtUplink =
             policyConfig.systemd.network.networks."10-up-mgmt-a";
           policyRules = policyConfig.networking.nftables.ruleset;
+          ingressTableFor =
+            network:
+            let
+              rule =
+                lib.findFirst
+                  (candidate: (candidate.SuppressPrefixLength or null) == null && (candidate.Table or null) != null)
+                  null
+                  (network.routingPolicyRules or [ ]);
+            in
+            if rule == null then null else rule.Table;
           hasNebulaForward =
             rules:
             lib.hasInfix "tcp dport 4242 dnat to 10.20.30.10" rules
@@ -133,6 +153,29 @@ run_one() {
             in
             lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
             && lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
+          hasCoreIngressOverlayRoutes =
+            let
+              siteCoreOverlayTable = ingressTableFor siteCoreOverlay;
+              siteCoreUpstreamTable = ingressTableFor siteCoreUpstream;
+              branchCoreOverlayTable = ingressTableFor branchCoreOverlay;
+              branchCoreUpstreamTable = ingressTableFor branchCoreUpstream;
+              hasRoute =
+                network: destination: gateway: table:
+                builtins.any
+                  (route:
+                    (route.Table or null) == table
+                    && (route.Destination or null) == destination
+                    && (route.Gateway or null) == gateway)
+                  (network.routes or [ ]);
+            in
+            hasRoute siteCoreOverlay "10.20.10.0/24" "10.10.0.13" siteCoreOverlayTable
+            && hasRoute siteCoreOverlay "fd42:dead:beef:10::/64" "fd42:dead:beef:1000::d" siteCoreOverlayTable
+            && hasRoute siteCoreUpstream "10.60.10.0/24" "100.96.10.2" siteCoreUpstreamTable
+            && hasRoute siteCoreUpstream "fd42:dead:feed:10::/64" "fd42:dead:beef:ee::2" siteCoreUpstreamTable
+            && hasRoute branchCoreOverlay "10.20.10.0/24" "100.96.10.1" branchCoreOverlayTable
+            && hasRoute branchCoreOverlay "fd42:dead:beef:10::/64" "fd42:dead:beef:ee::1" branchCoreOverlayTable
+            && hasRoute branchCoreUpstream "10.20.10.0/24" "100.96.10.1" branchCoreUpstreamTable
+            && hasRoute branchCoreUpstream "fd42:dead:beef:10::/64" "fd42:dead:beef:ee::1" branchCoreUpstreamTable;
           hasBranchDnsWanScoping =
             let
               branchPolicyRules = nftRules rendered.containers."b-router-policy";
@@ -196,6 +239,7 @@ run_one() {
           && hasServiceDnsPolicy
           && hasDirectDnsDropOrdering
           && hasCoreOverlayInputAccept
+          && hasCoreIngressOverlayRoutes
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
           && hasDnsOutgoingInterfaces
