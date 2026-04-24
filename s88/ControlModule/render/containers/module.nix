@@ -253,6 +253,14 @@ let
       ;
   };
 
+  mdnsServices = import ./mdns-services.nix {
+    inherit
+      lib
+      pkgs
+      renderedModel
+      ;
+  };
+
   bgpServices = import ./bgp-services.nix {
     inherit
       lib
@@ -292,6 +300,7 @@ in
 
     accessServices
     dnsServices
+    mdnsServices
     bgpServices
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;

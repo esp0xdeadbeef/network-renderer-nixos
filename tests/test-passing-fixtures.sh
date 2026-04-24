@@ -59,3 +59,9 @@ nix eval \
 
 # Regression: WAN-exposed services must synthesize concrete DNAT rules.
 "${repo_root}/tests/test-port-forward-rendering.sh"
+
+# Regression: DNS runtime targets must be able to render authoritative local zones/records.
+"${repo_root}/tests/test-dns-local-records.sh"
+
+# Regression: runtime targets must be able to render modeled mDNS reflector settings.
+"${repo_root}/tests/test-mdns-service.sh"
