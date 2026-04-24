@@ -1,7 +1,11 @@
+let
+  flake = builtins.getFlake (toString ./.);
+  exampleDir = flake.inputs.network-labs.outPath + "/examples/single-wan";
+in
 {
-  boxName = "s-router-test";
+  boxName = "lab-host";
   testingSpoofedHostHeadersEnabled = true;
 
-  intentPath = ./tests/fixtures/passing/s-router-test/intent.nix;
-  inventoryPath = ./tests/fixtures/passing/s-router-test/inventory-nixos.nix;
+  intentPath = exampleDir + "/intent.nix";
+  inventoryPath = exampleDir + "/inventory-nixos.nix";
 }

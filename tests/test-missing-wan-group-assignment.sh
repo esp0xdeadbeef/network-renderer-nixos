@@ -2,9 +2,10 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-search_root="${repo_root}/../network-labs/examples"
 
 source "${repo_root}/tests/lib/test-common.sh"
+
+search_root="$(flake_input_path network-labs)/examples"
 
 case_dir="${search_root}/dual-wan-branch-overlay"
 intent_path="${case_dir}/intent.nix"
