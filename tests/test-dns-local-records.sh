@@ -50,9 +50,9 @@ REPO_ROOT="${repo_root}" nix eval \
     in
       builtins.elem "printer. static" localZones
       && builtins.elem "home-users. static" localZones
-      && builtins.elem "test-machine-01.printer. IN A 10.20.0.10" localData
-      && builtins.elem "test-machine-01.printer. IN AAAA fd00:20::10" localData
-      && builtins.elem "tv-01.home-users. IN A 10.20.0.20" localData
+      && builtins.elem "\"test-machine-01.printer. IN A 10.20.0.10\"" localData
+      && builtins.elem "\"test-machine-01.printer. IN AAAA fd00:20::10\"" localData
+      && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
   ' >/dev/null || {
     echo "FAIL dns-local-records" >&2
     exit 1
