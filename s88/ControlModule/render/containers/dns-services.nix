@@ -60,6 +60,22 @@ else
       else
         [ ];
 
+    localZones =
+      if dnsService ? localZones && builtins.isList dnsService.localZones then
+        lib.filter (
+          zone: builtins.isAttrs zone && builtins.isString (zone.name or null) && zone.name != ""
+        ) dnsService.localZones
+      else
+        [ ];
+
+    localRecords =
+      if dnsService ? localRecords && builtins.isList dnsService.localRecords then
+        lib.filter (
+          record: builtins.isAttrs record && builtins.isString (record.name or null) && record.name != ""
+        ) dnsService.localRecords
+      else
+        [ ];
+
     explicitOutgoingInterfaces =
       if dnsService ? outgoingInterfaces && builtins.isList dnsService.outgoingInterfaces then
         lib.filter builtins.isString dnsService.outgoingInterfaces
@@ -91,6 +107,19 @@ else
     );
 
     accessControl = map (cidr: "${cidr} allow") allowFrom;
+
+    localZoneSettings = map (zone: "${zone.name} ${zone.type or "static"}") localZones;
+
+    localDataSettings = lib.concatMap (
+      record:
+      let
+        name = record.name;
+        a = if builtins.isList (record.a or null) then lib.filter builtins.isString record.a else [ ];
+        aaaa =
+          if builtins.isList (record.aaaa or null) then lib.filter builtins.isString record.aaaa else [ ];
+      in
+      (map (addr: "${name} IN A ${addr}") a) ++ (map (addr: "${name} IN AAAA ${addr}") aaaa)
+    ) localRecords;
 
     nftRules =
       (map (
@@ -124,6 +153,12 @@ else
           "access-control" = accessControl;
           "do-ip4" = true;
           "do-ip6" = true;
+        }
+        // lib.optionalAttrs (localZoneSettings != [ ]) {
+          "local-zone" = localZoneSettings;
+        }
+        // lib.optionalAttrs (localDataSettings != [ ]) {
+          "local-data" = localDataSettings;
         }
         // lib.optionalAttrs (outgoingInterfaces != [ ]) {
           "outgoing-interface" = outgoingInterfaces;
