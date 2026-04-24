@@ -118,7 +118,7 @@ else
         aaaa =
           if builtins.isList (record.aaaa or null) then lib.filter builtins.isString record.aaaa else [ ];
       in
-      (map (addr: "${name} IN A ${addr}") a) ++ (map (addr: "${name} IN AAAA ${addr}") aaaa)
+      (map (addr: "\"${name} IN A ${addr}\"") a) ++ (map (addr: "\"${name} IN AAAA ${addr}\"") aaaa)
     ) localRecords;
 
     nftRules =
