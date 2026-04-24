@@ -77,6 +77,10 @@ let
 
   isPolicyUpstreamInterface = name: stringHasPrefix "up-" name || stringHasPrefix "upstream-" name;
 
+  isOverlayInterface = name: stringHasPrefix "overlay-" name;
+
+  isCoreTransitInterface = name: name == "upstream" || stringHasPrefix "upstream-" name;
+
   mkRoute =
     route:
     if !builtins.isAttrs route then
@@ -349,6 +353,16 @@ let
         isPolicyDownstreamInterface renderedName
         || (isPolicyUpstreamInterface renderedName && policyTenantKeyFor renderedName == tenantKey)
       ) interfaceNames
+    else if isOverlayInterface targetName then
+      lib.unique (
+        (lib.filter (name: renderedInterfaceNames.${name} == targetName) interfaceNames)
+        ++ (lib.filter (name: isCoreTransitInterface renderedInterfaceNames.${name}) interfaceNames)
+      )
+    else if isCoreTransitInterface targetName then
+      lib.unique (
+        (lib.filter (name: renderedInterfaceNames.${name} == targetName) interfaceNames)
+        ++ (lib.filter (name: isOverlayInterface renderedInterfaceNames.${name}) interfaceNames)
+      )
     else
       lib.filter (name: renderedInterfaceNames.${name} == targetName) interfaceNames;
 
