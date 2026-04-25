@@ -20,6 +20,7 @@ let
   bridgeNameMap = hostPlan.bridgeNameMap or { };
   deploymentHostName = hostPlan.deploymentHostName or null;
   hostContext = hostPlan.resolvedHostContext or { };
+  siteData = hostPlan.sitesData or { };
 
   runtimeTargetForUnit =
     unitName:
@@ -91,6 +92,7 @@ in
     bridgeNameMap
     deploymentHostName
     hostContext
+    siteData
     runtimeTargetForUnit
     runtimeTargetIdForUnit
     roleForUnit

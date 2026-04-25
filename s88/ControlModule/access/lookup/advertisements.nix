@@ -139,6 +139,12 @@ let
     else
       { };
 
+  currentSite =
+    if containerModel ? site && builtins.isAttrs containerModel.site then containerModel.site else { };
+
+  currentSiteIpv6 =
+    if currentSite ? ipv6 && builtins.isAttrs currentSite.ipv6 then currentSite.ipv6 else { };
+
   runtimeInterfaces =
     if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
       runtimeTarget.interfaces
@@ -606,6 +612,54 @@ let
           dnssl = if adv ? dnssl then asStringList adv.dnssl else [ ];
         in
         if dnssl != [ ] then builtins.head dnssl else "lan.";
+
+      tenantName =
+        if builtins.isString (adv.tenant or null) && adv.tenant != "" then adv.tenant else null;
+
+      tenantIpv6Plan =
+        if
+          tenantName != null
+          && currentSiteIpv6 ? tenants
+          && builtins.isAttrs currentSiteIpv6.tenants
+          && builtins.hasAttr tenantName currentSiteIpv6.tenants
+        then
+          currentSiteIpv6.tenants.${tenantName}
+        else
+          { };
+
+      delegatedPrefix =
+        if
+          tenantName != null
+          && currentSiteIpv6 ? pd
+          && builtins.isAttrs currentSiteIpv6.pd
+          && tenantIpv6Plan ? pd
+          && builtins.isAttrs tenantIpv6Plan.pd
+          && builtins.isInt (tenantIpv6Plan.pd.slot or null)
+        then
+          {
+            uplink = currentSiteIpv6.pd.uplink or null;
+            delegatedPrefixLength = currentSiteIpv6.pd.delegatedPrefixLength or null;
+            perTenantPrefixLength = currentSiteIpv6.pd.perTenantPrefixLength or null;
+            slot = tenantIpv6Plan.pd.slot;
+            sourceFile =
+              let
+                configuredSourceFile =
+                  if builtins.isString (currentSiteIpv6.pd.sourceFile or null) then
+                    currentSiteIpv6.pd.sourceFile
+                  else
+                    null;
+                uplinkName =
+                  if builtins.isString (currentSiteIpv6.pd.uplink or null) then currentSiteIpv6.pd.uplink else null;
+              in
+              if configuredSourceFile != null && configuredSourceFile != "" then
+                configuredSourceFile
+              else if uplinkName != null && uplinkName != "" then
+                "/run/s88-ipv6-pd/${uplinkName}.prefix"
+              else
+                null;
+          }
+        else
+          null;
     in
     {
       serviceName = "lan-${stem}";
@@ -617,6 +671,9 @@ let
         rdnss
         domain
         ;
+    }
+    // lib.optionalAttrs (delegatedPrefix != null) {
+      inherit delegatedPrefix;
     }
   ) (builtins.length authoritativeIpv6Ra);
 
