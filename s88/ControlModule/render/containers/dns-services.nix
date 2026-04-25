@@ -76,11 +76,41 @@ else
       else
         [ ];
 
+    stripPrefixLength =
+      value:
+      let
+        match = builtins.match "([^/]+)(/.*)?" value;
+      in
+      if match == null then value else builtins.elemAt match 0;
+
+    derivedOutgoingInterfaces = lib.unique (
+      lib.concatMap (
+        iface:
+        let
+          sourceKind = iface.sourceKind or null;
+          addresses =
+            if iface ? addresses && builtins.isList iface.addresses then
+              lib.filter builtins.isString iface.addresses
+            else
+              [ ];
+        in
+        if
+          builtins.elem sourceKind [
+            "p2p"
+            "wan"
+          ]
+        then
+          map stripPrefixLength addresses
+        else
+          [ ]
+      ) (builtins.attrValues (renderedModel.interfaces or { }))
+    );
+
     outgoingInterfaces =
       if dnsService ? outgoingInterfaces && builtins.isList dnsService.outgoingInterfaces then
         lib.unique (lib.filter builtins.isString dnsService.outgoingInterfaces)
       else
-        [ ];
+        derivedOutgoingInterfaces;
 
     tenantInterfaceNames = lib.unique (
       map
