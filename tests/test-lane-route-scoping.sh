@@ -106,6 +106,23 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      upstreamSelectorLongNameRender =
+        render {
+          interfaces = {
+            core = {
+              containerInterfaceName = "core";
+              addresses = [ "10.80.0.11/31" "fd42:dead:cafe:1000::b/127" ];
+              routes = [
+                (default4 "10.80.0.10")
+                (default6 "fd42:dead:cafe:1000::a")
+              ];
+            };
+            policy-mgmt-wan = {
+              containerInterfaceName = "policy-mgmt-wan";
+              addresses = [ "10.80.0.29/31" "fd42:dead:cafe:1000::1d/127" ];
+            };
+          };
+        };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
       selectorPolicyHostile = selectorRender.networks."10-policy-hostile".routes or [ ];
       selectorBranchRules = selectorRender.networks."10-access-branch".routingPolicyRules or [ ];
@@ -117,10 +134,10 @@ REPO_ROOT="${repo_root}" nix eval \
       upstreamCoreRoutes = upstreamSelectorRender.networks."10-core-a".routes or [ ];
       upstreamPolicyRoutes = upstreamSelectorRender.networks."10-pol-mgmt-a".routes or [ ];
       upstreamPolicyRules = upstreamSelectorRender.networks."10-pol-mgmt-a".routingPolicyRules or [ ];
-      upstreamLongPolicyRoutes =
-        upstreamSelectorRender.networks."10-policy-mgmt-wan".routes or [ ];
       upstreamLongPolicyRules =
-        upstreamSelectorRender.networks."10-policy-mgmt-wan".routingPolicyRules or [ ];
+        upstreamSelectorLongNameRender.networks."10-policy-mgmt-wan".routingPolicyRules or [ ];
+      upstreamLongCoreRoutes =
+        upstreamSelectorLongNameRender.networks."10-core".routes or [ ];
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -144,9 +161,9 @@ REPO_ROOT="${repo_root}" nix eval \
     && routesAllHaveTable 2000 upstreamCoreRoutes
     && routesAllHaveTable 2001 upstreamPolicyRoutes
     && hasIngressRule "pol-mgmt-a" 2001 upstreamPolicyRules
-    && routesAllHaveTable 2002 upstreamLongPolicyRoutes
-    && hasIngressRule "policy-mgmt-wan" 2002 upstreamLongPolicyRules
-    && hasIngressRule "policy-mgmt-wan" 12002 upstreamLongPolicyRules
+    && routesAllHaveTable 2001 upstreamLongCoreRoutes
+    && hasIngressRule "policy-mgmt-wan" 2001 upstreamLongPolicyRules
+    && hasIngressRule "policy-mgmt-wan" 12001 upstreamLongPolicyRules
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1
