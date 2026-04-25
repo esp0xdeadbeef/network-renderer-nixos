@@ -21,6 +21,11 @@ REPO_ROOT="${repo_root}" nix eval \
           addresses = [ "10.99.0.2/31" "fd00:99::2/127" ];
         };
       };
+      renderedModelWithPrimaryBridge =
+        renderedModel
+        // {
+          hostBridge = "br-test";
+        };
       module =
         import (repoRoot + "/s88/ControlModule/render/containers/module.nix") {
           inherit
@@ -36,13 +41,32 @@ REPO_ROOT="${repo_root}" nix eval \
           uplinks = { };
           wanUplinkName = null;
         };
+      moduleWithPrimaryBridge =
+        import (repoRoot + "/s88/ControlModule/render/containers/module.nix") {
+          inherit lib;
+          renderedModel = renderedModelWithPrimaryBridge;
+          containerName = "test-router";
+          firewallArg = {
+            enable = false;
+            ruleset = "";
+          };
+          alarmModel = { };
+          uplinks = { };
+          wanUplinkName = null;
+        };
       evaluated =
         (flake.inputs.nixpkgs.lib.nixosSystem {
           system = builtins.currentSystem;
           modules = [ module ];
         }).config;
+      evaluatedWithPrimaryBridge =
+        (flake.inputs.nixpkgs.lib.nixosSystem {
+          system = builtins.currentSystem;
+          modules = [ moduleWithPrimaryBridge ];
+        }).config;
     in
     (evaluated.systemd.services.systemd-networkd-wait-online.enable or true) == false
+    && (evaluatedWithPrimaryBridge.systemd.services.systemd-networkd-wait-online.enable or true) == true
   ' >/dev/null || {
     echo "FAIL container-networkd-wait-online" >&2
     exit 1
