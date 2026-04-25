@@ -21,6 +21,7 @@ let
   deploymentHostName = hostPlan.deploymentHostName or null;
   hostContext = hostPlan.resolvedHostContext or { };
   siteData = hostPlan.sitesData or { };
+  inventorySiteData = hostPlan.inventoryControlPlaneSites or { };
 
   runtimeTargetForUnit =
     unitName:
@@ -93,6 +94,7 @@ in
     deploymentHostName
     hostContext
     siteData
+    inventorySiteData
     runtimeTargetForUnit
     runtimeTargetIdForUnit
     roleForUnit

@@ -229,6 +229,30 @@ let
     else
       { };
 
+  inventorySiteForRuntimeTarget =
+    runtimeTarget:
+    let
+      logicalNode =
+        if runtimeTarget ? logicalNode && builtins.isAttrs runtimeTarget.logicalNode then
+          runtimeTarget.logicalNode
+        else
+          { };
+      enterpriseName =
+        if builtins.isString (logicalNode.enterprise or null) then logicalNode.enterprise else null;
+      siteName = if builtins.isString (logicalNode.site or null) then logicalNode.site else null;
+      enterpriseSites =
+        if enterpriseName != null && builtins.hasAttr enterpriseName lookup.inventorySiteData then
+          lookup.inventorySiteData.${enterpriseName}
+        else
+          { };
+    in
+    if
+      siteName != null && builtins.isAttrs enterpriseSites && builtins.hasAttr siteName enterpriseSites
+    then
+      enterpriseSites.${siteName}
+    else
+      { };
+
   mkContainerRuntime =
     unitName:
     let
@@ -324,6 +348,7 @@ let
         ;
 
       site = siteForRuntimeTarget runtimeTarget;
+      inventorySite = inventorySiteForRuntimeTarget runtimeTarget;
 
       deploymentHostName = lookup.deploymentHostName;
       hostContext = lookup.hostContext;
