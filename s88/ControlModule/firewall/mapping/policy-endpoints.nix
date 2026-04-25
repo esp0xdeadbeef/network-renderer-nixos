@@ -144,6 +144,43 @@ let
         ${builtins.toJSON matches}
       '';
 
+  interfaceAliasMap = builtins.listToAttrs (
+    lib.concatMap (
+      entry:
+      let
+        iface =
+          if builtins.isAttrs entry && entry ? iface && builtins.isAttrs entry.iface then
+            entry.iface
+          else
+            { };
+        aliases = sortedStrings (
+          lib.filter builtins.isString [
+            entry.name or null
+            entry.key or null
+            iface.renderedIfName or null
+            iface.runtimeIfName or null
+            iface.sourceInterface or null
+            iface.interfaceName or null
+            iface.containerInterfaceName or null
+            iface.hostInterfaceName or null
+            iface.ifName or null
+          ]
+        );
+      in
+      map (alias: {
+        name = alias;
+        value = entry.name;
+      }) aliases
+    ) interfaceEntries
+  );
+
+  resolveInterfaceAlias =
+    name:
+    if builtins.isString name && builtins.hasAttr name interfaceAliasMap then
+      interfaceAliasMap.${name}
+    else
+      null;
+
   currentSiteNodes =
     if currentSite ? nodes && builtins.isAttrs currentSite.nodes then currentSite.nodes else { };
 
@@ -169,10 +206,15 @@ let
       null;
 
   currentNodeName =
-    if currentSite ? policyNodeName && builtins.isString currentSite.policyNodeName then
-      currentSite.policyNodeName
-    else if runtimeLogicalNodeName != null then
+    if runtimeLogicalNodeName != null then
       runtimeLogicalNodeName
+    else if
+      roleName == "policy"
+      && currentSite ? policyNodeName
+      && builtins.isString currentSite.policyNodeName
+      && currentSite.policyNodeName != ""
+    then
+      currentSite.policyNodeName
     else
       let
         names = sortedStrings (map (entry: entryFieldOr entry "logicalNode" null) interfaceEntries);
@@ -390,13 +432,64 @@ let
     else
       [ ];
 
+  policyTenantBindings =
+    if
+      currentSite ? policy
+      && builtins.isAttrs currentSite.policy
+      && currentSite.policy ? endpointBindings
+      && builtins.isAttrs currentSite.policy.endpointBindings
+      && currentSite.policy.endpointBindings ? tenants
+      && builtins.isAttrs currentSite.policy.endpointBindings.tenants
+    then
+      currentSite.policy.endpointBindings.tenants
+    else
+      { };
+
+  boundInterfaceForCurrentNodeTenant =
+    tenantName:
+    let
+      tenantBinding =
+        if builtins.hasAttr tenantName policyTenantBindings then
+          policyTenantBindings.${tenantName}
+        else
+          { };
+      runtimeBindings =
+        if tenantBinding ? runtimeBindings && builtins.isList tenantBinding.runtimeBindings then
+          lib.filter builtins.isAttrs tenantBinding.runtimeBindings
+        else
+          [ ];
+      matches = lib.filter (
+        binding:
+        let
+          logicalNode = binding.logicalNode or null;
+          runtimeTargetName = binding.runtimeTarget or null;
+        in
+        (logicalNode != null && logicalNode == currentNodeName)
+        || (runtimeTargetName != null && runtimeTargetName == (runtimeTarget.name or null))
+      ) runtimeBindings;
+      binding = if matches == [ ] then null else builtins.head matches;
+      candidates =
+        if binding == null then
+          [ ]
+        else
+          [
+            (binding.runtimeInterface or null)
+            (binding.sourceInterface or null)
+          ];
+      resolved = lib.filter (n: n != null) (map resolveInterfaceAlias candidates);
+    in
+    if resolved == [ ] then null else builtins.head resolved;
+
   tenantInterfaceByName = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
       map (
         attachment:
         let
-
-          interfaceName = firstHopInterfaceToUnit attachment.unit;
+          interfaceName =
+            if currentNodeName != null && attachment.unit == currentNodeName then
+              boundInterfaceForCurrentNodeTenant attachment.name
+            else
+              firstHopInterfaceToUnit attachment.unit;
         in
         if interfaceName != null then
           {

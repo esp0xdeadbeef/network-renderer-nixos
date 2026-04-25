@@ -46,26 +46,26 @@ nix eval \
   ' >/dev/null
 
 # Keep at least one in-repo fixture for repeatable CI-like checks.
-"${repo_root}/tests/cases/passing-fixtures.sh" "$@"
+bash "${repo_root}/tests/cases/passing-fixtures.sh" "$@"
 
 # Regression: local multi-enterprise dual-wan overlay examples must render.
-"${repo_root}/tests/test-dual-wan-branch-overlay.sh"
-"${repo_root}/tests/test-hostile-dns-east-west.sh"
+bash "${repo_root}/tests/test-dual-wan-branch-overlay.sh"
+bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 
 # Regression: policy ingress lanes must render DNS-service reachability routes.
-"${repo_root}/tests/test-dns-service-policy-routes.sh"
+bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
 
 # Regression: strict renderer must fail when required WAN group binding is absent.
-"${repo_root}/tests/test-missing-wan-group-assignment.sh"
+bash "${repo_root}/tests/test-missing-wan-group-assignment.sh"
 
 # Regression: multi-WAN external endpoint bindings must render policy rules.
-"${repo_root}/tests/test-multi-wan-firewall.sh"
+bash "${repo_root}/tests/test-multi-wan-firewall.sh"
 
 # Regression: WAN-exposed services must synthesize concrete DNAT rules.
-"${repo_root}/tests/test-port-forward-rendering.sh"
+bash "${repo_root}/tests/test-port-forward-rendering.sh"
 
 # Regression: DNS runtime targets must be able to render authoritative local zones/records.
-"${repo_root}/tests/test-dns-local-records.sh"
+bash "${repo_root}/tests/test-dns-local-records.sh"
 
 # Regression: runtime targets must be able to render modeled mDNS reflector settings.
 "${repo_root}/tests/test-mdns-service.sh"
