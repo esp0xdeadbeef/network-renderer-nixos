@@ -29,6 +29,7 @@ INVENTORY_PATH="${inventory_path}" \
             modules = [ builtContainers.${containerName}.config ];
           }).config;
         branchCfg = mkCfg "b-router-policy";
+        siteaPolicyCfg = mkCfg "s-router-policy-only";
         sitecCfg = mkCfg "c-router-policy";
         hasRoute = routes: destination: gateway: table:
           builtins.any
@@ -42,11 +43,15 @@ INVENTORY_PATH="${inventory_path}" \
             (networkName: hasRoute (networks.${networkName}.routes or [ ]) destination gateway table)
             (builtins.attrNames networks);
         branchNetworks = branchCfg.systemd.network.networks;
+        siteaPolicyNetworks = siteaPolicyCfg.systemd.network.networks;
         sitecNetworks = sitecCfg.systemd.network.networks;
+        siteaMgmtRoutes = siteaPolicyNetworks."10-downstream-mgmt".routes or [ ];
         sitecMgmtRoutes = sitecNetworks."10-downstream-mgmt".routes or [ ];
       in
         hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.11" 2000
         && hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:b" 2000
+        && hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.22" 2014
+        && hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:16" 2014
         && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2001
         && hasRoute sitecMgmtRoutes "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10" 2001
         && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2004
