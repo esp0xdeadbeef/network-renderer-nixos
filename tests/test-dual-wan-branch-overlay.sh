@@ -88,6 +88,8 @@ run_one() {
           branchCoreConfig = evalContainer containerB;
           downstreamConfig = evalContainer downstreamSelector;
           policyConfig = evalContainer policyOnly;
+          upstreamSelectorRender =
+            (evalContainer rendered.containers."s-router-upstream-selector").systemd.network;
           downstreamIngress =
             downstreamConfig.systemd.network.networks."10-access-mgmt";
           siteCoreOverlay =
@@ -193,6 +195,22 @@ run_one() {
                 (route.Table or null) == 2004
                 && (route.Gateway or null) == "10.10.0.45")
               (policyMgmtUplink.routes or [ ]);
+          hasPolicyMgmtBranchReturnRoutes =
+            let
+              polMgmtRoutes = upstreamSelectorRender.networks."10-pol-mgmt-a".routes or [ ];
+            in
+            builtins.any
+              (route:
+                (route.Table or null) == 2012
+                && (route.Destination or null) == "10.50.0.0/32"
+                && (route.Gateway or null) == "10.10.0.12")
+              polMgmtRoutes
+            && builtins.any
+              (route:
+                (route.Table or null) == 2012
+                && (route.Destination or null) == "fd42:dead:feed:1000:0000:0000:0000:0000/128"
+                && (route.Gateway or null) == "fd42:dead:beef:1000::c")
+              polMgmtRoutes;
           hasDerivedDnsOutgoingInterfaces =
             let
               adminOutgoing =
@@ -254,6 +272,7 @@ run_one() {
           && hasCoreIngressOverlayRoutes
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
+          && hasPolicyMgmtBranchReturnRoutes
           && hasDerivedDnsOutgoingInterfaces
           && hasDeclarativeIpv6AcceptRA
           && hasHostValidationService
