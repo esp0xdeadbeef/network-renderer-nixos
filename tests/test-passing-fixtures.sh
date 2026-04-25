@@ -65,3 +65,6 @@ nix eval \
 
 # Regression: runtime targets must be able to render modeled mDNS reflector settings.
 "${repo_root}/tests/test-mdns-service.sh"
+
+# Regression: exit cores must receive return-path host routes for remote transit endpoints.
+"${repo_root}/tests/test-transit-endpoint-return-routes.sh"
