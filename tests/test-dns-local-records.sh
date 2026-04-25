@@ -44,7 +44,21 @@ REPO_ROOT="${repo_root}" nix eval \
         import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
           inherit lib pkgs renderedModel;
         };
+      renderedWithExplicitOutgoing =
+        import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
+          inherit lib pkgs;
+          renderedModel =
+            renderedModel
+            // {
+              runtimeTarget.services.dns =
+                renderedModel.runtimeTarget.services.dns
+                // {
+                  outgoingInterfaces = [ "transit" ];
+                };
+            };
+        };
       server = rendered.services.unbound.settings.server;
+      explicitServer = renderedWithExplicitOutgoing.services.unbound.settings.server;
       localZones = server."local-zone" or [ ];
       localData = server."local-data" or [ ];
     in
@@ -53,6 +67,8 @@ REPO_ROOT="${repo_root}" nix eval \
       && builtins.elem "\"test-machine-01.printer. IN A 10.20.0.10\"" localData
       && builtins.elem "\"test-machine-01.printer. IN AAAA fd00:20::10\"" localData
       && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
+      && !(server ? "outgoing-interface")
+      && (explicitServer."outgoing-interface" or [ ]) == [ "transit" ]
   ' >/dev/null || {
     echo "FAIL dns-local-records" >&2
     exit 1
