@@ -100,6 +100,10 @@ REPO_ROOT="${repo_root}" nix eval \
               containerInterfaceName = "pol-mgmt-a";
               addresses = [ "10.10.0.45/31" "fd42:dead:beef:1000::2d/127" ];
             };
+            policy-mgmt-wan = {
+              containerInterfaceName = "policy-mgmt-wan";
+              addresses = [ "10.10.0.47/31" "fd42:dead:beef:1000::2f/127" ];
+            };
           };
         };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
@@ -113,6 +117,10 @@ REPO_ROOT="${repo_root}" nix eval \
       upstreamCoreRoutes = upstreamSelectorRender.networks."10-core-a".routes or [ ];
       upstreamPolicyRoutes = upstreamSelectorRender.networks."10-pol-mgmt-a".routes or [ ];
       upstreamPolicyRules = upstreamSelectorRender.networks."10-pol-mgmt-a".routingPolicyRules or [ ];
+      upstreamLongPolicyRoutes =
+        upstreamSelectorRender.networks."10-policy-mgmt-wan".routes or [ ];
+      upstreamLongPolicyRules =
+        upstreamSelectorRender.networks."10-policy-mgmt-wan".routingPolicyRules or [ ];
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -136,6 +144,9 @@ REPO_ROOT="${repo_root}" nix eval \
     && routesAllHaveTable 2000 upstreamCoreRoutes
     && routesAllHaveTable 2001 upstreamPolicyRoutes
     && hasIngressRule "pol-mgmt-a" 2001 upstreamPolicyRules
+    && routesAllHaveTable 2002 upstreamLongPolicyRoutes
+    && hasIngressRule "policy-mgmt-wan" 2002 upstreamLongPolicyRules
+    && hasIngressRule "policy-mgmt-wan" 12002 upstreamLongPolicyRules
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1
