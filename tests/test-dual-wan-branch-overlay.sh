@@ -197,20 +197,20 @@ run_one() {
               (policyMgmtUplink.routes or [ ]);
           hasPolicyMgmtBranchReturnRoutes =
             let
-              polMgmtRoutes = upstreamSelectorRender.networks."10-pol-mgmt-a".routes or [ ];
+              coreBRoutes = upstreamSelectorRender.networks."10-core-b".routes or [ ];
             in
             builtins.any
               (route:
                 (route.Table or null) == 2012
                 && (route.Destination or null) == "10.50.0.0/32"
                 && (route.Gateway or null) == "10.10.0.12")
-              polMgmtRoutes
+              coreBRoutes
             && builtins.any
               (route:
                 (route.Table or null) == 2012
                 && (route.Destination or null) == "fd42:dead:feed:1000:0000:0000:0000:0000/128"
                 && (route.Gateway or null) == "fd42:dead:beef:1000::c")
-              polMgmtRoutes;
+              coreBRoutes;
           hasDerivedDnsOutgoingInterfaces =
             let
               adminOutgoing =
