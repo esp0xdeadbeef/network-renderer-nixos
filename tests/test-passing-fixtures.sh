@@ -50,6 +50,7 @@ nix eval \
 
 # Regression: local multi-enterprise dual-wan overlay examples must render.
 "${repo_root}/tests/test-dual-wan-branch-overlay.sh"
+"${repo_root}/tests/test-hostile-dns-east-west.sh"
 
 # Regression: policy ingress lanes must render DNS-service reachability routes.
 "${repo_root}/tests/test-dns-service-policy-routes.sh"
