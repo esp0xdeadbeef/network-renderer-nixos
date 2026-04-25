@@ -66,6 +66,7 @@ INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm
             modules = [ rendered.config ];
           }).config;
         iotRoutes = cfg.systemd.network.networks."10-policy-iot-wan".routes or [ ];
+        mgmtStorageRoutes = cfg.systemd.network.networks."10-pol-mgt-sto".routes or [ ];
         mgmtRoutes = cfg.systemd.network.networks."10-policy-mgmt-wan".routes or [ ];
         hasRoute = routes: destination: gateway:
           builtins.any
@@ -76,6 +77,7 @@ INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm
             routes;
       in
         (!hasRoute iotRoutes "10.80.0.4/32" "10.80.0.22")
+        && (!hasRoute mgmtStorageRoutes "10.80.0.4/32" "10.80.0.26")
         && hasRoute mgmtRoutes "10.80.0.4/32" "10.80.0.28"
     ' >/dev/null
 
