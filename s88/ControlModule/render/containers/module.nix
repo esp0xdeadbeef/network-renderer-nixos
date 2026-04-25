@@ -10,6 +10,12 @@
 
 let
   roleName = renderedModel.roleName or null;
+  usesOnlyExtraVeths =
+    !(
+      renderedModel ? hostBridge
+      && builtins.isString renderedModel.hostBridge
+      && renderedModel.hostBridge != ""
+    );
 
   profilePath = if renderedModel ? profilePath then renderedModel.profilePath else null;
 
@@ -36,7 +42,9 @@ let
 
       networking.useNetworkd = true;
       systemd.network.enable = true;
-      systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
+      systemd.services.systemd-networkd-wait-online.enable = lib.mkIf usesOnlyExtraVeths (
+        lib.mkForce false
+      );
       networking.useDHCP = false;
       networking.networkmanager.enable = false;
       networking.useHostResolvConf = lib.mkForce false;
