@@ -66,9 +66,14 @@ let
     else
       null;
 
-  isDownstreamSelectorInterface = name: downstreamPairKeyFor name != null;
+  isDownstreamSelectorAccessInterface = name: stringHasPrefix "access-" name;
 
-  isUpstreamSelectorCoreInterface = name: stringHasPrefix "core-" name;
+  isDownstreamSelectorPolicyInterface = name: stringHasPrefix "policy-" name;
+
+  isDownstreamSelectorInterface =
+    name: isDownstreamSelectorAccessInterface name || isDownstreamSelectorPolicyInterface name;
+
+  isUpstreamSelectorCoreInterface = name: name == "core" || stringHasPrefix "core-" name;
 
   isUpstreamSelectorPolicyInterface =
     name: stringHasPrefix "pol-" name || stringHasPrefix "policy-" name;
@@ -243,9 +248,11 @@ let
       value = interfaceNameFor interfaces.${ifName};
     }) interfaceNames
   );
-  isSelector = lib.any (
-    name: isDownstreamSelectorInterface renderedInterfaceNames.${name}
-  ) interfaceNames;
+  isSelector =
+    lib.any (name: isDownstreamSelectorAccessInterface renderedInterfaceNames.${name}) interfaceNames
+    && lib.any (
+      name: isDownstreamSelectorPolicyInterface renderedInterfaceNames.${name}
+    ) interfaceNames;
   isUpstreamSelector =
     lib.any (name: isUpstreamSelectorCoreInterface renderedInterfaceNames.${name}) interfaceNames
     && lib.any (name: isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name}) interfaceNames;
