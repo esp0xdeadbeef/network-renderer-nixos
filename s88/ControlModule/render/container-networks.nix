@@ -242,6 +242,16 @@ let
       value = interfaceNameFor interfaces.${ifName};
     }) interfaceNames
   );
+  isSelector = lib.any (
+    name: isDownstreamSelectorInterface renderedInterfaceNames.${name}
+  ) interfaceNames;
+  isUpstreamSelector =
+    lib.any (name: isUpstreamSelectorCoreInterface renderedInterfaceNames.${name}) interfaceNames
+    && lib.any (name: isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name}) interfaceNames;
+  isPolicy =
+    lib.any (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
+    && lib.any (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) interfaceNames;
+  keepInterfaceRoutesInMain = !(isSelector || isUpstreamSelector || isPolicy);
   policyRoutingByInterface =
     builtins.foldl'
       (
@@ -324,15 +334,6 @@ let
         else
           null;
       tenantKey = policyTenantKeyFor targetName;
-      isSelector = lib.any (
-        name: isDownstreamSelectorInterface renderedInterfaceNames.${name}
-      ) interfaceNames;
-      isUpstreamSelector =
-        lib.any (name: isUpstreamSelectorCoreInterface renderedInterfaceNames.${name}) interfaceNames
-        && lib.any (name: isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name}) interfaceNames;
-      isPolicy =
-        lib.any (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
-        && lib.any (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) interfaceNames;
     in
     if isSelector && pairKey != null && pairPrefix != null then
       lib.filter (name: renderedInterfaceNames.${name} == "${pairPrefix}${pairKey}") interfaceNames
@@ -374,7 +375,9 @@ let
           iface = interfaces.${ifName};
           interfaceName = renderedInterfaceNames.${ifName};
           routes =
-            (lib.filter (route: route != null) (map mkRoute (iface.routes or [ ])))
+            (lib.optionals keepInterfaceRoutesInMain (
+              lib.filter (route: route != null) (map mkRoute (iface.routes or [ ]))
+            ))
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
           routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
           dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
