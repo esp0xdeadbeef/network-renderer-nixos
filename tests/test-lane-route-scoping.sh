@@ -85,6 +85,23 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      upstreamSelectorRender =
+        render {
+          interfaces = {
+            core-a = {
+              containerInterfaceName = "core-a";
+              addresses = [ "10.10.0.11/31" "fd42:dead:beef:1000::b/127" ];
+              routes = [
+                (default4 "10.10.0.10")
+                (default6 "fd42:dead:beef:1000::a")
+              ];
+            };
+            pol-mgmt-a = {
+              containerInterfaceName = "pol-mgmt-a";
+              addresses = [ "10.10.0.45/31" "fd42:dead:beef:1000::2d/127" ];
+            };
+          };
+        };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
       selectorPolicyHostile = selectorRender.networks."10-policy-hostile".routes or [ ];
       selectorBranchRules = selectorRender.networks."10-access-branch".routingPolicyRules or [ ];
@@ -93,6 +110,9 @@ REPO_ROOT="${repo_root}" nix eval \
       policyUpHostile = policyRender.networks."10-up-hostile".routes or [ ];
       policyBranchRules = policyRender.networks."10-downstream-branch".routingPolicyRules or [ ];
       policyHostileRules = policyRender.networks."10-downstream-hostile".routingPolicyRules or [ ];
+      upstreamCoreRoutes = upstreamSelectorRender.networks."10-core-a".routes or [ ];
+      upstreamPolicyRoutes = upstreamSelectorRender.networks."10-pol-mgmt-a".routes or [ ];
+      upstreamPolicyRules = upstreamSelectorRender.networks."10-pol-mgmt-a".routingPolicyRules or [ ];
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -113,6 +133,9 @@ REPO_ROOT="${repo_root}" nix eval \
     && routesAllHaveTable 2001 policyUpHostile
     && hasIngressRule "downstream-branch" 2000 policyBranchRules
     && hasIngressRule "downstream-hostile" 2001 policyHostileRules
+    && routesAllHaveTable 2000 upstreamCoreRoutes
+    && routesAllHaveTable 2001 upstreamPolicyRoutes
+    && hasIngressRule "pol-mgmt-a" 2001 upstreamPolicyRules
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1

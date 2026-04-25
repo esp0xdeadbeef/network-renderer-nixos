@@ -345,6 +345,14 @@ let
         in
         isUpstreamSelectorPolicyInterface renderedName
       ) interfaceNames
+    else if isUpstreamSelector && isUpstreamSelectorPolicyInterface targetName then
+      lib.filter (
+        name:
+        let
+          renderedName = renderedInterfaceNames.${name};
+        in
+        isUpstreamSelectorCoreInterface renderedName
+      ) interfaceNames
     else if isPolicy && tenantKey != null then
       lib.filter (
         name:
