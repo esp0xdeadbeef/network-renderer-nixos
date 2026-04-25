@@ -395,13 +395,22 @@ let
         in
         isUpstreamSelectorCoreInterface renderedName
       ) interfaceNames
-    else if isPolicy && tenantKey != null then
+    else if isPolicy && tenantKey != null && isPolicyDownstreamInterface targetName then
       lib.filter (
         name:
         let
           renderedName = renderedInterfaceNames.${name};
         in
         isPolicyDownstreamInterface renderedName
+        || (isPolicyUpstreamInterface renderedName && policyTenantKeyFor renderedName == tenantKey)
+      ) interfaceNames
+    else if isPolicy && tenantKey != null && isPolicyUpstreamInterface targetName then
+      lib.filter (
+        name:
+        let
+          renderedName = renderedInterfaceNames.${name};
+        in
+        ((isPolicyDownstreamInterface renderedName) && policyTenantKeyFor renderedName == tenantKey)
         || (isPolicyUpstreamInterface renderedName && policyTenantKeyFor renderedName == tenantKey)
       ) interfaceNames
     else if isOverlayInterface targetName then
