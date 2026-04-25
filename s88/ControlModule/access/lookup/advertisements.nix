@@ -142,8 +142,20 @@ let
   currentSite =
     if containerModel ? site && builtins.isAttrs containerModel.site then containerModel.site else { };
 
+  currentInventorySite =
+    if containerModel ? inventorySite && builtins.isAttrs containerModel.inventorySite then
+      containerModel.inventorySite
+    else
+      { };
+
   currentSiteIpv6 =
     if currentSite ? ipv6 && builtins.isAttrs currentSite.ipv6 then currentSite.ipv6 else { };
+
+  currentInventorySiteIpv6 =
+    if currentInventorySite ? ipv6 && builtins.isAttrs currentInventorySite.ipv6 then
+      currentInventorySite.ipv6
+    else
+      { };
 
   runtimeInterfaces =
     if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
@@ -644,8 +656,8 @@ let
             sourceFile =
               let
                 configuredSourceFile =
-                  if builtins.isString (currentSiteIpv6.pd.sourceFile or null) then
-                    currentSiteIpv6.pd.sourceFile
+                  if builtins.isString (currentInventorySiteIpv6.pd.sourceFile or null) then
+                    currentInventorySiteIpv6.pd.sourceFile
                   else
                     null;
                 uplinkName =

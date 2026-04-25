@@ -22,6 +22,18 @@ let
     else
       { };
 
+  inventoryControlPlaneSites =
+    if
+      builtins.isAttrs inventory
+      && inventory ? controlPlane
+      && builtins.isAttrs inventory.controlPlane
+      && inventory.controlPlane ? sites
+      && builtins.isAttrs inventory.controlPlane.sites
+    then
+      inventory.controlPlane.sites
+    else
+      { };
+
   hostRuntime = import ../../lookup/host-runtime.nix {
     inherit
       lib
@@ -107,6 +119,7 @@ in
     ;
 
   inherit sitesData;
+  inherit inventoryControlPlaneSites;
 
   inherit (effectiveBridgeModel)
     bridgeNamesRaw
