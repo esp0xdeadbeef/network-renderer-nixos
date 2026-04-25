@@ -36,6 +36,7 @@ let
 
       networking.useNetworkd = true;
       systemd.network.enable = true;
+      systemd.services.systemd-networkd-wait-online.enable = lib.mkForce false;
       networking.useDHCP = false;
       networking.networkmanager.enable = false;
       networking.useHostResolvConf = lib.mkForce false;
