@@ -51,6 +51,9 @@ nix eval \
 # Regression: local multi-enterprise dual-wan overlay examples must render.
 "${repo_root}/tests/test-dual-wan-branch-overlay.sh"
 
+# Regression: policy ingress lanes must render DNS-service reachability routes.
+"${repo_root}/tests/test-dns-service-policy-routes.sh"
+
 # Regression: strict renderer must fail when required WAN group binding is absent.
 "${repo_root}/tests/test-missing-wan-group-assignment.sh"
 
