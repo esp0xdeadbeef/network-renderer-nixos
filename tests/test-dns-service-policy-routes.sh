@@ -30,22 +30,27 @@ INVENTORY_PATH="${inventory_path}" \
           }).config;
         branchCfg = mkCfg "b-router-policy";
         sitecCfg = mkCfg "c-router-policy";
-        hasRouteAnyNetwork = networks: destination: gateway:
+        hasRoute = routes: destination: gateway: table:
           builtins.any
-            (networkName:
-              builtins.any
-                (route:
-                  (route.Destination or null) == destination
-                  && (route.Gateway or null) == gateway)
-                ((networks.${networkName}.routes or [ ])))
+            (route:
+              (route.Destination or null) == destination
+              && (route.Gateway or null) == gateway
+              && (route.Table or null) == table)
+            routes;
+        hasRouteAnyNetwork = networks: destination: gateway: table:
+          builtins.any
+            (networkName: hasRoute (networks.${networkName}.routes or [ ]) destination gateway table)
             (builtins.attrNames networks);
         branchNetworks = branchCfg.systemd.network.networks;
         sitecNetworks = sitecCfg.systemd.network.networks;
+        sitecMgmtRoutes = sitecNetworks."10-downstream-mgmt".routes or [ ];
       in
-        hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.11"
-        && hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:b"
-        && hasRouteAnyNetwork sitecNetworks "10.90.10.0/24" "10.80.0.16"
-        && hasRouteAnyNetwork sitecNetworks "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10"
+        hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.11" 2000
+        && hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:b" 2000
+        && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2001
+        && hasRoute sitecMgmtRoutes "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10" 2001
+        && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2004
+        && hasRoute sitecMgmtRoutes "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10" 2004
     ' | grep -qx true
 
 echo "PASS dns-service-policy-routes"

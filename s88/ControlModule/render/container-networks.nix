@@ -49,20 +49,51 @@ let
 
   policyTenantKeyFor =
     name:
+    let
+      normalizeTenantKey =
+        raw:
+        if raw == "adm" || raw == "admin" then
+          "admin"
+        else if raw == "cli" || raw == "client" then
+          "client"
+        else if raw == "cl2" || raw == "client2" then
+          "client2"
+        else if raw == "mgt" || raw == "mgmt" then
+          "mgmt"
+        else if raw == "med" || raw == "media" then
+          "media"
+        else if raw == "prn" || raw == "printer" then
+          "printer"
+        else if raw == "nas" then
+          "nas"
+        else if raw == "iot" then
+          "iot"
+        else if raw == "branch" then
+          "branch"
+        else if raw == "hostile" then
+          "hostile"
+        else
+          raw;
+      takeTenantSegment =
+        prefix:
+        let
+          stripped = builtins.substring (builtins.stringLength prefix) (
+            builtins.stringLength name - builtins.stringLength prefix
+          ) name;
+          parts = lib.splitString "-" stripped;
+        in
+        if parts == [ ] then null else normalizeTenantKey (builtins.elemAt parts 0);
+    in
     if stringHasPrefix "downstr-" name then
-      builtins.substring 8 (builtins.stringLength name - 8) name
+      normalizeTenantKey (builtins.substring 8 (builtins.stringLength name - 8) name)
     else if stringHasPrefix "downstream-" name then
-      builtins.substring 11 (builtins.stringLength name - 11) name
-    else if stringHasPrefix "up-admin" name || name == "up-adm-ew" then
-      "admin"
-    else if stringHasPrefix "up-client" name || name == "up-cli-ew" then
-      "client"
-    else if stringHasPrefix "up-cl2" name then
-      "client2"
-    else if stringHasPrefix "up-mgmt" name || name == "up-mgt-ew" then
-      "mgmt"
-    else if stringHasPrefix "up-branch" name || stringHasPrefix "upstream-branch" name then
-      "branch"
+      normalizeTenantKey (builtins.substring 11 (builtins.stringLength name - 11) name)
+    else if stringHasPrefix "down-" name then
+      takeTenantSegment "down-"
+    else if stringHasPrefix "up-" name then
+      takeTenantSegment "up-"
+    else if stringHasPrefix "upstream-" name then
+      takeTenantSegment "upstream-"
     else
       null;
 
@@ -79,7 +110,10 @@ let
     name: stringHasPrefix "pol-" name || stringHasPrefix "policy-" name;
 
   isPolicyDownstreamInterface =
-    name: stringHasPrefix "downstr-" name || stringHasPrefix "downstream-" name;
+    name:
+    stringHasPrefix "downstr-" name
+    || stringHasPrefix "downstream-" name
+    || stringHasPrefix "down-" name;
 
   isPolicyUpstreamInterface = name: stringHasPrefix "up-" name || stringHasPrefix "upstream-" name;
 
