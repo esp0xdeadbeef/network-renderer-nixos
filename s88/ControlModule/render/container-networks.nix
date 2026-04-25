@@ -70,7 +70,8 @@ let
 
   isUpstreamSelectorCoreInterface = name: stringHasPrefix "core-" name;
 
-  isUpstreamSelectorPolicyInterface = name: stringHasPrefix "pol-" name;
+  isUpstreamSelectorPolicyInterface =
+    name: stringHasPrefix "pol-" name || stringHasPrefix "policy-" name;
 
   isPolicyDownstreamInterface =
     name: stringHasPrefix "downstr-" name || stringHasPrefix "downstream-" name;
