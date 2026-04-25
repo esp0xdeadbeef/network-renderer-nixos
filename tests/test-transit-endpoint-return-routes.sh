@@ -41,9 +41,9 @@ INVENTORY_PATH="${inventory_path}" \
               && (route.Gateway or null) == gateway)
             routes;
       in
-        hasRoute "10.10.0.8/32" "10.10.0.9"
-        && hasRoute "fd42:dead:beef:1000:0000:0000:0000:0008/128" "fd42:dead:beef:1000:0:0:0:9"
-    ' >/dev/null
+        hasRoute "10.19.0.8/32" "10.10.0.9"
+        && hasRoute "fd42:dead:beef:1900:0000:0000:0000:0008/128" "fd42:dead:beef:1000:0:0:0:9"
+    ' | grep -qx true
 
 REPO_ROOT="${repo_root}" \
 INTENT_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/intent.nix" \
@@ -59,15 +59,22 @@ INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        rendered = host.renderedHost.containers."c-router-upstream-selector";
-        cfg =
+        renderedUpstream = host.renderedHost.containers."c-router-upstream-selector";
+        renderedBranchCore = host.renderedHost.containers."s-router-core-isp-b";
+        cfgUpstream =
           (flake.inputs.nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
-            modules = [ rendered.config ];
+            modules = [ renderedUpstream.config ];
           }).config;
-        iotRoutes = cfg.systemd.network.networks."10-policy-iot-wan".routes or [ ];
-        mgmtStorageRoutes = cfg.systemd.network.networks."10-pol-mgt-sto".routes or [ ];
-        mgmtRoutes = cfg.systemd.network.networks."10-policy-mgmt-wan".routes or [ ];
+        cfgBranchCore =
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [ renderedBranchCore.config ];
+          }).config;
+        iotRoutes = cfgUpstream.systemd.network.networks."10-policy-iot-wan".routes or [ ];
+        mgmtStorageRoutes = cfgUpstream.systemd.network.networks."10-pol-mgt-sto".routes or [ ];
+        mgmtRoutes = cfgUpstream.systemd.network.networks."10-policy-mgmt-wan".routes or [ ];
+        branchOverlayRoutes = cfgBranchCore.systemd.network.networks."10-overlay-west".routes or [ ];
         hasRoute = routes: destination: gateway:
           builtins.any
             (route:
@@ -75,10 +82,19 @@ INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm
               && (route.Gateway or null) == gateway
               && (route.Table or null) == 2000)
             routes;
+        hasMainRoute = routes: destination: gateway:
+          builtins.any
+            (route:
+              (route.Destination or null) == destination
+              && (route.Gateway or null) == gateway
+              && !(builtins.hasAttr "Table" route))
+            routes;
       in
         (!hasRoute iotRoutes "10.80.0.4/32" "10.80.0.22")
         && (!hasRoute mgmtStorageRoutes "10.80.0.4/32" "10.80.0.26")
         && hasRoute mgmtRoutes "10.80.0.4/32" "10.80.0.28"
-    ' >/dev/null
+        && hasMainRoute branchOverlayRoutes "10.50.0.0/32" "100.96.10.2"
+        && hasMainRoute branchOverlayRoutes "fd42:dead:feed:1000:0:0:0:0/128" "fd42:dead:beef:ee::2"
+    ' | grep -qx true
 
 echo "PASS transit-endpoint-return-routes"
