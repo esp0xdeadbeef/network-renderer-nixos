@@ -9,6 +9,19 @@
 let
   realizationPorts = import ../../physical/realization-ports.nix { inherit lib; };
 
+  sitesData =
+    if
+      cpm ? control_plane_model
+      && builtins.isAttrs cpm.control_plane_model
+      && cpm.control_plane_model ? data
+      && builtins.isAttrs cpm.control_plane_model.data
+    then
+      cpm.control_plane_model.data
+    else if cpm ? data && builtins.isAttrs cpm.data then
+      cpm.data
+    else
+      { };
+
   hostRuntime = import ../../lookup/host-runtime.nix {
     inherit
       lib
@@ -92,6 +105,8 @@ in
     unitRoles
     runtimeRole
     ;
+
+  inherit sitesData;
 
   inherit (effectiveBridgeModel)
     bridgeNamesRaw
