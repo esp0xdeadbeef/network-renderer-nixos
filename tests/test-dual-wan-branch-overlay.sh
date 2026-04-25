@@ -193,14 +193,19 @@ run_one() {
                 (route.Table or null) == 2004
                 && (route.Gateway or null) == "10.10.0.45")
               (policyMgmtUplink.routes or [ ]);
-          omitsImplicitDnsOutgoingInterfaces =
+          hasDerivedDnsOutgoingInterfaces =
             let
               adminOutgoing =
                 accessAdminConfig.services.unbound.settings.server."outgoing-interface" or [ ];
               mgmtOutgoing =
                 accessMgmtConfig.services.unbound.settings.server."outgoing-interface" or [ ];
             in
-            adminOutgoing == [ ] && mgmtOutgoing == [ ];
+            adminOutgoing != [ ]
+            && mgmtOutgoing != [ ]
+            && !(builtins.elem "10.20.15.1" adminOutgoing)
+            && !(builtins.elem "fd42:dead:beef:15::1" adminOutgoing)
+            && !(builtins.elem "10.20.10.1" mgmtOutgoing)
+            && !(builtins.elem "fd42:dead:beef:10::1" mgmtOutgoing);
           hasDeclarativeIpv6AcceptRA =
             let
               sysctls = siteCoreWanAConfig.boot.kernel.sysctl or { };
@@ -249,7 +254,7 @@ run_one() {
           && hasCoreIngressOverlayRoutes
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
-          && omitsImplicitDnsOutgoingInterfaces
+          && hasDerivedDnsOutgoingInterfaces
           && hasDeclarativeIpv6AcceptRA
           && hasHostValidationService
           && hasEscapedValidationJqVars
