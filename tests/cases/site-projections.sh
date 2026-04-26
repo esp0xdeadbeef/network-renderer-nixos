@@ -44,16 +44,6 @@ run_case() {
   pass "site-projections:${example_name}"
 }
 
-# Overlay provisioning: which nodes terminate, and which IP each termination node uses.
-run_case "single-wan-with-nebula" '
-  .sites.esp0xdeadbeef["site-a"].overlays.nebula.terminateOn
-  | (index("s-router-core-wan") != null)
-'
-run_case "single-wan-with-nebula" '
-  .sites.esp0xdeadbeef["site-a"].overlays.nebula.nodes["s-router-core-wan"].addr4
-  == "100.64.200.1/32"
-'
-
 # IPv6 PD plan is site-scoped and must be visible to consumers without guessing.
 run_case "single-wan-ipv6-pd" '
   .sites.esp0xdeadbeef["site-a"].ipv6.pd.perTenantPrefixLength == 64

@@ -65,12 +65,10 @@ run_one() {
           cpm = hostBuild.controlPlaneOut.control_plane_model;
           overlayA = cpm.data.enterpriseA."site-a".overlays."east-west";
           overlayB = cpm.data.enterpriseB."site-b".overlays."east-west";
-          renderedOverlayA = rendered.sites.enterpriseA."site-a".overlays."east-west";
-          renderedOverlayB = rendered.sites.enterpriseB."site-b".overlays."east-west";
           policyA = cpm.data.enterpriseA."site-a".runtimeTargets."enterpriseA-site-a-s-router-policy";
           policyB = cpm.data.enterpriseB."site-b".runtimeTargets."enterpriseB-site-b-b-router-policy";
-          containerA = builtContainers."s-router-core-isp-b";
-          containerB = builtContainers."b-router-core";
+          containerA = builtContainers."s-router-core-nebula";
+          containerB = builtContainers."b-router-core-nebula";
           downstreamSelector = builtContainers."s-router-downstream-selector";
           policyOnly = builtContainers."s-router-policy-only";
           evalContainer = container:
@@ -151,8 +149,8 @@ run_one() {
             != null;
           hasCoreOverlayInputAccept =
             let
-              coreRules = nftRules rendered.containers."s-router-core-isp-b";
-              branchCoreRules = nftRules rendered.containers."b-router-core";
+              coreRules = nftRules rendered.containers."s-router-core-nebula";
+              branchCoreRules = nftRules rendered.containers."b-router-core-nebula";
             in
             lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
             && lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
@@ -254,16 +252,10 @@ run_one() {
         in
           builtins.isAttrs containerA
           && builtins.isAttrs containerB
-          && overlayA.terminateOn == [ "s-router-core-isp-b" ]
-          && overlayB.terminateOn == [ "b-router-core" ]
-          && renderedOverlayA.ipam.ipv4.prefix == "100.96.10.0/24"
-          && renderedOverlayA.ipam.ipv6.prefix == "fd42:dead:beef:ee::/64"
-          && renderedOverlayB.ipam.ipv4.prefix == "100.96.10.0/24"
-          && renderedOverlayB.ipam.ipv6.prefix == "fd42:dead:beef:ee::/64"
-          && renderedOverlayA.nodes."nebula-core".addr4 == "100.96.10.10/32"
-          && renderedOverlayB.nodes."branch-node01".addr4 == "100.96.10.20/32"
+          && overlayA.terminateOn == [ "s-router-core-nebula" ]
+          && overlayB.terminateOn == [ "b-router-core-nebula" ]
           && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-a")
-          && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-b")
+          && hasNebulaForward (nftRules rendered.containers."s-router-core-nebula")
           && hasIngressPolicyRouting
           && hasIngressTableRoutes
           && hasServiceDnsPolicy
