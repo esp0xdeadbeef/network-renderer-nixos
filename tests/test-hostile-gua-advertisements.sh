@@ -32,8 +32,17 @@ INVENTORY_PATH="${inventory_path}" \
           builtins.readFile cfg.systemd.services."radvd-generate-tenant-hostile".serviceConfig.ExecStart;
         tenantNetwork = cfg.systemd.network.networks."10-tenant-hostile";
         addresses = tenantNetwork.address or [ ];
+        routes = tenantNetwork.routes or [ ];
+        hasHostileGuaOnlinkRoute =
+          builtins.any (
+            route:
+              (route.Destination or null) == "2a01:4f8:1c17:b337::/64"
+              && (route.Scope or null) == "link"
+              && !(route ? Gateway)
+          ) routes;
       in
         builtins.match ".*2a01:4f8:1c17:b337::/64.*" script != null
+        && hasHostileGuaOnlinkRoute
         && !(builtins.elem "2a01:4f8:1c17:b337::1/64" addresses)
     ' | grep -qx true
 
