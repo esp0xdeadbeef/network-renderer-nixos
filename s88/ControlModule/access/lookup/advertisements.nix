@@ -382,6 +382,12 @@ let
         else
           null;
 
+      advertisedIpv6Prefixes =
+        if semanticInterface ? ra6Prefixes && builtins.isList semanticInterface.ra6Prefixes then
+          map toString semanticInterface.ra6Prefixes
+        else
+          [ ];
+
       dhcp4Subnet = stringField dhcp4Settings [ "subnet" "cidr" ] (
         if explicitSubnet4 != null then explicitSubnet4 else firstIPv4Cidr
       );
@@ -393,7 +399,12 @@ let
       dhcp4Domain = stringField dhcp4Settings [ "domain" "domainName" ] "lan.";
 
       radvdPrefixes = stringListField radvdSettings [ "prefixes" ] (
-        if explicitSubnet6 != null then [ explicitSubnet6 ] else ipv6Cidrs
+        if advertisedIpv6Prefixes != [ ] then
+          advertisedIpv6Prefixes
+        else if explicitSubnet6 != null then
+          [ explicitSubnet6 ]
+        else
+          ipv6Cidrs
       );
       radvdRdnss = stringListField radvdSettings [ "rdnss" "dnsServers" ] (
         lib.optionals (firstIPv6Cidr != null) [ (ipv4AddressFromCIDR firstIPv6Cidr) ]
