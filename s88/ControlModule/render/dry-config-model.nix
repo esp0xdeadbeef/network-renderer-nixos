@@ -294,7 +294,6 @@ let
               { }
             else
               {
-                overlays = siteObj.overlays or { };
                 ipv6 = siteObj.ipv6 or { };
                 routing = siteObj.routing or { };
                 transit = siteObj.transit or { };

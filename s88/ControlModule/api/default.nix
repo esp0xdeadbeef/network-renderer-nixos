@@ -92,9 +92,6 @@ let
     buildHostFromPaths = hostBuilders.buildHostFromPaths;
   };
 
-  overlayRuntime = import ./overlay-runtime/default.nix {
-    inherit lib;
-  };
 in
 {
   inherit
@@ -105,7 +102,6 @@ in
     host
     bridges
     containers
-    overlayRuntime
     ;
 
   renderer = {

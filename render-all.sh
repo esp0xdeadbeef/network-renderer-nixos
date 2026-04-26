@@ -18,9 +18,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Controls:
 # - FAIL_ON_WARNINGS=1: treat evaluation warnings / warning alarms as failures.
-# - FAIL_FAST=1: stop on first warning/failure instead of scanning everything.
+# - FAIL_FAST=0: keep scanning after failures instead of stopping immediately.
 fail_on_warnings="${FAIL_ON_WARNINGS:-0}"
-fail_fast="${FAIL_FAST:-0}"
+fail_fast="${FAIL_FAST:-1}"
 
 dump_generated_artifacts() {
   if [[ "${DUMP_JSON_ON_WARNINGS:-0}" != "1" ]]; then
@@ -265,7 +265,7 @@ fi
 
 echo "[*] Found ${#intent_paths[@]} intent.nix files under: $search_root"
 
-  for intent_path in "${intent_paths[@]}"; do
+for intent_path in "${intent_paths[@]}"; do
   inventory_path="$(dirname "$intent_path")/inventory-nixos.nix"
   if [ ! -f "$inventory_path" ]; then
     continue
@@ -293,9 +293,12 @@ echo "[*] Found ${#intent_paths[@]} intent.nix files under: $search_root"
 
   if ! compile_cpm "$intent_path" "$inventory_path" "$tmp_dir/cpm.json"; then
     echo
-    echo "[!] CPM compilation failed for: $intent_path"
+    echo "[!] CPM compilation failed for: $intent_path" >&2
     failed=true
     rm -rf "$tmp_dir"
+    if [[ "$fail_fast" == "1" ]]; then
+      exit 1
+    fi
     continue
   fi
 
@@ -309,10 +312,13 @@ echo "[*] Found ${#intent_paths[@]} intent.nix files under: $search_root"
     2> >(tee "$tmp_dir/render.stderr" >&2)
   then
     echo
-    echo "[!] Generation failed for: $intent_path"
+    echo "[!] Generation failed for: $intent_path" >&2
     dump_generated_artifacts
     failed=true
     rm -rf "$tmp_dir"
+    if [[ "$fail_fast" == "1" ]]; then
+      exit 1
+    fi
     continue
   fi
 
@@ -346,10 +352,13 @@ echo "[*] Found ${#intent_paths[@]} intent.nix files under: $search_root"
 
   if ! ./test-split-box-render.sh "$tmp_dir/cpm.json" ./90-render.json; then
     echo
-    echo "[!] Split box renderer validation failed for: $intent_path"
+    echo "[!] Split box renderer validation failed for: $intent_path" >&2
     dump_generated_artifacts
     failed=true
     rm -rf "$tmp_dir"
+    if [[ "$fail_fast" == "1" ]]; then
+      exit 1
+    fi
     continue
   fi
 
