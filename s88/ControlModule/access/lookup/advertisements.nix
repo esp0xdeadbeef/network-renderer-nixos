@@ -527,6 +527,11 @@ let
       runtimeTarget.advertisements
     else
       { };
+  cpmExternalValidation =
+    if runtimeTarget ? externalValidation && builtins.isAttrs runtimeTarget.externalValidation then
+      runtimeTarget.externalValidation
+    else
+      { };
 
   authoritativeDhcp4 =
     let
@@ -680,6 +685,14 @@ let
                 "/run/s88-ipv6-pd/${uplinkName}.prefix"
               else
                 null;
+          }
+        else if builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null) then
+          {
+            uplink = "external-validation";
+            delegatedPrefixLength = 64;
+            perTenantPrefixLength = 64;
+            slot = 0;
+            sourceFile = cpmExternalValidation.delegatedPrefixSecretPath;
           }
         else
           null;

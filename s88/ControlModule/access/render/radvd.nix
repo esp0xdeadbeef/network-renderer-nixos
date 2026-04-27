@@ -102,6 +102,7 @@ let
 
     ${lib.optionalString (delegatedPrefix != null) ''
             if [ -n "$pd_prefix" ]; then
+              ${pkgs.iproute2}/bin/ip -6 route replace "$pd_prefix" dev ${lib.escapeShellArg scope.interfaceName} proto static
               tmp_cfg="$(mktemp)"
               sed '$d' ${lib.escapeShellArg cfgFile} > "$tmp_cfg"
               cat >> "$tmp_cfg" <<EOF_PD
