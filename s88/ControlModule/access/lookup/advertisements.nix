@@ -656,7 +656,15 @@ let
           { };
 
       delegatedPrefix =
-        if
+        if builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null) then
+          {
+            uplink = "external-validation";
+            delegatedPrefixLength = 64;
+            perTenantPrefixLength = 64;
+            slot = 0;
+            sourceFile = cpmExternalValidation.delegatedPrefixSecretPath;
+          }
+        else if
           tenantName != null
           && currentSiteIpv6 ? pd
           && builtins.isAttrs currentSiteIpv6.pd
@@ -683,16 +691,8 @@ let
                 configuredSourceFile
               else if uplinkName != null && uplinkName != "" then
                 "/run/s88-ipv6-pd/${uplinkName}.prefix"
-              else
-                null;
-          }
-        else if builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null) then
-          {
-            uplink = "external-validation";
-            delegatedPrefixLength = 64;
-            perTenantPrefixLength = 64;
-            slot = 0;
-            sourceFile = cpmExternalValidation.delegatedPrefixSecretPath;
+          else
+            null;
           }
         else
           null;
