@@ -633,7 +633,16 @@ let
         if interfaceName != null then interfaceName else "radvd-${builtins.toString (idx + 1)}"
       );
 
-      prefixes = if adv ? prefixes then asStringList adv.prefixes else [ ];
+      hasExternalValidationDelegatedPrefix =
+        builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null);
+
+      prefixes =
+        if hasExternalValidationDelegatedPrefix then
+          [ ]
+        else if adv ? prefixes then
+          asStringList adv.prefixes
+        else
+          [ ];
       rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
       domain =
         let
@@ -656,7 +665,7 @@ let
           { };
 
       delegatedPrefix =
-        if builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null) then
+        if hasExternalValidationDelegatedPrefix then
           {
             uplink = "external-validation";
             delegatedPrefixLength = 64;
