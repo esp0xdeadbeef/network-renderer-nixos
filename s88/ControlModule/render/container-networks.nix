@@ -121,6 +121,29 @@ let
 
   isCoreTransitInterface = name: name == "upstream" || stringHasPrefix "upstream-" name;
 
+  externalValidationDelegatedPrefixSources =
+    if
+      containerModel ? externalValidationDelegatedPrefixSources
+      && builtins.isAttrs containerModel.externalValidationDelegatedPrefixSources
+    then
+      containerModel.externalValidationDelegatedPrefixSources
+    else
+      { };
+
+  delegatedPrefixSourceForRoute =
+    route:
+    if
+      builtins.isAttrs route
+      && builtins.isString (route.dst or null)
+      && builtins.hasAttr route.dst externalValidationDelegatedPrefixSources
+    then
+      externalValidationDelegatedPrefixSources.${route.dst}
+    else
+      null;
+
+  isExternalValidationDelegatedPrefixRoute =
+    route: delegatedPrefixSourceForRoute route != null;
+
   mkRoute =
     route:
     if !builtins.isAttrs route then
@@ -493,6 +516,9 @@ let
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
           routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
           dynamicWanNetworkConfig = mkDynamicWanNetworkConfig iface;
+          staticRawRoutes = lib.filter (
+            route: !(isExternalValidationDelegatedPrefixRoute route)
+          ) rawRoutes;
         in
         if builtins.elem interfaceName networkManagerInterfaces then
           null
@@ -506,7 +532,11 @@ let
               }
               // dynamicWanNetworkConfig;
               address = iface.addresses or [ ];
-              routes = routes;
+              routes =
+                (lib.optionals keepInterfaceRoutesInMain (
+                  lib.filter (route: route != null) (map mkRoute staticRawRoutes)
+                ))
+                ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
               routingPolicyRules = routingPolicyRules;
             };
           }
@@ -522,8 +552,47 @@ let
       needsIpv6AcceptRA iface && !(builtins.elem interfaceName networkManagerInterfaces)
     ) (builtins.attrValues interfaces)
   );
+  dynamicDelegatedRoutes =
+    lib.concatLists (
+      map (
+        ifName:
+        let
+          iface = interfaces.${ifName};
+          interfaceName = renderedInterfaceNames.${ifName};
+          rawRoutes = iface.routes or [ ];
+        in
+        lib.imap0
+          (
+            index: route:
+            let
+              sourceFile = delegatedPrefixSourceForRoute route;
+              gateway =
+                if builtins.isString (route.via6 or null) && route.via6 != "" then
+                  route.via6
+                else if builtins.isString (route.via4 or null) && route.via4 != "" then
+                  route.via4
+                else
+                  null;
+            in
+            if sourceFile == null then
+              null
+            else
+              {
+                name = "delegated-prefix-route-${interfaceName}-${builtins.toString index}";
+                inherit
+                  interfaceName
+                  sourceFile
+                  gateway
+                  ;
+                metric = route.metric or null;
+              }
+          )
+          rawRoutes
+      ) interfaceNames
+    );
 in
 {
   networks = loopbackUnit // interfaceUnits;
   ipv6AcceptRAInterfaces = ipv6AcceptRAInterfaces;
+  dynamicDelegatedRoutes = lib.filter (route: route != null) dynamicDelegatedRoutes;
 }
