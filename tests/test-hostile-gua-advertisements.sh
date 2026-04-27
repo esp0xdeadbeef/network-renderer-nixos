@@ -6,8 +6,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 examples_root="$(flake_input_path network-labs)/examples"
-intent_path="${examples_root}/s-router-test-three-site/intent.nix"
-inventory_path="${examples_root}/s-router-test-three-site/inventory-nixos.nix"
+intent_path="${examples_root}/tri-site-dual-wan-overlay-integration-bgp/intent.nix"
+inventory_path="${examples_root}/tri-site-dual-wan-overlay-integration-static/inventory-base.nix"
 
 REPO_ROOT="${repo_root}" \
 INTENT_PATH="${intent_path}" \
@@ -28,11 +28,22 @@ INVENTORY_PATH="${inventory_path}" \
             system = "x86_64-linux";
             modules = [ builtContainers."b-router-access-hostile".config ];
           }).config;
+        coreCfg =
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [ builtContainers."b-router-core-nebula".config ];
+          }).config;
         script =
           builtins.readFile cfg.systemd.services."radvd-generate-tenant-hostile".serviceConfig.ExecStart;
         tenantNetwork = cfg.systemd.network.networks."10-tenant-hostile";
         addresses = tenantNetwork.address or [ ];
         routes = tenantNetwork.routes or [ ];
+        coreUpstreamRoutes = coreCfg.systemd.network.networks."10-upstream".routes or [ ];
+        coreServiceNames = builtins.attrNames coreCfg.systemd.services;
+        hasDelegatedRouteService =
+          builtins.any
+            (name: builtins.match "s88-delegated-prefix-route-upstream-.*" name != null)
+            coreServiceNames;
         hasHostileGuaOnlinkRoute =
           builtins.any (
             route:
@@ -40,9 +51,19 @@ INVENTORY_PATH="${inventory_path}" \
               && (route.Scope or null) == "link"
               && !(route ? Gateway)
           ) routes;
+        hasDynamicHostilePrefix =
+          builtins.match ".*?/run/secrets/access-node-ipv6-prefix-espbranch-site-b-b-router-access-hostile.*" script != null;
+        hasStaleCoreMainRoute =
+          builtins.any (
+            route:
+              (route.Destination or null) == "2a01:04f8:1c17:b337:0000:0000:0000:0000/64"
+              && !(route ? Table)
+          ) coreUpstreamRoutes;
       in
-        builtins.match ".*2a01:4f8:1c17:b337::/64.*" script != null
-        && hasHostileGuaOnlinkRoute
+        hasDynamicHostilePrefix
+        && !hasHostileGuaOnlinkRoute
+        && hasDelegatedRouteService
+        && !hasStaleCoreMainRoute
         && !(builtins.elem "2a01:4f8:1c17:b337::1/64" addresses)
     ' | grep -qx true
 
