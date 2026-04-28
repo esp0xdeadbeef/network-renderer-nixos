@@ -33,20 +33,46 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           (uplinks.${name}.mode or null) == "vlan"
           && (uplinks.${name}.ipv4.dhcp or false)
           && (uplinks.${name}.ipv6.acceptRA or false);
+        managementUplinkIsVlanDhcp = name:
+          (uplinks.${name}.mode or null) == "vlan"
+          && (uplinks.${name}.parent or null) == "eth0"
+          && (uplinks.${name}.bridge or null) == "vlan2"
+          && (uplinks.${name}.ipv4.dhcp or false)
+          && ! (uplinks.${name}.ipv6.enable or true)
+          && ! (uplinks.${name}.ipv6.acceptRA or false);
         bridgeUsesDhcp = bridgeName:
           let cfg = networks."30-${bridgeName}".networkConfig or { };
           in (cfg.DHCP or null) == "ipv4"
             && (cfg.IPv6AcceptRA or false)
             && (cfg.LinkLocalAddressing or null) == "ipv6";
+        managementBridgeUsesDhcp = bridgeName:
+          let cfg = networks."30-${bridgeName}".networkConfig or { };
+          in (cfg.DHCP or null) == "ipv4"
+            && ! (cfg.IPv6AcceptRA or false)
+            && (cfg.LinkLocalAddressing or null) == "no";
+        hasVlanAttachment = vlan:
+          let name = "eth0.${toString vlan}";
+          in (netdevs."11-${name}".netdevConfig.Kind or null) == "vlan"
+            && (netdevs."11-${name}".vlanConfig.Id or null) == vlan
+            && (networks."20-eth0".networkConfig.VLAN or [ ]) == [ "eth0.2" "eth0.4" "eth0.5" ]
+            && (networks."21-${name}".networkConfig.Bridge or null) == uplinks.${uplinkNameForVlan vlan}.bridge;
+        netdevs = host.renderedHost.netdevs;
+        managementUplink = uplinkNameForVlan 2;
         vlan4Uplink = uplinkNameForVlan 4;
         vlan5Uplink = uplinkNameForVlan 5;
       in
-        vlan4Uplink != null
+        managementUplink != null
+        && vlan4Uplink != null
         && vlan5Uplink != null
+        && managementUplinkIsVlanDhcp managementUplink
         && uplinkIsVlanDhcp vlan4Uplink
         && uplinkIsVlanDhcp vlan5Uplink
+        && managementBridgeUsesDhcp uplinks.${managementUplink}.bridge
         && bridgeUsesDhcp uplinks.${vlan4Uplink}.bridge
         && bridgeUsesDhcp uplinks.${vlan5Uplink}.bridge
+        && hasVlanAttachment 2
+        && hasVlanAttachment 4
+        && hasVlanAttachment 5
     ' | grep -qx true
 
 echo "PASS host-uplink-vlan-dhcp"
