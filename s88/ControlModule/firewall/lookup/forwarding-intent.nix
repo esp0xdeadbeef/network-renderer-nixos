@@ -1050,18 +1050,8 @@ let
   upstreamSelectorForwardPairs =
     if normalizedExplicitForwardPairs != [ ] then
       normalizedExplicitForwardPairs
-    else if builtins.length resolvedTransitNames < 2 then
-      [ ]
     else
-      lib.concatMap (
-        inIf:
-        map (outIf: {
-          "in" = [ inIf ];
-          "out" = [ outIf ];
-          action = "accept";
-          comment = "upstream-selector-${inIf}-to-${outIf}";
-        }) (lib.filter (candidate: candidate != inIf) resolvedTransitNames)
-      ) resolvedTransitNames;
+      [ ];
 
   coreNatInterfaces =
     if natEnabled == false then
@@ -1108,8 +1098,7 @@ let
 
   authoritativeUpstreamSelectorForwarding =
     normalizedExplicitForwardPairs != [ ]
-    || nodeForwardingEnabled == false
-    || explicitTransitNames != [ ];
+    || nodeForwardingEnabled == false;
 
   _uplinks = uplinks;
 in

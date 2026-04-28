@@ -190,7 +190,7 @@ let
 
   output = {
     tableName = "edge_policy";
-    inputPolicy = "accept";
+    inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
     forwardRules = renderedRules;

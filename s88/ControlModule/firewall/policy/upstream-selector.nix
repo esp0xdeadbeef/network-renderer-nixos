@@ -44,18 +44,8 @@ let
   forwardPairs =
     if useExplicitForwarding then
       forwardingIntent.upstreamSelectorForwardPairs or [ ]
-    else if builtins.length transitNames < 2 then
-      [ ]
     else
-      lib.concatMap (
-        inIf:
-        map (outIf: {
-          "in" = [ inIf ];
-          "out" = [ outIf ];
-          action = "accept";
-          comment = "upstream-selector-${inIf}-to-${outIf}";
-        }) (lib.filter (candidate: candidate != inIf) transitNames)
-      ) transitNames;
+      [ ];
 
   inputRules = [
     ''
