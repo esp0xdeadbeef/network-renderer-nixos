@@ -8,6 +8,34 @@
 let
   hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
 
+  normalizeIpv4 =
+    value:
+    let
+      ipv4 = if builtins.isAttrs value then value else { };
+      method = ipv4.method or null;
+    in
+    ipv4
+    // lib.optionalAttrs (method == "dhcp") {
+      enable = true;
+      dhcp = true;
+    };
+
+  normalizeIpv6 =
+    value:
+    let
+      ipv6 = if builtins.isAttrs value then value else { };
+      method = ipv6.method or null;
+    in
+    ipv6
+    // lib.optionalAttrs (method == "dhcp" || method == "dhcp6") {
+      enable = true;
+      dhcp = true;
+    }
+    // lib.optionalAttrs (method == "slaac") {
+      enable = true;
+      acceptRA = true;
+    };
+
   uplinkBridgeNamesRaw = lib.unique (
     lib.filter builtins.isString (
       map (uplinkName: lookup.uplinksRaw.${uplinkName}.bridge or null) lookup.uplinkNames
@@ -122,12 +150,23 @@ let
           fabricAttachTarget.renderedHostBridgeName
         else
           uplinkBridgeNameMap.${originalBridge};
+
+      mode =
+        if uplink ? mode && builtins.isString uplink.mode then
+          uplink.mode
+        else if uplink ? parent && builtins.isString uplink.parent && uplink ? vlan then
+          "vlan"
+        else
+          null;
     in
     uplink
     // {
       inherit originalBridge;
       bridge = renderedBridge;
+      ipv4 = normalizeIpv4 (uplink.ipv4 or { });
+      ipv6 = normalizeIpv6 (uplink.ipv6 or { });
     }
+    // lib.optionalAttrs (mode != null) { inherit mode; }
   ) lookup.uplinksRaw;
 in
 {

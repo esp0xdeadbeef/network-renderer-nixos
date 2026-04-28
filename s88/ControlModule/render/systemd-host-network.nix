@@ -222,6 +222,31 @@ let
         uplink = uplinks.${uplinkName};
         transitNamesOnUplink = transitNamesForUplink uplinkName;
         baseBridgeNetworkConfig = bridgeNetworkFor uplink;
+        ipv4Dhcp =
+          uplink ? ipv4
+          && builtins.isAttrs uplink.ipv4
+          && ((uplink.ipv4.dhcp or false) || (uplink.ipv4.method or null) == "dhcp");
+        ipv6Dhcp =
+          uplink ? ipv6
+          && builtins.isAttrs uplink.ipv6
+          && (
+            (uplink.ipv6.dhcp or false)
+            || (uplink.ipv6.method or null) == "dhcp"
+            || (uplink.ipv6.method or null) == "dhcp6"
+          );
+        ipv6AcceptRA =
+          uplink ? ipv6
+          && builtins.isAttrs uplink.ipv6
+          && ((uplink.ipv6.acceptRA or false) || (uplink.ipv6.method or null) == "slaac");
+        dhcpMode =
+          if ipv4Dhcp && ipv6Dhcp then
+            "yes"
+          else if ipv4Dhcp then
+            "ipv4"
+          else if ipv6Dhcp then
+            "ipv6"
+          else
+            "no";
       in
       {
         name = "30-${uplink.bridge}";
@@ -233,9 +258,9 @@ let
           };
           networkConfig = {
             ConfigureWithoutCarrier = true;
-            DHCP = "no";
-            LinkLocalAddressing = "no";
-            IPv6AcceptRA = false;
+            DHCP = dhcpMode;
+            LinkLocalAddressing = if ipv6Dhcp || ipv6AcceptRA then "ipv6" else "no";
+            IPv6AcceptRA = ipv6AcceptRA;
           }
           // baseBridgeNetworkConfig
           // lib.optionalAttrs ((uplink.mode or "") == "trunk" && transitNamesOnUplink != [ ]) {
