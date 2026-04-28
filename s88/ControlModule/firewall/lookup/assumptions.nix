@@ -262,8 +262,8 @@ let
             roleName = roleName;
             interfaces = p2pNames;
             assumptions = [
-              "transit interface roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the selector role procedure"
-              "a full-mesh bidirectional forwarding policy is emitted between every distinct resolved transit interface"
+              "transit interface roles are resolved from explicit interface semantics when available"
+              "missing authoritative selector forwarding intent is treated as fail-closed; no selector transit accept rules are synthesized"
             ];
             extraText = [
               "resolved transit interfaces: ${builtins.toJSON p2pNames}"
@@ -287,8 +287,8 @@ let
             roleName = roleName;
             interfaces = p2pNames;
             assumptions = [
-              "transit interface roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the selector role procedure"
-              "a full-mesh bidirectional forwarding policy is emitted between every distinct resolved transit interface"
+              "transit interface roles are resolved from explicit interface semantics when available"
+              "missing authoritative selector forwarding intent is treated as fail-closed; no selector transit accept rules are synthesized"
             ];
             extraText = [
               "resolved transit interfaces: ${builtins.toJSON p2pNames}"
