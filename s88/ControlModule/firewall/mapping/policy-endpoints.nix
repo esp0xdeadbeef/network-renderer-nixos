@@ -678,10 +678,16 @@ let
   wanEndpointNames =
     if explicitWanNames != [ ] then
       explicitWanNames
-    else if exitUpstreamInterfaceNames != [ ] then
-      exitUpstreamInterfaceNames
     else
-      upstreamInterfaceNames;
+      let
+        wanUplinkNames = upstreamInterfacesForUplink "wan";
+      in
+      if wanUplinkNames != [ ] then
+        wanUplinkNames
+      else if exitUpstreamInterfaceNames != [ ] then
+        exitUpstreamInterfaceNames
+      else
+        upstreamInterfaceNames;
 
   ownershipEndpoints =
     if ownership ? endpoints && builtins.isList ownership.endpoints then
