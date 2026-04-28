@@ -50,6 +50,11 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           in (cfg.DHCP or null) == "ipv4"
             && ! (cfg.IPv6AcceptRA or false)
             && (cfg.LinkLocalAddressing or null) == "no";
+        tenantBridgeRejectsHostRa = bridgeName:
+          let cfg = networks."30-${bridgeName}".networkConfig or { };
+          in (cfg.DHCP or null) == "no"
+            && ! (cfg.IPv6AcceptRA or false)
+            && (cfg.LinkLocalAddressing or null) == "no";
         hasVlanAttachment = vlan:
           let name = "eth0.${toString vlan}";
           in (netdevs."11-${name}".netdevConfig.Kind or null) == "vlan"
@@ -73,6 +78,10 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && hasVlanAttachment 2
         && hasVlanAttachment 4
         && hasVlanAttachment 5
+        && tenantBridgeRejectsHostRa "hostile"
+        && tenantBridgeRejectsHostRa "branch"
+        && tenantBridgeRejectsHostRa "client"
+        && tenantBridgeRejectsHostRa "admin"
     ' | grep -qx true
 
 echo "PASS host-uplink-vlan-dhcp"
