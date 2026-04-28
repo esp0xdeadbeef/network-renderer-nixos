@@ -14,6 +14,12 @@ let
     else
       (_: [ ]);
 
+  allowForwardPair =
+    if endpointMap ? allowForwardPair && builtins.isFunction endpointMap.allowForwardPair then
+      endpointMap.allowForwardPair
+    else
+      (_: _: _: true);
+
   trafficTypeDefinitions =
     if communicationContract ? trafficTypes && builtins.isList communicationContract.trafficTypes then
       builtins.listToAttrs (
@@ -148,13 +154,16 @@ let
         fromIf:
         lib.concatMap (
           toIf:
-          map (
-            matchExpr:
-            let
-              matchPart = if matchExpr == "" then "" else " ${matchExpr}";
-            in
-            "iifname \"${fromIf}\" oifname \"${toIf}\"${matchPart} ${action}${commentExpr}"
-          ) trafficMatches
+          if allowForwardPair relation fromIf toIf then
+            map (
+              matchExpr:
+              let
+                matchPart = if matchExpr == "" then "" else " ${matchExpr}";
+              in
+              "iifname \"${fromIf}\" oifname \"${toIf}\"${matchPart} ${action}${commentExpr}"
+            ) trafficMatches
+          else
+            [ ]
         ) toInterfaces
       ) fromInterfaces;
     in

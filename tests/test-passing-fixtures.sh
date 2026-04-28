@@ -13,6 +13,9 @@ source "${repo_root}/tests/lib/test-common.sh"
 # Renderer-level validation: WAN uplinks on VLAN 4/5 keep DHCP/RA host behavior.
 bash "${repo_root}/tests/test-host-uplink-vlan-dhcp.sh"
 
+# Renderer-level validation: policy nft rules must not cross tenant/zone p2p lanes.
+bash "${repo_root}/tests/test-policy-zone-firewall-scoping.sh"
+
 # Renderer must expose site-scoped CPM outputs (overlays/ipv6/routing) without guessing.
 "${repo_root}/tests/cases/site-projections.sh"
 
