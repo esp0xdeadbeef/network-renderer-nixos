@@ -302,6 +302,9 @@ let
           ;
       };
 
+      fallbackCandidates = sortedAttrNames (base.runtimeTargets cpm);
+      identityFallbackCandidates = lib.filter matchesRequestedIdentity fallbackCandidates;
+
       hostScopedCandidates = lib.filter (
         unitName:
         requestedHostMatchesUnit {
@@ -312,16 +315,18 @@ let
             file
             ;
           requestedHostName = requestedHostName;
-        }
-      ) deploymentCandidates;
+          }
+      ) (if deploymentCandidates == [ ] then identityFallbackCandidates else deploymentCandidates);
 
-      baseCandidates =
+      baseCandidatesOrFallback =
         if requestedHostName != deploymentHostName && hostScopedCandidates != [ ] then
           hostScopedCandidates
+        else if deploymentCandidates != [ ] then
+          deploymentCandidates
         else
-          deploymentCandidates;
+          identityFallbackCandidates;
 
-      identityScopedCandidates = lib.filter matchesRequestedIdentity baseCandidates;
+      identityScopedCandidates = lib.filter matchesRequestedIdentity baseCandidatesOrFallback;
     in
     if runtimeRole == null then
       identityScopedCandidates

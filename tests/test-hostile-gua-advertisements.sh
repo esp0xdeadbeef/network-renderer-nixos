@@ -51,6 +51,8 @@ INVENTORY_PATH="${inventory_path}" \
               && (route.Scope or null) == "link"
               && !(route ? Gateway)
           ) routes;
+        hasHardcodedHostileRaPrefix =
+          builtins.match ".*2a01:4f8:1c17:b337::/64.*" script != null;
         hasDynamicHostilePrefix =
           builtins.match ".*?/run/secrets/access-node-ipv6-prefix-espbranch-site-b-b-router-access-hostile.*" script != null;
         hasStaleCoreMainRoute =
@@ -61,6 +63,7 @@ INVENTORY_PATH="${inventory_path}" \
           ) coreUpstreamRoutes;
       in
         hasDynamicHostilePrefix
+        && !hasHardcodedHostileRaPrefix
         && !hasHostileGuaOnlinkRoute
         && hasDelegatedRouteService
         && !hasStaleCoreMainRoute
