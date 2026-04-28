@@ -112,24 +112,37 @@ let
     in
     if segments == [ ] then null else normalizeTenantKey (builtins.head segments);
 
+  canonicalPolicyTenantKey =
+    value:
+    if value == "mgt" then
+      "mgmt"
+    else if value == "prn" then
+      "printer"
+    else
+      value;
+
   policyTenantKeyFor =
     name:
-    if stringHasPrefix "downstr-" name then
-      takeTenantSegment "downstr-" name
-    else if stringHasPrefix "downstream-" name then
-      takeTenantSegment "downstream-" name
-    else if stringHasPrefix "down-" name then
-      takeTenantSegment "down-" name
-    else if stringHasPrefix "upstream-" name then
-      takeTenantSegment "upstream-" name
-    else if stringHasPrefix "up-" name then
-      takeTenantSegment "up-" name
-    else if stringHasPrefix "policy-" name then
-      takeTenantSegment "policy-" name
-    else if stringHasPrefix "pol-" name then
-      takeTenantSegment "pol-" name
-    else
-      null;
+    let
+      raw =
+        if stringHasPrefix "downstr-" name then
+          takeTenantSegment "downstr-" name
+        else if stringHasPrefix "downstream-" name then
+          takeTenantSegment "downstream-" name
+        else if stringHasPrefix "down-" name then
+          takeTenantSegment "down-" name
+        else if stringHasPrefix "upstream-" name then
+          takeTenantSegment "upstream-" name
+        else if stringHasPrefix "up-" name then
+          takeTenantSegment "up-" name
+        else if stringHasPrefix "policy-" name then
+          takeTenantSegment "policy-" name
+        else if stringHasPrefix "pol-" name then
+          takeTenantSegment "pol-" name
+        else
+          null;
+    in
+    if raw == null then null else canonicalPolicyTenantKey raw;
 
   isPolicyLaneInterface =
     name:
