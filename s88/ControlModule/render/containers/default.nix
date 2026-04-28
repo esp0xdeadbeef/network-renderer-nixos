@@ -123,14 +123,31 @@ let
                       advertisements.ipv6Ra
                     else
                       [ ];
-                  prefixes =
-                    lib.concatLists (
-                      map (
-                        adv:
+                  prefixesForAdvertisement =
+                    adv:
+                    let
+                      explicitPrefixes =
                         if adv ? prefixes && builtins.isList adv.prefixes then
                           lib.filter builtins.isString adv.prefixes
                         else
-                          [ ]
+                          [ ];
+                      delegatedSubnet =
+                        if
+                          builtins.isString sourceFile
+                          && sourceFile != ""
+                          && adv ? externalValidation
+                          && builtins.isAttrs adv.externalValidation
+                          && builtins.isString (adv.routerInterface.subnet6 or null)
+                        then
+                          [ adv.routerInterface.subnet6 ]
+                        else
+                          [ ];
+                    in
+                    explicitPrefixes ++ delegatedSubnet;
+                  prefixes =
+                    lib.concatLists (
+                      map (
+                        adv: prefixesForAdvertisement adv
                       ) (lib.filter builtins.isAttrs ipv6Ra)
                     );
                 in
