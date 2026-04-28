@@ -46,8 +46,8 @@ INVENTORY_PATH="${inventory_path}" \
     ' | grep -qx true
 
 REPO_ROOT="${repo_root}" \
-INTENT_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/intent.nix" \
-INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/inventory.nix" \
+INTENT_PATH="$(flake_input_path network-labs)/examples/s-router-test-three-site/intent.nix" \
+INVENTORY_PATH="$(flake_input_path network-labs)/examples/s-router-test-three-site/inventory-nixos.nix" \
   nix eval \
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr '
@@ -74,7 +74,7 @@ INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm
         iotRoutes = cfgUpstream.systemd.network.networks."10-policy-iot-wan".routes or [ ];
         mgmtStorageRoutes = cfgUpstream.systemd.network.networks."10-pol-mgt-sto".routes or [ ];
         mgmtRoutes = cfgUpstream.systemd.network.networks."10-policy-mgmt-wan".routes or [ ];
-        branchOverlayRoutes = cfgBranchCore.systemd.network.networks."10-overlay-west".routes or [ ];
+        branchCoreNetworks = cfgBranchCore.systemd.network.networks;
         hasRoute = routes: destination: gateway:
           builtins.any
             (route:
@@ -89,12 +89,16 @@ INVENTORY_PATH="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm
               && (route.Gateway or null) == gateway
               && !(builtins.hasAttr "Table" route))
             routes;
+        hasMainRouteAnyNetwork = networks: destination: gateway:
+          builtins.any
+            (networkName: hasMainRoute (networks.${networkName}.routes or [ ]) destination gateway)
+            (builtins.attrNames networks);
       in
         (!hasRoute iotRoutes "10.80.0.4/32" "10.80.0.22")
         && (!hasRoute mgmtStorageRoutes "10.80.0.4/32" "10.80.0.26")
-        && hasRoute mgmtRoutes "10.80.0.4/32" "10.80.0.28"
-        && hasMainRoute branchOverlayRoutes "10.50.0.0/32" "100.96.10.2"
-        && hasMainRoute branchOverlayRoutes "fd42:dead:feed:1000:0:0:0:0/128" "fd42:dead:beef:ee::2"
+        && hasRoute mgmtRoutes "10.80.0.4/32" "10.80.0.30"
+        && hasMainRouteAnyNetwork branchCoreNetworks "10.50.0.0/32" "10.10.0.13"
+        && hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:d"
     ' | grep -qx true
 
 echo "PASS transit-endpoint-return-routes"

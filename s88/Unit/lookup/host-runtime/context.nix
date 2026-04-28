@@ -21,6 +21,16 @@ let
 
   ensureAttrs = value: if builtins.isAttrs value then value else { };
 
+  singletonName = attrs:
+    let
+      names = builtins.attrNames attrs;
+    in
+    if builtins.length names == 1 then builtins.head names else null;
+
+  singleInventoryDeploymentHostName = singletonName inventoryDeploymentHosts;
+
+  singleCpmDeploymentHostName = singletonName cpmDeploymentHosts;
+
   deploymentHostNameFromHostContext =
     if hostContext != null && builtins.isAttrs hostContext then
       if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
@@ -133,6 +143,10 @@ let
       deploymentHostNameFromHostContext
     else if deploymentHostNameFromRenderHost != null then
       deploymentHostNameFromRenderHost
+    else if singleInventoryDeploymentHostName != null then
+      singleInventoryDeploymentHostName
+    else if singleCpmDeploymentHostName != null then
+      singleCpmDeploymentHostName
     else
       requestedHostName;
 

@@ -2,9 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${repo_root}/tests/lib/test-common.sh"
 
-intent_path="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/intent.nix"
-inventory_path="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/inventory.nix"
+example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
+intent_path="${example_root}/intent.nix"
+inventory_path="${example_root}/inventory-nixos.nix"
 
 [[ -f "${intent_path}" ]] || { echo "missing intent: ${intent_path}" >&2; exit 1; }
 [[ -f "${inventory_path}" ]] || { echo "missing inventory: ${inventory_path}" >&2; exit 1; }

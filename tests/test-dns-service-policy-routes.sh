@@ -2,9 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${repo_root}/tests/lib/test-common.sh"
 
-intent_path="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/intent.nix"
-inventory_path="/home/deadbeef/github/nixos/nixos/virtual-machine/nixos-shell-vm/s-router-test/inventory.nix"
+example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
+intent_path="${example_root}/intent.nix"
+inventory_path="${example_root}/inventory-nixos.nix"
 
 [[ -f "${intent_path}" ]] || { echo "missing intent: ${intent_path}" >&2; exit 1; }
 [[ -f "${inventory_path}" ]] || { echo "missing inventory: ${inventory_path}" >&2; exit 1; }
@@ -52,16 +54,14 @@ INVENTORY_PATH="${inventory_path}" \
         siteaMgmtRoutes = siteaPolicyNetworks."10-downstream-mgmt".routes or [ ];
         sitecMgmtRoutes = sitecNetworks."10-downstream-mgmt".routes or [ ];
       in
-        hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.11" 2000
-        && hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:b" 2000
-        && hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.42" 2001
+        hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.13" 2000
+        && hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:d" 2000
+        && hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.44" 2002
         && !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" 2001)
-        && hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.22" 2014
-        && hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:16" 2014
-        && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2001
-        && hasRoute sitecMgmtRoutes "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10" 2001
-        && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2004
-        && hasRoute sitecMgmtRoutes "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10" 2004
+        && hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.24" 2004
+        && hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:18" 2004
+        && hasRoute sitecMgmtRoutes "10.90.10.0/24" "10.80.0.16" 2002
+        && hasRoute sitecMgmtRoutes "fd42:dead:cafe:0010:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:10" 2002
     ' | grep -qx true
 
 echo "PASS dns-service-policy-routes"
