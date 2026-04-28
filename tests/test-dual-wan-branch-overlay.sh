@@ -185,7 +185,11 @@ run_one() {
             && lib.hasInfix "iifname \"downstr-branch\" oifname \"upstream-branch\" tcp dport 53 drop comment \"deny-branch-dns-to-wan\"" branchPolicyRules
             && !lib.hasInfix "iifname \"downstr-branch\" oifname \"up-branch-ew\" udp dport 53 drop comment \"deny-branch-dns-to-wan\"" branchPolicyRules
             && !lib.hasInfix "iifname \"downstr-branch\" oifname \"up-branch-ew\" tcp dport 53 drop comment \"deny-branch-dns-to-wan\"" branchPolicyRules
-            && lib.hasInfix "iifname \"downstr-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" branchPolicyRules;
+            && lib.hasInfix "iifname \"downstr-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" branchPolicyRules
+            && !lib.hasInfix "iifname \"downstr-branch\" oifname \"up-hostile\" accept comment \"allow-branch-to-wan\"" branchPolicyRules
+            && !lib.hasInfix "iifname \"downstr-branch\" oifname \"up-hostile-ew\" accept comment \"allow-branch-to-wan\"" branchPolicyRules
+            && !lib.hasInfix "iifname \"downstr-hostile\" oifname \"upstream-branch\" accept comment \"allow-hostile-to-wan\"" branchPolicyRules
+            && !lib.hasInfix "iifname \"downstr-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-wan\"" branchPolicyRules;
           hasPolicyMgmtIngressRoutes =
             builtins.isList (policyMgmtUplink.routes or [ ])
             && builtins.any

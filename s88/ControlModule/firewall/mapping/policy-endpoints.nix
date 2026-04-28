@@ -96,6 +96,62 @@ let
     else
       null;
 
+  stringHasPrefix = prefix: value: builtins.isString value && lib.hasPrefix prefix value;
+
+  normalizeTenantKey =
+    value:
+    builtins.replaceStrings [ "_" "." "--" ] [ "-" "-" "-" ] (
+      lib.toLower (toString value)
+    );
+
+  takeTenantSegment =
+    prefix: value:
+    let
+      rest = builtins.substring (builtins.stringLength prefix) (builtins.stringLength value) value;
+      segments = lib.splitString "-" rest;
+    in
+    if segments == [ ] then null else normalizeTenantKey (builtins.head segments);
+
+  policyTenantKeyFor =
+    name:
+    if stringHasPrefix "downstr-" name then
+      takeTenantSegment "downstr-" name
+    else if stringHasPrefix "downstream-" name then
+      takeTenantSegment "downstream-" name
+    else if stringHasPrefix "down-" name then
+      takeTenantSegment "down-" name
+    else if stringHasPrefix "upstream-" name then
+      takeTenantSegment "upstream-" name
+    else if stringHasPrefix "up-" name then
+      takeTenantSegment "up-" name
+    else if stringHasPrefix "policy-" name then
+      takeTenantSegment "policy-" name
+    else if stringHasPrefix "pol-" name then
+      takeTenantSegment "pol-" name
+    else
+      null;
+
+  isPolicyLaneInterface =
+    name:
+    stringHasPrefix "downstr-" name
+    || stringHasPrefix "downstream-" name
+    || stringHasPrefix "down-" name
+    || stringHasPrefix "upstream-" name
+    || stringHasPrefix "up-" name
+    || stringHasPrefix "policy-" name
+    || stringHasPrefix "pol-" name;
+
+  samePolicyTenantLane =
+    fromIf: toIf:
+    let
+      fromTenant = policyTenantKeyFor fromIf;
+      toTenant = policyTenantKeyFor toIf;
+    in
+    !(isPolicyLaneInterface fromIf && isPolicyLaneInterface toIf)
+    || fromTenant == null
+    || toTenant == null
+    || fromTenant == toTenant;
+
   interfaceRefStrings =
     entry:
     let
@@ -883,6 +939,7 @@ in
 {
   inherit
     resolveEndpoint
+    samePolicyTenantLane
     allKnownInterfaces
     wanNames
     p2pNames
@@ -890,4 +947,6 @@ in
     authoritativeBindings
     authorityGaps
     ;
+
+  allowForwardPair = _relation: fromIf: toIf: samePolicyTenantLane fromIf toIf;
 }
