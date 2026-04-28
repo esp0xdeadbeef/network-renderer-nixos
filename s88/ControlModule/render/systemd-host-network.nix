@@ -38,6 +38,9 @@ let
         };
         networkConfig = {
           ConfigureWithoutCarrier = true;
+          DHCP = "no";
+          IPv6AcceptRA = false;
+          LinkLocalAddressing = "no";
         };
       };
     }) (sortedAttrNames bridges)
