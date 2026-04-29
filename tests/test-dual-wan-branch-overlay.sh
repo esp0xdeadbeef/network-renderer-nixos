@@ -154,6 +154,19 @@ run_one() {
             in
             lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
             && lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
+          hasStrictNebulaCoreForwarding =
+            let
+              assertStrict =
+                rules:
+                lib.hasInfix "iifname \"upstream\" oifname \"nebula1\" accept comment \"core-nebula-egress\"" rules
+                && lib.hasInfix "iifname \"nebula1\" oifname \"upstream\" accept comment \"core-nebula-return\"" rules
+                && !lib.hasInfix "iifname \"upstream\" oifname { \"east-west\", \"overlay-west\" } accept" rules
+                && !lib.hasInfix "iifname { \"east-west\", \"overlay-west\" } oifname \"upstream\" accept" rules
+                && !lib.hasInfix "iifname \"upstream\" oifname { \"eth0\", \"overlay-west\" } accept" rules
+                && !lib.hasInfix "iifname { \"eth0\", \"overlay-west\" } oifname \"upstream\" accept" rules;
+            in
+            assertStrict (nftRules rendered.containers."s-router-core-nebula")
+            && assertStrict (nftRules rendered.containers."b-router-core-nebula");
           hasCoreIngressOverlayRoutes =
             let
               siteCoreOverlayTable = ingressTableFor siteCoreOverlay;
@@ -265,6 +278,7 @@ run_one() {
           && hasServiceDnsPolicy
           && hasDirectDnsDropOrdering
           && hasCoreOverlayInputAccept
+          && hasStrictNebulaCoreForwarding
           && hasCoreIngressOverlayRoutes
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
