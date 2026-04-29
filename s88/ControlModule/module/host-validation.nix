@@ -64,9 +64,18 @@ let
 
     run_check() {
       local container="$1"
+      local dns_probe_name="$2"
 
-      systemd-run --quiet --wait --collect --pipe -M "$container" /bin/sh -lc '
+      systemd-run --quiet --wait --collect --pipe -M "$container" \
+        --setenv=DNS_PROBE_NAME="$dns_probe_name" /bin/sh -lc '
         set -eu
+
+        dns_query_ok() {
+          qtype="$1"
+          output="$(dig +time=2 +tries=1 @127.0.0.1 "$DNS_PROBE_NAME" "$qtype" 2>/dev/null || true)"
+          printf "%s\n" "$output" | grep -q "status: NOERROR" \
+            && printf "%s\n" "$output" | grep -Eq "[[:space:]]IN[[:space:]]+$qtype[[:space:]]"
+        }
 
         system_state="$(systemctl is-system-running 2>/dev/null || true)"
 
@@ -84,13 +93,13 @@ let
 
         if [ -f /etc/unbound/unbound.conf ]; then
           dns_service=true
-          if dig +time=2 +tries=1 @127.0.0.1 example.com A >/dev/null 2>&1; then
+          if dns_query_ok A; then
             dns4=ok
           else
             dns4=fail
           fi
 
-          if dig +time=2 +tries=1 @127.0.0.1 example.com AAAA >/dev/null 2>&1; then
+          if dns_query_ok AAAA; then
             dns6=ok
           else
             dns6=fail
@@ -124,6 +133,7 @@ let
 
       mapfile -t expected < <(${pkgs.jq}/bin/jq -r '.expectedContainers[]' "$plan")
       interval="$(${pkgs.jq}/bin/jq -r '.intervalSeconds' "$plan")"
+      dns_probe_name="$(${pkgs.jq}/bin/jq -r '.dnsProbeName // "example.com"' "$plan")"
 
       missing=()
       running=()
@@ -160,7 +170,7 @@ let
       : >"$tmp_checks"
 
       for container in "''${expected[@]}"; do
-        check_json="$(run_check "$container")"
+        check_json="$(run_check "$container" "$dns_probe_name")"
         ${pkgs.jq}/bin/jq -cn \
           --arg container "$container" \
           --argjson result "$check_json" \
@@ -168,14 +178,24 @@ let
       done
 
       checks_json="$(${pkgs.jq}/bin/jq -csf ${checksAggregationFilter} "$tmp_checks")"
+      checks_healthy="$(
+        ${pkgs.jq}/bin/jq -e '
+          to_entries
+          | all(
+              (.value.error? == null)
+              and ((.value.dnsService != true) or (.value.dnsA == "ok" and .value.dnsAAAA == "ok"))
+            )
+        ' <<<"$checks_json" >/dev/null && echo true || echo false
+      )"
 
       ${pkgs.jq}/bin/jq -n \
         --arg updatedAt "$now" \
         --argjson expected "$(${pkgs.jq}/bin/jq -c '.expectedContainers' "$plan")" \
+        --argjson ready "$checks_healthy" \
         --argjson checks "$checks_json" \
         '{
           updatedAt: $updatedAt,
-          ready: true,
+          ready: $ready,
           expectedContainers: $expected,
           checks: $checks
         }' >"$status_json"

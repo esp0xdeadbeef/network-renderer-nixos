@@ -258,6 +258,11 @@ run_one() {
             lib.hasInfix "systemState: \\$system_state" validationLoop
             && lib.hasInfix "dnsA: \\$dns4" validationLoop
             && lib.hasInfix "dnsAAAA: \\$dns6" validationLoop;
+          validationRejectsDnsServfail =
+            lib.hasInfix "DNS_PROBE_NAME" validationLoop
+            && lib.hasInfix "status: NOERROR" validationLoop
+            && lib.hasInfix "ready: $ready" validationLoop
+            && lib.hasInfix ".value.dnsA == \"ok\" and .value.dnsAAAA == \"ok\"" validationLoop;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -287,6 +292,7 @@ run_one() {
           && hasDeclarativeIpv6AcceptRA
           && hasHostValidationService
           && hasEscapedValidationJqVars
+          && validationRejectsDnsServfail
           && bgpOk
       ' >/dev/null
 

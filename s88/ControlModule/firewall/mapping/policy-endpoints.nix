@@ -967,5 +967,12 @@ in
     authorityGaps
     ;
 
-  allowForwardPair = _relation: fromIf: toIf: samePolicyTenantLane fromIf toIf;
+  allowForwardPair =
+    relation: fromIf: toIf:
+    let
+      endpointIsService = endpoint: builtins.isAttrs endpoint && (endpoint.kind or null) == "service";
+    in
+    endpointIsService (relation.from or null)
+    || endpointIsService (relation.to or null)
+    || samePolicyTenantLane fromIf toIf;
 }
