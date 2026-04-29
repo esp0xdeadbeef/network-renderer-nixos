@@ -202,6 +202,8 @@ let
           && builtins.hasAttr iface.assignedUplinkName uplinks
         then
           uplinks.${iface.assignedUplinkName}
+        else if isWan && iface ? assignedUplinkName then
+          { }
         else if isWan && wanUplinkName != null && builtins.hasAttr wanUplinkName uplinks then
           uplinks.${wanUplinkName}
         else
@@ -270,6 +272,8 @@ let
           && builtins.hasAttr iface.assignedUplinkName uplinks
         then
           uplinks.${iface.assignedUplinkName}
+        else if isWan && iface ? assignedUplinkName then
+          { }
         else if isWan && wanUplinkName != null && builtins.hasAttr wanUplinkName uplinks then
           uplinks.${wanUplinkName}
         else
