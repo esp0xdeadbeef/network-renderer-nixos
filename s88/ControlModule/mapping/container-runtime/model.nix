@@ -329,7 +329,9 @@ let
           let
             iface = renderedInterfaces.${ifName};
           in
-          (iface.usePrimaryHostBridge or false) && iface.sourceKind == "wan"
+          (iface.usePrimaryHostBridge or false)
+          && iface.sourceKind == "wan"
+          && builtins.isString (iface.assignedUplinkName or null)
         ) interfaceNames
       );
     in
