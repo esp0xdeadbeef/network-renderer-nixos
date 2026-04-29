@@ -42,6 +42,7 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         has "type filter hook input priority filter; policy drop;" rules
         && has "iifname \"lo\" accept" rules
         && has "ct state established,related accept" rules
+        && has "icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment \"allow-ipv6-nd-ra\"" rules
         && has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-east-west\"" rules
         && has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-east-west\"" rules
         && has "iifname \"up-hostile-ew\" oifname \"downstr-hostile\" accept comment \"allow-east-west-to-hostile\"" rules

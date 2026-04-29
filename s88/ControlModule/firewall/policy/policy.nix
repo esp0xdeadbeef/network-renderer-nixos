@@ -193,6 +193,11 @@ let
     inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
+    inputRules = [
+      ''
+        icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
+      ''
+    ];
     forwardRules = renderedRules;
   };
 in
