@@ -519,11 +519,7 @@ let
   touchesUpstream =
     pair: (containsName "upstream" (pair."in" or [ ])) || (containsName "upstream" (pair."out" or [ ]));
 
-  nebulaTunnelNames =
-    if overlayIngressNames != [ ] then
-      overlayIngressNames
-    else
-      [ "nebula1" ];
+  nebulaTunnelNames = sortedStrings (overlayIngressNames ++ [ "nebula1" ]);
 
   nebulaTunnelForwardPairs = [
     {

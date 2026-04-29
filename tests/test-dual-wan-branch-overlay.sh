@@ -158,8 +158,8 @@ run_one() {
             let
               assertStrict =
                 rules:
-                lib.hasInfix "iifname \"upstream\" oifname \"overlay-west\" accept comment \"core-nebula-egress\"" rules
-                && lib.hasInfix "iifname \"overlay-west\" oifname \"upstream\" accept comment \"core-nebula-return\"" rules
+                lib.hasInfix "iifname \"upstream\" oifname { \"nebula1\", \"overlay-west\" } accept comment \"core-nebula-egress\"" rules
+                && lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } oifname \"upstream\" accept comment \"core-nebula-return\"" rules
                 && !lib.hasInfix "iifname \"upstream\" oifname { \"east-west\", \"overlay-west\" } accept" rules
                 && !lib.hasInfix "iifname { \"east-west\", \"overlay-west\" } oifname \"upstream\" accept" rules
                 && !lib.hasInfix "iifname \"upstream\" oifname { \"eth0\", \"overlay-west\" } accept" rules
