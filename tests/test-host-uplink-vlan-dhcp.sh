@@ -14,6 +14,7 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
     --impure --expr '
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
         host = flake.lib.renderer.buildHostFromPaths {
           selector = "s-router-test";
           system = "x86_64-linux";
@@ -40,16 +41,22 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           && (uplinks.${name}.ipv4.dhcp or false)
           && ! (uplinks.${name}.ipv6.enable or true)
           && ! (uplinks.${name}.ipv6.acceptRA or false);
-        bridgeUsesDhcp = bridgeName:
+        hostWanBridgeIsLayer2Only = bridgeName:
           let cfg = networks."30-${bridgeName}".networkConfig or { };
-          in (cfg.DHCP or null) == "ipv4"
-            && (cfg.IPv6AcceptRA or false)
-            && (cfg.LinkLocalAddressing or null) == "ipv6";
-        managementBridgeUsesDhcp = bridgeName:
-          let cfg = networks."30-${bridgeName}".networkConfig or { };
-          in (cfg.DHCP or null) == "ipv4"
+          in (cfg.DHCP or null) == "no"
             && ! (cfg.IPv6AcceptRA or false)
             && (cfg.LinkLocalAddressing or null) == "no";
+        managementBridgeUsesDhcp = bridgeName:
+          let
+            network = networks."30-${bridgeName}";
+            cfg = network.networkConfig or { };
+            dhcp4 = network.dhcpV4Config or { };
+          in
+          (cfg.DHCP or null) == "ipv4"
+            && ! (cfg.IPv6AcceptRA or false)
+            && (cfg.LinkLocalAddressing or null) == "no"
+            && (dhcp4.UseDNS or true) == false
+            && (dhcp4.UseRoutes or true) == false;
         tenantBridgeRejectsHostRa = bridgeName:
           let cfg = networks."30-${bridgeName}".networkConfig or { };
           in (cfg.DHCP or null) == "no"
@@ -65,16 +72,36 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         managementUplink = uplinkNameForVlan 2;
         vlan4Uplink = uplinkNameForVlan 4;
         vlan5Uplink = uplinkNameForVlan 5;
+        managementBridge =
+          if managementUplink != null then uplinks.${managementUplink}.bridge else null;
+        collidedAccessContainer = import (builtins.toPath (
+          builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/render/containers/mapping.nix"
+        )) {
+          inherit lib;
+          model = {
+            interfaces.tenant-mgmt = {
+              sourceKind = "tenant";
+              backingRef = {
+                kind = "attachment";
+                name = managementBridge;
+              };
+              hostVethName = "access-tenant-mgmt";
+              renderedHostBridgeName = "rt--tena-collided";
+            };
+            veths.access-tenant-mgmt.hostBridge = "rt--tena-collided";
+          };
+        };
       in
         managementUplink != null
         && vlan4Uplink != null
         && vlan5Uplink != null
+        && managementBridge != null
         && managementUplinkIsVlanDhcp managementUplink
         && uplinkIsVlanDhcp vlan4Uplink
         && uplinkIsVlanDhcp vlan5Uplink
         && managementBridgeUsesDhcp uplinks.${managementUplink}.bridge
-        && bridgeUsesDhcp uplinks.${vlan4Uplink}.bridge
-        && bridgeUsesDhcp uplinks.${vlan5Uplink}.bridge
+        && hostWanBridgeIsLayer2Only uplinks.${vlan4Uplink}.bridge
+        && hostWanBridgeIsLayer2Only uplinks.${vlan5Uplink}.bridge
         && hasVlanAttachment 2
         && hasVlanAttachment 4
         && hasVlanAttachment 5
@@ -82,6 +109,8 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && tenantBridgeRejectsHostRa "branch"
         && tenantBridgeRejectsHostRa "client"
         && tenantBridgeRejectsHostRa "admin"
+        && collidedAccessContainer.veths.access-tenant-mgmt.hostBridge == managementBridge
+        && collidedAccessContainer.interfaces.tenant-mgmt.renderedHostBridgeName == managementBridge
     ' | grep -qx true
 
 echo "PASS host-uplink-vlan-dhcp"
