@@ -519,15 +519,21 @@ let
   touchesUpstream =
     pair: (containsName "upstream" (pair."in" or [ ])) || (containsName "upstream" (pair."out" or [ ]));
 
+  nebulaTunnelNames =
+    if overlayIngressNames != [ ] then
+      overlayIngressNames
+    else
+      [ "nebula1" ];
+
   nebulaTunnelForwardPairs = [
     {
       "in" = [ "upstream" ];
-      "out" = [ "nebula1" ];
+      "out" = nebulaTunnelNames;
       action = "accept";
       comment = "core-nebula-egress";
     }
     {
-      "in" = [ "nebula1" ];
+      "in" = nebulaTunnelNames;
       "out" = [ "upstream" ];
       action = "accept";
       comment = "core-nebula-return";
