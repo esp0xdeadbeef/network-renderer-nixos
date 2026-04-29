@@ -94,6 +94,10 @@ let
       takeTenantSegment "up-"
     else if stringHasPrefix "upstream-" name then
       takeTenantSegment "upstream-"
+    else if stringHasPrefix "pol-" name then
+      takeTenantSegment "pol-"
+    else if stringHasPrefix "policy-" name then
+      takeTenantSegment "policy-"
     else
       null;
 
@@ -122,6 +126,73 @@ let
   isCoreTransitInterface = name: name == "upstream" || stringHasPrefix "upstream-" name;
 
   stringContains = needle: value: builtins.isString value && lib.hasInfix needle value;
+
+  stripCidr =
+    value:
+    if builtins.isString value then builtins.head (lib.splitString "/" value) else null;
+
+  addressForFamily =
+    family: iface:
+    let
+      addresses = iface.addresses or [ ];
+      matches =
+        lib.filter (
+          address:
+          if family == 6 then
+            hasIpv6Address address
+          else
+            builtins.isString address && !(hasIpv6Address address)
+        ) addresses;
+    in
+    if matches == [ ] then null else stripCidr (builtins.head matches);
+
+  ipv4PeerFor31 =
+    address:
+    let
+      parts = lib.splitString "." address;
+      last = builtins.fromJSON (builtins.elemAt parts 3);
+      peerLast = if lib.mod last 2 == 0 then last + 1 else last - 1;
+    in
+    if builtins.length parts != 4 then
+      null
+    else
+      lib.concatStringsSep "." ((lib.take 3 parts) ++ [ (builtins.toString peerLast) ]);
+
+  ipv6PeerFor127 =
+    address:
+    let
+      len = builtins.stringLength address;
+      prefix = builtins.substring 0 (len - 1) address;
+      last = builtins.substring (len - 1) 1 address;
+      peerLastByNibble = {
+        "0" = "1";
+        "1" = "0";
+        "2" = "3";
+        "3" = "2";
+        "4" = "5";
+        "5" = "4";
+        "6" = "7";
+        "7" = "6";
+        "8" = "9";
+        "9" = "8";
+        a = "b";
+        b = "a";
+        c = "d";
+        d = "c";
+        e = "f";
+        f = "e";
+        A = "B";
+        B = "A";
+        C = "D";
+        D = "C";
+        E = "F";
+        F = "E";
+      };
+    in
+    if !(builtins.isString address) || len == 0 || !(builtins.hasAttr last peerLastByNibble) then
+      null
+    else
+      "${prefix}${peerLastByNibble.${last}}";
 
   upstreamLaneForName =
     name:
@@ -411,14 +482,115 @@ let
           interfaceName = renderedInterfaceNames.${ifName};
           tableId = 2000 + index;
           sourceIfNames = routeSourceInterfacesFor interfaceName;
+          returnRoutesForUpstreamCoreSource =
+            sourceIfName:
+            let
+              sourceIface = interfaces.${sourceIfName} or { };
+              sourceRenderedName = renderedInterfaceNames.${sourceIfName};
+              tenantKey = policyTenantKeyFor sourceRenderedName;
+              peer4 = ipv4PeerFor31 (addressForFamily 4 sourceIface);
+              peer6 = ipv6PeerFor127 (addressForFamily 6 sourceIface);
+              siteTenants =
+                if containerModel ? site && builtins.isAttrs containerModel.site then
+                  containerModel.site.tenants or (containerModel.site.domains.tenants or [ ])
+                else
+                  [ ];
+              tenantPrefixes =
+                lib.concatMap (
+                  tenant:
+                  if policyTenantKeyFor "down-${tenant.name or ""}" != tenantKey then
+                    [ ]
+                  else
+                    (lib.optional (builtins.isString (tenant.ipv4 or null)) tenant.ipv4)
+                    ++ (lib.optional (builtins.isString (tenant.ipv6 or null)) tenant.ipv6)
+                ) siteTenants;
+              transitAdjacencies =
+                if
+                  containerModel ? site
+                  && builtins.isAttrs containerModel.site
+                  && containerModel.site ? transit
+                  && builtins.isAttrs containerModel.site.transit
+                  && builtins.isList (containerModel.site.transit.adjacencies or null)
+                then
+                  containerModel.site.transit.adjacencies
+                else
+                  [ ];
+              accessTransitPrefixes =
+                lib.concatMap (
+                  adjacency:
+                  lib.concatMap (
+                    endpoint:
+                    let
+                      unit = endpoint.unit or "";
+                      local = endpoint.local or { };
+                    in
+                    if !(builtins.isString unit) || !(stringContains "-access-${tenantKey}" unit) then
+                      [ ]
+                    else
+                      (lib.optional (builtins.isString (local.ipv4 or null)) "${local.ipv4}/31")
+                      ++ (lib.optional (builtins.isString (local.ipv6 or null)) "${local.ipv6}/127")
+                  ) (adjacency.endpoints or [ ])
+                ) transitAdjacencies;
+              runtimeTargets =
+                if
+                  containerModel ? site
+                  && builtins.isAttrs containerModel.site
+                  && builtins.isAttrs (containerModel.site.runtimeTargets or null)
+                then
+                  containerModel.site.runtimeTargets
+                else
+                  { };
+              dnsAllowFromPrefixes =
+                lib.concatMap (
+                  targetName:
+                  let
+                    target = runtimeTargets.${targetName};
+                    services = target.services or { };
+                    dns = services.dns or { };
+                  in
+                  if !(stringContains "-access-${tenantKey}" targetName) then
+                    [ ]
+                  else if builtins.isList (dns.allowFrom or null) then
+                    lib.filter builtins.isString dns.allowFrom
+                  else
+                    [ ]
+                ) (builtins.attrNames runtimeTargets);
+              destinations = lib.unique (tenantPrefixes ++ accessTransitPrefixes ++ dnsAllowFromPrefixes);
+            in
+            if !(isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName) || tenantKey == null then
+              [ ]
+            else
+              lib.filter (route: route != null) (
+                map (
+                  dst:
+                  let
+                    isIpv6 = builtins.isString dst && lib.hasInfix ":" dst;
+                    gateway = if isIpv6 then peer6 else peer4;
+                  in
+                  if gateway == null then
+                    null
+                  else if isIpv6 then
+                    {
+                      inherit dst;
+                      via6 = gateway;
+                    }
+                  else
+                    {
+                      inherit dst;
+                      via4 = gateway;
+                    }
+                ) destinations
+              );
           tableRoutesForSource =
             sourceIfName:
             let
               sourceIface = interfaces.${sourceIfName} or { };
+              sourceRoutes =
+                (sourceIface.routes or [ ]) ++ (returnRoutesForUpstreamCoreSource sourceIfName);
             in
             lib.filter (route: route != null) (
               map (route: if builtins.isAttrs route then mkRoute (route // { table = tableId; }) else null) (
-                sourceIface.routes or [ ]
+                sourceRoutes
               )
             );
           rulesForTarget =
