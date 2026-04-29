@@ -12,6 +12,40 @@ let
     inherit selectors;
   };
 
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+
+  disabledSelectionFrom =
+    disabled:
+    let
+      disabledNames = sortedAttrNames disabled;
+
+      _validateDisabledValues = builtins.foldl' (
+        acc: name:
+        let
+          value = disabled.${name};
+        in
+        if builtins.isBool value then
+          acc
+        else
+          throw ''
+            s88/ControlModule/api/host-build.nix: disabled entry '${name}' must be a boolean
+
+            value:
+            ${builtins.toJSON value}
+          ''
+      ) true disabledNames;
+    in
+    builtins.seq _validateDisabledValues (
+      builtins.listToAttrs (
+        map (name: {
+          inherit name;
+          value = false;
+        }) (lib.filter (name: disabled.${name}) disabledNames)
+      )
+    );
+
+  inherit (import ./container-defaults.nix { inherit lib; }) mergeContainerDefaults;
+
   buildHost =
     {
       selector ? null,
@@ -21,6 +55,9 @@ let
       intentPath ? null,
       inventoryPath ? null,
       system ? currentSystem,
+      containerDefaults ? { },
+      disabled ? { },
+      containerSelection ? disabledSelectionFrom disabled,
       file ? "s88/CM/network/api/host-build.nix",
     }:
     let
@@ -56,23 +93,38 @@ let
         cpm = controlPlaneOut;
         inventory = resolved.globalInventory;
       };
+
+      selectedContainers = import ./container-selection.nix {
+        inherit
+          lib
+          containerSelection
+          ;
+        containers = renderedHost.containers or { };
+      };
+
+      renderedHostWithSelectedContainers = renderedHost // {
+        containers = builtins.mapAttrs (
+          _: container: mergeContainerDefaults containerDefaults container
+        ) selectedContainers;
+      };
     in
     {
       inherit
         compilerOut
         forwardingOut
         controlPlaneOut
-        renderedHost
         ;
+
+      renderedHost = renderedHostWithSelectedContainers;
 
       fabricInputs = resolved.fabricInputs;
       globalInventory = resolved.globalInventory;
       hostContext = resolved.hostContext;
 
-      selectedUnits = renderedHost.selectedUnits or [ ];
-      selectedRoleNames = renderedHost.selectedRoleNames or [ ];
-      selectedRoles = renderedHost.selectedRoles or { };
-      containers = renderedHost.containers or { };
+      selectedUnits = renderedHostWithSelectedContainers.selectedUnits or [ ];
+      selectedRoleNames = renderedHostWithSelectedContainers.selectedRoleNames or [ ];
+      selectedRoles = renderedHostWithSelectedContainers.selectedRoles or { };
+      containers = renderedHostWithSelectedContainers.containers or { };
     };
 
   buildHostFromPaths =
@@ -82,6 +134,9 @@ let
       selector ? null,
       hostname ? null,
       system ? currentSystem,
+      containerDefaults ? { },
+      disabled ? { },
+      containerSelection ? disabledSelectionFrom disabled,
       file ? "s88/CM/network/api/host-build.nix",
     }:
     buildHost {
@@ -91,6 +146,9 @@ let
         selector
         hostname
         system
+        containerDefaults
+        disabled
+        containerSelection
         file
         ;
     };
