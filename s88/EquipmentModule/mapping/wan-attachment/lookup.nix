@@ -32,8 +32,18 @@ let
       file = "s88/EquipmentModule/mapping/wan-attachment.nix";
     };
 
+  isOverlayTransportTarget =
+    target:
+    sourceKindForTarget target == "wan"
+    && builtins.isString (target.unitName or null)
+    && lib.hasInfix "nebula" target.unitName;
+
   wanGroupNameForTarget =
-    target: if sourceKindForTarget target == "wan" then logicalNodeIdentityForTarget target else null;
+    target:
+    if sourceKindForTarget target == "wan" && !isOverlayTransportTarget target then
+      logicalNodeIdentityForTarget target
+    else
+      null;
 
   uplinksRaw =
     if !(deploymentHost ? uplinks) then
@@ -118,6 +128,7 @@ in
     sourceKindForTarget
     logicalNodeIdentityForTarget
     wanGroupNameForTarget
+    isOverlayTransportTarget
     uplinksRaw
     hostHasUplinks
     uplinkNames

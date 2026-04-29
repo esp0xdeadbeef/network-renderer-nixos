@@ -36,7 +36,7 @@ base
             // {
               wanGroupToUplink = builtins.removeAttrs
                 (base.deployment.hosts.lab-host.wanGroupToUplink or { })
-                [ "enterpriseB::site-b::b-router-core" ];
+                [ "enterpriseB::site-b::b-router-core-wan" ];
             };
         };
     };
@@ -61,7 +61,7 @@ EOF
   [[ "${rc}" -ne 0 ]] || fail "expected missing WAN assignment render failure"
   grep -F "strict rendering requires explicit WAN uplink assignment for host 'lab-host'" "${tmp_dir}/render.stderr" >/dev/null \
     || fail "missing strict WAN assignment failure"
-  grep -F '"enterpriseB::site-b::b-router-core"' "${tmp_dir}/render.stderr" >/dev/null \
+  grep -F '"enterpriseB::site-b::b-router-core-wan"' "${tmp_dir}/render.stderr" >/dev/null \
     || fail "missing expected WAN group name in failure output"
 )
 
