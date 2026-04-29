@@ -123,6 +123,32 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      upstreamSelectorSplitRender =
+        render {
+          interfaces = {
+            core-nebula = {
+              containerInterfaceName = "core-nebula";
+              routes = [
+                {
+                  dst = "::/1";
+                  via6 = "fd42:dead:feed:1000::6";
+                }
+              ];
+            };
+            core-isp = {
+              containerInterfaceName = "core-isp";
+              routes = [
+                (default6 "fd42:dead:feed:1000::8")
+              ];
+            };
+            pol-hostile-ew = {
+              containerInterfaceName = "pol-hostile-ew";
+            };
+            policy-hostile = {
+              containerInterfaceName = "policy-hostile";
+            };
+          };
+        };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
       selectorPolicyHostile = selectorRender.networks."10-policy-hostile".routes or [ ];
       selectorBranchRules = selectorRender.networks."10-access-branch".routingPolicyRules or [ ];
@@ -138,6 +164,12 @@ REPO_ROOT="${repo_root}" nix eval \
         upstreamSelectorLongNameRender.networks."10-policy-mgmt-wan".routingPolicyRules or [ ];
       upstreamLongCoreRoutes =
         upstreamSelectorLongNameRender.networks."10-core".routes or [ ];
+      splitNebulaRoutes = upstreamSelectorSplitRender.networks."10-core-nebula".routes or [ ];
+      splitWanRoutes = upstreamSelectorSplitRender.networks."10-core-isp".routes or [ ];
+      splitHostileEwRules =
+        upstreamSelectorSplitRender.networks."10-pol-hostile-ew".routingPolicyRules or [ ];
+      splitHostileWanRules =
+        upstreamSelectorSplitRender.networks."10-policy-hostile".routingPolicyRules or [ ];
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -149,6 +181,26 @@ REPO_ROOT="${repo_root}" nix eval \
           (rule.IncomingInterface or null) == expectedIf
           && (rule.Table or null) == expectedTable
         ) rules;
+      tableForIngress =
+        expectedIf: rules:
+        let
+          matches = builtins.filter (
+            rule:
+            (rule.IncomingInterface or null) == expectedIf
+            && (rule.SuppressPrefixLength or null) == null
+            && (rule.Table or null) != null
+          ) rules;
+        in
+        if matches == [ ] then null else (builtins.head matches).Table;
+      hostileEwTable = tableForIngress "pol-hostile-ew" splitHostileEwRules;
+      hostileWanTable = tableForIngress "policy-hostile" splitHostileWanRules;
+      hasRoute = routes: destination: gateway: table:
+        builtins.any (
+          route:
+          (route.Destination or null) == destination
+          && (route.Gateway or null) == gateway
+          && (route.Table or null) == table
+        ) routes;
     in
     routesAllHaveTable 2000 selectorPolicyBranch
     && routesAllHaveTable 2001 selectorPolicyHostile
@@ -164,6 +216,11 @@ REPO_ROOT="${repo_root}" nix eval \
     && routesAllHaveTable 2001 upstreamLongCoreRoutes
     && hasIngressRule "policy-mgmt-wan" 2001 upstreamLongPolicyRules
     && hasIngressRule "policy-mgmt-wan" 12001 upstreamLongPolicyRules
+    && hostileEwTable != null
+    && hostileWanTable != null
+    && hasRoute splitNebulaRoutes "::/1" "fd42:dead:feed:1000::6" hostileEwTable
+    && !(hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileEwTable)
+    && hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileWanTable
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1

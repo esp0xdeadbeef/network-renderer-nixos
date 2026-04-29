@@ -121,6 +121,34 @@ let
 
   isCoreTransitInterface = name: name == "upstream" || stringHasPrefix "upstream-" name;
 
+  stringContains = needle: value: builtins.isString value && lib.hasInfix needle value;
+
+  upstreamLaneForName =
+    name:
+    if
+      stringContains "nebula" name
+      || stringContains "east-west" name
+      || stringContains "-ew" name
+      || stringContains "site-c-storage" name
+      || stringContains "storage" name
+      || stringContains "-sto" name
+    then
+      "overlay"
+    else if stringContains "isp-a" name then
+      "isp-a"
+    else if stringContains "isp-b" name then
+      "isp-b"
+    else
+      "wan";
+
+  upstreamLanesMatch =
+    targetName: sourceName:
+    let
+      targetLane = upstreamLaneForName targetName;
+      sourceLane = upstreamLaneForName sourceName;
+    in
+    if targetLane == "wan" then sourceLane != "overlay" else sourceLane == targetLane;
+
   externalValidationDelegatedPrefixSources =
     if
       containerModel ? externalValidationDelegatedPrefixSources
@@ -464,7 +492,7 @@ let
         let
           renderedName = renderedInterfaceNames.${name};
         in
-        isUpstreamSelectorPolicyInterface renderedName
+        isUpstreamSelectorPolicyInterface renderedName && upstreamLanesMatch targetName renderedName
       ) interfaceNames
     else if isUpstreamSelector && isUpstreamSelectorPolicyInterface targetName then
       lib.filter (
@@ -472,7 +500,7 @@ let
         let
           renderedName = renderedInterfaceNames.${name};
         in
-        isUpstreamSelectorCoreInterface renderedName
+        isUpstreamSelectorCoreInterface renderedName && upstreamLanesMatch targetName renderedName
       ) interfaceNames
     else if isPolicy && tenantKey != null && isPolicyDownstreamInterface targetName then
       lib.filter (
