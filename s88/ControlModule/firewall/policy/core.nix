@@ -489,7 +489,19 @@ let
     && builtins.isAttrs forwardingIntent
     && (forwardingIntent.authoritativeCoreNat or false);
 
-  forwardPairs =
+  runtimeUnitName =
+    if builtins.isString unitName && unitName != "" then
+      unitName
+    else if runtimeTarget ? unitName && builtins.isString runtimeTarget.unitName then
+      runtimeTarget.unitName
+    else if runtimeTarget ? name && builtins.isString runtimeTarget.name then
+      runtimeTarget.name
+    else
+      "";
+
+  isNebulaCore = lib.hasInfix "nebula" runtimeUnitName;
+
+  rawForwardPairs =
     if useExplicitForwarding then
       forwardingIntent.coreForwardPairs or [ ]
     else
@@ -501,6 +513,32 @@ let
           comment = "core-lan-to-egress";
         }
       ];
+
+  containsName = name: values: builtins.elem name (asStringList values);
+
+  touchesUpstream =
+    pair: (containsName "upstream" (pair."in" or [ ])) || (containsName "upstream" (pair."out" or [ ]));
+
+  nebulaTunnelForwardPairs = [
+    {
+      "in" = [ "upstream" ];
+      "out" = [ "nebula1" ];
+      action = "accept";
+      comment = "core-nebula-egress";
+    }
+    {
+      "in" = [ "nebula1" ];
+      "out" = [ "upstream" ];
+      action = "accept";
+      comment = "core-nebula-return";
+    }
+  ];
+
+  forwardPairs =
+    if isNebulaCore then
+      (lib.filter (pair: !(touchesUpstream pair)) rawForwardPairs) ++ nebulaTunnelForwardPairs
+    else
+      rawForwardPairs;
 
   natInterfaces =
     if useExplicitNat then
