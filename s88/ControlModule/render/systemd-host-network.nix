@@ -241,12 +241,19 @@ let
           uplink ? ipv6
           && builtins.isAttrs uplink.ipv6
           && ((uplink.ipv6.acceptRA or false) || (uplink.ipv6.method or null) == "slaac");
+        isManagementUplink =
+          uplinkName == "management"
+          || (uplink.management or false)
+          || (uplink.role or null) == "management";
+        hostIpv4Dhcp = isManagementUplink && ipv4Dhcp;
+        hostIpv6Dhcp = isManagementUplink && ipv6Dhcp;
+        hostIpv6AcceptRA = isManagementUplink && ipv6AcceptRA;
         dhcpMode =
-          if ipv4Dhcp && ipv6Dhcp then
+          if hostIpv4Dhcp && hostIpv6Dhcp then
             "yes"
-          else if ipv4Dhcp then
+          else if hostIpv4Dhcp then
             "ipv4"
-          else if ipv6Dhcp then
+          else if hostIpv6Dhcp then
             "ipv6"
           else
             "no";
@@ -262,8 +269,8 @@ let
           networkConfig = {
             ConfigureWithoutCarrier = true;
             DHCP = dhcpMode;
-            LinkLocalAddressing = if ipv6Dhcp || ipv6AcceptRA then "ipv6" else "no";
-            IPv6AcceptRA = ipv6AcceptRA;
+            LinkLocalAddressing = if hostIpv6Dhcp || hostIpv6AcceptRA then "ipv6" else "no";
+            IPv6AcceptRA = hostIpv6AcceptRA;
           }
           // baseBridgeNetworkConfig
           // lib.optionalAttrs ((uplink.mode or "") == "trunk" && transitNamesOnUplink != [ ]) {
@@ -274,6 +281,10 @@ let
               in
               "${uplink.bridge}.${toString transit.vlan}"
             ) transitNamesOnUplink;
+          };
+          dhcpV4Config = lib.optionalAttrs hostIpv4Dhcp {
+            UseDNS = false;
+            UseRoutes = false;
           };
         };
       }
