@@ -284,7 +284,6 @@ let
           };
           dhcpV4Config = lib.optionalAttrs hostIpv4Dhcp {
             UseDNS = false;
-            UseRoutes = false;
           };
         };
       }

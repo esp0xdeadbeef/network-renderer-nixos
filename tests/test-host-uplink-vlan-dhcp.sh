@@ -55,8 +55,7 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           (cfg.DHCP or null) == "ipv4"
             && ! (cfg.IPv6AcceptRA or false)
             && (cfg.LinkLocalAddressing or null) == "no"
-            && (dhcp4.UseDNS or true) == false
-            && (dhcp4.UseRoutes or true) == false;
+            && (dhcp4.UseDNS or true) == false;
         tenantBridgeRejectsHostRa = bridgeName:
           let cfg = networks."30-${bridgeName}".networkConfig or { };
           in (cfg.DHCP or null) == "no"
