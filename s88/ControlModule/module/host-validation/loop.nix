@@ -48,7 +48,7 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
 
     systemd-run --quiet --wait --collect --pipe -M "$container" \
       --setenv=DNS_PROBE_NAME="$dns_probe_name" \
-      "$containerCheck" 2>/dev/null || jq -n "{ error: \"check-failed\" }"
+      "${containerCheck}" 2>/dev/null || jq -n "{ error: \"check-failed\" }"
   }
 
   while true; do
