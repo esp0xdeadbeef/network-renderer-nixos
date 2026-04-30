@@ -5,7 +5,7 @@ let
     map({ (.key): .value }) | add
   '';
 
-  containerCheck = import ./container-check.nix { inherit pkgs; };
+  containerCheck = import ./container-check.nix { };
 in
 pkgs.writeShellScript "s88-network-validation-loop" ''
   set -euo pipefail
@@ -48,7 +48,8 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
 
     systemd-run --quiet --wait --collect --pipe -M "$container" \
       --setenv=DNS_PROBE_NAME="$dns_probe_name" \
-      "${containerCheck}" 2>/dev/null || jq -n "{ error: \"check-failed\" }"
+      /bin/sh -lc ${lib.escapeShellArg containerCheck} 2>/dev/null \
+        || jq -n "{ error: \"check-failed\" }"
   }
 
   while true; do
