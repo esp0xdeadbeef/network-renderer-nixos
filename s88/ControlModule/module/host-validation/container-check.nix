@@ -1,6 +1,6 @@
-{ pkgs }:
+{ }:
 
-pkgs.writeShellScript "s88-network-validation-container-check" ''
+''
   set -eu
 
   dns_query_ok() {
