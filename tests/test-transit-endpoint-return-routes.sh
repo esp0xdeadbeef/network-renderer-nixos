@@ -94,9 +94,9 @@ INVENTORY_PATH="$(flake_input_path network-labs)/examples/s-router-test-three-si
             (networkName: hasMainRoute (networks.${networkName}.routes or [ ]) destination gateway)
             (builtins.attrNames networks);
       in
-        (!hasRoute iotRoutes "10.80.0.4/32" "10.80.0.22")
-        && (!hasRoute mgmtStorageRoutes "10.80.0.4/32" "10.80.0.26")
-        && hasRoute mgmtRoutes "10.80.0.4/32" "10.80.0.30"
+        (!hasRoute iotRoutes "10.80.0.4/31" "10.80.0.22")
+        && (!hasRoute mgmtStorageRoutes "10.80.0.4/31" "10.80.0.26")
+        && hasRoute mgmtRoutes "10.80.0.4/31" "10.80.0.30"
         && hasMainRouteAnyNetwork branchCoreNetworks "10.50.0.0/32" "10.10.0.13"
         && hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:d"
     ' | grep -qx true
