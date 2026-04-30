@@ -200,7 +200,11 @@ let
           checks: $checks
         }' >"$status_json"
 
-      current_hash="$(${pkgs.coreutils}/bin/sha256sum "$status_json" | ${pkgs.gnused}/bin/sed 's/ .*//')"
+      current_hash="$(
+        ${pkgs.jq}/bin/jq -c 'del(.updatedAt)' "$status_json" \
+          | ${pkgs.coreutils}/bin/sha256sum \
+          | ${pkgs.gnused}/bin/sed 's/ .*//'
+      )"
       previous_hash="$(${pkgs.coreutils}/bin/cat "$last_hash_file" || true)"
 
       if [ "$current_hash" = "$previous_hash" ] && [ -n "$current_hash" ]; then

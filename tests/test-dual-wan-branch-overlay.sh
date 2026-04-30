@@ -263,6 +263,10 @@ run_one() {
             && lib.hasInfix "status: NOERROR" validationLoop
             && lib.hasInfix "ready: $ready" validationLoop
             && lib.hasInfix ".value.dnsA == \"ok\" and .value.dnsAAAA == \"ok\"" validationLoop;
+          validationStableIgnoresTimestamp =
+            lib.hasInfix "del(.updatedAt)" validationLoop
+            && lib.hasInfix "stable.count" validationLoop
+            && lib.hasInfix "stable.json" validationLoop;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -293,6 +297,7 @@ run_one() {
           && hasHostValidationService
           && hasEscapedValidationJqVars
           && validationRejectsDnsServfail
+          && validationStableIgnoresTimestamp
           && bgpOk
       ' >/dev/null
 
