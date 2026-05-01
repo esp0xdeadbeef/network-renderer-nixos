@@ -550,8 +550,6 @@ let
   natInterfaces =
     if useExplicitNat then
       forwardingIntent.coreNatInterfaces or [ ]
-    else if fallbackNatEnabled then
-      wanNames
     else
       [ ];
 
