@@ -520,6 +520,11 @@ let
     pair: (containsName "upstream" (pair."in" or [ ])) || (containsName "upstream" (pair."out" or [ ]));
 
   nebulaTunnelNames = sortedStrings (overlayIngressNames ++ [ "nebula1" ]);
+  coreInputOverlayNames =
+    if isNebulaCore then
+      nebulaTunnelNames
+    else
+      overlayIngressNames;
 
   nebulaTunnelForwardPairs = [
     {
@@ -614,12 +619,12 @@ let
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
     ''
   ]
-  ++ lib.optional (overlayIngressNames != [ ]) ''
+  ++ lib.optional (coreInputOverlayNames != [ ]) ''
     iifname ${
-      if builtins.length overlayIngressNames == 1 then
-        "\"${builtins.head overlayIngressNames}\""
+      if builtins.length coreInputOverlayNames == 1 then
+        "\"${builtins.head coreInputOverlayNames}\""
       else
-        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") overlayIngressNames)} }"
+        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") coreInputOverlayNames)} }"
     } accept comment "allow-overlay-to-core"
   '';
 
