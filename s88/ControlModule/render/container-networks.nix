@@ -584,9 +584,14 @@ let
           tableRoutesForSource =
             sourceIfName:
             let
-              sourceIface = interfaces.${sourceIfName} or { };
               sourceRoutes =
-                (sourceIface.routes or [ ]) ++ (returnRoutesForUpstreamCoreSource sourceIfName);
+                if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
+                  returnRoutesForUpstreamCoreSource sourceIfName
+                else
+                  let
+                    sourceIface = interfaces.${sourceIfName} or { };
+                  in
+                  (sourceIface.routes or [ ]) ++ (returnRoutesForUpstreamCoreSource sourceIfName);
             in
             lib.filter (route: route != null) (
               map (route: if builtins.isAttrs route then mkRoute (route // { table = tableId; }) else null) (
