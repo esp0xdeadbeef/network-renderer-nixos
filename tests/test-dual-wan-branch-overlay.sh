@@ -175,6 +175,15 @@ run_one() {
             in
             assertClamp (nftRules rendered.containers."s-router-core-nebula")
             && assertClamp (nftRules rendered.containers."b-router-core-nebula");
+          hasNoNebulaCoreNat =
+            let
+              assertNoNat =
+                rules:
+                !lib.hasInfix "masquerade" rules
+                && !lib.hasInfix "chain postrouting" rules;
+            in
+            assertNoNat (nftRules rendered.containers."s-router-core-nebula")
+            && assertNoNat (nftRules rendered.containers."b-router-core-nebula");
           hasCoreIngressOverlayRoutes =
             let
               siteCoreOverlayTable = ingressTableFor siteCoreOverlay;
@@ -297,6 +306,7 @@ run_one() {
           && hasCoreOverlayInputAccept
           && hasStrictNebulaCoreForwarding
           && hasNebulaMssClamp
+          && hasNoNebulaCoreNat
           && hasCoreIngressOverlayRoutes
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
