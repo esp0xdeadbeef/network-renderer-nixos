@@ -32,6 +32,7 @@ INVENTORY_PATH="${inventory_path}" \
             modules = [ builtContainers.${containerName}.config ];
           }).config;
         branchCfg = mkCfg "b-router-policy";
+        branchUpstreamCfg = mkCfg "b-router-upstream-selector";
         siteaUpstreamCfg = mkCfg "s-router-upstream-selector";
         siteaPolicyCfg = mkCfg "s-router-policy-only";
         sitecCfg = mkCfg "c-router-policy";
@@ -49,10 +50,14 @@ INVENTORY_PATH="${inventory_path}" \
             (networkName: hasRoute (networks.${networkName}.routes or [ ]) destination gateway table)
             (builtins.attrNames networks);
         branchNetworks = branchCfg.systemd.network.networks;
+        branchUpstreamNetworks = branchUpstreamCfg.systemd.network.networks;
         siteaUpstreamNetworks = siteaUpstreamCfg.systemd.network.networks;
         siteaPolicyNetworks = siteaPolicyCfg.systemd.network.networks;
         sitecNetworks = sitecCfg.systemd.network.networks;
         siteaPolicyRules = siteaPolicyCfg.networking.nftables.ruleset;
+        bUpstreamCoreIngressRoutes =
+          (branchUpstreamNetworks."10-pol-branch-ew".routes or [ ])
+          ++ (branchUpstreamNetworks."10-pol-hostile-ew".routes or [ ]);
         siteaMgmtRoutes = siteaPolicyNetworks."10-downstream-mgmt".routes or [ ];
         siteaMgmtWanReturnRoutes = siteaUpstreamNetworks."10-pol-mgmt-a".routes or [ ];
         siteaMgmtEastWestReturnRoutes = siteaUpstreamNetworks."10-pol-mgt-ew".routes or [ ];
@@ -60,6 +65,10 @@ INVENTORY_PATH="${inventory_path}" \
       in
         hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.13" 2000
         && hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:d" 2000
+        && hasRoute bUpstreamCoreIngressRoutes "10.50.0.0/31" "10.50.0.12" 2000
+        && hasRoute bUpstreamCoreIngressRoutes "10.50.0.2/31" "10.50.0.16" 2000
+        && missingRoute bUpstreamCoreIngressRoutes "10.50.0.0" "10.50.0.16" 2000
+        && missingRoute bUpstreamCoreIngressRoutes "fd42:dead:feed:1000:0:0:0:0" "fd42:dead:feed:1000:0:0:0:10" 2000
         && hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.44" 2002
         && !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" 2001)
         && hasRoute siteaMgmtWanReturnRoutes "10.20.10.0/24" "10.10.0.46" 2000
