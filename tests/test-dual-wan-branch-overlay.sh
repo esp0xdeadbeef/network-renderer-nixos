@@ -167,6 +167,14 @@ run_one() {
             in
             assertStrict (nftRules rendered.containers."s-router-core-nebula")
             && assertStrict (nftRules rendered.containers."b-router-core-nebula");
+          hasNebulaMssClamp =
+            let
+              assertClamp =
+                rules:
+                lib.hasInfix "oifname { \"eth0\", \"nebula1\", \"overlay-west\" } tcp flags syn tcp option maxseg size set rt mtu" rules;
+            in
+            assertClamp (nftRules rendered.containers."s-router-core-nebula")
+            && assertClamp (nftRules rendered.containers."b-router-core-nebula");
           hasCoreIngressOverlayRoutes =
             let
               siteCoreOverlayTable = ingressTableFor siteCoreOverlay;
@@ -288,6 +296,7 @@ run_one() {
           && hasDirectDnsDropOrdering
           && hasCoreOverlayInputAccept
           && hasStrictNebulaCoreForwarding
+          && hasNebulaMssClamp
           && hasCoreIngressOverlayRoutes
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes

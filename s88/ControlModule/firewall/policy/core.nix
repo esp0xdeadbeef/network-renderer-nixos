@@ -608,11 +608,16 @@ let
     "iifname ${ingressSelector} ${l4Match} dnat to ${entry.target} comment \"${entry.relationName}\""
   ) (lib.filter (entry: entry.family == "ipv6") serviceNatEntries);
 
-  clampMssInterfaces =
+  clampMssBaseInterfaces =
     if useExplicitNat || useExplicitForwarding then
       forwardingIntent.coreClampMssInterfaces or [ ]
     else
       wanNames;
+  clampMssInterfaces =
+    if isNebulaCore then
+      sortedStrings (clampMssBaseInterfaces ++ [ "nebula1" ])
+    else
+      clampMssBaseInterfaces;
 
   inputRules = [
     ''
