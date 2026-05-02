@@ -110,8 +110,8 @@ in
     controlPlaneOut
     ;
 
-  intentPath = builtins.toString intentPath;
-  inventoryPath = builtins.toString inventoryPath;
+  intentPath = if intentPath == null then null else builtins.toString intentPath;
+  inventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
 
   renderedHost = {
     hostName = renderedHostNetwork.hostName or null;

@@ -107,15 +107,36 @@ let
           _: container: mergeContainerDefaults containerDefaults container
         ) selectedContainers;
       };
+
+      debugPayload = import ./debug-payload.nix {
+        inherit
+          lib
+          system
+          ;
+        hostName = resolved.selectorValue;
+        hostContext = resolved.hostContext;
+        intent = resolved.fabricInputs;
+        globalInventory = resolved.globalInventory;
+        inherit
+          compilerOut
+          forwardingOut
+          controlPlaneOut
+          ;
+        renderedHostNetwork = renderedHostWithSelectedContainers;
+        inherit intentPath inventoryPath;
+      };
     in
     {
       inherit
         compilerOut
         forwardingOut
         controlPlaneOut
+        debugPayload
         ;
 
       renderedHost = renderedHostWithSelectedContainers;
+
+      artifactModule = import ./artifact-module.nix { inherit debugPayload; };
 
       fabricInputs = resolved.fabricInputs;
       globalInventory = resolved.globalInventory;
