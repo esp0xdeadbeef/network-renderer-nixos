@@ -72,6 +72,8 @@ in
 {
   inherit renderedHostNetwork debugPayload;
 
+  artifactModule = import ./artifact-module.nix { inherit debugPayload; };
+
   moduleArgs = {
     globalInventory = builtHost.globalInventory;
     hostContext = builtHost.hostContext;
