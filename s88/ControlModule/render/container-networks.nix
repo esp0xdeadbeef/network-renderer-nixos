@@ -194,32 +194,6 @@ let
     else
       "${prefix}${peerLastByNibble.${last}}";
 
-  upstreamLaneForName =
-    name:
-    if
-      stringContains "nebula" name
-      || stringContains "east-west" name
-      || stringContains "-ew" name
-      || stringContains "site-c-storage" name
-      || stringContains "storage" name
-      || stringContains "-sto" name
-    then
-      "overlay"
-    else if stringContains "isp-a" name then
-      "isp-a"
-    else if stringContains "isp-b" name then
-      "isp-b"
-    else
-      "wan";
-
-  upstreamLanesMatch =
-    targetName: sourceName:
-    let
-      targetLane = upstreamLaneForName targetName;
-      sourceLane = upstreamLaneForName sourceName;
-    in
-    if targetLane == "wan" then sourceLane != "overlay" else sourceLane == targetLane;
-
   externalValidationDelegatedPrefixSources =
     if
       containerModel ? externalValidationDelegatedPrefixSources
@@ -408,6 +382,76 @@ let
       value = interfaceNameFor interfaces.${ifName};
     }) interfaceNames
   );
+  interfaceKeyForRenderedName =
+    name:
+    let
+      matches = lib.filter (
+        ifName: ifName == name || renderedInterfaceNames.${ifName} == name
+      ) interfaceNames;
+    in
+    if matches == [ ] then null else builtins.head matches;
+  backingRefForInterface =
+    iface:
+    if iface ? backingRef && builtins.isAttrs iface.backingRef then
+      iface.backingRef
+    else if
+      iface ? connectivity
+      && builtins.isAttrs iface.connectivity
+      && iface.connectivity ? backingRef
+      && builtins.isAttrs iface.connectivity.backingRef
+    then
+      iface.connectivity.backingRef
+    else
+      { };
+  laneForInterfaceKey =
+    ifName:
+    let
+      iface = interfaces.${ifName} or { };
+      backingRef = backingRefForInterface iface;
+    in
+    if builtins.isString (backingRef.lane or null) && backingRef.lane != "" then
+      backingRef.lane
+    else
+      null;
+  laneForRenderedName =
+    name:
+    let
+      ifName = interfaceKeyForRenderedName name;
+    in
+    if ifName == null then null else laneForInterfaceKey ifName;
+  uplinkNamesFromLane =
+    lane:
+    let
+      coreMatch = if builtins.isString lane then builtins.match "uplink::(.+)" lane else null;
+      accessMatch =
+        if builtins.isString lane then builtins.match "access::.+::uplink::(.+)" lane else null;
+    in
+    if coreMatch != null then
+      [ (builtins.elemAt coreMatch 0) ]
+    else if accessMatch != null then
+      [ (builtins.elemAt accessMatch 0) ]
+    else
+      [ ];
+  uplinkNamesForRenderedName =
+    name:
+    let
+      ifName = interfaceKeyForRenderedName name;
+      iface = if ifName == null then { } else interfaces.${ifName} or { };
+      backingRef = backingRefForInterface iface;
+      explicitUplinks =
+        if builtins.isList (backingRef.uplinks or null) then
+          lib.filter builtins.isString backingRef.uplinks
+        else
+          [ ];
+    in
+    lib.unique (explicitUplinks ++ uplinkNamesFromLane (laneForRenderedName name));
+  upstreamLanesMatch =
+    targetName: sourceName:
+    let
+      targetUplinks = uplinkNamesForRenderedName targetName;
+      sourceUplinks = uplinkNamesForRenderedName sourceName;
+    in
+    lib.any (uplink: builtins.elem uplink sourceUplinks) targetUplinks;
   runtimeTarget =
     if containerModel ? runtimeTarget && builtins.isAttrs containerModel.runtimeTarget then
       containerModel.runtimeTarget
@@ -428,12 +472,7 @@ let
     if !(builtins.isString name) || name == "" then
       null
     else
-      let
-        matches = lib.filter (
-          ifName: ifName == name || renderedInterfaceNames.${ifName} == name
-        ) interfaceNames;
-      in
-      if matches == [ ] then null else builtins.head matches;
+      interfaceKeyForRenderedName name;
   advertisedOnlinkRoutesByInterface = builtins.foldl' (
     acc: adv:
     let

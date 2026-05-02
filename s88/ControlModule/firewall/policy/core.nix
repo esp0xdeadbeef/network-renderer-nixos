@@ -489,18 +489,6 @@ let
     && builtins.isAttrs forwardingIntent
     && (forwardingIntent.authoritativeCoreNat or false);
 
-  runtimeUnitName =
-    if builtins.isString unitName && unitName != "" then
-      unitName
-    else if runtimeTarget ? unitName && builtins.isString runtimeTarget.unitName then
-      runtimeTarget.unitName
-    else if runtimeTarget ? name && builtins.isString runtimeTarget.name then
-      runtimeTarget.name
-    else
-      "";
-
-  isNebulaCore = lib.hasInfix "nebula" runtimeUnitName;
-
   rawForwardPairs =
     if useExplicitForwarding then
       forwardingIntent.coreForwardPairs or [ ]
@@ -519,33 +507,8 @@ let
   touchesUpstream =
     pair: (containsName "upstream" (pair."in" or [ ])) || (containsName "upstream" (pair."out" or [ ]));
 
-  nebulaTunnelNames = sortedStrings (overlayIngressNames ++ [ "nebula1" ]);
-  coreInputOverlayNames =
-    if isNebulaCore then
-      nebulaTunnelNames
-    else
-      overlayIngressNames;
-
-  nebulaTunnelForwardPairs = [
-    {
-      "in" = [ "upstream" ];
-      "out" = nebulaTunnelNames;
-      action = "accept";
-      comment = "core-nebula-egress";
-    }
-    {
-      "in" = nebulaTunnelNames;
-      "out" = [ "upstream" ];
-      action = "accept";
-      comment = "core-nebula-return";
-    }
-  ];
-
-  forwardPairs =
-    if isNebulaCore then
-      (lib.filter (pair: !(touchesUpstream pair)) rawForwardPairs) ++ nebulaTunnelForwardPairs
-    else
-      rawForwardPairs;
+  coreInputOverlayNames = overlayIngressNames;
+  forwardPairs = rawForwardPairs;
 
   natInterfaces =
     if useExplicitNat then
@@ -612,10 +575,7 @@ let
     else
       wanNames;
   clampMssInterfaces =
-    if isNebulaCore then
-      sortedStrings (clampMssBaseInterfaces ++ [ "nebula1" ])
-    else
-      clampMssBaseInterfaces;
+    clampMssBaseInterfaces;
 
   inputRules = [
     ''
