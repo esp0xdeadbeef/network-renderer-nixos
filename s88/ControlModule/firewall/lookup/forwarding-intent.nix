@@ -973,6 +973,11 @@ let
     else
       normalizedExplicitForwardPairsFromPairs;
 
+  hasExplicitSelectorForwarding =
+    (nodeForwarding.mode or null) == "explicit-selector-forwarding"
+    && nodeForwarding ? rules
+    && builtins.isList nodeForwarding.rules;
+
   accessForwardPairs =
     if normalizedExplicitForwardPairs != [ ] then
       normalizedExplicitForwardPairs
@@ -1098,7 +1103,8 @@ let
 
   authoritativeUpstreamSelectorForwarding =
     normalizedExplicitForwardPairs != [ ]
-    || nodeForwardingEnabled == false;
+    || nodeForwardingEnabled == false
+    || hasExplicitSelectorForwarding;
 
   _uplinks = uplinks;
 in
