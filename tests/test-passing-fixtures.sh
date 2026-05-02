@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
+"${repo_root}/tests/test-nix-file-loc.sh"
+
 # Renderer must stay provider-neutral; CPM/provider renderers own semantics.
 bash "${repo_root}/tests/test-renderer-boundary-grep.sh"
 
