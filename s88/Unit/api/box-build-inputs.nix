@@ -12,7 +12,7 @@ let
       fabricRoot ? null,
       intentPath ? null,
       inventoryPath ? null,
-      file ? "s88/ControlModule/api/box-build-inputs.nix",
+      file ? "s88/Unit/api/box-build-inputs.nix",
     }:
     if intentPath != null && inventoryPath != null then
       {
@@ -62,7 +62,7 @@ let
       intentPath ? null,
       inventoryPath ? null,
       system ? currentSystem,
-      file ? "s88/ControlModule/api/box-build-inputs.nix",
+      file ? "s88/Unit/api/box-build-inputs.nix",
       ...
     }:
     let

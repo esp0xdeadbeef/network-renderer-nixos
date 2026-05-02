@@ -31,7 +31,7 @@ let
           acc
         else
           throw ''
-            s88/ControlModule/api/containers/default.nix: disabled entry '${name}' must be a boolean
+            s88/Unit/api/containers/default.nix: disabled entry '${name}' must be a boolean
 
             value:
             ${builtins.toJSON value}
@@ -47,27 +47,27 @@ let
       )
     );
 
-  inherit (import ../container-defaults.nix { inherit lib; }) mergeContainerDefaults;
+  inherit (import ../../../ControlModule/api/container-defaults.nix { inherit lib; }) mergeContainerDefaults;
 in
 {
   buildForBox =
     {
       defaults ? { },
       disabled ? { },
-      file ? "s88/ControlModule/api/containers/default.nix",
+      file ? "s88/Unit/api/containers/default.nix",
       ...
     }@args:
     let
       resolved = boxInputs.resolve (args // { inherit file; });
 
-      renderedContainers = import ../../render/containers.nix {
+      renderedContainers = import ../../../ControlModule/render/containers.nix {
         inherit lib;
         hostPlan = resolved.hostPlan;
         cpm = resolved.controlPlaneOut;
         inventory = resolved.globalInventory;
       };
 
-      selectedContainers = import ../container-selection.nix {
+      selectedContainers = import ../../../ControlModule/api/container-selection.nix {
         inherit lib;
         containers = renderedContainers;
         containerSelection = disabledSelectionFrom disabled;

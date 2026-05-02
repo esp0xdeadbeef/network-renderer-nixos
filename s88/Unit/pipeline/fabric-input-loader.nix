@@ -45,7 +45,7 @@ let
   _validatedRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
     cpm = controlPlaneOut;
     inventory = globalInventory;
-    file = "s88/CM/network/fabric-input-loader.nix";
+    file = "s88/Unit/pipeline/fabric-input-loader.nix";
   };
 in
 {

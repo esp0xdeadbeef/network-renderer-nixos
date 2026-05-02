@@ -18,32 +18,32 @@ in
 {
   build =
     {
-      file ? "s88/ControlModule/api/bridges/default.nix",
+      file ? "s88/Unit/api/host/default.nix",
       ...
     }@args:
     let
       resolved = boxInputs.resolve (args // { inherit file; });
 
-      hostSystemd = import ../../render/systemd-host-network.nix {
+      hostSystemd = import ../../../ControlModule/render/systemd-host-network.nix {
         inherit lib;
         hostPlan = resolved.hostPlan;
       };
     in
     {
-      bridgeNameMap = resolved.hostPlan.bridgeNameMap or { };
-      bridges = resolved.hostPlan.bridges or { };
-      netdevs = hostSystemd.bridgeNetdevs or { };
-      networks = hostSystemd.bridgeNetworks or { };
+      hostName = resolved.hostPlan.hostName or resolved.selectorValue;
+      deploymentHostName = resolved.hostPlan.deploymentHostName or null;
+      netdevs = hostSystemd.hostNetdevs or { };
+      networks = hostSystemd.hostNetworks or { };
 
       debug = {
         identity = resolved.identity;
         fabric = resolved.fabric;
         hostName = resolved.hostPlan.hostName or resolved.selectorValue;
         deploymentHostName = resolved.hostPlan.deploymentHostName or null;
+        runtimeRole = resolved.hostPlan.runtimeRole or null;
         selectedUnits = resolved.hostPlan.selectedUnits or [ ];
-        bridgeNameMap = resolved.hostPlan.bridgeNameMap or { };
-        bridges = resolved.hostPlan.bridges or { };
-        attachTargets = resolved.hostPlan.attachTargets or [ ];
+        uplinks = resolved.hostPlan.uplinks or { };
+        transitBridges = resolved.hostPlan.transitBridges or { };
       };
     };
 }

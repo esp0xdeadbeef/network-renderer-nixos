@@ -3,48 +3,19 @@
   selectors,
   builders,
   renderHostNetwork,
-  renderDryConfig,
   currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
 }:
 
 let
-  buildInputs = import ../lookup/host-build-inputs.nix {
+  buildInputs = import ../../ControlModule/lookup/host-build-inputs.nix {
     inherit selectors;
   };
 
-  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+  hostSelection = import ./host-selection.nix { inherit lib; };
 
-  disabledSelectionFrom =
-    disabled:
-    let
-      disabledNames = sortedAttrNames disabled;
+  inherit (hostSelection) disabledSelectionFrom;
 
-      _validateDisabledValues = builtins.foldl' (
-        acc: name:
-        let
-          value = disabled.${name};
-        in
-        if builtins.isBool value then
-          acc
-        else
-          throw ''
-            s88/ControlModule/api/host-build.nix: disabled entry '${name}' must be a boolean
-
-            value:
-            ${builtins.toJSON value}
-          ''
-      ) true disabledNames;
-    in
-    builtins.seq _validateDisabledValues (
-      builtins.listToAttrs (
-        map (name: {
-          inherit name;
-          value = false;
-        }) (lib.filter (name: disabled.${name}) disabledNames)
-      )
-    );
-
-  inherit (import ./container-defaults.nix { inherit lib; }) mergeContainerDefaults;
+  inherit (import ../../ControlModule/api/container-defaults.nix { inherit lib; }) mergeContainerDefaults;
 
   buildHost =
     {
@@ -58,7 +29,7 @@ let
       containerDefaults ? { },
       disabled ? { },
       containerSelection ? disabledSelectionFrom disabled,
-      file ? "s88/CM/network/api/host-build.nix",
+      file ? "s88/Unit/api/host-build.nix",
     }:
     let
       resolved = buildInputs.resolveBuildInputs {
@@ -94,21 +65,16 @@ let
         inventory = resolved.globalInventory;
       };
 
-      selectedContainers = import ./container-selection.nix {
+      renderedHostWithSelectedContainers = hostSelection.selectedContainersForHost {
         inherit
-          lib
+          containerDefaults
           containerSelection
+          renderedHost
+          mergeContainerDefaults
           ;
-        containers = renderedHost.containers or { };
       };
 
-      renderedHostWithSelectedContainers = renderedHost // {
-        containers = builtins.mapAttrs (
-          _: container: mergeContainerDefaults containerDefaults container
-        ) selectedContainers;
-      };
-
-      debugPayload = import ./debug-payload.nix {
+      debugPayload = import ../../ControlModule/api/debug-payload.nix {
         inherit
           lib
           system
@@ -136,7 +102,7 @@ let
 
       renderedHost = renderedHostWithSelectedContainers;
 
-      artifactModule = import ./artifact-module.nix { inherit debugPayload; };
+      artifactModule = import ../../ControlModule/api/artifact-module.nix { inherit debugPayload; };
 
       fabricInputs = resolved.fabricInputs;
       globalInventory = resolved.globalInventory;
@@ -158,7 +124,7 @@ let
       containerDefaults ? { },
       disabled ? { },
       containerSelection ? disabledSelectionFrom disabled,
-      file ? "s88/CM/network/api/host-build.nix",
+      file ? "s88/Unit/api/host-build.nix",
     }:
     buildHost {
       inherit
@@ -181,7 +147,7 @@ let
       hostname ? null,
       fabricRoot ? null,
       system ? currentSystem,
-      file ? "s88/CM/network/api/host-build.nix",
+      file ? "s88/Unit/api/host-build.nix",
     }:
     let
       paths = selectors.pathsFromOutPath {
@@ -198,53 +164,11 @@ let
       inherit (paths) intentPath inventoryPath;
     };
 
-  buildAndRenderFromPaths =
-    {
-      intentPath,
-      inventoryPath,
-      exampleDir ? null,
-      debug ? false,
-    }:
-    let
-      inventory = selectors.importMaybeFunction (builtins.toPath inventoryPath);
-
-      compiler = builders.buildCompilerFromPaths {
-        inherit intentPath;
-      };
-
-      forwarding = builders.buildForwarding {
-        compilerOut = compiler;
-      };
-
-      controlPlane = builders.buildControlPlane {
-        forwardingOut = forwarding;
-        inherit inventory;
-      };
-
-      rendered = renderDryConfig {
-        cpm = controlPlane;
-        inherit inventory exampleDir debug;
-      };
-    in
-    if rendered == null then
-      throw ''
-        s88/CM/network/api/host-build.nix: buildAndRenderFromPaths produced null render output
-
-        intentPath: ${intentPath}
-        inventoryPath: ${inventoryPath}
-      ''
-    else
-      {
-        inherit compiler forwarding;
-        controlPlane = controlPlane;
-        render = rendered;
-      };
 in
 {
   inherit
     buildHost
     buildHostFromPaths
     buildHostFromOutPath
-    buildAndRenderFromPaths
     ;
 }

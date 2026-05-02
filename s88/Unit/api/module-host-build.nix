@@ -10,7 +10,7 @@
   outPath,
   hostName,
   inventoryPath ? null,
-  selectorFile ? "s88/ControlModule/api/module-host-build.nix",
+  selectorFile ? "s88/Unit/api/module-host-build.nix",
   containerSelection ? { },
 }:
 
@@ -20,7 +20,7 @@ let
       lib
     else
       throw ''
-        s88/ControlModule/api/module-host-build.nix: lib is required
+        s88/Unit/api/module-host-build.nix: lib is required
       '';
 
   resolvedPaths = selectors.pathsFromOutPath {
@@ -40,7 +40,7 @@ let
     file = selectorFile;
   };
 
-  selectedContainers = import ./container-selection.nix {
+  selectedContainers = import ../../ControlModule/api/container-selection.nix {
     lib = effectiveLib;
     inherit
       containerSelection
@@ -52,7 +52,7 @@ let
     containers = selectedContainers;
   };
 
-  debugPayload = import ./debug-payload.nix {
+  debugPayload = import ../../ControlModule/api/debug-payload.nix {
     lib = effectiveLib;
     inherit
       system
@@ -72,7 +72,7 @@ in
 {
   inherit renderedHostNetwork debugPayload;
 
-  artifactModule = import ./artifact-module.nix { inherit debugPayload; };
+  artifactModule = import ../../ControlModule/api/artifact-module.nix { inherit debugPayload; };
 
   moduleArgs = {
     globalInventory = builtHost.globalInventory;
