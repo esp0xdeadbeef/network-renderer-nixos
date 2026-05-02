@@ -6,7 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "host-build-artifact-module" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${example_root}/intent.nix" \
 INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
   nix eval \
@@ -30,6 +30,6 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && builtins.hasAttr "network-artifacts/rendered-host.json" etc
         && builtins.hasAttr "network-artifacts/debug-bundle.json" etc
         && builtins.hasAttr "network-renderer/network-renderer-nixos.json" etc
-    ' | grep -qx true
+    '
 
 echo "PASS host-build-artifact-module"

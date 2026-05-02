@@ -70,6 +70,8 @@ for intent_path in "${intent_paths[@]}"; do
       archive_json_artifacts "$(basename "$(dirname "${intent_path}")")" "${tmp_dir}"
     fi
 
+    assert_clean_render_contract "$(dirname "${intent_path}")" ./90-render.json "${tmp_dir}/render.stderr"
+
     "${repo_root}/test-split-box-render.sh" "${tmp_dir}/cpm.json" ./90-render.json "${inventory_path}" >/dev/null
   )
 

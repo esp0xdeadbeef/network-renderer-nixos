@@ -6,7 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "policy-zone-firewall-scoping" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${example_root}/intent.nix" \
 INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
   nix eval \
@@ -21,19 +21,25 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
+        siteCContainers = flake.lib.containers.buildForBox {
+          boxName = "s-router-hetzner-anywhere";
+          inherit system;
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        };
         evalContainer = container:
           (flake.inputs.nixpkgs.lib.nixosSystem {
             inherit system;
             modules = [ container.config ];
           }).config;
         rules = (evalContainer builtContainers."b-router-policy").networking.nftables.ruleset;
-        siteCRules = (evalContainer builtContainers."c-router-policy").networking.nftables.ruleset;
+        siteCRules = (evalContainer siteCContainers."c-router-policy").networking.nftables.ruleset;
         branchDownstreamRules =
           (evalContainer builtContainers."b-router-downstream-selector").networking.nftables.ruleset;
         siteCDownstreamRules =
-          (evalContainer builtContainers."c-router-downstream-selector").networking.nftables.ruleset;
+          (evalContainer siteCContainers."c-router-downstream-selector").networking.nftables.ruleset;
         siteCUpstreamRules =
-          (evalContainer builtContainers."c-router-upstream-selector").networking.nftables.ruleset;
+          (evalContainer siteCContainers."c-router-upstream-selector").networking.nftables.ruleset;
         has = flake.inputs.nixpkgs.lib.hasInfix;
         hasBefore =
           earlier: later: text:
@@ -59,22 +65,20 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && !(has "iifname \"up-branch-ew\" oifname \"downstr-hostile\" accept comment \"allow-east-west-to-hostile\"" rules)
         && !(has "iifname \"downstr-branch\" oifname \"up-hostile\" accept comment \"allow-branch-to-wan\"" rules)
         && !(has "iifname \"downstr-branch\" oifname \"up-hostile-ew\" accept comment \"allow-branch-to-wan\"" rules)
-        && hasBefore
-          "allow-sitec-printer-nebula-underlay-to-wan"
-          "deny-sitec-printer-to-wan"
-          siteCRules
-        && hasBefore
-          "allow-sitec-nas-nebula-underlay-to-wan"
-          "deny-sitec-nas-to-wan"
-          siteCRules
+        && has "iifname \"downstream-dmz\" oifname \"up-dmz-wan\" accept comment \"allow-sitec-dmz-to-wan\"" siteCRules
+        && has "iifname \"downstr-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && has "iifname \"downstr-client\" oifname \"downstream-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCRules
+        && has "iifname \"downstr-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
+        && has "iifname \"downstr-client\" oifname \"up-client-ew\" accept comment \"allow-sitec-client-to-east-west\"" siteCRules
+        && has "iifname \"up-client-ew\" oifname \"downstr-client\" accept comment \"allow-east-west-to-sitec-client\"" siteCRules
         && has "type filter hook forward priority filter; policy drop;" branchDownstreamRules
         && !(has "iifname \"access-branch\" oifname \"access-hostile\" accept" branchDownstreamRules)
         && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
         && !(has "iifname \"policy-branch\" oifname \"policy-hostile\" accept" branchDownstreamRules)
-        && !(has "iifname \"access-nas\" oifname \"access-printer\" accept" siteCDownstreamRules)
-        && !(has "iifname \"access-printer\" oifname \"access-nas\" accept" siteCDownstreamRules)
-        && !(has "iifname \"pol-nas-wan\" oifname \"pol-prn-wan\" accept" siteCUpstreamRules)
-        && !(has "iifname \"pol-prn-wan\" oifname \"pol-nas-wan\" accept" siteCUpstreamRules)
-    ' | grep -qx true
+        && !(has "iifname \"access-dmz\" oifname \"access-client\" accept" siteCDownstreamRules)
+        && !(has "iifname \"access-client\" oifname \"access-dmz\" accept" siteCDownstreamRules)
+        && !(has "iifname \"policy-client-wan\" oifname \"policy-dmz-wan\" accept" siteCUpstreamRules)
+        && !(has "iifname \"policy-dmz-wan\" oifname \"policy-client-wan\" accept" siteCUpstreamRules)
+    '
 
 echo "PASS policy-zone-firewall-scoping"

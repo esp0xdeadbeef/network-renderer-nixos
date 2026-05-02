@@ -9,7 +9,7 @@ example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site
 intent_path="${example_root}/intent.nix"
 inventory_path="${example_root}/inventory-nixos.nix"
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "hostile-gua-advertisements" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${intent_path}" \
 INVENTORY_PATH="${inventory_path}" \
   nix eval \
@@ -68,6 +68,6 @@ INVENTORY_PATH="${inventory_path}" \
         && hasDelegatedRouteService
         && !hasStaleCoreMainRoute
         && !(builtins.elem "2a01:4f8:1c17:b337::1/64" addresses)
-    ' | grep -qx true
+    '
 
 pass "hostile-gua-advertisements"

@@ -6,7 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="${EXAMPLE_ROOT:-$(flake_input_path network-labs)/examples/s-router-test-three-site}"
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "host-uplink-vlan-dhcp" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${example_root}/intent.nix" \
 INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
   nix eval \
@@ -140,6 +140,6 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && tenantBridgeRejectsHostRa "admin"
         && collidedAccessContainer.veths.access-tenant-mgmt.hostBridge == managementBridge
         && collidedAccessContainer.interfaces.tenant-mgmt.renderedHostBridgeName == managementBridge
-    ' | grep -qx true
+    '
 
 echo "PASS host-uplink-vlan-dhcp"

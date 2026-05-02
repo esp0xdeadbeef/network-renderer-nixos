@@ -48,6 +48,8 @@ render_fixture() {
       archive_json_artifacts "$(basename "${rel}")" "${tmp_dir}"
     fi
 
+    assert_clean_render_contract "$(basename "${rel}")" ./90-render.json "${tmp_dir}/render.stderr"
+
     "${repo_root}/test-split-box-render.sh" "${tmp_dir}/cpm.json" ./90-render.json >/dev/null
   )
 

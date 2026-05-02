@@ -6,7 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "host-build-container-selection" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${example_root}/intent.nix" \
 INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
   nix eval \
@@ -44,6 +44,6 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           builtins.filter (cap: cap == "CAP_NET_ADMIN") accessClient.additionalCapabilities
         ) == 1
         && builtins.elem "/dev/net/tun" accessClient.allowedDevices
-    ' | grep -qx true
+    '
 
 echo "PASS host-build-container-selection"
