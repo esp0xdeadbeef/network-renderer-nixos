@@ -12,6 +12,49 @@ let
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  overlayNameSet =
+    let
+      data =
+        if
+          cpm ? control_plane_model
+          && builtins.isAttrs cpm.control_plane_model
+          && cpm.control_plane_model ? data
+          && builtins.isAttrs cpm.control_plane_model.data
+        then
+          cpm.control_plane_model.data
+        else
+          { };
+      siteOverlayNames =
+        enterpriseName:
+        siteName:
+        let
+          site = data.${enterpriseName}.${siteName};
+          overlays =
+            if builtins.isAttrs (site.overlays or null) then
+              builtins.attrNames site.overlays
+            else
+              [ ];
+          overlayReachability =
+            if builtins.isAttrs (site.overlayReachability or null) then
+              builtins.attrNames site.overlayReachability
+            else
+              [ ];
+        in
+        overlays ++ overlayReachability;
+      overlayNames = lib.concatMap (
+        enterpriseName:
+        lib.concatMap (siteName: siteOverlayNames enterpriseName siteName) (
+          builtins.attrNames data.${enterpriseName}
+        )
+      ) (builtins.attrNames data);
+    in
+    builtins.listToAttrs (
+      map (name: {
+        inherit name;
+        value = true;
+      }) (lib.unique (lib.filter builtins.isString overlayNames))
+    );
+
   sourceKindForTarget =
     target:
     if
@@ -35,8 +78,10 @@ let
   isOverlayTransportTarget =
     target:
     sourceKindForTarget target == "wan"
-    && builtins.isString (target.unitName or null)
-    && lib.hasInfix "nebula" target.unitName;
+    && target ? connectivity
+    && builtins.isAttrs target.connectivity
+    && builtins.isString (target.connectivity.upstream or null)
+    && builtins.hasAttr target.connectivity.upstream overlayNameSet;
 
   wanGroupNameForTarget =
     target:
