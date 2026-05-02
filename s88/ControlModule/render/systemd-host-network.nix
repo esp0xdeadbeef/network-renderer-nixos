@@ -80,6 +80,44 @@ let
     else
       { ConfigureWithoutCarrier = true; };
 
+  bridgeNetworkVlanNames =
+    lib.filter
+      (bridgeName: (bridgeNetworks.${bridgeName}.mode or null) == "vlan")
+      (sortedAttrNames bridgeNetworks);
+
+  bridgeNetworkVlanIfNameFor =
+    bridgeName:
+    let
+      bridgeNetwork = bridgeNetworks.${bridgeName};
+      parent =
+        if bridgeNetwork ? parent && builtins.isString bridgeNetwork.parent then
+          bridgeNetwork.parent
+        else
+          throw ''
+            s88/CM/network/render/systemd-host-network.nix: bridgeNetwork '${bridgeName}' mode=vlan requires string parent
+          '';
+      vlan =
+        if bridgeNetwork ? vlan && builtins.isInt bridgeNetwork.vlan then
+          bridgeNetwork.vlan
+        else
+          throw ''
+            s88/CM/network/render/systemd-host-network.nix: bridgeNetwork '${bridgeName}' mode=vlan requires integer vlan
+          '';
+    in
+    "${parent}.${toString vlan}";
+
+  bridgeNetworkVlanParentFor =
+    bridgeName:
+    let
+      bridgeNetwork = bridgeNetworks.${bridgeName};
+    in
+    if bridgeNetwork ? parent && builtins.isString bridgeNetwork.parent then
+      bridgeNetwork.parent
+    else
+      throw ''
+        s88/CM/network/render/systemd-host-network.nix: bridgeNetwork '${bridgeName}' mode=vlan requires string parent
+      '';
+
   uplinkBridgeNetdevs = builtins.listToAttrs (
     lib.concatMap (
       uplinkName:
@@ -137,16 +175,44 @@ let
     ) uplinkNames
   );
 
-  parentNames = lib.unique (
-    lib.filter builtins.isString (map (uplinkName: uplinks.${uplinkName}.parent or null) uplinkNames)
+  bridgeNetworkVlanNetdevs = builtins.listToAttrs (
+    map (
+      bridgeName:
+      let
+        bridgeNetwork = bridgeNetworks.${bridgeName};
+        vlanIfName = bridgeNetworkVlanIfNameFor bridgeName;
+      in
+      {
+        name = "13-${vlanIfName}";
+        value = {
+          netdevConfig = {
+            Name = vlanIfName;
+            Kind = "vlan";
+          };
+          vlanConfig.Id = bridgeNetwork.vlan;
+        };
+      }
+    ) bridgeNetworkVlanNames
   );
+
+  parentNames =
+    lib.unique (
+      lib.filter builtins.isString (map (uplinkName: uplinks.${uplinkName}.parent or null) uplinkNames)
+      ++ map bridgeNetworkVlanParentFor bridgeNetworkVlanNames
+    );
 
   uplinkParentNetworks = builtins.listToAttrs (
     map (
       parentIf:
       let
         uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
-        vlanChildren = lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent);
+        bridgeVlansOnParent =
+          lib.filter
+            (bridgeName: bridgeNetworkVlanParentFor bridgeName == parentIf)
+            bridgeNetworkVlanNames;
+        vlanChildren =
+          lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent)
+          ++ map bridgeNetworkVlanIfNameFor bridgeVlansOnParent;
 
         directBridgeUplinks = lib.filter (
           uplinkName:
@@ -214,8 +280,37 @@ let
           }
         ]
       ) uplinkNames;
+      bridgeNetworkVlanEntries = map (
+        bridgeName:
+        let
+          vlanIfName = bridgeNetworkVlanIfNameFor bridgeName;
+          renderedBridgeName =
+            if builtins.hasAttr bridgeName bridges then
+              bridges.${bridgeName}.renderedName
+            else
+              throw ''
+                s88/CM/network/render/systemd-host-network.nix: bridgeNetwork '${bridgeName}' mode=vlan has no rendered bridge
+              '';
+        in
+        {
+          name = "22-${vlanIfName}";
+          value = {
+            matchConfig.Name = vlanIfName;
+            linkConfig = {
+              ActivationPolicy = "always-up";
+              RequiredForOnline = "no";
+            };
+            networkConfig = {
+              Bridge = renderedBridgeName;
+              ConfigureWithoutCarrier = true;
+              LinkLocalAddressing = "no";
+              IPv6AcceptRA = false;
+            };
+          };
+        }
+      ) bridgeNetworkVlanNames;
     in
-    vlanBridgeEntries
+    vlanBridgeEntries ++ bridgeNetworkVlanEntries
   );
 
   uplinkBridgeNetworks = builtins.listToAttrs (
@@ -368,9 +463,9 @@ let
 
   bridgeNetdevs =
     if hostHasUplinks then
-      localBridgeNetdevs // uplinkBridgeNetdevs // transitNetdevs
+      localBridgeNetdevs // uplinkBridgeNetdevs // bridgeNetworkVlanNetdevs // transitNetdevs
     else
-      localBridgeNetdevs;
+      localBridgeNetdevs // bridgeNetworkVlanNetdevs;
 
   bridgeNetworksRendered =
     if hostHasUplinks then
@@ -380,7 +475,7 @@ let
 
   hostNetdevs = { };
 
-  hostNetworks = if hostHasUplinks then uplinkParentNetworks else { };
+  hostNetworks = if hostHasUplinks || bridgeNetworkVlanNames != [ ] then uplinkParentNetworks else { };
 
   netdevs = hostNetdevs // bridgeNetdevs;
   networks = hostNetworks // bridgeNetworksRendered;

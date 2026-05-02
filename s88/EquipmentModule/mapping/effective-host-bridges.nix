@@ -35,7 +35,18 @@ let
 
   effectiveRenderedBridgeNames = lib.filter (
     renderedName: !(builtins.elem renderedName claimedRenderedBridgeNames)
-  ) referencedRenderedBridgeNames;
+  ) (
+    referencedRenderedBridgeNames
+    ++ lib.filter builtins.isString (
+      map (
+        bridgeName:
+        let
+          bridge = bridgeModel.bridges.${bridgeName};
+        in
+        if bridge.explicitDeploymentBridge or false then bridge.renderedName else null
+      ) (sortedAttrNames (bridgeModel.bridges or { }))
+    )
+  );
 
   effectiveBridges = builtins.listToAttrs (
     lib.concatMap (

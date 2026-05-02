@@ -63,6 +63,9 @@ let
       lib
       attachTargetsRuntime
       ;
+    inherit (hostRuntime)
+      deploymentHost
+      ;
   };
 
   wanAttachment = import ../../../EquipmentModule/mapping/wan-attachment.nix {
