@@ -390,6 +390,27 @@ let
           };
 
           usePrimaryHostBridge = primaryHostBridgeIfName == ifName;
+          realizationPortName =
+            if
+              attachTarget ? identity
+              && builtins.isAttrs attachTarget.identity
+              && attachTarget.identity ? portName
+              && builtins.isString attachTarget.identity.portName
+            then
+              attachTarget.identity.portName
+            else
+              null;
+          interfaceAliases = lib.unique (
+            lib.filter builtins.isString [
+              ifName
+              (iface.ifName or null)
+              (iface.renderedIfName or null)
+              desiredInterfaceName
+              realizationPortName
+              (iface.sourceInterface or null)
+              (iface.backingRef.name or null)
+            ]
+          );
         in
         {
           inherit ifName;
@@ -399,6 +420,8 @@ let
               sourceKind
               desiredInterfaceName
               usePrimaryHostBridge
+              realizationPortName
+              interfaceAliases
               ;
             hostVethBaseName = semanticHostVethBaseName {
               inherit containerName desiredInterfaceName;

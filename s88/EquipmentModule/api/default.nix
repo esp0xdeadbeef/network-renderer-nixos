@@ -1,13 +1,7 @@
-{
-  lib,
-  repoRoot ? ../../..,
-  flakeInputs ? { },
-}:
+{ lib, ... }:
 
-import ../../ControlModule/api/default.nix {
-  inherit
-    lib
-    repoRoot
-    flakeInputs
-    ;
+{
+  hostBridges = import ../mapping/host-bridges.nix { inherit lib; };
+  wanAttachment = import ../mapping/wan-attachment.nix { inherit lib; };
+  transitBridges = import ../physical/transit-bridges.nix { inherit lib; };
 }

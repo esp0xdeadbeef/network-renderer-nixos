@@ -6,8 +6,14 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 "${repo_root}/tests/test-nix-file-loc.sh"
 
+# ControlModules are called by Unit/Equipment/Site with narrow inputs.
+bash "${repo_root}/tests/test-controlmodule-boundary.sh"
+
 # Renderer must stay provider-neutral; CPM/provider renderers own semantics.
 bash "${repo_root}/tests/test-renderer-boundary-grep.sh"
+
+# Container firewall rules must use rendered Linux ifnames, not long logical ports.
+bash "${repo_root}/tests/test-container-firewall-ifname-limit.sh"
 
 # External tests first (matches how this repo is used in prod).
 "${repo_root}/tests/cases/external-examples.sh"

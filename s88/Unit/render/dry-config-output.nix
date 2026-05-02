@@ -20,14 +20,14 @@ let
     then
       flake.lib.flakeInputs.nixpkgs.lib
     else
-      throw "s88/CM/network/render/dry-config-output.nix: unable to resolve nixpkgs lib from flake inputs";
+      throw "s88/Unit/render/dry-config-output.nix: unable to resolve nixpkgs lib from flake inputs";
 
   renderer = flake.lib.renderer;
 
   runtimeContext = import ../lookup/runtime-context.nix { inherit lib; };
   runtimeTargets = import ../mapping/runtime-targets.nix { inherit lib; };
 
-  renderInputs = import ../lookup/render-inputs.nix {
+  renderInputs = import ../../ControlModule/lookup/render-inputs.nix {
     inherit
       lib
       renderer
@@ -49,12 +49,12 @@ let
   _validateRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
     cpm = controlPlane;
     inventory = resolvedInventory;
-    file = "s88/CM/network/render/dry-config-output.nix";
+    file = "s88/Unit/render/dry-config-output.nix";
   };
 
   normalizedRuntimeTargets = runtimeTargets.normalizedRuntimeTargets {
     cpm = controlPlane;
-    file = "s88/CM/network/render/dry-config-output.nix";
+    file = "s88/Unit/render/dry-config-output.nix";
   };
 
   unitNames = sortedAttrNames normalizedRuntimeTargets;
@@ -67,7 +67,7 @@ let
           cpm = controlPlane;
           inventory = resolvedInventory;
           inherit unitName;
-          file = "s88/CM/network/render/dry-config-output.nix";
+          file = "s88/Unit/render/dry-config-output.nix";
         }
       ) unitNames
     )
@@ -101,17 +101,17 @@ let
   validation = builtins.seq _validateRuntimeTargets (
     if unitNames == [ ] then
       throw ''
-        s88/CM/network/render/dry-config-output.nix: no runtime targets found in control-plane model
+        s88/Unit/render/dry-config-output.nix: no runtime targets found in control-plane model
       ''
     else if deploymentHostNames == [ ] then
       throw ''
-        s88/CM/network/render/dry-config-output.nix: no deployment hosts found in control-plane model
+        s88/Unit/render/dry-config-output.nix: no deployment hosts found in control-plane model
       ''
     else if
       output.render.hosts == { } && output.render.nodes == { } && output.render.containers == { }
     then
       throw ''
-        s88/CM/network/render/dry-config-output.nix: empty render output
+        s88/Unit/render/dry-config-output.nix: empty render output
       ''
     else
       true

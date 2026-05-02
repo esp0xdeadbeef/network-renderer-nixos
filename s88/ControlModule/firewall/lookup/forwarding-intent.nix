@@ -200,6 +200,7 @@ let
         (iface.containerInterfaceName or null)
         (iface.hostInterfaceName or null)
         (iface.ifName or null)
+        (iface.realizationPortName or null)
         (iface.sourceInterface or null)
         (
           if
@@ -215,7 +216,7 @@ let
         (backingRef.name or null)
         backingRefIdTail
         (backingRef.kind or null)
-      ];
+      ] ++ (asStringList (iface.interfaceAliases or [ ]));
     }
   ) (lib.sort builtins.lessThan (builtins.attrNames interfaces));
 
