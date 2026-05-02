@@ -84,7 +84,7 @@ let
     }) deploymentHostNames
   );
 
-  output = import ./dry-config-model.nix {
+  output = import ../../ControlModule/render/dry-config-model.nix {
     inherit
       lib
       metadataSourcePaths

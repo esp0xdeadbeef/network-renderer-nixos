@@ -21,6 +21,7 @@
       nixos-network-compiler,
       network-control-plane-model,
       network-forwarding-model,
+      network-labs,
       ...
     }:
     let
@@ -115,13 +116,31 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          renderDryConfig = import ./s88/ControlModule/tools/render-dry-config-app.nix {
+          renderDryConfig = import ./s88/Unit/tools/render-dry-config-app.nix {
             inherit pkgs self;
           };
+          s88CallFlowEvalTarget =
+            let
+              hostBuild = api.renderer.buildHostFromPaths {
+                system = system;
+                selector = "s-router-hetzner-anywhere";
+                intentPath = network-labs.outPath + "/examples/s-router-test-three-site/intent.nix";
+                inventoryPath = network-labs.outPath + "/examples/s-router-test-three-site/inventory-nixos.nix";
+              };
+            in
+            pkgs.writeText "s88-call-flow-eval-target.json" (
+              builtins.toJSON {
+                selectedUnits = hostBuild.selectedUnits or [ ];
+                renderedContainerNames = lib.sort builtins.lessThan (
+                  builtins.attrNames (hostBuild.renderedHost.containers or { })
+                );
+              }
+            );
         in
         {
           jq = pkgs.jq;
           render-dry-config = renderDryConfig;
+          s88-call-flow-eval-target = s88CallFlowEvalTarget;
           default = renderDryConfig;
         }
       );

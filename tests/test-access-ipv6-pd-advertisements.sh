@@ -9,7 +9,7 @@ inventory_path="/home/deadbeef/github/network-labs/examples/single-wan-ipv6-pd/i
 [[ -f "${intent_path}" ]] || { echo "missing intent: ${intent_path}" >&2; exit 1; }
 [[ -f "${inventory_path}" ]] || { echo "missing inventory: ${inventory_path}" >&2; exit 1; }
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "access-ipv6-pd-advertisements" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${intent_path}" \
 INVENTORY_PATH="${inventory_path}" \
   nix eval \
@@ -38,6 +38,6 @@ INVENTORY_PATH="${inventory_path}" \
         && (pathConfig.PathExists or null) == "/run/s88-ipv6-pd/wan.prefix"
         && (pathConfig.PathChanged or null) == "/run/s88-ipv6-pd/wan.prefix"
         && (pathConfig.Unit or null) == "radvd-generate-tenant-client.service"
-    ' | grep -qx true
+    '
 
 echo "PASS access-ipv6-pd-advertisements"

@@ -18,6 +18,63 @@ _jq() {
   fi
 }
 
+nix_eval_json_or_fail() {
+  local label="$1"
+  local output_file="$2"
+  local stderr_file="$3"
+  shift 3
+
+  if ! "$@" >"$output_file" 2>"$stderr_file"; then
+    echo "FAIL ${label}: nix eval crashed" >&2
+    cat "$stderr_file" >&2
+    exit 1
+  fi
+}
+
+assert_json_checks_ok() {
+  local label="$1"
+  local result_json="$2"
+
+  if [[ "$(_jq -r '.ok' "$result_json")" != "true" ]]; then
+    echo "FAIL ${label}: failed checks" >&2
+    _jq -r '.failed[]' "$result_json" >&2
+    echo "full check state:" >&2
+    _jq -S '.checks' "$result_json" >&2
+    exit 1
+  fi
+}
+
+nix_eval_true_or_fail() {
+  local label="$1"
+  shift
+
+  local output_file
+  local stderr_file
+  output_file="$(mktemp)"
+  stderr_file="$(mktemp)"
+
+  if ! "$@" >"$output_file" 2>"$stderr_file"; then
+    echo "FAIL ${label}: nix eval crashed" >&2
+    cat "$stderr_file" >&2
+    rm -f "$output_file" "$stderr_file"
+    exit 1
+  fi
+
+  if ! grep -qx true "$output_file"; then
+    echo "FAIL ${label}: expected nix eval to return true" >&2
+    echo "stdout:" >&2
+    cat "$output_file" >&2
+    if [[ -s "$stderr_file" ]]; then
+      echo "stderr:" >&2
+      cat "$stderr_file" >&2
+    fi
+    rm -f "$output_file" "$stderr_file"
+    exit 1
+  fi
+
+  rm -f "$output_file" "$stderr_file"
+}
+
 flake_input_path() {
   local input_name="$1"
 
@@ -61,6 +118,55 @@ has_advertisement_default_alarm() {
     ]
     | any
   ' "$render_json" >/dev/null 2>&1
+}
+
+has_render_warnings_or_alarms() {
+  local render_json="$1"
+
+  _jq -e '
+    [
+      ..
+      | objects
+      | select(
+          ((.alarms? // []) | length > 0)
+          or ((.warnings? // []) | length > 0)
+          or ((.warningMessages? // []) | length > 0)
+        )
+    ]
+    | length > 0
+  ' "$render_json" >/dev/null
+}
+
+assert_clean_render_contract() {
+  local label="$1"
+  local render_json="$2"
+  local stderr_file="${3:-}"
+
+  if [[ -n "$stderr_file" && -f "$stderr_file" ]] && rg -qF "evaluation warning:" "$stderr_file"; then
+    cat "$stderr_file" >&2
+    fail "FAIL ${label}: renderer emitted Nix evaluation warnings"
+  fi
+
+  if has_render_warnings_or_alarms "$render_json"; then
+    _jq '
+      [
+        paths(objects) as $p
+        | getpath($p)
+        | select(
+            ((.alarms? // []) | length > 0)
+            or ((.warnings? // []) | length > 0)
+            or ((.warningMessages? // []) | length > 0)
+          )
+        | {
+            path: $p,
+            alarms: (.alarms? // []),
+            warnings: (.warnings? // []),
+            warningMessages: (.warningMessages? // [])
+          }
+      ]
+    ' "$render_json" >&2
+    fail "FAIL ${label}: renderer produced alarms or warnings"
+  fi
 }
 
 resolve_fixture_dir_into() {

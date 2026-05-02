@@ -8,12 +8,18 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 # ControlModules are called by Unit/Equipment/Site with narrow inputs.
 bash "${repo_root}/tests/test-controlmodule-boundary.sh"
-
-# Renderer must stay provider-neutral; CPM/provider renderers own semantics.
-bash "${repo_root}/tests/test-renderer-boundary-grep.sh"
+bash "${repo_root}/tests/test-s88-call-flow.sh"
+bash "${repo_root}/tests/test-s88-call-flow-profiler.sh"
 
 # Container firewall rules must use rendered Linux ifnames, not long logical ports.
 bash "${repo_root}/tests/test-container-firewall-ifname-limit.sh"
+
+# Clean renderer outputs must not hide alarms/warnings, and warning/error paths
+# must visibly surface when produced.
+bash "${repo_root}/tests/test-warning-alarm-contract.sh"
+
+# Test assertions must print the failed contract, not just a silent pipeline exit.
+bash "${repo_root}/tests/test-loud-test-failures.sh"
 
 # External tests first (matches how this repo is used in prod).
 "${repo_root}/tests/cases/external-examples.sh"

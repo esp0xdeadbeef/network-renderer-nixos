@@ -8,316 +8,37 @@
   wanUplinkName,
 }:
 
-let
-  roleName = renderedModel.roleName or null;
-  usesOnlyExtraVeths =
-    !(
-      renderedModel ? hostBridge
-      && builtins.isString renderedModel.hostBridge
-      && renderedModel.hostBridge != ""
-    );
-
-  profilePath = if renderedModel ? profilePath then renderedModel.profilePath else null;
-
-  resolvedHostName =
-    if renderedModel ? unitName && builtins.isString renderedModel.unitName then
-      renderedModel.unitName
-    else
-      containerName;
-
-  warningMessages =
-    if alarmModel ? warningMessages && builtins.isList alarmModel.warningMessages then
-      lib.unique (lib.filter builtins.isString alarmModel.warningMessages)
-    else
-      [ ];
-
-  commonRouterConfig =
-    {
-      lib,
-      pkgs,
-      ...
-    }:
-    {
-      boot.isContainer = true;
-
-      networking.useNetworkd = true;
-      systemd.network.enable = true;
-      systemd.services.systemd-networkd-wait-online.enable = lib.mkIf usesOnlyExtraVeths (
-        lib.mkForce false
-      );
-      networking.useDHCP = false;
-      networking.networkmanager.enable = false;
-      networking.useHostResolvConf = lib.mkForce false;
-
-      services.resolved.enable = lib.mkForce false;
-      networking.firewall.enable = lib.mkForce false;
-
-      environment.systemPackages = with pkgs; [
-        gron
-        jq
-        ethtool
-        lsof
-        mtr
-        procps
-        strace
-        traceroute
-        tcpdump
-        nftables
-        dnsutils
-        iproute2
-        iputils
-      ];
-
-      system.stateVersion = "25.11";
-    };
-in
 {
   lib,
   pkgs,
   ...
 }:
+
 let
+  base = import ./module/base.nix {
+    inherit lib pkgs containerName renderedModel alarmModel;
+  };
+
   containerNetworkRender = import ../container-networks.nix {
-    inherit
-      lib
-      uplinks
-      wanUplinkName
-      ;
+    inherit lib uplinks wanUplinkName;
     containerModel = renderedModel;
   };
 
-  containerNetworks = containerNetworkRender.networks;
+  interfaceRenames = import ./module/interface-renames.nix {
+    inherit lib pkgs renderedModel;
+  };
 
-  containerIpv6AcceptRAInterfaces = containerNetworkRender.ipv6AcceptRAInterfaces or [ ];
-  dynamicDelegatedRoutes = containerNetworkRender.dynamicDelegatedRoutes or [ ];
-  containerInterfaceRenames = lib.filter (entry: entry != null) (
-    map (
-      iface:
-      let
-        initialInterfaceName =
-          if iface ? hostVethName && builtins.isString iface.hostVethName then iface.hostVethName else null;
-        finalInterfaceName =
-          if
-            iface ? containerInterfaceName
-            && builtins.isString iface.containerInterfaceName
-            && iface.containerInterfaceName != ""
-          then
-            iface.containerInterfaceName
-          else
-            null;
-      in
-      if
-        initialInterfaceName != null
-        && finalInterfaceName != null
-        && initialInterfaceName != finalInterfaceName
-      then
-        {
-          inherit initialInterfaceName finalInterfaceName;
-        }
-      else
-        null
-    ) (builtins.attrValues (renderedModel.interfaces or { }))
-  );
-  containerInterfaceRenameService =
-    if containerInterfaceRenames == [ ] then
-      { }
-    else
-      {
-        s88-rename-interfaces = {
-          description = "Rename rendered container interfaces to semantic names";
-          wantedBy = [ "multi-user.target" ];
-          requiredBy = [ "systemd-networkd.service" ];
-          before = [
-            "systemd-networkd.service"
-            "multi-user.target"
-          ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-          };
-          script =
-            let
-              renameCommands = map (rename: ''
-                for _ in $(seq 1 30); do
-                  if ${pkgs.iproute2}/bin/ip link show dev ${rename.finalInterfaceName} >/dev/null 2>&1; then
-                    break
-                  fi
-                  if ${pkgs.iproute2}/bin/ip link show dev ${rename.initialInterfaceName} >/dev/null 2>&1; then
-                    ${pkgs.iproute2}/bin/ip link set dev ${rename.initialInterfaceName} down || true
-                    ${pkgs.iproute2}/bin/ip link set dev ${rename.initialInterfaceName} name ${rename.finalInterfaceName}
-                    ${pkgs.iproute2}/bin/ip link set dev ${rename.finalInterfaceName} up || true
-                    break
-                  fi
-                  sleep 1
-                done
-              '') containerInterfaceRenames;
-            in
-            lib.concatStringsSep "\n" renameCommands;
-        };
-      };
-  networkManagerWanInterfaces =
-    if
-      renderedModel ? networkManagerWanInterfaces
-      && builtins.isList renderedModel.networkManagerWanInterfaces
-    then
-      lib.filter builtins.isString renderedModel.networkManagerWanInterfaces
-    else
-      [ ];
+  networkManager = import ./module/network-manager.nix {
+    inherit lib pkgs renderedModel;
+  };
 
-  networkdManagedInterfaces =
-    lib.filter
-      (
-        interfaceName:
-        builtins.isString interfaceName && !(builtins.elem interfaceName networkManagerWanInterfaces)
-      )
-      (
-        map (
-          iface:
-          if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
-            iface.containerInterfaceName
-          else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
-            iface.hostInterfaceName
-          else if iface ? interfaceName && builtins.isString iface.interfaceName then
-            iface.interfaceName
-          else if iface ? ifName && builtins.isString iface.ifName then
-            iface.ifName
-          else
-            null
-        ) (builtins.attrValues (renderedModel.interfaces or { }))
-      );
-
-  ipv6AcceptRASysctls =
-    if containerIpv6AcceptRAInterfaces == [ ] then
-      { }
-    else
-      {
-        "net.ipv6.conf.all.accept_ra" = 2;
-        "net.ipv6.conf.default.accept_ra" = 2;
-      }
-      // builtins.listToAttrs (
-        map (interfaceName: {
-          name = "net.ipv6.conf.${interfaceName}.accept_ra";
-          value = 2;
-        }) containerIpv6AcceptRAInterfaces
-      );
-
-  networkManagerConnections = builtins.listToAttrs (
-    map (interfaceName: {
-      name = "NetworkManager/system-connections/s88-${interfaceName}.nmconnection";
-      value = {
-        mode = "0600";
-        text = ''
-          [connection]
-          id=s88-${interfaceName}
-          type=ethernet
-          interface-name=${interfaceName}
-          autoconnect=true
-
-          [ethernet]
-
-          [ipv4]
-          method=auto
-
-          [ipv6]
-          method=auto
-        '';
-      };
-    }) networkManagerWanInterfaces
-  );
-
-  networkManagerActivationServices = builtins.listToAttrs (
-    map (interfaceName: {
-      name = "s88-networkmanager-${interfaceName}";
-      value = {
-        description = "Activate NetworkManager WAN profile on ${interfaceName}";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "NetworkManager.service" ];
-        wants = [ "NetworkManager.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        path = [ pkgs.networkmanager ];
-        script = ''
-          nmcli connection reload
-          nmcli connection up s88-${interfaceName} ifname ${interfaceName}
-        '';
-      };
-    }) networkManagerWanInterfaces
-  );
-
-  dynamicDelegatedRouteServices =
-    builtins.listToAttrs (
-      map
-        (route:
-          let
-            serviceName = "s88-${route.name}";
-            routeScript = pkgs.writeShellScript serviceName ''
-              set -eu
-              source_file=${lib.escapeShellArg route.sourceFile}
-              interface=${lib.escapeShellArg route.interfaceName}
-              gateway=${if route.gateway == null then "''" else lib.escapeShellArg route.gateway}
-              metric=${if route.metric == null then "''" else lib.escapeShellArg (toString route.metric)}
-
-              [ -s "$source_file" ] || exit 0
-              prefix="$(${pkgs.coreutils}/bin/tr -d '[:space:]' < "$source_file")"
-              [ -n "$prefix" ] || exit 0
-
-              if [ -n "$gateway" ]; then
-                if [ -n "$metric" ]; then
-                  ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
-                else
-                  ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" proto static onlink
-                fi
-              else
-                if [ -n "$metric" ]; then
-                  ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" metric "$metric" proto static
-                else
-                  ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" proto static
-                fi
-              fi
-            '';
-          in
-          {
-            name = serviceName;
-            value = {
-              description = "Install delegated external-validation IPv6 route on ${route.interfaceName}";
-              wantedBy = [ "multi-user.target" ];
-              after = [ "systemd-networkd.service" ];
-              wants = [ "systemd-networkd.service" ];
-              serviceConfig = {
-                Type = "oneshot";
-                RemainAfterExit = true;
-                ExecStart = routeScript;
-              };
-            };
-          })
-        dynamicDelegatedRoutes
-    );
-
-  dynamicDelegatedRoutePaths =
-    builtins.listToAttrs (
-      map
-        (route:
-          let
-            serviceName = "s88-${route.name}";
-          in
-          {
-            name = serviceName;
-            value = {
-              wantedBy = [ "multi-user.target" ];
-              pathConfig = {
-                PathExists = route.sourceFile;
-                PathChanged = route.sourceFile;
-                Unit = "${serviceName}.service";
-              };
-            };
-          })
-        dynamicDelegatedRoutes
-    );
+  delegatedRoutes = import ./module/delegated-routes.nix {
+    inherit lib pkgs;
+    dynamicDelegatedRoutes = containerNetworkRender.dynamicDelegatedRoutes or [ ];
+  };
 
   accessServices =
-    if roleName == "access" then
+    if (renderedModel.roleName or null) == "access" then
       import ../../access/render/default.nix {
         inherit lib pkgs;
         containerModel = renderedModel;
@@ -325,64 +46,29 @@ let
     else
       { };
 
-  dnsServices = import ./dns-services.nix {
-    inherit
-      lib
-      pkgs
-      renderedModel
-      ;
-  };
-
-  mdnsServices = import ./mdns-services.nix {
-    inherit
-      lib
-      pkgs
-      renderedModel
-      ;
-  };
-
-  bgpServices = import ./bgp-services.nix {
-    inherit
-      lib
-      renderedModel
-      ;
-  };
-
+  dnsServices = import ./dns-services.nix { inherit lib pkgs renderedModel; };
+  mdnsServices = import ./mdns-services.nix { inherit lib pkgs renderedModel; };
+  bgpServices = import ./bgp-services.nix { inherit lib renderedModel; };
 in
 {
-  imports = lib.optionals (profilePath != null) [ profilePath ];
+  imports = base.imports;
 
   config = lib.mkMerge [
-    (commonRouterConfig { inherit lib pkgs; })
-
+    base.commonRouterConfig
     {
-      networking.hostName = resolvedHostName;
-      systemd.network.networks = containerNetworks;
-      warnings = warningMessages;
+      networking.hostName = base.resolvedHostName;
+      systemd.network.networks = containerNetworkRender.networks;
+      warnings = base.warningMessages;
     }
-
-    (lib.optionalAttrs (networkManagerWanInterfaces != [ ]) {
-      networking.networkmanager.enable = lib.mkForce true;
-      networking.networkmanager.unmanaged = map (
-        interfaceName: "interface-name:${interfaceName}"
-      ) networkdManagedInterfaces;
-      environment.etc = networkManagerConnections;
-      systemd.services = networkManagerActivationServices;
+    networkManager.config
+    delegatedRoutes.config
+    (lib.optionalAttrs ((containerNetworkRender.ipv6AcceptRAInterfaces or [ ]) != [ ]) {
+      boot.kernel.sysctl = import ./module/ipv6-ra-sysctls.nix {
+        inherit lib;
+        interfaces = containerNetworkRender.ipv6AcceptRAInterfaces or [ ];
+      };
     })
-
-    (lib.optionalAttrs (dynamicDelegatedRoutes != [ ]) {
-      systemd.services = dynamicDelegatedRouteServices;
-      systemd.paths = dynamicDelegatedRoutePaths;
-    })
-
-    (lib.optionalAttrs (containerIpv6AcceptRAInterfaces != [ ]) {
-      boot.kernel.sysctl = ipv6AcceptRASysctls;
-    })
-
-    (lib.optionalAttrs (containerInterfaceRenameService != { }) {
-      systemd.services = containerInterfaceRenameService;
-    })
-
+    interfaceRenames.config
     accessServices
     dnsServices
     mdnsServices

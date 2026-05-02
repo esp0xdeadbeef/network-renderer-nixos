@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-REPO_ROOT="${repo_root}" nix eval \
+nix_eval_true_or_fail "access-local-relations" env REPO_ROOT="${repo_root}" nix eval \
   --extra-experimental-features 'nix-command flakes' \
   --impure \
   --expr '
@@ -79,6 +79,6 @@ REPO_ROOT="${repo_root}" nix eval \
         "iifname \"tenant-streami\" oifname \"tenant-users\" accept comment \"allow-sitec-home-to-local-services\""
         forwardRules)
       && builtins.length forwardPairs == 2
-  ' | grep -qx true
+    '
 
 echo "PASS access-local-relations"

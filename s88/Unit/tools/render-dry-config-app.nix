@@ -51,59 +51,30 @@ pkgs.writeShellApplication {
 
     repo_root='${builtins.toString ../../..}'
 
-    rm -f \
-      ./00-*.json \
-      ./01-*.json \
-      ./02-*.json \
-      ./03-*.json \
-      ./04-*.json \
-      ./05-*.json \
-      ./10-*.json \
-      ./25-*.json \
-      ./30-*.json \
-      ./31-*.json \
-      ./32-*.json \
-      ./33-*.json \
-      ./34-*.json \
-      ./35-*.json \
-      ./36-*.json \
-      ./90-*.json
+    rm -f ./[0-9][0-9]-*.json
 
     run_nix_eval_json() {
       local expr="$1"
       local output_path="$2"
-
-      nix eval \
-        --impure \
-        --json \
-        --expr "$expr" \
-        > "$output_path"
-    }
-
-    render_from_cpm_path() {
-      local cpm_path="$1"
-      local example_dir="$2"
-
-      run_nix_eval_json "
-        let
-          flake = builtins.getFlake (toString (builtins.toPath \"$repo_root\"));
-        in
-        flake.lib.renderer.renderDryConfig {
-          cpmPath = \"$cpm_path\";
-          exampleDir = \"$example_dir\";
-          debug = $debug_value;
-        }
-      " 90-dry-config.json
+      nix eval --impure --json --expr "$expr" > "$output_path"
     }
 
     cpm_path="$(realpath "$1")"
     example_dir="$(dirname "$cpm_path")"
 
-    render_from_cpm_path "$cpm_path" "$example_dir"
+    run_nix_eval_json "
+      let
+        flake = builtins.getFlake (toString (builtins.toPath \"$repo_root\"));
+      in
+      flake.lib.renderer.renderDryConfig {
+        cpmPath = \"$cpm_path\";
+        exampleDir = \"$example_dir\";
+        debug = $debug_value;
+      }
+    " 90-dry-config.json
 
     jq '.metadata' 90-dry-config.json > 10-metadata.json
     jq '.metadata.sourcePaths' 90-dry-config.json > 11-source-paths.json
-
     jq '.render.hosts' 90-dry-config.json > 30-hosts.json
     jq '.render.nodes' 90-dry-config.json > 31-nodes.json
     jq '.render.containers' 90-dry-config.json > 32-containers.json

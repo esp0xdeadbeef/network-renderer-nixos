@@ -11,7 +11,7 @@ inventory_path="${example_root}/inventory-nixos.nix"
 [[ -f "${intent_path}" ]] || { echo "missing intent: ${intent_path}" >&2; exit 1; }
 [[ -f "${inventory_path}" ]] || { echo "missing inventory: ${inventory_path}" >&2; exit 1; }
 
-REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "hostile-dns-east-west" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${intent_path}" \
 INVENTORY_PATH="${inventory_path}" \
   nix eval \
@@ -44,6 +44,6 @@ INVENTORY_PATH="${inventory_path}" \
       in
         hasRoute "10.20.10.0/24" "10.50.0.17" 2004
         && hasRoute "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:11" 2004
-    ' | grep -qx true
+    '
 
 echo "PASS hostile-dns-east-west"
