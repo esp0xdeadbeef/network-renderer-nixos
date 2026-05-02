@@ -25,14 +25,13 @@ bash "${repo_root}/tests/test-policy-zone-firewall-scoping.sh"
 # Regression: rendered host veth names must be globally unique and dual-ISP cores must be disjoint.
 "${repo_root}/tests/cases/host-veth-consumer-sufficiency.sh"
 
-# render-all.sh used to fail-fast on warnings, which makes it hard to use for
-# scanning external examples (some warning alarms are upstream/missing CPM data).
-# Keep a smoke test that ensures render-all can run a known-warning example and
-# still exit 0 by default.
+# Multi-enterprise selector forwarding is explicit fail-closed when CPM provides
+# selector forwarding mode plus an empty rules list. The renderer must not turn
+# that explicit policy into warning alarms.
 labs_root="$(flake_input_path network-labs)"
 if [[ -d "${labs_root}/examples/multi-enterprise" ]]; then
-  echo "==> Smoke: render-all.sh should not fail on warnings by default"
-  "${repo_root}/render-all.sh" "${labs_root}/examples/multi-enterprise"
+  echo "==> Strict: multi-enterprise must render without selector warning alarms"
+  FAIL_ON_WARNINGS=1 "${repo_root}/render-all.sh" "${labs_root}/examples/multi-enterprise"
 fi
 
 # Regression: vm build API exists and returns an attrset (no lambda-vs-set drift).
