@@ -1,14 +1,23 @@
 {
   lib,
   attachTargetsRuntime,
+  deploymentHost ? { },
 }:
 
 let
   hostNaming = import ../../../lib/host-naming.nix { inherit lib; };
+  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+
+  explicitBridgeNames =
+    if deploymentHost ? bridgeNetworks && builtins.isAttrs deploymentHost.bridgeNetworks then
+      sortedAttrNames deploymentHost.bridgeNetworks
+    else
+      [ ];
 
   bridgeNamesRaw = lib.sort builtins.lessThan (
     lib.unique (
       lib.filter builtins.isString (map (target: target.hostBridgeName or null) attachTargetsRuntime)
+      ++ explicitBridgeNames
     )
   );
 
@@ -20,6 +29,12 @@ let
       value = {
         originalName = bridgeName;
         renderedName = bridgeNameMap.${bridgeName};
+        explicitDeploymentBridge = builtins.hasAttr bridgeName (
+          if deploymentHost ? bridgeNetworks && builtins.isAttrs deploymentHost.bridgeNetworks then
+            deploymentHost.bridgeNetworks
+          else
+            { }
+        );
       };
     }) bridgeNamesRaw
   );

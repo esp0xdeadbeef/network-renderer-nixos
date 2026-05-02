@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
+example_root="${EXAMPLE_ROOT:-$(flake_input_path network-labs)/examples/s-router-test-three-site}"
 
 REPO_ROOT="${repo_root}" \
 INTENT_PATH="${example_root}/intent.nix" \
@@ -17,6 +17,12 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         lib = flake.inputs.nixpkgs.lib;
         host = flake.lib.renderer.buildHostFromPaths {
           selector = "s-router-test";
+          system = "x86_64-linux";
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        };
+        clientHost = flake.lib.renderer.buildHostFromPaths {
+          selector = "s-router-test-clients";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
@@ -65,14 +71,27 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           let name = "eth0.${toString vlan}";
           in (netdevs."11-${name}".netdevConfig.Kind or null) == "vlan"
             && (netdevs."11-${name}".vlanConfig.Id or null) == vlan
-            && (networks."20-eth0".networkConfig.VLAN or [ ]) == [ "eth0.2" "eth0.4" "eth0.5" ]
+            && lib.elem name (networks."20-eth0".networkConfig.VLAN or [ ])
             && (networks."21-${name}".networkConfig.Bridge or null) == uplinks.${uplinkNameForVlan vlan}.bridge;
+        tenantVlanAttachment = bridgeName: vlan:
+          let name = "eth0.${toString vlan}";
+          in (netdevs."13-${name}".netdevConfig.Kind or null) == "vlan"
+            && (netdevs."13-${name}".vlanConfig.Id or null) == vlan
+            && lib.elem name (networks."20-eth0".networkConfig.VLAN or [ ])
+            && (networks."22-${name}".networkConfig.Bridge or null) == bridgeName;
         netdevs = host.renderedHost.netdevs;
         managementUplink = uplinkNameForVlan 2;
         vlan4Uplink = uplinkNameForVlan 4;
         vlan5Uplink = uplinkNameForVlan 5;
         managementBridge =
           if managementUplink != null then uplinks.${managementUplink}.bridge else null;
+        clientHostNetdevs = clientHost.renderedHost.netdevs;
+        clientHostNetworks = clientHost.renderedHost.networks;
+        clientHostHasTenantVlan = bridgeName: vlan:
+          let name = "eth0.${toString vlan}";
+          in (clientHostNetdevs."13-${name}".vlanConfig.Id or null) == vlan
+            && lib.elem name (clientHostNetworks."20-eth0".networkConfig.VLAN or [ ])
+            && (clientHostNetworks."22-${name}".networkConfig.Bridge or null) == bridgeName;
         collidedAccessContainer = import (builtins.toPath (
           builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/render/containers/mapping.nix"
         )) {
@@ -104,6 +123,17 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && hasVlanAttachment 2
         && hasVlanAttachment 4
         && hasVlanAttachment 5
+        && tenantVlanAttachment "mgmt" 300
+        && tenantVlanAttachment "client" 302
+        && tenantVlanAttachment "hostile" 306
+        && tenantVlanAttachment "streaming" 311
+        && (clientHostNetdevs."11-eth0.2".vlanConfig.Id or null) == 2
+        && (clientHostNetworks."30-vlan2".networkConfig.DHCP or null) == "ipv4"
+        && clientHostHasTenantVlan "client" 302
+        && clientHostHasTenantVlan "hostile" 306
+        && clientHostHasTenantVlan "streaming" 311
+        && ! (clientHostNetdevs ? "10-vlan3")
+        && ! (clientHostNetdevs ? "10-vlan1010")
         && tenantBridgeRejectsHostRa "hostile"
         && tenantBridgeRejectsHostRa "branch"
         && tenantBridgeRejectsHostRa "client"
