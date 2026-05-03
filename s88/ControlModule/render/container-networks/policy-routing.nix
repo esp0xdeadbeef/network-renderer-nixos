@@ -51,7 +51,7 @@ let
   returnRoutes = import ./policy-routing/return-routes.nix {
     inherit lib common interfaces renderedInterfaceNames isUpstreamSelector isUpstreamSelectorCoreInterface;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
-    inherit (siteDestinations) destinationsForTenant;
+    inherit (siteDestinations) returnDestinationsForTenant;
   };
 
   routesForPolicyTable =

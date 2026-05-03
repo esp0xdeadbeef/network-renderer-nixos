@@ -8,7 +8,7 @@
   addressForFamily,
   ipv4PeerFor31,
   ipv6PeerFor127,
-  destinationsForTenant,
+  returnDestinationsForTenant,
 }:
 
 let
@@ -46,6 +46,6 @@ in
               inherit dst;
               via4 = gateway;
             }
-        ) (destinationsForTenant tenantKey)
+        ) (returnDestinationsForTenant tenantKey)
       );
 }
