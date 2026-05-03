@@ -44,10 +44,11 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
 
   run_check() {
     local container="$1"
-    local dns_probe_name="$2"
 
     systemd-run --quiet --wait --collect --pipe -M "$container" \
-      --setenv=DNS_PROBE_NAME="$dns_probe_name" \
+      --setenv=DNS_PROBE_NAME="$(jq -r '.dnsProbeName // "example.com"' "$plan")" \
+      --setenv=PUBLIC_IPV4_PROBE="$(jq -r '.publicIpv4Probe // "1.1.1.1"' "$plan")" \
+      --setenv=PUBLIC_IPV6_PROBE="$(jq -r '.publicIpv6Probe // "2606:4700:4700::1111"' "$plan")" \
       /bin/sh -lc ${lib.escapeShellArg containerCheck} 2>/dev/null \
         || jq -n "{ error: \"check-failed\" }"
   }
@@ -56,7 +57,10 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
     now="$(date --iso-8601=seconds)"
     mapfile -t expected < <(jq -r '.expectedContainers[]' "$plan")
     interval="$(jq -r '.intervalSeconds' "$plan")"
-    dns_probe_name="$(jq -r '.dnsProbeName // "example.com"' "$plan")"
+    require_default_routes="$(jq -r '.requireDefaultRoutes // false' "$plan")"
+    require_host_resolver="$(jq -r '.requireHostResolver // false' "$plan")"
+    require_public_ipv4_ping="$(jq -r '.requirePublicIpv4Ping // false' "$plan")"
+    require_public_ipv6_ping="$(jq -r '.requirePublicIpv6Ping // false' "$plan")"
 
     missing=()
     running=()
@@ -93,18 +97,26 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
     : >"$tmp_checks"
 
     for container in "''${expected[@]}"; do
-      check_json="$(run_check "$container" "$dns_probe_name")"
+      check_json="$(run_check "$container")"
       jq -cn --arg container "$container" --argjson result "$check_json" \
         '{ key: $container, value: $result }' >>"$tmp_checks"
     done
 
     checks_json="$(jq -csf ${checksAggregationFilter} "$tmp_checks")"
     checks_healthy="$(
-      jq -e '
+      jq -e \
+        --argjson requireDefaultRoutes "$require_default_routes" \
+        --argjson requireHostResolver "$require_host_resolver" \
+        --argjson requirePublicIpv4Ping "$require_public_ipv4_ping" \
+        --argjson requirePublicIpv6Ping "$require_public_ipv6_ping" '
         to_entries
         | all(
             (.value.error? == null)
+            and (($requireDefaultRoutes != true) or (.value.defaultRoute4 == true and .value.defaultRoute6 == true))
             and ((.value.dnsService != true) or (.value.dnsA == "ok" and .value.dnsAAAA == "ok"))
+            and (($requireHostResolver != true) or (.value.hostResolver == "ok"))
+            and (($requirePublicIpv4Ping != true) or (.value.publicIpv4Ping == "ok"))
+            and (($requirePublicIpv6Ping != true) or (.value.publicIpv6Ping == "ok"))
           )
       ' <<<"$checks_json" >/dev/null && echo true || echo false
     )"
