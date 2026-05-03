@@ -93,14 +93,25 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
       continue
     fi
 
-    tmp_checks="$state_dir/checks.jsonl"
-    : >"$tmp_checks"
+    tmp_checks_dir="$(mktemp -d "$state_dir/checks.XXXXXX")"
+    trap 'rm -rf "$tmp_checks_dir"' EXIT
 
     for container in "''${expected[@]}"; do
-      check_json="$(run_check "$container")"
-      jq -cn --arg container "$container" --argjson result "$check_json" \
-        '{ key: $container, value: $result }' >>"$tmp_checks"
+      (
+        check_json="$(run_check "$container")"
+        jq -cn --arg container "$container" --argjson result "$check_json" \
+          '{ key: $container, value: $result }' >"$tmp_checks_dir/$container.json"
+      ) &
     done
+    wait
+
+    tmp_checks="$state_dir/checks.jsonl"
+    : >"$tmp_checks"
+    for container in "''${expected[@]}"; do
+      cat "$tmp_checks_dir/$container.json" >>"$tmp_checks"
+    done
+    rm -rf "$tmp_checks_dir"
+    trap - EXIT
 
     checks_json="$(jq -csf ${checksAggregationFilter} "$tmp_checks")"
     checks_healthy="$(

@@ -289,6 +289,11 @@ run_one() {
           validationBoundsContainerProbe =
             lib.hasInfix "timeout 45 systemd-run --quiet --wait --collect --pipe" validationLoop
             && lib.hasInfix "error: \"check-failed\"" validationLoop;
+          validationRunsContainerProbesInParallel =
+            lib.hasInfix "mktemp -d \"$state_dir/checks.XXXXXX\"" validationLoop
+            && lib.hasInfix ") &" validationLoop
+            && lib.hasInfix "wait" validationLoop
+            && lib.hasInfix "cat \"$tmp_checks_dir/$container.json\"" validationLoop;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -323,6 +328,7 @@ run_one() {
           && validationRejectsDnsServfail
           && validationStableIgnoresTimestamp
           && validationBoundsContainerProbe
+          && validationRunsContainerProbesInParallel
           && bgpOk
       ' >/dev/null
 
