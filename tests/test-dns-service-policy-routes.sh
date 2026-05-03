@@ -75,6 +75,7 @@ nix_eval_json_or_fail \
           (branchUpstreamNetworks."10-pol-branch-ew".routes or [ ])
           ++ (branchUpstreamNetworks."10-pol-hostile-ew".routes or [ ]);
         siteaMgmtRoutes = siteaPolicyNetworks."10-downstream-mgmt".routes or [ ];
+        siteaAdminWanReturnRoutes = siteaUpstreamNetworks."10-pol-admin-a".routes or [ ];
         siteaMgmtWanReturnRoutes = siteaUpstreamNetworks."10-pol-mgmt-a".routes or [ ];
         siteaMgmtEastWestReturnRoutes = siteaUpstreamNetworks."10-pol-mgt-ew".routes or [ ];
         sitecClientRoutes = sitecNetworks."10-downstr-client".routes or [ ];
@@ -103,6 +104,18 @@ nix_eval_json_or_fail \
             hasRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:10::/64" "fd42:dead:beef:1000:0:0:0:32" 2000;
           sitea_mgmt_wan_p2p_v6 =
             hasRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:1000:0:0:0:8/127" "fd42:dead:beef:1000:0:0:0:32" 2000;
+          sitea_admin_wan_return_v4 =
+            hasRoute siteaAdminWanReturnRoutes "10.20.15.0/24" "10.10.0.32" 2000;
+          sitea_admin_wan_return_v6 =
+            hasRoute siteaAdminWanReturnRoutes "fd42:dead:beef:15::/64" "fd42:dead:beef:1000:0:0:0:20" 2000;
+          sitea_mgmt_wan_admin_return_v4_absent =
+            missingRoute siteaMgmtWanReturnRoutes "10.20.15.0/24" "10.10.0.50" 2000;
+          sitea_mgmt_wan_admin_return_v6_absent =
+            missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:15::/64" "fd42:dead:beef:1000:0:0:0:32" 2000;
+          sitea_mgmt_wan_client_return_v4_absent =
+            missingRoute siteaMgmtWanReturnRoutes "10.20.20.0/24" "10.10.0.50" 2000;
+          sitea_mgmt_wan_client_return_v6_absent =
+            missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:20::/64" "fd42:dead:beef:1000:0:0:0:32" 2000;
           sitea_mgmt_ew_branch_p2p_v4 =
             hasRoute siteaMgmtEastWestReturnRoutes "10.50.0.0/31" "10.10.0.48" 2002;
           sitea_mgmt_ew_branch_p2p_v6 =

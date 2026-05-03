@@ -76,13 +76,24 @@ let
       else
         [ ]
     ) (builtins.attrNames runtimeTargets);
+
+  dnsAllowFromTransitPrefixesFor =
+    tenantKey:
+    lib.filter (
+      prefix:
+      (builtins.isString prefix)
+      && ((lib.hasSuffix "/31" prefix) || (lib.hasSuffix "/127" prefix))
+    ) (dnsAllowFromPrefixesFor tenantKey);
 in
 {
-  destinationsForTenant =
+  returnDestinationsForTenant =
     tenantKey:
     lib.unique (
-      tenantPrefixesFor tenantKey
-      ++ accessTransitPrefixesFor tenantKey
-      ++ dnsAllowFromPrefixesFor tenantKey
+      (tenantPrefixesFor tenantKey ++ accessTransitPrefixesFor tenantKey)
+      ++ dnsAllowFromTransitPrefixesFor tenantKey
     );
+
+  destinationsForTenant =
+    tenantKey:
+    lib.unique ((tenantPrefixesFor tenantKey ++ accessTransitPrefixesFor tenantKey) ++ dnsAllowFromPrefixesFor tenantKey);
 }
