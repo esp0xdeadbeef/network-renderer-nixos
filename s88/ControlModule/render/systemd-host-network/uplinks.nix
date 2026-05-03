@@ -154,6 +154,11 @@ in
         hostIpv6Dhcp = isManagementUplink && ipv6Dhcp;
         hostIpv6AcceptRA = isManagementUplink && ipv6AcceptRA;
         dhcpMode = if hostIpv4Dhcp && hostIpv6Dhcp then "yes" else if hostIpv4Dhcp then "ipv4" else if hostIpv6Dhcp then "ipv6" else "no";
+        hostAddresses =
+          if builtins.isList (uplink.hostAddresses or null) then
+            lib.filter builtins.isString uplink.hostAddresses
+          else
+            [ ];
       in
       {
         name = "30-${uplink.bridge}";
@@ -173,6 +178,7 @@ in
           // lib.optionalAttrs ((uplink.mode or "") == "trunk" && transitNamesOnUplink != [ ]) {
             VLAN = map (transitName: "${uplink.bridge}.${toString transitBridges.${transitName}.vlan}") transitNamesOnUplink;
           };
+          address = hostAddresses;
           dhcpV4Config = lib.optionalAttrs hostIpv4Dhcp { UseDNS = false; };
         };
       }
