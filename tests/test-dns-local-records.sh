@@ -71,7 +71,7 @@ REPO_ROOT="${repo_root}" nix eval \
       && builtins.elem "\"test-machine-01.printer. IN A 10.20.0.10\"" localData
       && builtins.elem "\"test-machine-01.printer. IN AAAA fd00:20::10\"" localData
       && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
-      && (server."outgoing-interface" or [ ]) == [ "10.99.0.2" "fd00:99::2" ]
+      && (server."outgoing-interface" or [ ]) == [ "10.20.0.1" "fd00:20::1" ]
       && (explicitServer."outgoing-interface" or [ ]) == [ "transit" ]
   ' >/dev/null || {
     echo "FAIL dns-local-records" >&2

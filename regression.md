@@ -1,10 +1,10 @@
 # network-renderer-nixos regression state
 
-Last updated: 2026-05-02.
+Last updated: 2026-05-03.
 
 ## fixed and locally tested
 
-- ControlModule boundary is now explicit: `s88/ControlModule` must not import or
+- ControlModule boundary is explicit: `s88/ControlModule` must not import or
   execute `s88/Unit`, `s88/EquipmentModule`, or `s88/Site` code.
 - Unit owns host/runtime selection: deciding which runtime units and containers
   belong to a requested deployment host is Unit-level work.
@@ -22,25 +22,28 @@ Last updated: 2026-05-02.
 - Renderer warning/error behavior is not allowed to be silent:
   `tests/test-warning-alarm-contract.sh` proves synthetic warnings surface as
   NixOS `evaluation warning:` output, and missing renderer inputs fail hard.
-- `s-router-test-clients` must retain the Chromecast/client `streaming` VLAN
-  311. `tests/test-host-uplink-vlan-dhcp.sh` checks the locked
-  `network-labs` fixture renders that bridge on the clients host.
+- DNS service rendering preserves explicit `dnsService.outgoingInterfaces` and
+  otherwise derives Unbound outbound source addresses from the DNS listener
+  addresses. This keeps access-router forwarding traffic on the modeled DNS
+  service lane instead of leaking router p2p or WAN source addresses into DNS
+  policy.
 
 ## implemented but not yet live-validated
 
 - Long logical realization port aliases are preserved into rendered container
   interfaces so firewall rules resolve to concrete Linux ifnames. This prevents
-  `policy-client-wan` from leaking into nftables as an over-15-character
-  interface name.
-- Added `tests/test-container-firewall-ifname-limit.sh` for the site-c Hetzner
-  upstream selector ruleset.
+  over-15-character logical names from leaking into nftables.
+- The DNS outbound source-address correction is locally covered by
+  `tests/test-dns-local-records.sh`, `tests/test-dual-wan-branch-overlay.sh`,
+  and `tests/test-hostile-dns-east-west.sh`.
 - No live `s-router-test`, `s-router-test-clients`, or Hetzner runtime
-  validation has been completed for this renderer change set in this entry.
-  Treat the current state as locally tested, not production-ready.
+  validation has been completed for the DNS source-address change in this
+  renderer entry. Treat the current state as locally tested, not
+  production-ready.
 
 ## still broken
 
-- `tests/test-nix-file-loc.sh` now reports by layer and hard-fails only over
+- `tests/test-nix-file-loc.sh` reports by layer and hard-fails only over
   500 LOC by default. Files over 250 LOC must state either
   `TEMPORARY OVER-LIMIT` or `ACCEPTED OVER-LIMIT`.
 - `s88/ControlModule/lookup/host-query/inventory.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
@@ -63,8 +66,8 @@ Last updated: 2026-05-02.
   Current responsibility: composes container render modules.
   Suspected split: service assembly vs module selection.
 - `s88/ControlModule/firewall/lookup/communication-contract.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
-  Current responsibility: resolves firewall communication
-  contracts. Suspected split: relation parsing vs endpoint mapping.
+  Current responsibility: resolves firewall communication contracts.
+  Suspected split: relation parsing vs endpoint mapping.
 - `s88/Unit/physical/realization-ports/inventory.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
   Current responsibility: adapts Unit realization-port inventory.
   Suspected split: inventory parsing vs attach identity extraction.
