@@ -29,6 +29,10 @@ let
           staticRawRoutes = lib.filter (
             route: !(isExternalValidationDelegatedPrefixRoute route)
           ) rawRoutes;
+          policyMainRoutes =
+            lib.optionals keepInterfaceRoutesInMain (
+              map (route: builtins.removeAttrs route [ "Table" ]) (policyRoutingByInterface.routes.${ifName} or [ ])
+            );
         in
         if builtins.elem interfaceName networkManagerInterfaces then
           null
@@ -43,6 +47,7 @@ let
                 (lib.optionals keepInterfaceRoutesInMain (
                   lib.filter (route: route != null) (map mkRoute staticRawRoutes)
                 ))
+                ++ policyMainRoutes
                 ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
               routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
             };

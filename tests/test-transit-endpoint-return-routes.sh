@@ -68,12 +68,19 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         renderedBranchCore = testHost.renderedHost.containers."s-router-core-isp-b";
+        renderedBranchNebulaCore = testHost.renderedHost.containers."b-router-core-nebula";
         cfgBranchCore =
           (flake.inputs.nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
             modules = [ renderedBranchCore.config ];
           }).config;
+        cfgBranchNebulaCore =
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [ renderedBranchNebulaCore.config ];
+          }).config;
         branchCoreNetworks = cfgBranchCore.systemd.network.networks;
+        branchNebulaNetworks = cfgBranchNebulaCore.systemd.network.networks;
         hasMainRoute = routes: destination: gateway:
           builtins.any
             (route:
@@ -88,6 +95,7 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
       in
         hasMainRouteAnyNetwork branchCoreNetworks "10.50.0.0/32" "10.10.0.15"
         && hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:f"
+        && hasMainRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5"
     '
 
 echo "PASS transit-endpoint-return-routes"
