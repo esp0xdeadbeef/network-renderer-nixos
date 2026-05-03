@@ -88,6 +88,7 @@ bash "${repo_root}/tests/test-multi-wan-firewall.sh"
 
 # Regression: WAN-exposed services must synthesize concrete DNAT rules.
 bash "${repo_root}/tests/test-port-forward-rendering.sh"
+bash "${repo_root}/tests/test-public-overlay-service-forwarding.sh"
 
 # Regression: DNS runtime targets must be able to render authoritative local zones/records.
 bash "${repo_root}/tests/test-dns-local-records.sh"
