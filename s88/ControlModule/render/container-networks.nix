@@ -30,6 +30,10 @@ let
     inherit lib uplinks wanUplinkName common;
   };
 
+  hostBridgeWan = import ./container-networks/host-bridge-wan.nix {
+    inherit lib containerModel uplinks wanUplinkName;
+  };
+
   advertisements = import ./container-networks/advertisements.nix {
     inherit lib containerModel;
     inherit (interfaceView) interfaceKeyForRenderedName;
@@ -83,6 +87,8 @@ let
   };
 in
 {
-  networks = loopback.loopbackUnit // interfaceUnits.interfaceUnits;
-  inherit (interfaceUnits) ipv6AcceptRAInterfaces dynamicDelegatedRoutes;
+  networks = loopback.loopbackUnit // hostBridgeWan.networks // interfaceUnits.interfaceUnits;
+  ipv6AcceptRAInterfaces =
+    hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces;
+  inherit (interfaceUnits) dynamicDelegatedRoutes;
 }
