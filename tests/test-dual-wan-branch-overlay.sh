@@ -250,12 +250,14 @@ run_one() {
               mgmtOutgoing =
                 accessMgmtConfig.services.unbound.settings.server."outgoing-interface" or [ ];
             in
-            adminOutgoing != [ ]
-            && mgmtOutgoing != [ ]
-            && !(builtins.elem "10.20.15.1" adminOutgoing)
-            && !(builtins.elem "fd42:dead:beef:15::1" adminOutgoing)
-            && !(builtins.elem "10.20.10.1" mgmtOutgoing)
-            && !(builtins.elem "fd42:dead:beef:10::1" mgmtOutgoing);
+            adminOutgoing == [
+              "10.20.10.1"
+              "fd42:dead:beef:10::1"
+            ]
+            && mgmtOutgoing == [
+              "10.20.15.1"
+              "fd42:dead:beef:15::1"
+            ];
           hasDeclarativeIpv6AcceptRA =
             let
               sysctls = siteCoreWanAConfig.boot.kernel.sysctl or { };
