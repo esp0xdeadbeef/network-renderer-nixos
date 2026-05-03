@@ -286,6 +286,9 @@ run_one() {
             lib.hasInfix "del(.updatedAt)" validationLoop
             && lib.hasInfix "stable.count" validationLoop
             && lib.hasInfix "stable.json" validationLoop;
+          validationBoundsContainerProbe =
+            lib.hasInfix "timeout 45 systemd-run --quiet --wait --collect --pipe" validationLoop
+            && lib.hasInfix "error: \"check-failed\"" validationLoop;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -319,6 +322,7 @@ run_one() {
           && hasEscapedValidationJqVars
           && validationRejectsDnsServfail
           && validationStableIgnoresTimestamp
+          && validationBoundsContainerProbe
           && bgpOk
       ' >/dev/null
 

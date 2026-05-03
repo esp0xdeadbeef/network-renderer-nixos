@@ -45,7 +45,7 @@ pkgs.writeShellScript "s88-network-validation-loop" ''
   run_check() {
     local container="$1"
 
-    systemd-run --quiet --wait --collect --pipe -M "$container" \
+    timeout 45 systemd-run --quiet --wait --collect --pipe -M "$container" \
       --setenv=DNS_PROBE_NAME="$(jq -r '.dnsProbeName // "example.com"' "$plan")" \
       --setenv=PUBLIC_IPV4_PROBE="$(jq -r '.publicIpv4Probe // "1.1.1.1"' "$plan")" \
       --setenv=PUBLIC_IPV6_PROBE="$(jq -r '.publicIpv6Probe // "2606:4700:4700::1111"' "$plan")" \
