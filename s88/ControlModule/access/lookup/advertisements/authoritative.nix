@@ -59,6 +59,11 @@ let
   delegatedPrefixFor =
     { adv, tenantName }:
     let
+      cpmRoutedPrefix =
+        if builtins.isAttrs (adv.delegatedPrefix or null) then
+          adv.delegatedPrefix
+        else
+          null;
       hasExternalValidationDelegatedPrefix =
         builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null);
       tenantIpv6Plan =
@@ -79,7 +84,15 @@ let
       uplinkName =
         if builtins.isString (currentSiteIpv6.pd.uplink or null) then currentSiteIpv6.pd.uplink else null;
     in
-    if hasExternalValidationDelegatedPrefix then
+    if cpmRoutedPrefix != null then
+      {
+        uplink = cpmRoutedPrefix.uplink or "routed-prefix";
+        delegatedPrefixLength = cpmRoutedPrefix.delegatedPrefixLength or 64;
+        perTenantPrefixLength = cpmRoutedPrefix.perTenantPrefixLength or 64;
+        slot = cpmRoutedPrefix.slot or 0;
+        sourceFile = cpmRoutedPrefix.sourceFile or null;
+      }
+    else if hasExternalValidationDelegatedPrefix then
       {
         uplink = "external-validation";
         delegatedPrefixLength = 64;
@@ -148,6 +161,7 @@ in
       interfaceName = advInterface adv;
       stem = safeStem (if interfaceName != null then interfaceName else "radvd-${builtins.toString (idx + 1)}");
       hasExternalValidationDelegatedPrefix = builtins.isString (cpmExternalValidation.delegatedPrefixSecretPath or null);
+      hasRoutedDelegatedPrefix = builtins.isAttrs (adv.delegatedPrefix or null);
       tenantName = if builtins.isString (adv.tenant or null) && adv.tenant != "" then adv.tenant else null;
       delegatedPrefix = delegatedPrefixFor { inherit adv tenantName; };
       dnssl = if adv ? dnssl then asStringList adv.dnssl else [ ];
@@ -157,7 +171,13 @@ in
       fileStem = stem;
       interfaceKey = interfaceName;
       inherit interfaceName;
-      prefixes = if hasExternalValidationDelegatedPrefix then [ ] else if adv ? prefixes then asStringList adv.prefixes else [ ];
+      prefixes =
+        if hasExternalValidationDelegatedPrefix && !hasRoutedDelegatedPrefix then
+          [ ]
+        else if adv ? prefixes then
+          asStringList adv.prefixes
+        else
+          [ ];
       rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
       domain = if dnssl != [ ] then builtins.head dnssl else "lan.";
     }

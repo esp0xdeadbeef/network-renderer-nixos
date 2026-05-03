@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# shellcheck source=tests/lib/test-common.sh
+. "${repo_root}/tests/lib/test-common.sh"
+
+result_json="$(mktemp)"
+stderr_file="$(mktemp)"
+trap 'rm -f "$result_json" "$stderr_file"' EXIT
+
+nix_eval_json_or_fail "public-ingress-module" "$result_json" "$stderr_file" \
+  nix eval --json --extra-experimental-features 'nix-command flakes' --impure \
+  --expr '
+let
+  flake = builtins.getFlake ("path:" + toString ./.);
+  lib = flake.inputs.nixpkgs.lib;
+  module = import ./s88/ControlModule/module/public-ingress.nix {
+    inherit lib;
+    hostName = "hetzner";
+    runtimeFacts.publicIngress = {
+      snatSourceCidr4 = "172.31.254.0/24";
+      services.acme.dmz-site.dmz-nebula = {
+        publicIPv4 = "203.0.113.10";
+      };
+      runtimeForwards = [
+        {
+          publicIPv4 = "203.0.113.11";
+          targetIPv4 = "172.31.254.2";
+          protocols = [ "tcp" "udp" ];
+          exceptTcpDports = [ 22 ];
+        }
+      ];
+    };
+    inventory = {
+      deployment.hosts.hetzner = {
+        wanUplink = "wan";
+        uplinks.wan.bridge = "br-wan";
+      };
+    };
+    controlPlane.control_plane_model.data.acme.dmz-site = {
+      relations = [
+        {
+          action = "allow";
+          from = {
+            kind = "external";
+            name = "wan";
+          };
+          to = {
+            kind = "service";
+            name = "dmz-nebula";
+          };
+          trafficType = "nebula";
+        }
+      ];
+      communicationContract.trafficTypes = [
+        {
+          name = "nebula";
+          match = [
+            {
+              proto = "udp";
+              family = "any";
+              dports = [ 4242 ];
+            }
+          ];
+        }
+      ];
+      policy.endpointBindings.services.dmz-nebula = {
+        providers = [ "c-router-lighthouse" ];
+        trafficType = "nebula";
+      };
+      services = [
+        {
+          name = "dmz-nebula";
+          providers = [ "c-router-lighthouse" ];
+          providerEndpoints = [
+            {
+              name = "c-router-lighthouse";
+              ipv4 = [ "10.90.10.100" ];
+              ipv6 = [ "fd42:dead:cafe:10::100" ];
+            }
+          ];
+          trafficType = "nebula";
+        }
+      ];
+    };
+  };
+  rules = module.networking.nftables.ruleset;
+  checks = {
+    ipv4ForwardingEnabled = module.boot.kernel.sysctl."net.ipv4.ip_forward".content == true;
+    serviceDnatFromCpmRelation =
+      lib.hasInfix "ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules;
+    runtimeForwardKeepsHostSsh =
+      lib.hasInfix "ip daddr 203.0.113.11 meta l4proto tcp tcp dport != { 22 } dnat to 172.31.254.2" rules;
+    snatUsesRuntimeCidr =
+      lib.hasInfix "ip saddr 172.31.254.0/24 oifname != \"br-wan\" masquerade" rules;
+    forwardPolicyDropsByDefault =
+      lib.hasInfix "type filter hook forward priority filter; policy drop;" rules;
+  };
+in
+{
+  ok = builtins.all (value: value == true) (builtins.attrValues checks);
+  failed = lib.mapAttrsToList (name: _value: name) (lib.filterAttrs (_name: value: value != true) checks);
+  inherit checks rules;
+}
+'
+
+assert_json_checks_ok "public-ingress-module" "$result_json"
+echo "PASS public-ingress-module"

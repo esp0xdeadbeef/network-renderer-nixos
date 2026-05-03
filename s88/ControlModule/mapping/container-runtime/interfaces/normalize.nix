@@ -33,6 +33,28 @@ let
       || name == "lo"
     );
 
+  addressListForInterface =
+    iface:
+    let
+      existing = if builtins.isList (iface.addresses or null) then iface.addresses else [ ];
+      addr4 = if builtins.isString (iface.addr4 or null) then [ iface.addr4 ] else [ ];
+      addr6 = if builtins.isString (iface.addr6 or null) then [ iface.addr6 ] else [ ];
+    in
+    lib.unique (existing ++ addr4 ++ addr6);
+
+  routeListForInterface =
+    iface:
+    let
+      routes = iface.routes or [ ];
+    in
+    if builtins.isList routes then
+      routes
+    else if builtins.isAttrs routes then
+      (if builtins.isList (routes.ipv4 or null) then routes.ipv4 else [ ])
+      ++ (if builtins.isList (routes.ipv6 or null) then routes.ipv6 else [ ])
+    else
+      [ ];
+
   effectiveInterfaceNameForInterface =
     { ifName, iface, attachTarget }:
     let
@@ -97,8 +119,8 @@ let
         containerInterfaceBaseName = if usePrimaryHostBridge then "eth0" else semanticBaseInterfaceName desiredInterfaceName;
         containerInterfaceName = if usePrimaryHostBridge then "eth0" else null;
         adapterName = if iface ? adapterName && builtins.isString iface.adapterName then iface.adapterName else null;
-        addresses = iface.addresses or [ ];
-        routes = iface.routes or [ ];
+        addresses = addressListForInterface iface;
+        routes = routeListForInterface iface;
         renderedHostBridgeName = attachTarget.renderedHostBridgeName;
         assignedUplinkName = attachTarget.assignedUplinkName or null;
         hostInterfaceName = if usePrimaryHostBridge then null else null;
