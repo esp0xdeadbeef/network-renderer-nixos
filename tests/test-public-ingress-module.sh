@@ -115,7 +115,7 @@ let
         routes = network.routes;
       in
       builtins.elem { Gateway = "172.31.254.1"; Metric = 5000; } routes
-      && builtins.elem { Gateway = "172.31.254.1"; Table = 2200; } routes;
+      && builtins.elem { Destination = "0.0.0.0/0"; Gateway = "172.31.254.1"; Table = 2200; } routes;
     runtimeForwardAddsSourcePolicy =
       let
         containerModule = module.containers.c-router-nebula-core.config { inherit lib; };
