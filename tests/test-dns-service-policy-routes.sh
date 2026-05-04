@@ -78,6 +78,8 @@ nix_eval_json_or_fail \
         siteaAdminWanReturnRoutes = siteaUpstreamNetworks."10-pol-admin-a".routes or [ ];
         siteaMgmtWanReturnRoutes = siteaUpstreamNetworks."10-pol-mgmt-a".routes or [ ];
         siteaMgmtEastWestReturnRoutes = siteaUpstreamNetworks."10-pol-mgt-ew".routes or [ ];
+        branchHostileOverlayRoutes = branchUpstreamNetworks."10-core-nebula".routes or [ ];
+        branchHostileWanRoutes = branchUpstreamNetworks."10-core-isp".routes or [ ];
         sitecClientRoutes = sitecNetworks."10-downstr-client".routes or [ ];
         checks = {
           branch_v4_dns_route =
@@ -92,6 +94,10 @@ nix_eval_json_or_fail \
             missingRoute bUpstreamCoreIngressRoutes "10.50.0.0" "10.50.0.16" 2000;
           branch_upstream_wrong_v6_absent =
             missingRoute bUpstreamCoreIngressRoutes "fd42:dead:feed:1000:0:0:0:0" "fd42:dead:feed:1000:0:0:0:10" 2000;
+          branch_hostile_sitec_dns_uses_overlay =
+            hasRoute branchHostileOverlayRoutes "10.90.10.1" "10.50.0.4" 2004;
+          branch_hostile_sitec_dns_not_on_wan =
+            missingRoute branchHostileWanRoutes "10.90.10.1" "10.50.0.4" 2004;
           sitea_upstream_dns_route =
             hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.48" 2002;
           sitea_upstream_wrong_lane_absent =
