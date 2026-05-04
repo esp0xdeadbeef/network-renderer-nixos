@@ -5,6 +5,7 @@
   renderedInterfaceNames,
   networkManagerInterfaces,
   keepInterfaceRoutesInMain,
+  isUpstreamSelectorCoreInterface,
   advertisedOnlinkRoutesByInterface,
   policyRoutingByInterface,
   mkRoute,
@@ -26,6 +27,9 @@ let
           iface = interfaces.${ifName};
           interfaceName = renderedInterfaceNames.${ifName};
           rawRoutes = (iface.routes or [ ]) ++ (advertisedOnlinkRoutesByInterface.${ifName} or [ ]);
+          renderedInterfaceName = renderedInterfaceNames.${ifName};
+          keepStaticRoutesInMain =
+            keepInterfaceRoutesInMain || isUpstreamSelectorCoreInterface renderedInterfaceName;
           staticRawRoutes = lib.filter (
             route: !(isExternalValidationDelegatedPrefixRoute route)
           ) rawRoutes;
@@ -44,7 +48,7 @@ let
               networkConfig = { ConfigureWithoutCarrier = true; } // mkDynamicWanNetworkConfig iface;
               address = iface.addresses or [ ];
               routes =
-                (lib.optionals keepInterfaceRoutesInMain (
+                (lib.optionals keepStaticRoutesInMain (
                   lib.filter (route: route != null) (map mkRoute staticRawRoutes)
                 ))
                 ++ policyMainRoutes
