@@ -16,13 +16,18 @@ let
           originalRuntimeTarget.logicalNode
         else
           { };
+      originalInterfaces =
+        if originalRuntimeTarget ? interfaces && builtins.isAttrs originalRuntimeTarget.interfaces && originalRuntimeTarget.interfaces != { } then
+          originalRuntimeTarget.interfaces
+        else
+          (originalRuntimeTarget.effectiveRuntimeRealization or { }).interfaces or { };
     in
     originalRuntimeTarget
     // {
       runtimeTargetId = emittedUnitName;
       deploymentHostName = lookup.deploymentHostName;
       logicalNode = originalLogicalNode // { name = emittedUnitName; };
-      interfaces = builtins.mapAttrs (_: iface: iface // { runtimeTarget = emittedUnitName; }) (originalRuntimeTarget.interfaces or { });
+      interfaces = builtins.mapAttrs (_: iface: iface // { runtimeTarget = emittedUnitName; }) originalInterfaces;
     };
 
   siteFor =

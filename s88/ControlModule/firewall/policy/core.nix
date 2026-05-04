@@ -45,20 +45,9 @@ let
     inherit (common) relationNameOf;
   };
 
-  nebulaTrafficTypes =
-    builtins.filter
-      (trafficType: builtins.isAttrs trafficType && (trafficType.name or null) == "nebula")
-      (communicationContract.trafficTypes or [ ]);
-  nebulaUdpPorts =
-    lib.unique (
-      lib.concatMap
-        (trafficType:
-          lib.concatMap
-            (match:
-              if builtins.isAttrs match && (match.proto or null) == "udp" then match.dports or [ ] else [ ])
-            (trafficType.match or [ ]))
-        nebulaTrafficTypes
-    );
+  underlayInput = import ./core/underlay-input.nix {
+    inherit lib catalog;
+  };
   renderInterfaceSet = names:
     if builtins.length names == 1 then
       "\"${builtins.head names}\""
@@ -69,9 +58,18 @@ let
       toString (builtins.head ports)
     else
       "{ ${builtins.concatStringsSep ", " (map toString ports)} }";
-  nebulaUnderlayNames = common.sortedStrings (
-    lib.subtractLists interfaceSet.overlayIngressNames interfaceSet.forwardEgressNames
-  );
+  explicitTransitUnderlayNames =
+    if forwardingIntent != null && builtins.isAttrs forwardingIntent then
+      lib.filter (name: builtins.elem name interfaceSet.adapterNames) (
+        (forwardingIntent.explicitTransitNames or [ ]) ++ (forwardingIntent.resolvedTransitNames or [ ])
+      )
+    else
+      [ ];
+  nebulaUnderlayNames =
+    if explicitTransitUnderlayNames != [ ] then
+      common.sortedStrings explicitTransitUnderlayNames
+    else
+      common.sortedStrings (lib.subtractLists interfaceSet.overlayIngressNames interfaceSet.forwardEgressNames);
 
   inputRules = [
     ''
@@ -81,8 +79,8 @@ let
   ++ lib.optional (interfaceSet.overlayIngressNames != [ ]) ''
     iifname ${renderInterfaceSet interfaceSet.overlayIngressNames} accept comment "allow-overlay-to-core"
   ''
-  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && nebulaUnderlayNames != [ ] && nebulaUdpPorts != [ ]) ''
-    iifname ${renderInterfaceSet nebulaUnderlayNames} meta l4proto udp udp dport ${renderPortSet nebulaUdpPorts} accept comment "allow-nebula-underlay-to-core"
+  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && nebulaUnderlayNames != [ ] && underlayInput.udpPorts != [ ]) ''
+    iifname ${renderInterfaceSet nebulaUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-nebula-underlay-to-core"
   '';
 
   _validateCoreAdapterCount =

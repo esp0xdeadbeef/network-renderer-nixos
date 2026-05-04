@@ -22,12 +22,24 @@ let
     intentPath = labs + "/examples/s-router-test-three-site/intent.nix";
     inventoryPath = labs + "/examples/s-router-test-three-site/inventory-nixos.nix";
   };
+  branchHostBuild = flake.lib.renderer.buildHostFromPaths {
+    selector = "s-router-test";
+    inherit system;
+    intentPath = labs + "/examples/s-router-test-three-site/intent.nix";
+    inventoryPath = labs + "/examples/s-router-test-three-site/inventory-nixos.nix";
+  };
   container = hostBuild.renderedHost.containers."c-router-core";
+  branchCoreContainer = branchHostBuild.renderedHost.containers."b-router-core-nebula";
   evaluated = flake.inputs.nixpkgs.lib.nixosSystem {
     inherit system;
     modules = [ container.config ];
   };
+  branchCoreEvaluated = flake.inputs.nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [ branchCoreContainer.config ];
+  };
   rules = evaluated.config.networking.nftables.ruleset;
+  branchCoreRules = branchCoreEvaluated.config.networking.nftables.ruleset;
   checks = {
     rendersUdpServiceDnat =
       lib.hasInfix "udp dport 4242 dnat to 10.90.10.100" rules;
@@ -35,6 +47,8 @@ let
       lib.hasInfix "tcp dport 4242 dnat to 10.90.10.100" rules;
     preservesIntentRelationComment =
       lib.hasInfix "allow-sitec-wan-to-dmz-nebula" rules;
+    allowsBranchUnderlayFromExplicitTrafficType =
+      lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-nebula-underlay-to-core\"" branchCoreRules;
   };
 in
 {
