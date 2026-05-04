@@ -30,6 +30,14 @@ let
           targetIPv4 = "172.31.254.2";
           protocols = [ "tcp" "udp" ];
           exceptTcpDports = [ 22 ];
+          inputDports = [ 4242 ];
+          containerInterface = {
+            container = "c-router-nebula-core";
+            name = "portforward";
+            hostBridge = "br-wan";
+            localAddress = "172.31.254.2/24";
+            gateway4 = "172.31.254.1";
+          };
         }
       ];
     };
@@ -97,6 +105,22 @@ let
       lib.hasInfix "ip saddr 172.31.254.0/24 oifname != \"br-wan\" masquerade" rules;
     forwardPolicyDropsByDefault =
       lib.hasInfix "type filter hook forward priority filter; policy drop;" rules;
+    runtimeForwardAddsContainerVeth =
+      module.containers.c-router-nebula-core.extraVeths.portforward.hostBridge == "br-wan"
+      && module.containers.c-router-nebula-core.extraVeths.portforward.localAddress == "172.31.254.2/24";
+    runtimeForwardAddsContainerRoute =
+      let
+        containerModule = module.containers.c-router-nebula-core.config { inherit lib; };
+        network = containerModule.systemd.network.networks."10-portforward".content;
+        routes = network.routes;
+      in
+      builtins.elem { Gateway = "172.31.254.1"; Metric = 5000; } routes;
+    runtimeForwardOpensInputPort =
+      let
+        containerModule = module.containers.c-router-nebula-core.config { inherit lib; };
+      in
+      lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto udp udp dport 4242 accept" containerModule.networking.nftables.ruleset.content
+      && lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto tcp tcp dport 4242 accept" containerModule.networking.nftables.ruleset.content;
   };
 in
 {
