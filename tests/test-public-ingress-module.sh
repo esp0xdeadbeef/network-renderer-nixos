@@ -114,7 +114,14 @@ let
         network = containerModule.systemd.network.networks."10-portforward".content;
         routes = network.routes;
       in
-      builtins.elem { Gateway = "172.31.254.1"; Metric = 5000; } routes;
+      builtins.elem { Gateway = "172.31.254.1"; Metric = 5000; } routes
+      && builtins.elem { Gateway = "172.31.254.1"; Table = 2200; } routes;
+    runtimeForwardAddsSourcePolicy =
+      let
+        containerModule = module.containers.c-router-nebula-core.config { inherit lib; };
+        network = containerModule.systemd.network.networks."10-portforward".content;
+      in
+      builtins.elem { Family = "ipv4"; From = "172.31.254.2"; Priority = 9000; Table = 2200; } network.routingPolicyRules;
     runtimeForwardOpensInputPort =
       let
         containerModule = module.containers.c-router-nebula-core.config { inherit lib; };

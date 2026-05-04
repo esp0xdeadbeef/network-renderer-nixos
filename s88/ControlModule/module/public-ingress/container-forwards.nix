@@ -14,6 +14,8 @@ let
     else
       stringValue;
 
+  stripMask = value: builtins.head (lib.splitString "/" (toString value));
+
   nftString = value: ''"${lib.replaceStrings [ ''\'' "\\" ''"'' ] [ ''\\'' "\\\\" ''\"'' ] (toString value)}"'';
 
   protocolDportRule = ifaceName: proto: port:
@@ -42,12 +44,15 @@ let
       localAddress = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].containerInterface.localAddress" (
         container.localAddress or null
       );
+      localAddressIp = stripMask localAddress;
       gateway4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].containerInterface.gateway4" (
         container.gateway4 or null
       );
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
       inputDports = listOr (container.inputDports or forward.inputDports or [ ]);
       routeMetric = container.routeMetric or 5000;
+      routeTable = container.routeTable or 2200;
+      routePriority = container.routePriority or 9000;
       inputRules =
         if inputDports == [ ] then
           ""
@@ -70,7 +75,19 @@ let
             routes = [
               {
                 Gateway = gateway4;
+                Table = routeTable;
+              }
+              {
+                Gateway = gateway4;
                 Metric = routeMetric;
+              }
+            ];
+            routingPolicyRules = [
+              {
+                Family = "ipv4";
+                From = localAddressIp;
+                Priority = routePriority;
+                Table = routeTable;
               }
             ];
           };
