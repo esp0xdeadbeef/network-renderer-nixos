@@ -74,6 +74,9 @@ let
     sourceIfName: route:
     let
       gateway = routeGateway route;
+      sourceIface = interfaces.${sourceIfName};
+      sourceInterfacePeer =
+        if gateway == null then null else interfacePeerForFamily gateway.family sourceIface;
       matchingInterfaces =
         if gateway == null then
           [ ]
@@ -82,7 +85,10 @@ let
             (ifName: interfacePeerForFamily gateway.family interfaces.${ifName} == gateway.gateway)
             interfaceNames;
     in
-    if matchingInterfaces == [ ] then sourceIfName else builtins.head matchingInterfaces;
+    if gateway == null || sourceInterfacePeer == gateway.gateway || matchingInterfaces == [ ] then
+      sourceIfName
+    else
+      builtins.head matchingInterfaces;
 
   rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:
