@@ -90,6 +90,7 @@ bash "${repo_root}/tests/test-multi-wan-firewall.sh"
 bash "${repo_root}/tests/test-port-forward-rendering.sh"
 bash "${repo_root}/tests/test-public-overlay-service-forwarding.sh"
 bash "${repo_root}/tests/test-public-ingress-module.sh"
+bash "${repo_root}/tests/test-static-host-bridge-wan.sh"
 
 # Regression: DNS runtime targets must be able to render authoritative local zones/records.
 bash "${repo_root}/tests/test-dns-local-records.sh"

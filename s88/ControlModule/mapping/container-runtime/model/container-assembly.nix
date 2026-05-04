@@ -88,7 +88,12 @@ in
         lib.filter (
           ifName:
           let iface = renderedInterfaces.${ifName};
-          in (iface.usePrimaryHostBridge or false) && iface.sourceKind == "wan" && builtins.isString (iface.assignedUplinkName or null)
+          in
+          (iface.usePrimaryHostBridge or false)
+          && iface.sourceKind == "wan"
+          && builtins.isString (iface.assignedUplinkName or null)
+          && (iface.addresses or [ ]) == [ ]
+          && (iface.routes or [ ]) == [ ]
         ) interfaceNames
       );
       site = siteFor lookup.siteData runtimeTarget;
