@@ -23,6 +23,7 @@ let
       snatSourceCidr4 = "172.31.254.0/24";
       services.acme.dmz-site.dmz-nebula = {
         publicIPv4 = "203.0.113.10";
+        gateway4 = "172.31.254.3";
       };
       runtimeForwards = [
         {
@@ -99,6 +100,10 @@ let
     ipv4ForwardingEnabled = module.boot.kernel.sysctl."net.ipv4.ip_forward".content == true;
     serviceDnatFromCpmRelation =
       lib.hasInfix "ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules;
+    serviceTargetRouteUsesRuntimeGateway =
+      builtins.elem
+        { Destination = "10.90.10.100/32"; Gateway = "172.31.254.3"; }
+        module.systemd.network.networks."30-br-wan".routes;
     runtimeForwardKeepsHostSsh =
       lib.hasInfix "ip daddr 203.0.113.11 meta l4proto tcp tcp dport != { 22 } dnat to 172.31.254.2" rules;
     snatUsesRuntimeCidr =

@@ -1,5 +1,4 @@
 { lib }:
-
 let
   fail = message: throw "network-renderer-nixos public-ingress: ${message}";
   attrOr = value: if builtins.isAttrs value then value else { };
@@ -182,6 +181,8 @@ let
                   requiredString "runtimeFacts.publicIngress.services.${item.enterpriseName}.${item.siteName}.${serviceName}.publicIPv4"
                     (runtimeFact.publicIPv4 or null);
                 targetIPv4 = singleProviderEndpoint4 serviceName service;
+                gateway4 = runtimeFact.gateway4 or null;
+                routeDestination4 = runtimeFact.routeDestination4 or null;
                 comment = "s88-public-service-${serviceName}";
               })
           serviceNames)
