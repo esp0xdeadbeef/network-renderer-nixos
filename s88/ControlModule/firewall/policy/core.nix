@@ -69,6 +69,9 @@ let
       toString (builtins.head ports)
     else
       "{ ${builtins.concatStringsSep ", " (map toString ports)} }";
+  nebulaUnderlayNames = common.sortedStrings (
+    lib.subtractLists interfaceSet.overlayIngressNames interfaceSet.forwardEgressNames
+  );
 
   inputRules = [
     ''
@@ -78,8 +81,8 @@ let
   ++ lib.optional (interfaceSet.overlayIngressNames != [ ]) ''
     iifname ${renderInterfaceSet interfaceSet.overlayIngressNames} accept comment "allow-overlay-to-core"
   ''
-  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && interfaceSet.wanNames != [ ] && nebulaUdpPorts != [ ]) ''
-    iifname ${renderInterfaceSet interfaceSet.wanNames} meta l4proto udp udp dport ${renderPortSet nebulaUdpPorts} accept comment "allow-nebula-underlay-to-core"
+  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && nebulaUnderlayNames != [ ] && nebulaUdpPorts != [ ]) ''
+    iifname ${renderInterfaceSet nebulaUnderlayNames} meta l4proto udp udp dport ${renderPortSet nebulaUdpPorts} accept comment "allow-nebula-underlay-to-core"
   '';
 
   _validateCoreAdapterCount =
