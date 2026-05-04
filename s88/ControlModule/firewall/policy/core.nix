@@ -45,18 +45,41 @@ let
     inherit (common) relationNameOf;
   };
 
+  nebulaTrafficTypes =
+    builtins.filter
+      (trafficType: builtins.isAttrs trafficType && (trafficType.name or null) == "nebula")
+      (communicationContract.trafficTypes or [ ]);
+  nebulaUdpPorts =
+    lib.unique (
+      lib.concatMap
+        (trafficType:
+          lib.concatMap
+            (match:
+              if builtins.isAttrs match && (match.proto or null) == "udp" then match.dports or [ ] else [ ])
+            (trafficType.match or [ ]))
+        nebulaTrafficTypes
+    );
+  renderInterfaceSet = names:
+    if builtins.length names == 1 then
+      "\"${builtins.head names}\""
+    else
+      "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") names)} }";
+  renderPortSet = ports:
+    if builtins.length ports == 1 then
+      toString (builtins.head ports)
+    else
+      "{ ${builtins.concatStringsSep ", " (map toString ports)} }";
+
   inputRules = [
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
     ''
   ]
   ++ lib.optional (interfaceSet.overlayIngressNames != [ ]) ''
-    iifname ${
-      if builtins.length interfaceSet.overlayIngressNames == 1 then
-        "\"${builtins.head interfaceSet.overlayIngressNames}\""
-      else
-        "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") interfaceSet.overlayIngressNames)} }"
-    } accept comment "allow-overlay-to-core"
+    iifname ${renderInterfaceSet interfaceSet.overlayIngressNames} accept comment "allow-overlay-to-core"
+  ''
+  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && interfaceSet.wanNames != [ ] && nebulaUdpPorts != [ ]) ''
+    iifname ${renderInterfaceSet interfaceSet.wanNames} meta l4proto udp udp dport ${renderPortSet nebulaUdpPorts} accept comment "allow-nebula-underlay-to-core"
   '';
 
   _validateCoreAdapterCount =

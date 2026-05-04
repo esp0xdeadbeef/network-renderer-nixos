@@ -153,7 +153,9 @@ run_one() {
               branchCoreRules = nftRules rendered.containers."b-router-core-nebula";
             in
             lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } accept comment \"allow-overlay-to-core\"" coreRules
-            && lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } accept comment \"allow-overlay-to-core\"" branchCoreRules;
+            && lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } accept comment \"allow-overlay-to-core\"" branchCoreRules
+            && lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-nebula-underlay-to-core\"" coreRules
+            && lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-nebula-underlay-to-core\"" branchCoreRules;
           hasStrictNebulaCoreForwarding =
             let
               assertStrict =
