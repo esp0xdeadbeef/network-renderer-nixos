@@ -14,6 +14,12 @@ let
     else
       (_: [ ]);
 
+  resolveRelationEndpoint =
+    if endpointMap ? resolveRelationEndpoint && builtins.isFunction endpointMap.resolveRelationEndpoint then
+      endpointMap.resolveRelationEndpoint
+    else
+      (_: resolveEndpoint);
+
   allowForwardPair =
     if endpointMap ? allowForwardPair && builtins.isFunction endpointMap.allowForwardPair then
       endpointMap.allowForwardPair
@@ -132,8 +138,8 @@ let
     let
       action = if (relation.action or "allow") == "deny" then "drop" else "accept";
 
-      fromInterfaces = resolveEndpoint (relation.from or null);
-      toInterfaces = resolveEndpoint (relation.to or null);
+      fromInterfaces = resolveRelationEndpoint relation (relation.from or null);
+      toInterfaces = resolveRelationEndpoint relation (relation.to or null);
 
       trafficMatches = renderTrafficType (
         if relation ? trafficType && builtins.isString relation.trafficType then

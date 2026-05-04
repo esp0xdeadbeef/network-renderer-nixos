@@ -64,6 +64,12 @@ let
     else
       (_: [ ]);
 
+  resolveRelationEndpoint =
+    if endpointMap ? resolveRelationEndpoint && builtins.isFunction endpointMap.resolveRelationEndpoint then
+      endpointMap.resolveRelationEndpoint
+    else
+      (_: resolveEndpoint);
+
   trafficTypeDefinitions =
     if communicationContract ? trafficTypes && builtins.isList communicationContract.trafficTypes then
       builtins.listToAttrs (
@@ -165,8 +171,8 @@ let
           relation:
           let
             action = if (relation.action or "allow") == "deny" then "drop" else "accept";
-            fromInterfaces = keepLocalOnly (resolveEndpoint (relation.from or null));
-            toInterfaces = keepLocalOnly (resolveEndpoint (relation.to or null));
+            fromInterfaces = keepLocalOnly (resolveRelationEndpoint relation (relation.from or null));
+            toInterfaces = keepLocalOnly (resolveRelationEndpoint relation (relation.to or null));
             trafficMatches = renderTrafficType (
               if relation ? trafficType && builtins.isString relation.trafficType then
                 relation.trafficType
