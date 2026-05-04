@@ -40,6 +40,8 @@ in
   allowRelations =
     if communicationContract ? relations && builtins.isList communicationContract.relations then
       builtins.filter builtins.isAttrs communicationContract.relations
+    else if communicationContract ? allowedRelations && builtins.isList communicationContract.allowedRelations then
+      builtins.filter builtins.isAttrs communicationContract.allowedRelations
     else
       [ ];
 }

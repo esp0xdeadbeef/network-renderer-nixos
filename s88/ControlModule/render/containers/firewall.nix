@@ -9,6 +9,16 @@
 let
   firewall = import ../../firewall/default.nix { inherit lib; };
 
+  runtimeInterfaces =
+    if
+      renderedModel ? runtimeTarget
+      && builtins.isAttrs renderedModel.runtimeTarget
+      && builtins.isAttrs ((renderedModel.runtimeTarget.effectiveRuntimeRealization or { }).interfaces or null)
+    then
+      renderedModel.runtimeTarget.effectiveRuntimeRealization.interfaces
+    else
+      { };
+
   mkFirewallArg =
     nftRuleset:
     if builtins.isString nftRuleset && nftRuleset != "" then
@@ -42,10 +52,10 @@ else
       else
         { };
     interfaces =
-      if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces then
+      if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces && renderedModel.interfaces != { } then
         renderedModel.interfaces
       else
-        { };
+        runtimeInterfaces;
     wanIfs =
       if renderedModel ? wanInterfaceNames && builtins.isList renderedModel.wanInterfaceNames then
         renderedModel.wanInterfaceNames
