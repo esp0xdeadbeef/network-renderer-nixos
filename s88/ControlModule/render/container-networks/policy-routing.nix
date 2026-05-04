@@ -29,6 +29,7 @@ let
     inherit
       lib
       common
+      interfaces
       interfaceNames
       renderedInterfaceNames
       upstreamLanesMatch
@@ -42,6 +43,7 @@ let
       isOverlayInterface
       isCoreTransitInterface
       ;
+    inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {
