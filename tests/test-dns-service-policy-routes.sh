@@ -59,6 +59,12 @@ nix_eval_json_or_fail \
               && (route.Gateway or null) == gateway
               && (route.Table or null) == table)
             routes;
+        hasRule = rules: incomingInterface: table:
+          builtins.any
+            (rule:
+              (rule.IncomingInterface or null) == incomingInterface
+              && (rule.Table or null) == table)
+            rules;
         missingRoute = routes: destination: gateway: table:
           !(hasRoute routes destination gateway table);
         hasRouteAnyNetwork = networks: destination: gateway: table:
@@ -80,6 +86,7 @@ nix_eval_json_or_fail \
         siteaMgmtEastWestReturnRoutes = siteaUpstreamNetworks."10-pol-mgt-ew".routes or [ ];
         branchHostileOverlayRoutes = branchUpstreamNetworks."10-core-nebula".routes or [ ];
         branchHostileWanRoutes = branchUpstreamNetworks."10-core-isp".routes or [ ];
+        branchCoreNebulaRules = branchUpstreamNetworks."10-core-nebula".routingPolicyRules or [ ];
         sitecClientRoutes = sitecNetworks."10-downstr-client".routes or [ ];
         checks = {
           branch_v4_dns_route =
@@ -90,6 +97,12 @@ nix_eval_json_or_fail \
             hasRoute bUpstreamCoreIngressRoutes "10.50.0.0/31" "10.50.0.12" 2000;
           branch_upstream_hostile_return =
             hasRoute bUpstreamCoreIngressRoutes "10.50.0.2/31" "10.50.0.16" 2000;
+          branch_upstream_core_nebula_ingress_rule =
+            hasRule branchCoreNebulaRules "core-nebula" 2000;
+          branch_upstream_core_nebula_hostile_return =
+            hasRoute bUpstreamCoreIngressRoutes "10.70.10.0/24" "10.50.0.16" 2000;
+          branch_upstream_core_nebula_hostile_return_v6 =
+            hasRoute bUpstreamCoreIngressRoutes "fd42:dead:feed:70::/64" "fd42:dead:feed:1000:0:0:0:10" 2000;
           branch_upstream_wrong_v4_absent =
             missingRoute bUpstreamCoreIngressRoutes "10.50.0.0" "10.50.0.16" 2000;
           branch_upstream_wrong_v6_absent =
