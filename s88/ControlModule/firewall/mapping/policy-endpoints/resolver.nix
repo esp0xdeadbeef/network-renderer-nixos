@@ -4,6 +4,8 @@
   communicationContract,
   tenantInterfaceByName,
   serviceInterfacesByName,
+  servicePreferredUplinksByName,
+  servicePreferredUplinksByRelation,
   upstreamInterfaceNames,
   upstreamInterfacesForUplink,
   wanEndpointNames,
@@ -121,6 +123,56 @@ let
         );
       in
       sortedStrings (lib.concatMap resolveStringEndpoint selectorValues);
+
+  serviceNameOf =
+    endpoint:
+    if builtins.isAttrs endpoint && (endpoint.kind or null) == "service" && builtins.isString (endpoint.name or null) then
+      endpoint.name
+    else if builtins.isString endpoint && builtins.hasAttr endpoint serviceInterfacesByName then
+      endpoint
+    else
+      null;
+
+  relationNameOf =
+    relation:
+    if builtins.isAttrs relation && builtins.isString (relation.id or null) then
+      relation.id
+    else if builtins.isAttrs relation && builtins.isString (relation.name or null) then
+      relation.name
+    else
+      null;
+
+  preferredUplinksForServiceRelation =
+    serviceName: relation:
+    let
+      byRelation =
+        if builtins.hasAttr serviceName servicePreferredUplinksByRelation then
+          servicePreferredUplinksByRelation.${serviceName}
+        else
+          { };
+      relationName = relationNameOf relation;
+    in
+    if relationName != null && builtins.hasAttr relationName byRelation then
+      byRelation.${relationName}
+    else if builtins.hasAttr serviceName servicePreferredUplinksByName then
+      servicePreferredUplinksByName.${serviceName}
+    else
+      [ ];
+
+  resolveServiceForRelation =
+    relation: endpoint:
+    let
+      serviceName = serviceNameOf endpoint;
+      localInterfaces =
+        if serviceName != null && builtins.hasAttr serviceName serviceInterfacesByName then
+          serviceInterfacesByName.${serviceName}
+        else
+          [ ];
+      uplinks =
+        if serviceName != null then preferredUplinksForServiceRelation serviceName relation else [ ];
+      uplinkInterfaces = sortedStrings (lib.concatMap upstreamInterfacesForUplink uplinks);
+    in
+    if localInterfaces != [ ] then localInterfaces else uplinkInterfaces;
 in
 rec {
   inherit interfaceTags allKnownInterfaces;
@@ -139,4 +191,11 @@ rec {
       resolveAttrEndpoint endpoint
     else
       [ ];
+
+  resolveRelationEndpoint =
+    relation: endpoint:
+    let
+      serviceInterfaces = resolveServiceForRelation relation endpoint;
+    in
+    if serviceInterfaces != [ ] then serviceInterfaces else resolveEndpoint endpoint;
 }

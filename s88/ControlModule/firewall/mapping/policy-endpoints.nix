@@ -53,7 +53,7 @@ let
   };
 
   services = import ./policy-endpoints/services.nix {
-    inherit lib communicationContract ownership common;
+    inherit lib currentSite communicationContract ownership common;
     inherit (tenants) tenantInterfaceByName;
   };
 
@@ -74,6 +74,7 @@ let
       wanEndpointNames
       explicitWanNames
       ;
+    inherit (services) servicePreferredUplinksByName servicePreferredUplinksByRelation;
   };
 
   authority = import ./policy-endpoints/authority.nix {
@@ -95,7 +96,7 @@ let
   _ = authority.strictCheck;
 in
 {
-  inherit (resolver) resolveEndpoint allKnownInterfaces;
+  inherit (resolver) resolveEndpoint resolveRelationEndpoint allKnownInterfaces;
   inherit (common) samePolicyTenantLane;
   inherit (upstream) wanNames p2pNames localAdapterNames;
   inherit (authority) authoritativeBindings authorityGaps;

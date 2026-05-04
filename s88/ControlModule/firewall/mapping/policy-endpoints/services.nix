@@ -1,5 +1,6 @@
 {
   lib,
+  currentSite,
   communicationContract,
   ownership,
   tenantInterfaceByName,
@@ -23,10 +24,23 @@ let
       [ ];
 
   serviceDefinitions =
-    if communicationContract ? services && builtins.isList communicationContract.services then
-      lib.filter (
-        service: builtins.isAttrs service && service ? name && builtins.isString service.name
-      ) communicationContract.services
+    let
+      cpmServices =
+        if currentSite ? services && builtins.isList currentSite.services then currentSite.services else [ ];
+      contractServices =
+        if communicationContract ? services && builtins.isList communicationContract.services then
+          communicationContract.services
+        else
+          [ ];
+    in
+    lib.filter (
+      service: builtins.isAttrs service && service ? name && builtins.isString service.name
+    ) (if cpmServices != [ ] then cpmServices else contractServices);
+
+  stringList =
+    value:
+    if builtins.isList value then
+      lib.filter builtins.isString value
     else
       [ ];
 
@@ -69,4 +83,23 @@ in
       }
     ) serviceDefinitions
   );
+
+  servicePreferredUplinksByName = builtins.listToAttrs (
+    map (service: {
+      name = service.name;
+      value = stringList (service.preferredUplinks or null);
+    }) serviceDefinitions
+  );
+
+  servicePreferredUplinksByRelation =
+    builtins.listToAttrs (
+      map (service: {
+        name = service.name;
+        value =
+          if builtins.isAttrs (service.preferredUplinksByRelation or null) then
+            service.preferredUplinksByRelation
+          else
+            { };
+      }) serviceDefinitions
+    );
 }
