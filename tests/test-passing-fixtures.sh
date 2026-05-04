@@ -80,6 +80,9 @@ bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 # Regression: policy ingress lanes must render DNS-service reachability routes.
 bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
 
+# Regression: rendered DNS services must listen, forward, and filter from CPM output.
+bash "${repo_root}/tests/test-cross-site-dns-service-render.sh"
+
 # Regression: strict renderer must fail when required WAN group binding is absent.
 bash "${repo_root}/tests/test-missing-wan-group-assignment.sh"
 
