@@ -43,7 +43,10 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:dual-wan" \
             routes;
       in
         hasRoute "10.19.0.8/32" "10.10.0.9"
-        && hasRoute "fd42:dead:beef:1900:0000:0000:0000:0008/128" "fd42:dead:beef:1000:0:0:0:9"
+        && (
+          hasRoute "fd42:dead:beef:1900:0000:0000:0000:0008/128" "fd42:dead:beef:1000:0:0:0:9"
+          || hasRoute "fd42:dead:beef:1900:0:0:0:8/128" "fd42:dead:beef:1000:0:0:0:9"
+        )
     '
 
 nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
@@ -96,6 +99,8 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
         hasMainRouteAnyNetwork branchCoreNetworks "10.50.0.0/32" "10.10.0.15"
         && hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:f"
         && hasMainRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5"
+        && hasMainRouteAnyNetwork branchNebulaNetworks "0.0.0.0/0" "10.50.0.5"
+        && hasMainRouteAnyNetwork branchNebulaNetworks "::/0" "fd42:dead:feed:1000:0:0:0:5"
     '
 
 echo "PASS transit-endpoint-return-routes"
