@@ -54,7 +54,37 @@ let
     inherit (siteDestinations) returnDestinationsForTenant;
   };
 
-  routesForPolicyTable =
+  routeGateway =
+    route:
+    if builtins.isString (route.via4 or null) && route.via4 != "" then
+      { family = 4; gateway = route.via4; }
+    else if builtins.isString (route.via6 or null) && route.via6 != "" then
+      { family = 6; gateway = route.via6; }
+    else
+      null;
+
+  interfacePeerForFamily =
+    family: iface:
+    let
+      address = peers.addressForFamily family iface;
+    in
+    if family == 6 then peers.ipv6PeerFor127 address else peers.ipv4PeerFor31 address;
+
+  routeOutputInterface =
+    sourceIfName: route:
+    let
+      gateway = routeGateway route;
+      matchingInterfaces =
+        if gateway == null then
+          [ ]
+        else
+          lib.filter
+            (ifName: interfacePeerForFamily gateway.family interfaces.${ifName} == gateway.gateway)
+            interfaceNames;
+    in
+    if matchingInterfaces == [ ] then sourceIfName else builtins.head matchingInterfaces;
+
+  rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:
     let
       sourceRoutes =
@@ -64,8 +94,8 @@ let
           (interfaces.${sourceIfName}.routes or [ ])
           ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName);
     in
-    lib.filter (route: route != null) (
-      map (route: if builtins.isAttrs route then mkRoute (route // { table = tableId; }) else null) sourceRoutes
+    lib.filter builtins.isAttrs (
+      map (route: if builtins.isAttrs route then route // { table = tableId; } else null) sourceRoutes
     );
 
   policyRulesFor =
@@ -102,12 +132,21 @@ in
           sourceIfNames = routeSources.forTarget interfaceName;
           routesByInterface = builtins.foldl' (
             routesAcc: sourceIfName:
-            routesAcc
-            // {
-              ${sourceIfName} =
-                (routesAcc.${sourceIfName} or [ ])
-                ++ routesForPolicyTable tableId interfaceName sourceIfName;
-            }
+            builtins.foldl'
+              (innerAcc: rawRoute:
+                let
+                  outputIfName = routeOutputInterface sourceIfName rawRoute;
+                  renderedRoute = mkRoute rawRoute;
+                in
+                if renderedRoute == null then
+                  innerAcc
+                else
+                  innerAcc
+                  // {
+                    ${outputIfName} = (innerAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
+                  })
+              routesAcc
+              (rawRoutesForPolicyTable tableId interfaceName sourceIfName)
           ) { } sourceIfNames;
         in
         {
