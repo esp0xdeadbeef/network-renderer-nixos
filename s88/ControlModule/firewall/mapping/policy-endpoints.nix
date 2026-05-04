@@ -105,8 +105,19 @@ in
     relation: fromIf: toIf:
     let
       endpointIsService = endpoint: builtins.isAttrs endpoint && (endpoint.kind or null) == "service";
+      serviceRelation = endpointIsService (relation.from or null) || endpointIsService (relation.to or null);
+      serviceUsesUpstreamLane =
+        (
+          endpointIsService (relation.from or null)
+          && builtins.elem fromIf upstream.upstreamInterfaceNames
+        )
+        || (
+          endpointIsService (relation.to or null)
+          && builtins.elem toIf upstream.upstreamInterfaceNames
+        );
     in
-    endpointIsService (relation.from or null)
-    || endpointIsService (relation.to or null)
-    || common.samePolicyTenantLane fromIf toIf;
+    if serviceRelation && serviceUsesUpstreamLane then
+      common.samePolicyTenantLane fromIf toIf
+    else
+      serviceRelation || common.samePolicyTenantLane fromIf toIf;
 }
