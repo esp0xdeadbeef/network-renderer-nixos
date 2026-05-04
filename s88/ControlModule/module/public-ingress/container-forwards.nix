@@ -74,6 +74,7 @@ let
             address = [ localAddress ];
             routes = [
               {
+                Destination = "0.0.0.0/0";
                 Gateway = gateway4;
                 Table = routeTable;
               }
