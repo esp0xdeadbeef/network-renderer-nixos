@@ -72,6 +72,7 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
         };
         renderedBranchCore = testHost.renderedHost.containers."s-router-core-isp-b";
         renderedBranchNebulaCore = testHost.renderedHost.containers."b-router-core-nebula";
+        renderedBranchUpstreamSelector = testHost.renderedHost.containers."b-router-upstream-selector";
         cfgBranchCore =
           (flake.inputs.nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
@@ -82,8 +83,14 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
             system = "x86_64-linux";
             modules = [ renderedBranchNebulaCore.config ];
           }).config;
+        cfgBranchUpstreamSelector =
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [ renderedBranchUpstreamSelector.config ];
+          }).config;
         branchCoreNetworks = cfgBranchCore.systemd.network.networks;
         branchNebulaNetworks = cfgBranchNebulaCore.systemd.network.networks;
+        branchUpstreamSelectorNetworks = cfgBranchUpstreamSelector.systemd.network.networks;
         hasMainRoute = routes: destination: gateway:
           builtins.any
             (route:
@@ -101,6 +108,8 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
         && hasMainRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5"
         && hasMainRouteAnyNetwork branchNebulaNetworks "0.0.0.0/0" "10.50.0.5"
         && hasMainRouteAnyNetwork branchNebulaNetworks "::/0" "fd42:dead:feed:1000:0:0:0:5"
+        && hasMainRouteAnyNetwork branchUpstreamSelectorNetworks "0.0.0.0/0" "10.50.0.6"
+        && hasMainRouteAnyNetwork branchUpstreamSelectorNetworks "::/0" "fd42:dead:feed:1000:0:0:0:6"
     '
 
 echo "PASS transit-endpoint-return-routes"

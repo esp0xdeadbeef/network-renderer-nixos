@@ -83,7 +83,7 @@ let
     inherit (dynamicWan) mkDynamicWanNetworkConfig needsIpv6AcceptRA;
     inherit (advertisements) advertisedOnlinkRoutesByInterface;
     inherit (policyRouting) policyRoutingByInterface;
-    inherit (classes) keepInterfaceRoutesInMain;
+    inherit (classes) keepInterfaceRoutesInMain isUpstreamSelectorCoreInterface;
   };
 in
 {
