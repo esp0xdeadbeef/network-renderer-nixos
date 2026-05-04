@@ -10,6 +10,7 @@ let
   facts = import ./public-ingress/facts.nix { inherit lib; };
   rules = import ./public-ingress/rules.nix { inherit lib; };
   containerForwards = import ./public-ingress/container-forwards.nix { inherit lib; };
+  hostRoutes = import ./public-ingress/host-routes.nix { inherit lib; };
 
   inherit (facts) attrOr requiredString cpmDataFrom serviceIngressesFor runtimeForwardsFor;
   inherit (rules) nftString renderServiceForward renderServiceAccept renderRuntimeForward renderRuntimeAccept;
@@ -42,6 +43,8 @@ let
   serviceIngresses = serviceIngressesFor { inherit cpmRoot publicIngressFacts; };
   runtimeForwards = runtimeForwardsFor { inherit cpmRoot publicIngressFacts; };
   containerForwardModules = containerForwards runtimeForwards;
+  bridgeNetworkName = publicIngressFacts.bridgeNetworkName or "30-${bridgeInterface}";
+  routeModule = hostRoutes { inherit bridgeNetworkName serviceIngresses; };
 
   preroutingRules =
     lib.concatStringsSep "\n" (
@@ -60,6 +63,7 @@ else
   {
     boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkForce true;
     containers = containerForwardModules;
+    systemd.network.networks = (routeModule.systemd.network.networks or { });
     networking.nftables.enable = true;
     networking.nftables.ruleset = ''
       table inet s88_host_public_ingress {
