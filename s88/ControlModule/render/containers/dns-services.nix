@@ -152,6 +152,8 @@ else
           "access-control" = accessControl;
           "do-ip4" = true;
           "do-ip6" = true;
+          "infra-host-ttl" = 1;
+          "infra-lame-ttl" = 1;
         }
         // lib.optionalAttrs (localZoneSettings != [ ]) {
           "local-zone" = localZoneSettings;
@@ -167,6 +169,11 @@ else
           "forward-addr" = forwarders;
         };
       };
+    };
+
+    systemd.services.unbound = {
+      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ];
     };
 
     systemd.services.nft-allow-dns-service = {
