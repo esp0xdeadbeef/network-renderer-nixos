@@ -296,6 +296,17 @@ run_one() {
             && lib.hasInfix ") &" validationLoop
             && lib.hasInfix "wait" validationLoop
             && lib.hasInfix "cat \"$tmp_checks_dir/$container.json\"" validationLoop;
+          renderedRouterContainersIncludeDebugTools =
+            let
+              packageNames =
+                map (pkg: pkg.pname or pkg.name or "")
+                  (evalContainer containerA).environment.systemPackages;
+            in
+            builtins.elem "ripgrep" packageNames
+            && builtins.elem "tcpdump" packageNames
+            && builtins.elem "dnsutils" packageNames
+            && builtins.elem "iproute2" packageNames
+            && builtins.elem "iputils" packageNames;
           bgpOk =
             if builtins.match ".*-bgp" exampleName != null then
               policyA.routingMode == "bgp"
@@ -331,6 +342,7 @@ run_one() {
           && validationStableIgnoresTimestamp
           && validationBoundsContainerProbe
           && validationRunsContainerProbesInParallel
+          && renderedRouterContainersIncludeDebugTools
           && bgpOk
       ' >/dev/null
 
