@@ -8,6 +8,30 @@ let
     let stringValue = strOrNull value;
     in if stringValue == null then fail "${path} is required" else stringValue;
   stripMask = value: builtins.head (lib.splitString "/" (toString value));
+  nftName = value:
+    lib.replaceStrings
+      [ "-" "." ":" "/" "::" ]
+      [ "_" "_" "_" "_" "_" ]
+      value;
+
+  publicIPv4Binding =
+    { path, value, setName }:
+    let
+      publicIPv4 = strOrNull (value.publicIPv4 or null);
+      publicIPv4SecretPath = strOrNull (value.publicIPv4SecretPath or null);
+    in
+    if publicIPv4 != null && publicIPv4SecretPath != null then
+      fail "${path} must set only one of publicIPv4 or publicIPv4SecretPath"
+    else if publicIPv4 != null then
+      { inherit publicIPv4; }
+    else if publicIPv4SecretPath != null then
+      {
+        inherit publicIPv4SecretPath;
+        publicIPv4SetName = setName;
+        publicIPv4AssignToBridge = value.assignToBridge or false;
+      }
+    else
+      fail "${path}.publicIPv4 or ${path}.publicIPv4SecretPath is required";
 
   cpmDataFrom = controlPlane:
     if builtins.isAttrs (controlPlane.control_plane_model.data or null) then
@@ -133,7 +157,15 @@ let
 
   normalizeRuntimeForward =
     cpmRoot: index: forward:
-    forward
+    let
+      runtimePath = "runtimeFacts.publicIngress.runtimeForwards[${toString index}]";
+    in
+    (builtins.removeAttrs forward [ "publicIPv4" "publicIPv4SecretPath" ])
+    // publicIPv4Binding {
+      path = runtimePath;
+      value = forward;
+      setName = "s88_public_runtime_${toString index}";
+    }
     // {
       targetIPv4 =
         if strOrNull (forward.targetIPv4 or null) != null then
@@ -177,13 +209,14 @@ let
             else
               builtins.seq _providerBinding {
                 inherit serviceName matches;
-                publicIPv4 =
-                  requiredString "runtimeFacts.publicIngress.services.${item.enterpriseName}.${item.siteName}.${serviceName}.publicIPv4"
-                    (runtimeFact.publicIPv4 or null);
                 targetIPv4 = singleProviderEndpoint4 serviceName service;
                 gateway4 = runtimeFact.gateway4 or null;
                 routeDestination4 = runtimeFact.routeDestination4 or null;
                 comment = "s88-public-service-${serviceName}";
+              } // publicIPv4Binding {
+                path = "runtimeFacts.publicIngress.services.${item.enterpriseName}.${item.siteName}.${serviceName}";
+                value = runtimeFact;
+                setName = "s88_public_service_${nftName item.enterpriseName}_${nftName item.siteName}_${nftName serviceName}";
               })
           serviceNames)
       (siteItemsFrom cpmRoot);

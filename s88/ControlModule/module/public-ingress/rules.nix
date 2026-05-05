@@ -4,6 +4,11 @@ let
   listOr = value: if builtins.isList value then value else [ ];
   nftString = value: ''"${lib.replaceStrings [ ''\'' "\\" ''"'' ] [ ''\\'' "\\\\" ''\"'' ] (toString value)}"'';
   sortedUnique = values: lib.sort (left: right: left < right) (lib.unique values);
+  publicIPv4Match = forward:
+    if builtins.isString (forward.publicIPv4SetName or null) && forward.publicIPv4SetName != "" then
+      "ip daddr @${forward.publicIPv4SetName}"
+    else
+      "ip daddr ${forward.publicIPv4}";
 
   exceptDportText = dports:
     let ports = sortedUnique dports;
@@ -31,7 +36,7 @@ let
     lib.concatMapStringsSep "\n"
       (match:
         ''
-          ip daddr ${forward.publicIPv4}${renderMatch match} dnat to ${forward.targetIPv4} comment ${nftString forward.comment}
+          ${publicIPv4Match forward}${renderMatch match} dnat to ${forward.targetIPv4} comment ${nftString forward.comment}
         '')
       forward.matches;
 
@@ -46,16 +51,20 @@ let
 
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
     let
-      publicIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].publicIPv4" (forward.publicIPv4 or null);
       targetIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].targetIPv4" (forward.targetIPv4 or null);
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
       exceptTcpDports = listOr (forward.exceptTcpDports or null);
+      protectServiceDports = forward.protectServiceDports or true;
       comment = forward.comment or "s88-public-runtime-forward";
     in
     lib.concatMapStringsSep "\n"
       (proto:
         let
-          protectedDports = listOr (protectedDportsByProto.${proto} or null);
+          protectedDports =
+            if protectServiceDports then
+              listOr (protectedDportsByProto.${proto} or null)
+            else
+              [ ];
           except =
             if proto == "tcp" then
               " tcp${exceptDportText (exceptTcpDports ++ protectedDports)}"
@@ -65,7 +74,7 @@ let
               "";
         in
         ''
-          iifname != ${nftString bridgeInterface} ip daddr ${publicIPv4} meta l4proto ${proto}${except} dnat to ${targetIPv4} comment ${nftString comment}
+          iifname != ${nftString bridgeInterface} ${publicIPv4Match forward} meta l4proto ${proto}${except} dnat to ${targetIPv4} comment ${nftString comment}
         '')
       protocols;
 
