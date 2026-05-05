@@ -5,6 +5,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 "${repo_root}/tests/test-nix-file-loc.sh"
+"${repo_root}/tests/test-overlay-materialization-contract.sh"
+"${repo_root}/tests/test-ipv6-pd-downstream-delegation-example-required.sh"
 
 # ControlModules are called by Unit/Equipment/Site with narrow inputs.
 bash "${repo_root}/tests/test-controlmodule-boundary.sh"

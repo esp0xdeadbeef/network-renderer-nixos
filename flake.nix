@@ -124,8 +124,8 @@
               hostBuild = api.renderer.buildHostFromPaths {
                 system = system;
                 selector = "s-router-hetzner-anywhere";
-                intentPath = network-labs.outPath + "/examples/s-router-test-three-site/intent.nix";
-                inventoryPath = network-labs.outPath + "/examples/s-router-test-three-site/inventory-nixos.nix";
+                intentPath = network-labs.outPath + "/examples/s-router-overlay-dns-lane-policy/intent.nix";
+                inventoryPath = network-labs.outPath + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
               };
             in
             pkgs.writeText "s88-call-flow-eval-target.json" (

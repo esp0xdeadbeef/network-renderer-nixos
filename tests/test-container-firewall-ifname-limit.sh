@@ -16,8 +16,8 @@ ruleset="$(
     let
       flake = builtins.getFlake (toString '"${repo_root}"');
       built = flake.lib.containers.buildForBox {
-        intentPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/examples/s-router-test-three-site/intent.nix";
-        inventoryPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/examples/s-router-test-three-site/inventory-nixos.nix";
+        intentPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/examples/s-router-overlay-dns-lane-policy/intent.nix";
+        inventoryPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
         boxName = "s-router-hetzner-anywhere";
       };
     in

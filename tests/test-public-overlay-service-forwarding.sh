@@ -19,14 +19,14 @@ let
   hostBuild = flake.lib.renderer.buildHostFromPaths {
     selector = "s-router-hetzner-anywhere";
     inherit system;
-    intentPath = labs + "/examples/s-router-test-three-site/intent.nix";
-    inventoryPath = labs + "/examples/s-router-test-three-site/inventory-nixos.nix";
+    intentPath = labs + "/examples/s-router-public-overlay-service/intent.nix";
+    inventoryPath = labs + "/examples/s-router-public-overlay-service/inventory-nixos.nix";
   };
   branchHostBuild = flake.lib.renderer.buildHostFromPaths {
     selector = "s-router-test";
     inherit system;
-    intentPath = labs + "/examples/s-router-test-three-site/intent.nix";
-    inventoryPath = labs + "/examples/s-router-test-three-site/inventory-nixos.nix";
+    intentPath = labs + "/examples/s-router-public-overlay-service/intent.nix";
+    inventoryPath = labs + "/examples/s-router-public-overlay-service/inventory-nixos.nix";
   };
   container = hostBuild.renderedHost.containers."c-router-core";
   branchCoreContainer = branchHostBuild.renderedHost.containers."b-router-core-nebula";
@@ -48,7 +48,7 @@ let
     preservesIntentRelationComment =
       lib.hasInfix "allow-sitec-wan-to-dmz-nebula" rules;
     allowsBranchUnderlayFromExplicitTrafficType =
-      lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-nebula-underlay-to-core\"" branchCoreRules;
+      lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-overlay-underlay-to-core\"" branchCoreRules;
   };
 in
 {
