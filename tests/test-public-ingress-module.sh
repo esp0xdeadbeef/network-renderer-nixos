@@ -106,6 +106,8 @@ let
         module.systemd.network.networks."30-br-wan".routes;
     runtimeForwardKeepsHostSsh =
       lib.hasInfix "ip daddr 203.0.113.11 meta l4proto tcp tcp dport != { 22 } dnat to 172.31.254.2" rules;
+    runtimeForwardDoesNotStealServiceUdp =
+      lib.hasInfix "ip daddr 203.0.113.11 meta l4proto udp udp dport != { 4242 } dnat to 172.31.254.2" rules;
     snatUsesRuntimeCidr =
       lib.hasInfix "ip saddr 172.31.254.0/24 oifname != \"br-wan\" masquerade" rules;
     forwardPolicyDropsByDefault =

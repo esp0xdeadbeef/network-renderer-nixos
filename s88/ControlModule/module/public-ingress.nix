@@ -12,7 +12,7 @@ let
   containerForwards = import ./public-ingress/container-forwards.nix { inherit lib; };
   hostRoutes = import ./public-ingress/host-routes.nix { inherit lib; };
 
-  inherit (facts) attrOr requiredString cpmDataFrom serviceIngressesFor runtimeForwardsFor;
+  inherit (facts) attrOr listOr requiredString cpmDataFrom serviceIngressesFor runtimeForwardsFor;
   inherit (rules) nftString renderServiceForward renderServiceAccept renderRuntimeForward renderRuntimeAccept;
 
   cpmRoot = cpmDataFrom controlPlane;
@@ -45,11 +45,28 @@ let
   containerForwardModules = containerForwards runtimeForwards;
   bridgeNetworkName = publicIngressFacts.bridgeNetworkName or "30-${bridgeInterface}";
   routeModule = hostRoutes { inherit bridgeNetworkName serviceIngresses; };
+  serviceDportsFor = proto:
+    lib.unique (
+      lib.concatMap
+        (forward:
+          lib.concatMap
+            (match:
+              if (match.proto or "any") == proto then
+                listOr (match.dports or null)
+              else
+                [ ])
+            (listOr (forward.matches or null)))
+        serviceIngresses
+    );
+  protectedDportsByProto = {
+    tcp = serviceDportsFor "tcp";
+    udp = serviceDportsFor "udp";
+  };
 
   preroutingRules =
     lib.concatStringsSep "\n" (
       (map (renderServiceForward bridgeInterface) serviceIngresses)
-      ++ (map (renderRuntimeForward bridgeInterface requiredString) runtimeForwards)
+      ++ (map (renderRuntimeForward bridgeInterface requiredString protectedDportsByProto) runtimeForwards)
     );
   forwardRules =
     lib.concatStringsSep "\n" (
