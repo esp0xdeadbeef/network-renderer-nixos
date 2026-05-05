@@ -13,7 +13,14 @@ let
   hostRoutes = import ./public-ingress/host-routes.nix { inherit lib; };
 
   inherit (facts) attrOr listOr requiredString cpmDataFrom serviceIngressesFor runtimeForwardsFor;
-  inherit (rules) nftString renderServiceForward renderServiceAccept renderRuntimeForward renderRuntimeAccept;
+  inherit (rules)
+    nftString
+    renderServiceForward
+    renderServiceAccept
+    renderServiceHairpinSnat
+    renderRuntimeForward
+    renderRuntimeAccept
+    ;
 
   cpmRoot = cpmDataFrom controlPlane;
   inventoryRoot = attrOr inventory;
@@ -73,6 +80,8 @@ let
       (map (renderServiceAccept bridgeInterface) serviceIngresses)
       ++ (map (renderRuntimeAccept bridgeInterface requiredString) runtimeForwards)
     );
+  hairpinSnatRules =
+    lib.concatStringsSep "\n" (map (renderServiceHairpinSnat bridgeInterface snatSourceCidr4) serviceIngresses);
 in
 if !enabled then
   { }
@@ -92,6 +101,7 @@ ${preroutingRules}
         chain postrouting {
           type nat hook postrouting priority srcnat; policy accept;
           ip saddr ${snatSourceCidr4} oifname != ${nftString bridgeInterface} masquerade comment "s88-host-public-ingress-snat"
+${hairpinSnatRules}
         }
 
         chain forward {
