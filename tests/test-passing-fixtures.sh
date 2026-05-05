@@ -82,6 +82,9 @@ bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 # Regression: policy ingress lanes must render DNS-service reachability routes.
 bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
 
+# Regression: CPM policy-only routes must not become generic main defaults.
+bash "${repo_root}/tests/test-policy-only-routes.sh"
+
 # Regression: upstream-selector core ingress routes must not put cross-link
 # gateways into main .network routes; networkd rejects those before rules apply.
 bash "${repo_root}/tests/test-upstream-selector-core-main-routes.sh"

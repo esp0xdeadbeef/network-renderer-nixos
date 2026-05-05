@@ -43,6 +43,11 @@ let
     let gateway = routeGateway route;
     in gateway == null || interfacePeerForFamily gateway.family iface == gateway.gateway;
 
+  isPolicyOnlyRoute =
+    route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
+
+  stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" ];
+
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
       lib.imap0 (
@@ -60,11 +65,13 @@ let
             else
               lib.filter (route: routeGatewayMatchesInterface iface route) staticRawRoutes;
           staticRawRoutes = lib.filter (
-            route: !(isExternalValidationDelegatedPrefixRoute route)
+            route: !(isExternalValidationDelegatedPrefixRoute route) && !(isPolicyOnlyRoute route)
           ) rawRoutes;
           policyMainRoutes =
             lib.optionals keepInterfaceRoutesInMain (
-              map (route: builtins.removeAttrs route [ "Table" ]) (policyRoutingByInterface.routes.${ifName} or [ ])
+              map (route: builtins.removeAttrs route [ "Table" ]) (
+                lib.filter (route: !(isPolicyOnlyRoute route)) (policyRoutingByInterface.routes.${ifName} or [ ])
+              )
             );
         in
         if builtins.elem interfaceName networkManagerInterfaces then
@@ -76,12 +83,13 @@ let
               matchConfig.Name = interfaceName;
               networkConfig = { ConfigureWithoutCarrier = true; } // mkDynamicWanNetworkConfig iface;
               address = iface.addresses or [ ];
-              routes =
+              routes = map stripRouteMetadata (
                 (lib.optionals keepStaticRoutesInMain (
                   lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
                 ))
                 ++ policyMainRoutes
-                ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
+                ++ (policyRoutingByInterface.routes.${ifName} or [ ])
+              );
               routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
             };
           }
