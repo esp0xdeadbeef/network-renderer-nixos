@@ -63,6 +63,7 @@ REPO_ROOT="${repo_root}" nix eval \
         };
       server = rendered.services.unbound.settings.server;
       explicitServer = renderedWithExplicitOutgoing.services.unbound.settings.server;
+      unboundService = rendered.systemd.services.unbound;
       localZones = server."local-zone" or [ ];
       localData = server."local-data" or [ ];
     in
@@ -73,6 +74,10 @@ REPO_ROOT="${repo_root}" nix eval \
       && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
       && (server."outgoing-interface" or [ ]) == [ "10.20.0.1" "fd00:20::1" ]
       && (explicitServer."outgoing-interface" or [ ]) == [ "transit" ]
+      && server."infra-host-ttl" == 1
+      && server."infra-lame-ttl" == 1
+      && builtins.elem "network-online.target" unboundService.after
+      && builtins.elem "network-online.target" unboundService.wants
   ' >/dev/null || {
     echo "FAIL dns-local-records" >&2
     exit 1
