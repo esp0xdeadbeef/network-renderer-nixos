@@ -35,6 +35,13 @@ for intent_path in "${intent_paths[@]}"; do
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-external.XXXXXX")"
   trap 'rm -rf "${tmp_dir}"' RETURN
 
+  if [[ -f "$(dirname "$intent_path")/getResolvedInventory.nix" ]]; then
+    inventory_path="${tmp_dir}/inventory-nixos-resolved.nix"
+    cat >"${inventory_path}" <<EOF
+import $(dirname "$intent_path")/getResolvedInventory.nix { renderer = "nixos"; }
+EOF
+  fi
+
   (
     cd "${tmp_dir}"
     build_cpm_json "${intent_path}" "${inventory_path}" "${tmp_dir}/cpm.json"
