@@ -16,20 +16,23 @@ nix_eval_json_or_fail "public-ingress-module" "$result_json" "$stderr_file" \
 let
   flake = builtins.getFlake ("path:" + toString ./.);
   lib = flake.inputs.nixpkgs.lib;
+  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
   module = import ./s88/ControlModule/module/public-ingress.nix {
-    inherit lib;
+    inherit lib pkgs;
     hostName = "hetzner";
     runtimeFacts.publicIngress = {
       snatSourceCidr4 = "172.31.254.0/24";
       services.acme.dmz-site.dmz-nebula = {
-        publicIPv4 = "203.0.113.10";
+        publicIPv4SecretPath = "/run/secrets/lighthouse-public-ipv4";
+        assignToBridge = true;
         gateway4 = "172.31.254.3";
       };
       runtimeForwards = [
         {
-          publicIPv4 = "203.0.113.11";
+          publicIPv4SecretPath = "/run/secrets/core-public-ipv4";
           targetIPv4 = "172.31.254.2";
           protocols = [ "tcp" "udp" ];
+          protectServiceDports = false;
           exceptTcpDports = [ 22 ];
           inputDports = [ 4242 ];
           containerInterface = {
@@ -99,9 +102,9 @@ let
   checks = {
     ipv4ForwardingEnabled = module.boot.kernel.sysctl."net.ipv4.ip_forward".content == true;
     serviceDnatFromCpmRelation =
-      lib.hasInfix "ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules;
+      lib.hasInfix "ip daddr @s88_public_service_acme_dmz_site_dmz_nebula meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules;
     serviceDnatSupportsBridgeHairpin =
-      !(lib.hasInfix "iifname != \"br-wan\" ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules);
+      !(lib.hasInfix "iifname != \"br-wan\" ip daddr @s88_public_service_acme_dmz_site_dmz_nebula meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules);
     serviceHairpinForwardIsAllowed =
       lib.hasInfix "iifname \"br-wan\" oifname \"br-wan\" ip daddr 10.90.10.100 meta l4proto udp udp dport 4242 accept comment \"s88-public-service-dmz-nebula\"" rules;
     serviceHairpinDoesNotSnat =
@@ -111,9 +114,17 @@ let
         { Destination = "10.90.10.100/32"; Gateway = "172.31.254.3"; }
         module.systemd.network.networks."30-br-wan".routes;
     runtimeForwardKeepsHostSsh =
-      lib.hasInfix "ip daddr 203.0.113.11 meta l4proto tcp tcp dport != { 22 } dnat to 172.31.254.2" rules;
+      lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto tcp tcp dport != { 22 } dnat to 172.31.254.2" rules;
     runtimeForwardDoesNotStealServiceUdp =
-      lib.hasInfix "ip daddr 203.0.113.11 meta l4proto udp udp dport != { 4242 } dnat to 172.31.254.2" rules;
+      lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto udp dnat to 172.31.254.2" rules;
+    publicIngressDefinesRuntimeSets =
+      lib.hasInfix "set s88_public_service_acme_dmz_site_dmz_nebula" rules
+      && lib.hasInfix "set s88_public_runtime_0" rules;
+    publicIngressLoadsRuntimeSetsFromSecrets =
+      lib.hasInfix "load_public_ipv4 \"s88_public_service_acme_dmz_site_dmz_nebula\" \"/run/secrets/lighthouse-public-ipv4\" 1" module.systemd.services.s88-host-public-ingress-runtime-addresses.script
+      && lib.hasInfix "load_public_ipv4 \"s88_public_runtime_0\" \"/run/secrets/core-public-ipv4\" 0" module.systemd.services.s88-host-public-ingress-runtime-addresses.script;
+    publicIngressAssignsFloatingServiceAddress =
+      lib.hasInfix "ip addr replace \"$value/32\" dev \"br-wan\"" module.systemd.services.s88-host-public-ingress-runtime-addresses.script;
     snatUsesRuntimeCidr =
       lib.hasInfix "ip saddr 172.31.254.0/24 oifname != \"br-wan\" masquerade" rules;
     forwardPolicyDropsByDefault =
