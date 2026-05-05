@@ -44,10 +44,6 @@ let
         '')
       forward.matches;
 
-  renderServiceHairpinSnat = bridgeInterface: snatSourceCidr4: forward: ''
-    ip saddr ${snatSourceCidr4} ip daddr ${forward.targetIPv4} oifname ${nftString bridgeInterface} masquerade comment "s88-host-public-ingress-hairpin-snat"
-  '';
-
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
     let
       publicIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].publicIPv4" (forward.publicIPv4 or null);
@@ -99,7 +95,6 @@ in
     nftString
     renderServiceForward
     renderServiceAccept
-    renderServiceHairpinSnat
     renderRuntimeForward
     renderRuntimeAccept
     ;
