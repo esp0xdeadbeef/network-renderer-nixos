@@ -51,8 +51,8 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:dual-wan" \
 
 nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
   env REPO_ROOT="${repo_root}" \
-    INTENT_PATH="$(flake_input_path network-labs)/examples/s-router-test-three-site/intent.nix" \
-    INVENTORY_PATH="$(flake_input_path network-labs)/examples/s-router-test-three-site/inventory-nixos.nix" \
+    INTENT_PATH="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy/intent.nix" \
+    INVENTORY_PATH="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix" \
     nix eval \
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr '

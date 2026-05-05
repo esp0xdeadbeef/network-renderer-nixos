@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_root="$(flake_input_path network-labs)/examples/s-router-test-three-site"
+example_root="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy"
 intent_path="${example_root}/intent.nix"
 inventory_path="${example_root}/inventory-nixos.nix"
 

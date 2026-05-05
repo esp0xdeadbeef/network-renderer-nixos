@@ -65,7 +65,7 @@ let
       )
     else
       [ ];
-  nebulaUnderlayNames =
+  overlayUnderlayNames =
     if explicitTransitUnderlayNames != [ ] then
       common.sortedStrings explicitTransitUnderlayNames
     else
@@ -79,8 +79,8 @@ let
   ++ lib.optional (interfaceSet.overlayIngressNames != [ ]) ''
     iifname ${renderInterfaceSet interfaceSet.overlayIngressNames} accept comment "allow-overlay-to-core"
   ''
-  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && nebulaUnderlayNames != [ ] && underlayInput.udpPorts != [ ]) ''
-    iifname ${renderInterfaceSet nebulaUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-nebula-underlay-to-core"
+  ++ lib.optional (interfaceSet.overlayIngressNames != [ ] && overlayUnderlayNames != [ ] && underlayInput.udpPorts != [ ]) ''
+    iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-overlay-underlay-to-core"
   '';
 
   _validateCoreAdapterCount =
