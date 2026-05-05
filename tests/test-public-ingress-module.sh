@@ -100,6 +100,12 @@ let
     ipv4ForwardingEnabled = module.boot.kernel.sysctl."net.ipv4.ip_forward".content == true;
     serviceDnatFromCpmRelation =
       lib.hasInfix "ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules;
+    serviceDnatSupportsBridgeHairpin =
+      !(lib.hasInfix "iifname != \"br-wan\" ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 10.90.10.100" rules);
+    serviceHairpinForwardIsAllowed =
+      lib.hasInfix "iifname \"br-wan\" oifname \"br-wan\" ip daddr 10.90.10.100 meta l4proto udp udp dport 4242 accept comment \"s88-public-service-dmz-nebula\"" rules;
+    serviceHairpinSnatUsesRuntimeCidr =
+      lib.hasInfix "ip saddr 172.31.254.0/24 ip daddr 10.90.10.100 oifname \"br-wan\" masquerade comment \"s88-host-public-ingress-hairpin-snat\"" rules;
     serviceTargetRouteUsesRuntimeGateway =
       builtins.elem
         { Destination = "10.90.10.100/32"; Gateway = "172.31.254.3"; }

@@ -31,7 +31,7 @@ let
     lib.concatMapStringsSep "\n"
       (match:
         ''
-          iifname != ${nftString bridgeInterface} ip daddr ${forward.publicIPv4}${renderMatch match} dnat to ${forward.targetIPv4} comment ${nftString forward.comment}
+          ip daddr ${forward.publicIPv4}${renderMatch match} dnat to ${forward.targetIPv4} comment ${nftString forward.comment}
         '')
       forward.matches;
 
@@ -40,8 +40,13 @@ let
       (match:
         ''
           iifname != ${nftString bridgeInterface} oifname ${nftString bridgeInterface} ip daddr ${forward.targetIPv4}${renderMatch match} accept comment ${nftString forward.comment}
+          iifname ${nftString bridgeInterface} oifname ${nftString bridgeInterface} ip daddr ${forward.targetIPv4}${renderMatch match} accept comment ${nftString forward.comment}
         '')
       forward.matches;
+
+  renderServiceHairpinSnat = bridgeInterface: snatSourceCidr4: forward: ''
+    ip saddr ${snatSourceCidr4} ip daddr ${forward.targetIPv4} oifname ${nftString bridgeInterface} masquerade comment "s88-host-public-ingress-hairpin-snat"
+  '';
 
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
     let
@@ -94,6 +99,7 @@ in
     nftString
     renderServiceForward
     renderServiceAccept
+    renderServiceHairpinSnat
     renderRuntimeForward
     renderRuntimeAccept
     ;
