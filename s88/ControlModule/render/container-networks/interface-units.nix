@@ -18,6 +18,30 @@
 
 let
   inherit (common) interfaceNameFor;
+  peers = import ./policy-routing/peers.nix {
+    inherit lib common;
+  };
+
+  routeGateway =
+    route:
+    if builtins.isString (route.via4 or null) && route.via4 != "" then
+      { family = 4; gateway = route.via4; }
+    else if builtins.isString (route.via6 or null) && route.via6 != "" then
+      { family = 6; gateway = route.via6; }
+    else
+      null;
+
+  interfacePeerForFamily =
+    family: iface:
+    let
+      address = peers.addressForFamily family iface;
+    in
+    if family == 6 then peers.ipv6PeerFor127 address else peers.ipv4PeerFor31 address;
+
+  routeGatewayMatchesInterface =
+    iface: route:
+    let gateway = routeGateway route;
+    in gateway == null || interfacePeerForFamily gateway.family iface == gateway.gateway;
 
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
@@ -30,6 +54,11 @@ let
           renderedInterfaceName = renderedInterfaceNames.${ifName};
           keepStaticRoutesInMain =
             keepInterfaceRoutesInMain || isUpstreamSelectorCoreInterface renderedInterfaceName;
+          mainStaticRawRoutes =
+            if keepInterfaceRoutesInMain then
+              staticRawRoutes
+            else
+              lib.filter (route: routeGatewayMatchesInterface iface route) staticRawRoutes;
           staticRawRoutes = lib.filter (
             route: !(isExternalValidationDelegatedPrefixRoute route)
           ) rawRoutes;
@@ -49,7 +78,7 @@ let
               address = iface.addresses or [ ];
               routes =
                 (lib.optionals keepStaticRoutesInMain (
-                  lib.filter (route: route != null) (map mkRoute staticRawRoutes)
+                  lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
                 ))
                 ++ policyMainRoutes
                 ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
