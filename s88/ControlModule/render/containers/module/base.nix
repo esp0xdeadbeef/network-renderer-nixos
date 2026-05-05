@@ -48,6 +48,7 @@ in
       dnsutils
       iproute2
       iputils
+      ripgrep
     ];
     system.stateVersion = "25.11";
   };
