@@ -3,6 +3,15 @@
 let
   listOr = value: if builtins.isList value then value else [ ];
   nftString = value: ''"${lib.replaceStrings [ ''\'' "\\" ''"'' ] [ ''\\'' "\\\\" ''\"'' ] (toString value)}"'';
+  sortedUnique = values: lib.sort (left: right: left < right) (lib.unique values);
+
+  exceptDportText = dports:
+    let ports = sortedUnique dports;
+    in
+    if ports == [ ] then
+      ""
+    else
+      " dport != { ${lib.concatStringsSep ", " (map toString ports)} }";
 
   renderMatch = match:
     let
@@ -34,7 +43,7 @@ let
         '')
       forward.matches;
 
-  renderRuntimeForward = bridgeInterface: requiredString: forward:
+  renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
     let
       publicIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].publicIPv4" (forward.publicIPv4 or null);
       targetIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].targetIPv4" (forward.targetIPv4 or null);
@@ -45,9 +54,12 @@ let
     lib.concatMapStringsSep "\n"
       (proto:
         let
+          protectedDports = listOr (protectedDportsByProto.${proto} or null);
           except =
-            if proto == "tcp" && exceptTcpDports != [ ] then
-              " tcp dport != { ${lib.concatStringsSep ", " (map toString exceptTcpDports)} }"
+            if proto == "tcp" then
+              " tcp${exceptDportText (exceptTcpDports ++ protectedDports)}"
+            else if protectedDports != [ ] then
+              " ${proto}${exceptDportText protectedDports}"
             else
               "";
         in
