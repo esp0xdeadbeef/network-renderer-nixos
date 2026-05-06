@@ -20,7 +20,14 @@ let
   pipelineAlarmModel = isa.normalizeModel controlPlane;
 
   sanitizeDebug =
-    raw: if !builtins.isAttrs raw then { } else builtins.removeAttrs raw [ "profilePath" ];
+    raw:
+    if !builtins.isAttrs raw then
+      { }
+    else
+      builtins.removeAttrs raw [
+        "profilePath"
+        "firewallPolicyPath"
+      ];
 
   sanitizeContainer =
     containerName: container:

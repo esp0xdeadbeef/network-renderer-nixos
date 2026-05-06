@@ -6,6 +6,7 @@
   unitName ? null,
   containerName ? null,
   roleName ? null,
+  assumptionFamily ? null,
   interfaces ? { },
   wanIfs ? [ ],
   lanIfs ? [ ],
@@ -190,7 +191,7 @@ let
   alarms =
     lib.optionals
       (
-        roleName == "access"
+        assumptionFamily == "edge"
         && interfaceNames != [ ]
         && localAdapterNames != [ ]
         && accessUplinkNames != [ ]
@@ -198,14 +199,14 @@ let
       )
       [
         (isa.mkDesignAssumptionAlarm {
-          alarmId = "firewall-access-forwarding-defaults";
-          summary = "access firewall forwarding policy is currently synthesized from role defaults";
+          alarmId = "firewall-${roleName}-forwarding-defaults";
+          summary = "${roleName} firewall forwarding policy is currently synthesized from role defaults";
           file = "s88/ControlModule/firewall/lookup/assumptions.nix";
           entityName = entityName;
           roleName = roleName;
           interfaces = sortedStrings (localAdapterNames ++ accessUplinkNames);
           assumptions = [
-            "local-adapter and uplink roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the access role procedure"
+            "local-adapter and uplink roles are resolved from explicit interface semantics when available, but forwarding allowance itself still defaults from the ${roleName} role procedure"
             "bidirectional forwarding is emitted between every resolved local-adapter and resolved uplink interface"
             "TCP MSS clamping is applied to resolved p2p uplinks, or resolved WAN uplinks when no p2p uplinks exist"
           ];
@@ -213,21 +214,21 @@ let
             "resolved local adapters: ${builtins.toJSON localAdapterNames}"
             "resolved uplinks: ${builtins.toJSON accessUplinkNames}"
           ];
-          authorityText = "Network forwarding model should provide authoritative access forwarding intent.";
+          authorityText = "Network forwarding model should provide authoritative ${roleName} forwarding intent.";
         })
       ]
     ++
       lib.optionals
         (
-          roleName == "core"
+          assumptionFamily == "egress"
           && interfaceNames != [ ]
           && wanNames != [ ]
           && !(forwardingIntent.authoritativeCoreNat or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
-            alarmId = "firewall-core-nat-defaults";
-            summary = "core firewall NAT intent is currently synthesized from role defaults and uplink IPv4 inference";
+            alarmId = "firewall-${roleName}-nat-defaults";
+            summary = "${roleName} firewall NAT intent is currently synthesized from role defaults and uplink IPv4 inference";
             file = "s88/ControlModule/firewall/lookup/assumptions.nix";
             entityName = entityName;
             roleName = roleName;
@@ -243,20 +244,20 @@ let
               "resolved LAN interfaces: ${builtins.toJSON lanNames}"
               "resolved uplinks: ${builtins.toJSON uplinkNames}"
             ];
-            authorityText = "Network forwarding model should provide authoritative core NAT intent.";
+            authorityText = "Network forwarding model should provide authoritative ${roleName} NAT intent.";
           })
         ]
     ++
       lib.optionals
         (
-          roleName == "downstream-selector"
+          assumptionFamily == "selector"
           && builtins.length p2pNames > 1
           && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
-            alarmId = "firewall-downstream-forwarding-defaults";
-            summary = "downstream-selector firewall forwarding policy is currently synthesized from role defaults";
+            alarmId = "firewall-${roleName}-forwarding-defaults";
+            summary = "${roleName} firewall forwarding policy is currently synthesized from role defaults";
             file = "s88/ControlModule/firewall/lookup/assumptions.nix";
             entityName = entityName;
             roleName = roleName;
@@ -274,14 +275,14 @@ let
     ++
       lib.optionals
         (
-          roleName == "upstream-selector"
+          assumptionFamily == "selector"
           && builtins.length p2pNames > 1
           && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
-            alarmId = "firewall-upstream-selector-forwarding-defaults";
-            summary = "upstream-selector firewall forwarding policy is currently synthesized from role defaults";
+            alarmId = "firewall-${roleName}-forwarding-defaults";
+            summary = "${roleName} firewall forwarding policy is currently synthesized from role defaults";
             file = "s88/ControlModule/firewall/lookup/assumptions.nix";
             entityName = entityName;
             roleName = roleName;
@@ -299,14 +300,14 @@ let
     ++
       lib.optionals
         (
-          roleName == "policy"
+          assumptionFamily == "endpoint"
           && communication.communicationContract != { }
           && !(endpointMap.authoritativeBindings or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
-            alarmId = "firewall-policy-endpoint-bindings-missing";
-            summary = "policy firewall endpoint bindings are not fully explicit in the available control-plane data";
+            alarmId = "firewall-${roleName}-endpoint-bindings-missing";
+            summary = "${roleName} firewall endpoint bindings are not fully explicit in the available control-plane data";
             file = "s88/ControlModule/firewall/lookup/assumptions.nix";
             entityName = entityName;
             roleName = roleName;
@@ -316,7 +317,7 @@ let
               else
                 [ ];
             assumptions = [
-              "policy endpoint bindings require explicit site policy tags plus explicit tenant and upstream transit bindings"
+              "${roleName} endpoint bindings require explicit site tags plus explicit tenant and upstream transit bindings"
               "renderer can only emit allow and deny rules for endpoints that can be bound from the available explicit site data"
             ];
             extraText =
@@ -324,7 +325,7 @@ let
                 endpointMap.authorityGaps
               else
                 [ ];
-            authorityText = "Control plane should provide canonical policy endpoint bindings and site.policy.interfaceTags.";
+            authorityText = "Control plane should provide canonical ${roleName} endpoint bindings and site interface tags.";
           })
         ];
 

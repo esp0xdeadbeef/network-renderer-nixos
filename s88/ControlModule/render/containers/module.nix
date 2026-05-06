@@ -37,8 +37,8 @@ let
     dynamicDelegatedRoutes = containerNetworkRender.dynamicDelegatedRoutes or [ ];
   };
 
-  accessServices =
-    if (renderedModel.roleName or null) == "access" then
+  edgeServices =
+    if renderedModel.enableEdgeServices or false then
       import ../../access/render/default.nix {
         inherit lib pkgs;
         containerModel = renderedModel;
@@ -69,7 +69,7 @@ in
       };
     })
     interfaceRenames.config
-    accessServices
+    edgeServices
     dnsServices
     mdnsServices
     bgpServices

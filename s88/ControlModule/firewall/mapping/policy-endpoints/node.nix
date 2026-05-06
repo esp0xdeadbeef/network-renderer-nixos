@@ -3,6 +3,7 @@
   currentSite,
   runtimeTarget,
   roleName,
+  preferSiteNode ? false,
   interfaceEntries,
   common,
 }:
@@ -38,7 +39,7 @@ let
     if runtimeLogicalNodeName != null then
       runtimeLogicalNodeName
     else if
-      roleName == "policy"
+      preferSiteNode
       && currentSite ? policyNodeName
       && builtins.isString currentSite.policyNodeName
       && currentSite.policyNodeName != ""

@@ -8,6 +8,10 @@ args@{
   unitKey ? null,
   unitName ? null,
   roleName ? null,
+  policyModulePath ? null,
+  assumptionFamily ? null,
+  preferSiteNode ? false,
+  strictEndpointBindings ? false,
   interfaces ? { },
   wanIfs ? [ ],
   lanIfs ? [ ],
@@ -53,26 +57,32 @@ let
       runtimeTarget
       roleName
       unitName
+      preferSiteNode
+      strictEndpointBindings
       ;
     currentSite = communication.currentSite;
     communicationContract = communication.communicationContract;
     ownership = communication.ownership;
   };
 
-  ruleModelOrRuleset = import ./policy/default.nix (
-    args
-    // {
-      inherit
-        lib
-        interfaceView
-        endpointMap
-        forwardingIntent
-        ;
-      communicationContract = communication.communicationContract;
-      ownership = communication.ownership;
-      inherit inventory;
-    }
-  );
+  ruleModelOrRuleset =
+    if policyModulePath == null then
+      null
+    else
+      import policyModulePath (
+        args
+        // {
+          inherit
+            lib
+            interfaceView
+            endpointMap
+            forwardingIntent
+            ;
+          communicationContract = communication.communicationContract;
+          ownership = communication.ownership;
+          inherit inventory;
+        }
+      );
 in
 if ruleModelOrRuleset == null then
   null

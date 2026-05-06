@@ -8,8 +8,8 @@
 let
   isa = import ../../alarm/isa18.nix { inherit lib; };
 
-  accessAdvertisementModel =
-    if (renderedModel.roleName or null) == "access" then
+  edgeAdvertisementModel =
+    if renderedModel.enableEdgeServices or false then
       import ../../access/lookup/advertisements.nix {
         inherit
           lib
@@ -66,6 +66,6 @@ let
   };
 in
 isa.mergeModels [
-  accessAdvertisementModel
+  edgeAdvertisementModel
   firewallAssumptionModel
 ]

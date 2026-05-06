@@ -41,6 +41,7 @@ let
 
   classes = import ./container-networks/classes.nix {
     inherit lib common;
+    inherit interfaces;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
   };
 

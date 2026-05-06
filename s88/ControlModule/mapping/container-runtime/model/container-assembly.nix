@@ -82,6 +82,11 @@ in
       bindMounts = if containerConfig ? bindMounts && builtins.isAttrs containerConfig.bindMounts then containerConfig.bindMounts else { };
       allowedDevices = if containerConfig ? allowedDevices && builtins.isList containerConfig.allowedDevices then containerConfig.allowedDevices else [ ];
       additionalCapabilities = if containerConfig ? additionalCapabilities && builtins.isList containerConfig.additionalCapabilities then containerConfig.additionalCapabilities else [ ];
+      enableEdgeServices = containerConfig.enableEdgeServices or false;
+      firewallPolicyPath = roleConfig.firewallPolicyPath or null;
+      assumptionFamily = roleConfig.assumptionFamily or null;
+      preferSiteNode = roleConfig.preferSiteNode or false;
+      strictEndpointBindings = roleConfig.strictEndpointBindings or false;
       wanInterfaceNames = map ifNameFor (lib.filter (ifName: renderedInterfaces.${ifName}.sourceKind == "wan") interfaceNames);
       lanInterfaceNames = map ifNameFor (lib.filter (ifName: renderedInterfaces.${ifName}.sourceKind != "wan") interfaceNames);
       networkManagerWanInterfaces = map ifNameFor (

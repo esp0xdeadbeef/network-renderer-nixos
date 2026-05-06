@@ -3,6 +3,7 @@
   currentSite,
   runtimeTarget,
   roleName,
+  strictEndpointBindings ? false,
   unitName,
   containerName,
   currentNodeName,
@@ -47,14 +48,12 @@ let
       runtimeTarget.unitName
     else
       null;
-
-  strictMode = roleName == "policy";
 in
 {
   inherit authoritativeBindings authorityGaps;
 
   strictCheck =
-    if strictMode && !authoritativeBindings then
+    if strictEndpointBindings && !authoritativeBindings then
       throw ''
         s88/ControlModule/firewall/mapping/policy-endpoints.nix: refusing to synthesize policy endpoint bindings
 

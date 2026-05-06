@@ -6,6 +6,8 @@
   ownership ? { },
   runtimeTarget ? { },
   roleName ? null,
+  preferSiteNode ? false,
+  strictEndpointBindings ? false,
   unitName ? null,
   containerName ? null,
   ...
@@ -24,6 +26,7 @@ let
       currentSite
       runtimeTarget
       roleName
+      preferSiteNode
       common
       ;
     inherit (interfaces) interfaceEntries;
@@ -83,6 +86,7 @@ let
       currentSite
       runtimeTarget
       roleName
+      strictEndpointBindings
       unitName
       containerName
       common
