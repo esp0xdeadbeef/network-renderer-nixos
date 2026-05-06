@@ -24,10 +24,12 @@ Last updated: 2026-05-06.
   `tests/test-s88-call-flow.sh`, and `tests/test-s88-call-flow-profiler.sh`.
   These are local renderer tests only; they do not prove live host behavior.
 - Structural keyword leakage is covered by
-  `tests/test-s88-structural-keyword-warnings.sh`. It intentionally hard-fails
-  while role/site/name literals are used outside include/import routing; fix by
-  moving those meanings into the owning S88 structure and passing parsed values
-  through the linear model.
+  `tests/test-s88-structural-keyword-warnings.sh`. Role profile lookup now
+  lives in Unit and is derived from owned profile files; ControlModule receives
+  parsed role behavior such as profile paths, firewall policy paths, assumption
+  families, and feature flags instead of comparing runtime role literals.
+  The test hard-fails if role/site/name literals return outside include/import
+  routing.
 - Clean renderer outputs must not contain warnings or alarms. This is covered by
   `tests/test-warning-alarm-contract.sh` and by the passing fixture runners.
 - Renderer warning/error behavior is not allowed to be silent:
