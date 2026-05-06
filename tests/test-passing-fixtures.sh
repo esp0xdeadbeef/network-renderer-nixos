@@ -12,6 +12,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 bash "${repo_root}/tests/test-controlmodule-boundary.sh"
 bash "${repo_root}/tests/test-s88-call-flow.sh"
 bash "${repo_root}/tests/test-s88-call-flow-profiler.sh"
+bash "${repo_root}/tests/test-s88-structural-keyword-warnings.sh"
 
 # Container firewall rules must use rendered Linux ifnames, not long logical ports.
 bash "${repo_root}/tests/test-container-firewall-ifname-limit.sh"
@@ -25,6 +26,10 @@ bash "${repo_root}/tests/test-loud-test-failures.sh"
 
 # External tests first (matches how this repo is used in prod).
 "${repo_root}/tests/cases/external-examples.sh"
+
+# network-labs example dry outputs must satisfy the contract implied by each
+# example name, not merely render without warnings.
+"${repo_root}/tests/cases/network-labs-example-output-contracts.sh"
 
 # Renderer-level validation (no VM boot): VLAN trunk lanes should synthesize VLAN netdevs.
 "${repo_root}/tests/cases/vlan-trunk-lanes.sh"
@@ -50,7 +55,7 @@ bash "${repo_root}/tests/test-policy-zone-firewall-scoping.sh"
 labs_root="$(flake_input_path network-labs)"
 if [[ -d "${labs_root}/examples/multi-enterprise" ]]; then
   echo "==> Strict: multi-enterprise must render without selector warning alarms"
-  FAIL_ON_WARNINGS=1 "${repo_root}/render-all.sh" "${labs_root}/examples/multi-enterprise"
+  "${repo_root}/tests/cases/external-examples.sh" "${labs_root}/examples/multi-enterprise"
 fi
 
 # Regression: vm build API exists and returns an attrset (no lambda-vs-set drift).

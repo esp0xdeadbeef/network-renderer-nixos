@@ -1,11 +1,12 @@
 # network-renderer-nixos regression state
 
-Last updated: 2026-05-03.
+Last updated: 2026-05-06.
 
 ## architecture shape
 
 - state=required | target=s88-style Enterprise/Site/Unit/EquipmentModule/ControlModule layout | reason=renderer code must stay in s88-style responsibility folders; top-level files are limited to flakes, tests, scripts/entrypoints, and thin imports into the renderer structure.
 - state=required | target=no oversized implementation files | reason=Nix implementation files over 200 LOC must be split by concrete renderer responsibility unless they are flake/test wiring or explicitly documented as a temporary regression with a split target.
+- state=hard-fail | target=no repeated S88 role/site/name literals outside include routing | reason=role names (`access`, `policy`, `upstream-selector`, `downstream-selector`, `core`), role abbreviations, and lab/site literals (`esp0xdeadbeef`, `s-router`, `site-a`, etc.) are topology identity, not local renderer logic. They are acceptable when used to include the file that owns that structural slice, but using them in implementation expressions means a module is rediscovering S88 structure from names instead of receiving parsed Enterprise/Site/Unit/EquipmentModule/ControlModule data. That creates silent false matches when examples add new names or abbreviations, so the gate must hard-exit instead of warning.
 
 ## fixed and locally tested
 
@@ -22,6 +23,11 @@ Last updated: 2026-05-03.
 - Boundary checks are covered by `tests/test-controlmodule-boundary.sh`,
   `tests/test-s88-call-flow.sh`, and `tests/test-s88-call-flow-profiler.sh`.
   These are local renderer tests only; they do not prove live host behavior.
+- Structural keyword leakage is covered by
+  `tests/test-s88-structural-keyword-warnings.sh`. It intentionally hard-fails
+  while role/site/name literals are used outside include/import routing; fix by
+  moving those meanings into the owning S88 structure and passing parsed values
+  through the linear model.
 - Clean renderer outputs must not contain warnings or alarms. This is covered by
   `tests/test-warning-alarm-contract.sh` and by the passing fixture runners.
 - Renderer warning/error behavior is not allowed to be silent:
@@ -80,8 +86,112 @@ Last updated: 2026-05-03.
   Current responsibility: renders access firewall policy.
   Suspected split: endpoint classification vs rule assembly.
 
+## network-labs output-analysis backlog
+
+State: NOT DONE.
+
+Do not treat "the example rendered" as proof that the renderer output is
+correct. Each input below must be analyzed one by one from the full dry render
+output, using compact JSON (`jq -c .`) as the starting artifact. Only after the
+actual output shape is understood should a regression test be written.
+
+For every input:
+
+- Compile `intent.nix` with the NixOS inventory used by the existing external
+  example path. If the directory has `getResolvedInventory.nix`, use it before
+  compiling.
+- Save and inspect the full `90-dry-config.json` through `jq -c .`.
+- Check output-owned evidence, not source-file assumptions:
+  rendered hosts, rendered nodes, rendered containers, rendered sites, host
+  network fragments, container firewall/routing/services, debug source paths,
+  and warning/alarm/error-shaped fields.
+- Write a focused test only after the output inspection identifies the contract
+  implied by the example name.
+
+Current status:
+
+- Raw compact outputs were generated during the 2026-05-06 investigation for
+  all 23 runnable `network-labs` inputs, including the `lab-s-sigma` resolved
+  inventory path. This is temporary evidence only, not durable validation.
+- High-level counts were sampled, but full semantic review was NOT completed.
+- The output-focused test changes from the same investigation are provisional
+  until the per-input review below is completed.
+
+Per-input backlog:
+
+- `examples/single-wan`: NOT DONE. Test the baseline single-WAN output: one
+  WAN uplink, default reachability, tenant access routing, policy path, and no
+  extra overlay/BGP/VLAN/service behavior.
+- `examples/single-wan-any-to-any-fw`: NOT DONE. Test that the firewall output
+  permits the modeled any-to-any relation without replacing it with broad
+  accidental accepts or missing tenant/interface scoping.
+- `examples/single-wan-bgp`: NOT DONE. Test BGP service output for the simple
+  single-WAN case: daemon enablement, AS/neighbor/network statements, and
+  placement on the intended containers.
+- `examples/single-wan-direct-transit`: NOT DONE. Test direct transit output:
+  transit links and routes should bypass selector-only assumptions while still
+  rendering complete host/container network fragments.
+- `examples/single-wan-ipv6-pd`: NOT DONE. Test IPv6-PD output: delegated
+  prefix consumption, downstream RA/DHCPv6 behavior, and absence of renderer
+  default-derived warning alarms.
+- `examples/single-wan-uplink-ebgp`: NOT DONE. Test eBGP uplink output:
+  external neighbor configuration, route advertisement, and uplink interface
+  placement.
+- `examples/single-wan-uplink-static-egress`: NOT DONE. Test static egress
+  output: explicit default/static routes, gateway placement, and policy rules
+  tied to the modeled uplink.
+- `examples/single-wan-vlan-trunk-lanes`: NOT DONE. Test VLAN trunk output:
+  VLAN netdevs, bridge/network fragments, DHCP/RA behavior, and lane separation.
+- `examples/single-wan-with-nebula`: NOT DONE. Test overlay output without
+  making this renderer infer Nebula semantics from names: rendered overlay
+  interfaces/routes must come from explicit CPM/provider-neutral data.
+- `examples/single-wan-with-nebula-any-to-any-fw`: NOT DONE. Test that overlay
+  plus any-to-any firewall output keeps tenant/overlay/WAN scoping explicit and
+  does not emit broad unqualified accepts.
+- `examples/multi-wan`: NOT DONE. Test multi-WAN output: distinct uplinks,
+  selector/policy behavior, per-uplink routes, and no collapsed single-WAN
+  assumptions.
+- `examples/multi-wan-dedicated-lanes`: NOT DONE. Test dedicated-lane output:
+  separate policy lanes per access/uplink combination and no cross-lane leakage.
+- `examples/multi-enterprise`: NOT DONE. Test enterprise/site disambiguation:
+  duplicate logical node names across enterprises must render distinct
+  containers, nodes, policies, and host fragments.
+- `examples/overlay-east-west`: NOT DONE. Test east-west overlay output:
+  inter-site routes, overlay attachment interfaces, and firewall/policy rules
+  for east-west traffic only.
+- `examples/priority-stability`: NOT DONE. Test deterministic ordering:
+  firewall/routing/service priority output should remain stable and not depend
+  on attrset traversal order.
+- `examples/ipv6-pd-downstream-delegation`: NOT DONE. Test downstream
+  delegated-prefix output: the required example must expose the delegated
+  prefix through rendered advertisements and validation artifacts.
+- `examples/dual-wan-branch-overlay`: NOT DONE. Test dual-WAN branch overlay
+  output: WAN split, branch overlay routes, service forwarding, DNS policy, and
+  no cross-uplink policy leakage.
+- `examples/dual-wan-branch-overlay-bgp`: NOT DONE. Test the same dual-WAN
+  branch overlay shape plus BGP service output and route advertisement.
+- `examples/s-router-overlay-dns-lane-policy`: NOT DONE. Test the full
+  s-router output: DNS lane preservation, policy lane routes, multi-host
+  container placement, overlay routes, and service firewall rules.
+- `examples/s-router-public-overlay-service`: NOT DONE. Test public overlay
+  service output: DNAT/public ingress, runtime public address loading, overlay
+  service firewall rules, and host policy routing.
+- `examples/tri-site-dual-wan-overlay-integration-static`: NOT DONE. Test
+  tri-site static integration output: all site renderings, dual-WAN separation,
+  static overlay reachability, and complete per-site containers.
+- `examples/tri-site-dual-wan-overlay-integration-bgp`: NOT DONE. Test tri-site
+  BGP integration output: the static integration shape plus BGP daemon and
+  route advertisement correctness.
+- `labs/lab-s-sigma/s-router-test-three-site`: NOT DONE. Test the resolved
+  inventory path explicitly: `getResolvedInventory.nix` must be used, and the
+  rendered output must match the real s-router three-site host/container
+  contract rather than the unresolved inventory placeholders.
+
 ## next concrete debugging target
 
+- Work through the network-labs output-analysis backlog one input at a time.
+  Do not mark an input complete until the full compact output has been inspected
+  and the resulting regression test asserts the actual rendered output contract.
 - Before 2026-05-09, either split every `TEMPORARY OVER-LIMIT` file by the
   suspected responsibility split above, or replace the temporary marker with a
   real accepted-over-limit reason.
