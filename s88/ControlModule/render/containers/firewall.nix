@@ -46,6 +46,10 @@ else
     unitKey = if renderedModel ? unitKey then renderedModel.unitKey else null;
     unitName = if renderedModel ? unitName then renderedModel.unitName else null;
     roleName = if renderedModel ? roleName then renderedModel.roleName else null;
+    policyModulePath = renderedModel.firewallPolicyPath or null;
+    assumptionFamily = renderedModel.assumptionFamily or null;
+    preferSiteNode = renderedModel.preferSiteNode or false;
+    strictEndpointBindings = renderedModel.strictEndpointBindings or false;
     runtimeTarget =
       if renderedModel ? runtimeTarget && builtins.isAttrs renderedModel.runtimeTarget then
         renderedModel.runtimeTarget

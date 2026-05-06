@@ -10,7 +10,7 @@
 
 let
   runtimeContext = import ../runtime-context.nix { inherit lib; };
-  roles = import ../../../ControlModule/profiles/registry.nix { inherit lib; };
+  roles = import ./role-profiles.nix { inherit lib; };
 
   deploymentHostUnitRoles = builtins.listToAttrs (
     map (unitName: {

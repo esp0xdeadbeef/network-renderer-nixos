@@ -7,8 +7,6 @@ let
     upstream = "up";
     downstream = "down";
     selector = "sel";
-    policy = "pol";
-    access = "acc";
     management = "mgmt";
     overlay = "ovly";
     east = "e";

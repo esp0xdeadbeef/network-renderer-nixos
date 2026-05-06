@@ -44,7 +44,7 @@ let
       lib.concatMap asList (valuesFromPaths {
         roots = [ runtimeTarget nodeForwarding ];
         paths = [
-          [ "forwardPairs" ] [ "firewall" "forwardPairs" ] [ "policy" "forwardPairs" ]
+          [ "forwardPairs" ] [ "firewall" "forwardPairs" ]
           [ "forwarding" "forwardPairs" ] [ "forwarding" "firewall" "forwardPairs" ]
         ];
       })

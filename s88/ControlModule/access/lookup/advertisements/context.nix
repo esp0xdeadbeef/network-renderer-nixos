@@ -31,13 +31,13 @@ rec {
     if advertiseDefaults ? dhcp4 && builtins.isBool advertiseDefaults.dhcp4 then
       advertiseDefaults.dhcp4
     else
-      roleName == "access";
+      false;
 
   defaultRadvdAdvertise =
     if advertiseDefaults ? radvd && builtins.isBool advertiseDefaults.radvd then
       advertiseDefaults.radvd
     else
-      roleName == "access";
+      false;
 
   containerInterfaces =
     if containerModel ? interfaces && builtins.isAttrs containerModel.interfaces then

@@ -1,0 +1,3 @@
+{
+  assumptionFamily = "selector";
+}
