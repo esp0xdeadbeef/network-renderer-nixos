@@ -8,6 +8,8 @@
 let
   inherit (common) hasIpv6Address;
 
+  hasIpv4Address = address: builtins.isString address && lib.hasInfix "." address;
+
   assignedUplinkFor =
     iface:
     let
@@ -33,13 +35,14 @@ in
     let
       isWan = (iface.sourceKind or null) == "wan";
       addresses = iface.addresses or [ ];
+      hasStaticIpv4 = lib.any hasIpv4Address addresses;
       hasStaticIpv6 = lib.any hasIpv6Address addresses;
       assignedUplink = assignedUplinkFor iface;
       ipv4Enabled = assignedUplink ? ipv4 && (assignedUplink.ipv4.enable or false);
-      ipv4Dhcp = ipv4Enabled && (assignedUplink.ipv4.dhcp or false);
+      ipv4Dhcp = ipv4Enabled && !hasStaticIpv4 && (assignedUplink.ipv4.dhcp or false);
       ipv6Enabled = assignedUplink ? ipv6 && (assignedUplink.ipv6.enable or false);
-      ipv6Dhcp = ipv6Enabled && (assignedUplink.ipv6.dhcp or false);
-      ipv6AcceptRA = ipv6Enabled && (assignedUplink.ipv6.acceptRA or false);
+      ipv6Dhcp = ipv6Enabled && !hasStaticIpv6 && (assignedUplink.ipv6.dhcp or false);
+      ipv6AcceptRA = ipv6Enabled && !hasStaticIpv6 && (assignedUplink.ipv6.acceptRA or false);
       dhcpMode =
         if ipv4Dhcp && ipv6Dhcp then
           "yes"
@@ -50,7 +53,7 @@ in
         else
           "no";
     in
-    if isWan && addresses == [ ] then
+    if isWan then
       {
         DHCP = dhcpMode;
         IPv6AcceptRA = ipv6AcceptRA;
@@ -68,6 +71,7 @@ in
       assignedUplink = assignedUplinkFor iface;
     in
     (iface.sourceKind or null) == "wan"
+    && !(lib.any hasIpv6Address (iface.addresses or [ ]))
     && assignedUplink ? ipv6
     && builtins.isAttrs assignedUplink.ipv6
     && (assignedUplink.ipv6.enable or false)

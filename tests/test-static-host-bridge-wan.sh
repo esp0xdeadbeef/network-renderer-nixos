@@ -50,6 +50,10 @@ let
               dst = "0.0.0.0/0";
               via4 = "172.31.254.1";
             }
+            {
+              dst = "::/0";
+              proto = "upstream";
+            }
           ];
         };
       };
@@ -65,6 +69,10 @@ let
         enable = true;
         dhcp = true;
       };
+      ipv6 = {
+        enable = true;
+        acceptRA = true;
+      };
     };
     wanUplinkName = "wan";
   };
@@ -73,6 +81,9 @@ let
     explicitWanSkipsNetworkManager = containerModel.networkManagerWanInterfaces == [ ];
     explicitWanKeepsStaticAddress = eth0.address == [ "172.31.254.3/24" ];
     explicitWanDisablesDhcp = !(eth0.networkConfig ? DHCP) || eth0.networkConfig.DHCP == "no";
+    explicitWanKeepsIpv6RA = (eth0.networkConfig.IPv6AcceptRA or false) == true;
+    explicitWanKeepsLinkLocalForRA = (eth0.networkConfig.LinkLocalAddressing or null) == "ipv6";
+    explicitWanRequestsAcceptRASysctl = network.ipv6AcceptRAInterfaces == [ "eth0" ];
     explicitWanKeepsDefaultRoute = builtins.elem {
       Destination = "0.0.0.0/0";
       Gateway = "172.31.254.1";
