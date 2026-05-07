@@ -169,6 +169,8 @@ nix_eval_json_or_fail \
           sitec_dns_forwards_to_public_v6 =
             hasMember "2606:4700:4700::1111" sitecForwardZone.forward-addr
             && hasMember "2620:fe::fe" sitecForwardZone.forward-addr;
+          sitec_dns_does_not_bind_public_recursion_to_service_ip =
+            !(builtins.hasAttr "outgoing-interface" sitecServer);
           sitec_dns_nft_opens_ipv4 =
             has "ip daddr 10.90.10.1 udp dport 53 accept comment \"allow-dns-service\"" sitecNftScript;
           sitec_dns_nft_opens_ipv6 =

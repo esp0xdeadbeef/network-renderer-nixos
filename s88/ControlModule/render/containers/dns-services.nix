@@ -76,16 +76,11 @@ else
       else
         [ ];
 
-    derivedOutgoingInterfaces = lib.filter (
-      value:
-      value != "127.0.0.1" && value != "::1"
-    ) listenAddresses;
-
     outgoingInterfaces =
       if dnsService ? outgoingInterfaces && builtins.isList dnsService.outgoingInterfaces then
         lib.unique (lib.filter builtins.isString dnsService.outgoingInterfaces)
       else
-        derivedOutgoingInterfaces;
+        [ ];
 
     tenantInterfaceNames = lib.unique (
       map

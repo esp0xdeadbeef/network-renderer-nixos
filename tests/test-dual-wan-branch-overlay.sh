@@ -245,21 +245,14 @@ run_one() {
                 && (route.Destination or null) == "fd42:dead:feed:1000:0000:0000:0000:0000/128"
                 && (route.Gateway or null) == "fd42:dead:beef:1000::c")
               coreBRoutes;
-          hasDerivedDnsOutgoingInterfaces =
+          doesNotDeriveDnsOutgoingInterfaces =
             let
               adminOutgoing =
-                accessAdminConfig.services.unbound.settings.server."outgoing-interface" or [ ];
+                accessAdminConfig.services.unbound.settings.server."outgoing-interface" or null;
               mgmtOutgoing =
-                accessMgmtConfig.services.unbound.settings.server."outgoing-interface" or [ ];
+                accessMgmtConfig.services.unbound.settings.server."outgoing-interface" or null;
             in
-            adminOutgoing == [
-              "10.20.10.1"
-              "fd42:dead:beef:10::1"
-            ]
-            && mgmtOutgoing == [
-              "10.20.15.1"
-              "fd42:dead:beef:15::1"
-            ];
+            adminOutgoing == null && mgmtOutgoing == null;
           hasDeclarativeIpv6AcceptRA =
             let
               sysctls = siteCoreWanAConfig.boot.kernel.sysctl or { };
@@ -334,7 +327,7 @@ run_one() {
           && hasBranchDnsWanScoping
           && hasPolicyMgmtIngressRoutes
           && hasPolicyMgmtBranchReturnRoutes
-          && hasDerivedDnsOutgoingInterfaces
+          && doesNotDeriveDnsOutgoingInterfaces
           && hasDeclarativeIpv6AcceptRA
           && hasHostValidationService
           && hasEscapedValidationJqVars
