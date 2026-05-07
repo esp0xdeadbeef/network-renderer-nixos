@@ -159,12 +159,6 @@
           name = "s-router-core-wan";
         };
 
-        containers = {
-          default = {
-            runtimeName = "s-router-core-wan";
-          };
-        };
-
         ports = {
           upstream-selector = {
             link = "p2p-s-router-core-wan-s-router-upstream-selector";
@@ -200,12 +194,6 @@
           enterprise = "esp0xdeadbeef";
           site = "site-a";
           name = "s-router-access-admin";
-        };
-
-        containers = {
-          default = {
-            runtimeName = "s-router-access-admin";
-          };
         };
 
         ports = {
@@ -272,12 +260,6 @@
           name = "s-router-access-client";
         };
 
-        containers = {
-          default = {
-            runtimeName = "s-router-access-client";
-          };
-        };
-
         ports = {
           transit-downstream-selector = {
             link = "p2p-s-router-access-client-s-router-downstream-selector";
@@ -342,12 +324,6 @@
           name = "s-router-access-mgmt";
         };
 
-        containers = {
-          default = {
-            runtimeName = "s-router-access-mgmt";
-          };
-        };
-
         ports = {
           transit-downstream-selector = {
             link = "p2p-s-router-access-mgmt-s-router-downstream-selector";
@@ -410,12 +386,6 @@
           enterprise = "esp0xdeadbeef";
           site = "site-a";
           name = "s-router-downstream-selector";
-        };
-
-        containers = {
-          default = {
-            runtimeName = "s-router-downstream-selector";
-          };
         };
 
         ports = {
@@ -491,12 +461,6 @@
           name = "s-router-policy-only";
         };
 
-        containers = {
-          default = {
-            runtimeName = "s-router-policy";
-          };
-        };
-
         ports = {
           upstream-access-admin-wan = {
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
@@ -556,12 +520,6 @@
           enterprise = "esp0xdeadbeef";
           site = "site-a";
           name = "s-router-upstream-selector";
-        };
-
-        containers = {
-          default = {
-            runtimeName = "s-router-upstream-selector";
-          };
         };
 
         ports = {

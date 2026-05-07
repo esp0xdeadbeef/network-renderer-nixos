@@ -106,7 +106,7 @@ nix_eval_json_or_fail \
         hostileRules = hostileAccess.networking.nftables.ruleset;
         sitecRules = sitecDns.networking.nftables.ruleset;
         mutatedBranchUpstreamNetworks = mutatedBranchUpstream.systemd.network.networks;
-        mutatedCoreNebulaRoutes = mutatedBranchUpstreamNetworks."10-core-nebula".routes or [ ];
+        mutatedHostileEastWestRoutes = mutatedBranchUpstreamNetworks."10-pol-hostile-ew".routes or [ ];
         has = lib.hasInfix;
         hasMember = value: values: builtins.elem value values;
         noMember = value: values: !(builtins.elem value values);
@@ -139,9 +139,9 @@ nix_eval_json_or_fail \
           mutated_hostile_does_not_keep_default_sitec_dns_v6 =
             noMember "fd42:dead:cafe:10::1" mutatedHostileForwardZone.forward-addr;
           mutated_route_to_inventory_endpoint_v4 =
-            hasRenderedRoute mutatedCoreNebulaRoutes "10.90.10.53" "10.50.0.4" 2004;
+            hasRenderedRoute mutatedHostileEastWestRoutes "10.90.10.53" "10.50.0.16" 2004;
           mutated_route_to_inventory_endpoint_v6 =
-            hasRenderedRoute mutatedCoreNebulaRoutes "fd42:dead:cafe:10::53" "fd42:dead:feed:1000:0:0:0:4" 2004;
+            hasRenderedRoute mutatedHostileEastWestRoutes "fd42:dead:cafe:10::53" "fd42:dead:feed:1000:0:0:0:10" 2004;
           hostile_dns_nft_opens_ipv4 =
             has "ip daddr 10.70.10.1 udp dport 53 accept comment \"allow-dns-service\"" hostileNftScript;
           hostile_dns_nft_opens_ipv6 =
