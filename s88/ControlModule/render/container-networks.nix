@@ -89,7 +89,8 @@ let
 in
 {
   networks = loopback.loopbackUnit // hostBridgeWan.networks // interfaceUnits.interfaceUnits;
-  ipv6AcceptRAInterfaces =
-    hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces;
+  ipv6AcceptRAInterfaces = lib.unique (
+    hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
+  );
   inherit (interfaceUnits) dynamicDelegatedRoutes;
 }

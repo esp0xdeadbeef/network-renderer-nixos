@@ -173,11 +173,11 @@ nix_eval_json_or_fail \
           sitea_upstream_wrong_lane_absent =
             !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" 2001);
           sitea_mgmt_wan_dns_v4 =
-            hasMainOrPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.12" siteaMgmtWanTable;
+            hasMainOrPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.50" siteaMgmtWanTable;
           sitea_mgmt_wan_p2p_v4 =
             hasMainOrPolicyRoute siteaUpstreamNetworks "10.10.0.8/31" "10.10.0.48" siteaMgmtEwTable;
           sitea_mgmt_wan_dns_v6 =
-            hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:10::/64" "fd42:dead:beef:1000:0:0:0:c" siteaMgmtWanTable;
+            hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:10::/64" "fd42:dead:beef:1000:0:0:0:32" siteaMgmtWanTable;
           sitea_mgmt_wan_p2p_v6 =
             hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:1000:0000:0000:0000:0008/127" "fd42:dead:beef:1000:0:0:0:30" siteaMgmtEwTable;
           sitea_admin_wan_return_v4 =
