@@ -46,6 +46,10 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
+  isOverlayProviderRoute =
+    iface: route:
+    (iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay");
+
   stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" ];
 
   interfaceUnits = builtins.listToAttrs (
@@ -116,7 +120,7 @@ let
             else
               null;
         in
-        if sourceFile == null then
+        if sourceFile == null || isOverlayProviderRoute iface route then
           null
         else
           {
