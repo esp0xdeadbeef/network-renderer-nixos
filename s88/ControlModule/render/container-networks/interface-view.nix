@@ -70,13 +70,19 @@ let
       ifName = interfaceKeyForRenderedName name;
       iface = if ifName == null then { } else interfaces.${ifName} or { };
       backingRef = backingRefForInterface iface;
+      lane = backingRef.lane or { };
       explicitUplinks =
         if builtins.isList (backingRef.uplinks or null) then
           lib.filter builtins.isString backingRef.uplinks
         else
           [ ];
+      laneUplinks =
+        if builtins.isAttrs lane && builtins.isList (lane.uplinks or null) then
+          lib.filter builtins.isString lane.uplinks
+        else
+          [ ];
     in
-    lib.unique (explicitUplinks ++ uplinkNamesFromLane (laneForInterfaceKey ifName));
+    lib.unique (explicitUplinks ++ laneUplinks ++ uplinkNamesFromLane (laneForInterfaceKey ifName));
 in
 {
   inherit

@@ -46,6 +46,16 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
+  isMainTableRoute = route: !(route ? Table) || route.Table == 254;
+
+  isDefaultRoute =
+    route:
+    (route.Destination or null) == "0.0.0.0/0"
+    || (route.Destination or null) == "::/0"
+    || (route.Destination or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
+
+  isMainTableDefaultRoute = route: isMainTableRoute route && isDefaultRoute route;
+
   isOverlayProviderRoute =
     iface: route:
     (iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay");
@@ -77,6 +87,12 @@ let
                 lib.filter (route: !(isPolicyOnlyRoute route)) (policyRoutingByInterface.routes.${ifName} or [ ])
               )
             );
+          renderedRoutes =
+            (lib.optionals keepStaticRoutesInMain (
+              lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
+            ))
+            ++ policyMainRoutes
+            ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
         in
         if builtins.elem interfaceName networkManagerInterfaces then
           null
@@ -88,11 +104,9 @@ let
               networkConfig = { ConfigureWithoutCarrier = true; } // mkDynamicWanNetworkConfig iface;
               address = iface.addresses or [ ];
               routes = map stripRouteMetadata (
-                (lib.optionals keepStaticRoutesInMain (
-                  lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
-                ))
-                ++ policyMainRoutes
-                ++ (policyRoutingByInterface.routes.${ifName} or [ ])
+                lib.filter (
+                  route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)
+                ) renderedRoutes
               );
               routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
             };
