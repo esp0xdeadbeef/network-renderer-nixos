@@ -98,6 +98,9 @@ let
     || (route.dst or null) == "::/0"
     || (route.dst or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
 
+  isPolicyOnlyRoute =
+    route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
+
   rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:
     let
@@ -112,9 +115,14 @@ let
         else
           (interfaces.${sourceIfName}.routes or [ ])
           ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName);
+      scopedSourceRoutes =
+        if sourceIfName == targetIfName then
+          sourceRoutes
+        else
+          lib.filter (route: !(isPolicyOnlyRoute route)) sourceRoutes;
     in
     lib.filter builtins.isAttrs (
-      map (route: if builtins.isAttrs route then route // { table = tableId; } else null) sourceRoutes
+      map (route: if builtins.isAttrs route then route // { table = tableId; } else null) scopedSourceRoutes
     );
 
   policyRulesFor =
