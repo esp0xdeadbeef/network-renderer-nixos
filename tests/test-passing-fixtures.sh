@@ -111,6 +111,7 @@ bash "${repo_root}/tests/test-port-forward-rendering.sh"
 bash "${repo_root}/tests/test-public-overlay-service-forwarding.sh"
 bash "${repo_root}/tests/test-public-ingress-module.sh"
 bash "${repo_root}/tests/test-routed-gua-no-nat66.sh"
+bash "${repo_root}/tests/test-core-ipv6-nat-rendering.sh"
 bash "${repo_root}/tests/test-static-host-bridge-wan.sh"
 
 # Regression: DNS runtime targets must be able to render authoritative local zones/records.

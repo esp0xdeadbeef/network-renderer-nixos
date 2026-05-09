@@ -45,6 +45,16 @@ let
     paths = [ [ "enabled" ] [ "natEnabled" ] [ "nat" ] [ "nat" "enable" ] [ "masquerade" ] [ "masquerade" "enable" ] [ "egress" "nat" ] [ "egress" "nat" "enable" ] [ "egress" "masquerade" ] [ "egress" "masquerade" "enable" ] ];
   };
 
+  nat4Enabled = boolLikeFromPaths {
+    roots = [ runtimeTarget nodeForwarding nodeEgress nodeNat ];
+    paths = [ [ "families" "ipv4" ] [ "ipv4" ] [ "nat4" ] [ "masquerade4" ] [ "egress" "nat" "ipv4" ] ];
+  };
+
+  nat6Enabled = boolLikeFromPaths {
+    roots = [ runtimeTarget nodeForwarding nodeEgress nodeNat ];
+    paths = [ [ "families" "ipv6" ] [ "ipv6" ] [ "nat6" ] [ "masquerade6" ] [ "egress" "nat" "ipv6" ] ];
+  };
+
   roles = import ./forwarding-intent/roles.nix {
     inherit lib common runtimeTarget nodeForwarding nodeEgress nodeNat wanIfs lanIfs;
     entries = ifaceView.interfaceEntries;
@@ -57,7 +67,7 @@ let
   };
 
   final = import ./forwarding-intent/final.nix {
-    inherit lib roles normalizedExplicitForwardPairs nodeForwarding nodeForwardingEnabled natEnabled;
+    inherit lib roles normalizedExplicitForwardPairs nodeForwarding nodeForwardingEnabled natEnabled nat4Enabled nat6Enabled;
   };
 
   _uplinks = uplinks;
@@ -67,6 +77,8 @@ in
     nodeForwardingEnabled
     egressAuthority
     natEnabled
+    nat4Enabled
+    nat6Enabled
     normalizedExplicitForwardPairs
     ;
   inherit (ifaceView) interfaceEntries interfaceNames;
@@ -77,6 +89,8 @@ in
     explicitWanNames
     explicitExitEligibleNames
     explicitNatInterfaces
+    explicitNat4Interfaces
+    explicitNat6Interfaces
     explicitClampMssInterfaces
     resolvedLocalAdapterNames
     resolvedUplinkNames
@@ -90,6 +104,8 @@ in
     coreForwardPairs
     upstreamSelectorForwardPairs
     coreNatInterfaces
+    coreNat4Interfaces
+    coreNat6Interfaces
     accessClampMssInterfaces
     coreClampMssInterfaces
     authoritativeAccessForwarding
