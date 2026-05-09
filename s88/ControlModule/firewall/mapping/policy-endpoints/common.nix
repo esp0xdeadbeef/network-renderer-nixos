@@ -27,6 +27,8 @@ let
     value:
     if value == "mgt" then
       "mgmt"
+    else if value == "cl2" then
+      "client2"
     else if value == "prn" then
       "printer"
     else

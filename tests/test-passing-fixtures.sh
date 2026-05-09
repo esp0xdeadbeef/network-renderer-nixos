@@ -103,6 +103,9 @@ bash "${repo_root}/tests/test-missing-wan-group-assignment.sh"
 # Regression: multi-WAN external endpoint bindings must render policy rules.
 bash "${repo_root}/tests/test-multi-wan-firewall.sh"
 
+# Regression: tenant-set policy members must survive abbreviated policy-lane names.
+bash "${repo_root}/tests/test-client2-policy-uplink-firewall.sh"
+
 # Regression: WAN-exposed services must synthesize concrete DNAT rules.
 bash "${repo_root}/tests/test-port-forward-rendering.sh"
 bash "${repo_root}/tests/test-public-overlay-service-forwarding.sh"
