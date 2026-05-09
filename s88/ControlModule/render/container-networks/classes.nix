@@ -39,7 +39,10 @@ let
 
   isDownstreamSelectorAccessInterface = name: stringHasPrefix "access-" name;
   isDownstreamSelectorPolicyInterface = name: stringHasPrefix "policy-" name;
-  isUpstreamSelectorCoreInterface = name: (builtins.match "uplink::.*" (laneForRenderedName name)) != null;
+  isUpstreamSelectorCoreInterface =
+    name:
+    (stringHasPrefix "core-" name || name == "upstream" || stringHasPrefix "upstream-" name)
+    && (builtins.match "uplink::.*" (laneForRenderedName name)) != null;
   isUpstreamSelectorPolicyInterface =
     name: stringHasPrefix "pol-" name || stringHasPrefix "policy-" name;
   isPolicyDownstreamInterface =

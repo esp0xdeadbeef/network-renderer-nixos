@@ -66,18 +66,20 @@ REPO_ROOT="${repo_root}" nix eval \
       unboundService = rendered.systemd.services.unbound;
       localZones = server."local-zone" or [ ];
       localData = server."local-data" or [ ];
+      ok =
+        builtins.elem "printer. static" localZones
+        && builtins.elem "home-users. static" localZones
+        && builtins.elem "\"test-machine-01.printer. IN A 10.20.0.10\"" localData
+        && builtins.elem "\"test-machine-01.printer. IN AAAA fd00:20::10\"" localData
+        && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
+        && !(server ? "outgoing-interface")
+        && (explicitServer."outgoing-interface" or [ ]) == [ "transit" ]
+        && server."infra-host-ttl" == 1
+        && server."infra-lame-ttl" == 1
+        && builtins.elem "network-online.target" unboundService.after
+        && builtins.elem "network-online.target" unboundService.wants;
     in
-      builtins.elem "printer. static" localZones
-      && builtins.elem "home-users. static" localZones
-      && builtins.elem "\"test-machine-01.printer. IN A 10.20.0.10\"" localData
-      && builtins.elem "\"test-machine-01.printer. IN AAAA fd00:20::10\"" localData
-      && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
-      && (server."outgoing-interface" or [ ]) == [ "10.20.0.1" "fd00:20::1" ]
-      && (explicitServer."outgoing-interface" or [ ]) == [ "transit" ]
-      && server."infra-host-ttl" == 1
-      && server."infra-lame-ttl" == 1
-      && builtins.elem "network-online.target" unboundService.after
-      && builtins.elem "network-online.target" unboundService.wants
+      if ok then true else throw "dns-local-records failed: rendered DNS service must not add a default outgoing-interface, and explicit outgoingInterfaces must still override that default"
   ' >/dev/null || {
     echo "FAIL dns-local-records" >&2
     exit 1
