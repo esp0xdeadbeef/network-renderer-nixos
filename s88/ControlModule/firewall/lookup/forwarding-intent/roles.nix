@@ -48,6 +48,20 @@ let
     [ "egress" "masquerade" "interfaces" ]
   ] (entry: boolOrFalse entry.explicit.explicitNatEnabled);
 
+  explicitNat4Interfaces = explicitNames [ runtimeTarget nodeForwarding nodeEgress nodeNat ] [
+    [ "natInterfaces4" ] [ "masqueradeInterfaces4" ] [ "nat" "interfaces4" ]
+    [ "masquerade" "interfaces4" ] [ "egress" "natInterfaces4" ]
+    [ "egress" "nat" "interfaces4" ] [ "egress" "masqueradeInterfaces4" ]
+    [ "egress" "masquerade" "interfaces4" ]
+  ] (entry: boolOrFalse entry.explicit.explicitNatEnabled);
+
+  explicitNat6Interfaces = explicitNames [ runtimeTarget nodeForwarding nodeEgress nodeNat ] [
+    [ "natInterfaces6" ] [ "masqueradeInterfaces6" ] [ "nat" "interfaces6" ]
+    [ "masquerade" "interfaces6" ] [ "egress" "natInterfaces6" ]
+    [ "egress" "nat" "interfaces6" ] [ "egress" "masqueradeInterfaces6" ]
+    [ "egress" "masquerade" "interfaces6" ]
+  ] (entry: boolOrFalse entry.explicit.explicitNatEnabled);
+
   explicitClampMssInterfaces = explicitNames [ runtimeTarget nodeForwarding nodeEgress nodeNat ] [
     [ "clampMssInterfaces" ] [ "tcpMssClampInterfaces" ] [ "clampMss" "interfaces" ]
     [ "tcpMssClamp" "interfaces" ] [ "egress" "clampMssInterfaces" ]
@@ -73,7 +87,8 @@ in
 {
   inherit
     explicitLocalAdapterNames explicitUplinkNames explicitTransitNames explicitWanNames
-    explicitExitEligibleNames explicitNatInterfaces explicitClampMssInterfaces overlayInterfaceNames
+    explicitExitEligibleNames explicitNatInterfaces explicitNat4Interfaces explicitNat6Interfaces
+    explicitClampMssInterfaces overlayInterfaceNames
     ;
   resolvedLocalAdapterNames = if explicitLocalAdapterNames != [ ] then explicitLocalAdapterNames else fallbackLocalAdapterNames;
   resolvedWanNames = if explicitWanNames != [ ] then explicitWanNames else fallbackWanNames;

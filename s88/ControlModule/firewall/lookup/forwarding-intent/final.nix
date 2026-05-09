@@ -1,4 +1,4 @@
-{ lib, roles, normalizedExplicitForwardPairs, nodeForwarding, nodeForwardingEnabled, natEnabled }:
+{ lib, roles, normalizedExplicitForwardPairs, nodeForwarding, nodeForwardingEnabled, natEnabled, nat4Enabled, nat6Enabled }:
 
 let
   maybePair =
@@ -43,9 +43,28 @@ let
       roles.resolvedWanNames
     else
       [ ];
+
+  nat4Active = if nat4Enabled == null then natEnabled else nat4Enabled;
+  nat6Active = if nat6Enabled == null then false else nat6Enabled;
+
+  coreNat4Interfaces =
+    if nat4Active == false then
+      [ ]
+    else if roles.explicitNat4Interfaces != [ ] then
+      roles.explicitNat4Interfaces
+    else
+      coreNatInterfaces;
+
+  coreNat6Interfaces =
+    if nat6Active == false then
+      [ ]
+    else if roles.explicitNat6Interfaces != [ ] then
+      roles.explicitNat6Interfaces
+    else
+      coreNatInterfaces;
 in
 {
-  inherit accessForwardPairs coreNatInterfaces;
+  inherit accessForwardPairs coreNatInterfaces coreNat4Interfaces coreNat6Interfaces;
   coreForwardPairs = baseCoreForwardPairs ++ overlayCoreForwardPairs;
   upstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
   accessClampMssInterfaces =

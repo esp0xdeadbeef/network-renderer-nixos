@@ -44,7 +44,12 @@ in
         }
       ];
 
-  natInterfaces = if useExplicitNat then forwardingIntent.coreNatInterfaces or [ ] else [ ];
+  natInterfaces =
+    if useExplicitNat then
+      if forwardingIntent ? coreNat4Interfaces then forwardingIntent.coreNat4Interfaces else forwardingIntent.coreNatInterfaces or [ ]
+    else
+      [ ];
+  nat6Interfaces = if useExplicitNat then forwardingIntent.coreNat6Interfaces or [ ] else [ ];
 
   clampMssInterfaces =
     if useExplicitNat || useExplicitForwarding then forwardingIntent.coreClampMssInterfaces or [ ] else wanNames;
