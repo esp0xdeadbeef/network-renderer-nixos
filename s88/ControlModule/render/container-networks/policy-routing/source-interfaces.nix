@@ -80,14 +80,17 @@ in
         ) interfaceNames
       )
     else if isUpstreamSelector && isUpstreamSelectorPolicyInterface targetName then
-      lib.filter (
-        name:
-        isUpstreamSelectorCoreInterface (renderedNameFor name)
-        && (
-          upstreamLanesMatch targetName (renderedNameFor name)
-          || (targetIfKey != null && interfaceRoutesTowardTarget (renderedNameFor name) targetIfKey)
-        )
-      ) interfaceNames
+      lib.unique (
+        lib.optionals (targetIfKey != null) [ targetIfKey ]
+        ++ lib.filter (
+          name:
+          isUpstreamSelectorCoreInterface (renderedNameFor name)
+          && (
+            upstreamLanesMatch targetName (renderedNameFor name)
+            || (targetIfKey != null && interfaceRoutesTowardTarget (renderedNameFor name) targetIfKey)
+          )
+        ) interfaceNames
+      )
     else if isPolicy && tenantKey != null && isPolicyDownstreamInterface targetName then
       lib.filter (
         name:

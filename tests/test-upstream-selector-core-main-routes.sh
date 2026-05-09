@@ -30,6 +30,7 @@ run_case() {
     "${result_json}" \
     "${eval_stderr}" \
     env REPO_ROOT="${repo_root}" \
+      CASE_LABEL="${label}" \
       BOX_NAME="${box_name}" \
       CONTAINER_NAME="${container_name}" \
       INTENT_PATH="${intent_path}" \
@@ -40,6 +41,7 @@ run_case() {
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
+        label = builtins.getEnv "CASE_LABEL";
         builtContainers = flake.lib.containers.buildForBox {
           boxName = builtins.getEnv "BOX_NAME";
           system = "x86_64-linux";
@@ -52,6 +54,24 @@ run_case() {
         }).config;
         networks = cfg.systemd.network.networks;
         coreNetworks = lib.filterAttrs (name: _: lib.hasPrefix "10-core-" name) networks;
+        networkForInterface = renderedName: networks."10-${renderedName}" or { };
+        tableForInterface =
+          renderedName:
+          let
+            rules = (networkForInterface renderedName).routingPolicyRules or [ ];
+            policyRules = builtins.filter (rule: (rule.Table or 254) != 254) rules;
+          in
+          if policyRules == [ ] then null else (builtins.head policyRules).Table;
+        routesForTable =
+          table:
+          if table == null then
+            [ ]
+          else
+            lib.concatLists (
+              lib.mapAttrsToList
+                (_: network: builtins.filter (route: (route.Table or null) == table) (network.routes or [ ]))
+                networks
+            );
         isMainTable =
           route:
           !(route ? Table) || route.Table == 254;
@@ -73,16 +93,49 @@ run_case() {
                 (builtins.filter (badPolicyLaneDefault networkName) (network.routes or [ ])))
             networks
         );
+        hasDefaultVia =
+          renderedName: gateway:
+          builtins.any
+            (route: isDefault route && (route.Gateway or null) == gateway)
+            (routesForTable (tableForInterface renderedName));
+        labSigmaLaneDefaultChecks =
+          if label != "lab-sigma" then
+            { }
+          else
+            {
+              pol_admin_a_default_v4_uses_core_a = hasDefaultVia "pol-admin-a" "10.10.0.12";
+              pol_admin_a_default_v6_uses_core_a = hasDefaultVia "pol-admin-a" "fd42:dead:beef:1000:0:0:0:c";
+              pol_admin_b_default_v4_uses_core_b = hasDefaultVia "pol-admin-b" "10.10.0.14";
+              pol_admin_b_default_v6_uses_core_b = hasDefaultVia "pol-admin-b" "fd42:dead:beef:1000:0:0:0:e";
+              pol_client_a_default_v4_uses_core_a = hasDefaultVia "pol-client-a" "10.10.0.12";
+              pol_client_a_default_v6_uses_core_a = hasDefaultVia "pol-client-a" "fd42:dead:beef:1000:0:0:0:c";
+              pol_client_b_default_v4_uses_core_b = hasDefaultVia "pol-client-b" "10.10.0.14";
+              pol_client_b_default_v6_uses_core_b = hasDefaultVia "pol-client-b" "fd42:dead:beef:1000:0:0:0:e";
+              pol_cl2_a_default_v4_uses_core_a = hasDefaultVia "pol-cl2-a" "10.10.0.12";
+              pol_cl2_a_default_v6_uses_core_a = hasDefaultVia "pol-cl2-a" "fd42:dead:beef:1000:0:0:0:c";
+              pol_cl2_b_default_v4_uses_core_b = hasDefaultVia "pol-cl2-b" "10.10.0.14";
+              pol_cl2_b_default_v6_uses_core_b = hasDefaultVia "pol-cl2-b" "fd42:dead:beef:1000:0:0:0:e";
+              pol_mgmt_a_default_v4_uses_core_a = hasDefaultVia "pol-mgmt-a" "10.10.0.12";
+              pol_mgmt_a_default_v6_uses_core_a = hasDefaultVia "pol-mgmt-a" "fd42:dead:beef:1000:0:0:0:c";
+              pol_mgmt_b_default_v4_uses_core_b = hasDefaultVia "pol-mgmt-b" "10.10.0.14";
+              pol_mgmt_b_default_v6_uses_core_b = hasDefaultVia "pol-mgmt-b" "fd42:dead:beef:1000:0:0:0:e";
+            };
         checks = {
           at_least_one_core_interface_rendered = coreNetworks != { };
           policy_lane_main_defaults_absent =
             badPolicyLaneDefaults == [ ];
-        };
+        } // labSigmaLaneDefaultChecks;
       in
       {
         ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);
         failed = builtins.filter (name: !(checks.${name})) (builtins.attrNames checks);
         inherit checks badPolicyLaneDefaults;
+        debug = {
+          polAdminBTable = tableForInterface "pol-admin-b";
+          polAdminBRoutes = routesForTable (tableForInterface "pol-admin-b");
+          polMgmtBTable = tableForInterface "pol-mgmt-b";
+          polMgmtBRoutes = routesForTable (tableForInterface "pol-mgmt-b");
+        };
       }
     '
 

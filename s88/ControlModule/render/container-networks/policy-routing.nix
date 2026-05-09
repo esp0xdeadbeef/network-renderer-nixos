@@ -105,6 +105,8 @@ let
       sourceRoutes =
         if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName then
           lib.filter (route: builtins.isAttrs route && !(isDefaultRoute route)) (interfaces.${sourceIfName}.routes or [ ])
+        else if isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName && sourceIfName == targetIfName then
+          lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ])
         else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
           returnRoutes.forUpstreamCore interfaceName sourceIfName
         else
