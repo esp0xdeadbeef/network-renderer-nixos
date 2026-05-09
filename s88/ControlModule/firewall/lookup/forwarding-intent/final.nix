@@ -66,6 +66,7 @@ in
 {
   inherit accessForwardPairs coreNatInterfaces coreNat4Interfaces coreNat6Interfaces;
   coreForwardPairs = baseCoreForwardPairs ++ overlayCoreForwardPairs;
+  downstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
   upstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
   accessClampMssInterfaces =
     if roles.explicitClampMssInterfaces != [ ] then roles.explicitClampMssInterfaces else if roles.resolvedTransitNames == [ ] then roles.resolvedWanNames else [ ];
@@ -77,6 +78,8 @@ in
     normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
   authoritativeCoreNat =
     roles.explicitNatInterfaces != [ ] || natEnabled == false || (natEnabled == true && roles.explicitExitEligibleNames != [ ]);
+  authoritativeDownstreamSelectorForwarding =
+    normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || hasExplicitSelectorForwarding;
   authoritativeUpstreamSelectorForwarding =
     normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || hasExplicitSelectorForwarding;
 }

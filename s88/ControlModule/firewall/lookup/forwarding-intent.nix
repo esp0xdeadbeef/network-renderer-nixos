@@ -102,6 +102,7 @@ in
   inherit (final)
     accessForwardPairs
     coreForwardPairs
+    downstreamSelectorForwardPairs
     upstreamSelectorForwardPairs
     coreNatInterfaces
     coreNat4Interfaces
@@ -111,6 +112,7 @@ in
     authoritativeAccessForwarding
     authoritativeCoreForwarding
     authoritativeCoreNat
+    authoritativeDownstreamSelectorForwarding
     authoritativeUpstreamSelectorForwarding
     ;
 }

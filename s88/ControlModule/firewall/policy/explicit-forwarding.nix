@@ -37,7 +37,12 @@ let
   renderExplicitForwardPair =
     pair:
     let
-      action = if pair ? action && builtins.isString pair.action then pair.action else "accept";
+      rawAction = if pair ? action && builtins.isString pair.action then pair.action else "accept";
+      action =
+        if rawAction == "deny" then
+          "drop"
+        else
+          rawAction;
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
           " comment \"${escapeComment pair.comment}\""
