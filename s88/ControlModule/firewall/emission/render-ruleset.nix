@@ -65,7 +65,12 @@ let
         in
         if fromOut != null then fromOut else attrOr "oifname" null pair;
 
-      action = if pair ? action && builtins.isString pair.action then pair.action else "accept";
+      rawAction = if pair ? action && builtins.isString pair.action then pair.action else "accept";
+      action =
+        if rawAction == "deny" then
+          "drop"
+        else
+          rawAction;
 
       matchExpr =
         if pair ? match && builtins.isString pair.match && pair.match != "" then " ${pair.match}" else "";

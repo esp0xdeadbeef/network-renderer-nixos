@@ -3,6 +3,13 @@
 let
   inherit (common) asList valuesFromPaths attrOr;
 
+  normalizeAction =
+    raw:
+    if raw == "deny" then
+      "drop"
+    else
+      raw;
+
   normalizeForwardPair =
     pair:
     if !builtins.isAttrs pair then
@@ -11,7 +18,7 @@ let
       let
         inIfs = resolveInterfaceTokens ((attrOr pair "in" [ ]) ++ (attrOr pair "iifname" [ ]) ++ (attrOr pair "from" [ ]));
         outIfs = resolveInterfaceTokens ((attrOr pair "out" [ ]) ++ (attrOr pair "oifname" [ ]) ++ (attrOr pair "to" [ ]));
-        action = if pair ? action && builtins.isString pair.action then pair.action else "accept";
+        action = normalizeAction (if pair ? action && builtins.isString pair.action then pair.action else "accept");
       in
       if inIfs == [ ] || outIfs == [ ] then null else {
         "in" = inIfs;
@@ -29,7 +36,7 @@ let
       let
         inIfs = resolveInterfaceTokens (attrOr rule "fromInterface" [ ]);
         outIfs = resolveInterfaceTokens (attrOr rule "toInterface" [ ]);
-        action = if rule ? action && builtins.isString rule.action then rule.action else "accept";
+        action = normalizeAction (if rule ? action && builtins.isString rule.action then rule.action else "accept");
       in
       if inIfs == [ ] || outIfs == [ ] then null else { "in" = inIfs; "out" = outIfs; inherit action; };
 
