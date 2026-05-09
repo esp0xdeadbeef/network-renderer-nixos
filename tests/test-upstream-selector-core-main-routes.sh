@@ -40,6 +40,21 @@ nix_eval_json_or_fail \
         }).config;
         networks = cfg.systemd.network.networks;
         coreNebulaRoutes = networks."10-core-nebula".routes or [ ];
+        badPolicyLaneDefault =
+          networkName: route:
+          lib.hasPrefix "10-pol-" networkName
+          && !(route ? Table)
+          && ((route.Destination or null) == "0.0.0.0/0"
+            || (route.Destination or null) == "::/0"
+            || (route.Destination or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0");
+        badPolicyLaneDefaults = lib.concatLists (
+          lib.mapAttrsToList
+            (networkName: network:
+              map
+                (route: { inherit networkName route; })
+                (builtins.filter (badPolicyLaneDefault networkName) (network.routes or [ ])))
+            networks
+        );
         badDefault4 =
           route:
           (route.Destination or null) == "0.0.0.0/0"
@@ -56,12 +71,14 @@ nix_eval_json_or_fail \
             !(builtins.any badDefault4 coreNebulaRoutes);
           core_nebula_main_default_to_wan_core_v6_absent =
             !(builtins.any badDefault6 coreNebulaRoutes);
+          policy_lane_main_defaults_absent =
+            badPolicyLaneDefaults == [ ];
         };
       in
       {
         ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);
         failed = builtins.filter (name: !(checks.${name})) (builtins.attrNames checks);
-        inherit checks coreNebulaRoutes;
+        inherit checks coreNebulaRoutes badPolicyLaneDefaults;
       }
     '
 
