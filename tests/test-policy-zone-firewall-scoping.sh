@@ -71,6 +71,8 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && has "iifname \"downstr-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
         && has "iifname \"downstr-client\" oifname \"up-client-ew\" accept comment \"allow-sitec-client-to-east-west\"" siteCRules
         && has "iifname \"up-client-ew\" oifname \"downstr-client\" accept comment \"allow-east-west-to-sitec-client\"" siteCRules
+        && has "iifname \"up-client-ew\" oifname \"up-client-wan\" accept" siteCRules
+        && hasBefore "iifname \"downstr-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" "iifname \"downstr-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
         && has "type filter hook forward priority filter; policy drop;" branchDownstreamRules
         && !(has "iifname \"access-branch\" oifname \"access-hostile\" accept" branchDownstreamRules)
         && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
