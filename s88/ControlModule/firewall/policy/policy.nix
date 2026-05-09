@@ -2,6 +2,7 @@
   lib,
   communicationContract ? { },
   endpointMap ? { },
+  forwardingIntent ? null,
   ...
 }:
 
@@ -110,8 +111,21 @@ let
       lib.sort (
         left: right:
         let
-          leftPriority = if left ? priority && builtins.isInt left.priority then left.priority else 1000;
-          rightPriority = if right ? priority && builtins.isInt right.priority then right.priority else 1000;
+          priorityOf =
+            relation:
+            if relation ? priority && builtins.isInt relation.priority then
+              relation.priority
+            else if
+              builtins.isAttrs (relation.source or null)
+              && relation.source ? priority
+              && builtins.isInt relation.source.priority
+            then
+              relation.source.priority
+            else
+              1000;
+
+          leftPriority = priorityOf left;
+          rightPriority = priorityOf right;
         in
         leftPriority < rightPriority
       ) (lib.filter builtins.isAttrs communicationContract.relations)
@@ -186,6 +200,8 @@ let
 
   renderedRules = lib.unique (lib.concatMap (rendering: rendering.rules) relationRenderings);
 
+  explicitForwardRules = import ./explicit-forwarding.nix { inherit lib escapeComment forwardingIntent; };
+
   _validateCommunicationContract =
     if communicationContract != { } then
       true
@@ -204,7 +220,7 @@ let
         icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
       ''
     ];
-    forwardRules = renderedRules;
+    forwardRules = renderedRules ++ explicitForwardRules;
   };
 in
 builtins.seq _validateCommunicationContract output

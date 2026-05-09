@@ -1,0 +1,49 @@
+{ lib, escapeComment, forwardingIntent ? null }:
+
+let
+  asList =
+    value:
+    if value == null then
+      [ ]
+    else if builtins.isList value then
+      value
+    else
+      [ value ];
+
+  sortedStrings =
+    values:
+    lib.sort builtins.lessThan (
+      lib.unique (lib.filter (value: builtins.isString value && value != "") (asList values))
+    );
+
+  renderInterfaceExpr =
+    ifaces:
+    let
+      names = sortedStrings ifaces;
+    in
+    if names == [ ] then
+      throw "s88/ControlModule/firewall/policy/explicit-forwarding.nix: empty explicit policy forwarding interface set"
+    else if builtins.length names == 1 then
+      "\"${builtins.head names}\""
+    else
+      "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") names)} }";
+
+  explicitForwardPairs =
+    if forwardingIntent != null && builtins.isAttrs forwardingIntent then
+      forwardingIntent.normalizedExplicitForwardPairs or [ ]
+    else
+      [ ];
+
+  renderExplicitForwardPair =
+    pair:
+    let
+      action = if pair ? action && builtins.isString pair.action then pair.action else "accept";
+      commentExpr =
+        if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
+          " comment \"${escapeComment pair.comment}\""
+        else
+          "";
+    in
+    "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])} ${action}${commentExpr}";
+in
+map renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs)
