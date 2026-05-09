@@ -147,29 +147,127 @@ REPO_ROOT="${repo_root}" nix eval \
           uplinks = { };
           wanUplinkName = null;
         };
+      siteCOverlayIngressRender =
+        import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib;
+          containerModel = {
+            interfaces = {
+              core-nebula = {
+                containerInterfaceName = "core-nebula";
+                addresses = [ "fd42:dead:cafe:1000::b/127" ];
+                backingRef.lane = {
+                  kind = "uplink";
+                  uplink = "east-west";
+                  uplinks = [ "east-west" ];
+                };
+                routes = [
+                  {
+                    dst = "::/0";
+                    via6 = "fd42:dead:cafe:1000::c";
+                    metric = 50;
+                    policyOnly = true;
+                    intent = {
+                      kind = "delegated-public-egress";
+                      exitNode = "c-router-access-client";
+                    };
+                  }
+                  {
+                    dst = "fd42:dead:feed:70::/64";
+                    via6 = "fd42:dead:cafe:1000::a";
+                  }
+                ];
+              };
+              pol-client-ew = {
+                containerInterfaceName = "pol-client-ew";
+                addresses = [ "fd42:dead:cafe:1000::d/127" ];
+                backingRef.lane = {
+                  access = "c-router-access-client";
+                  kind = "access-uplink";
+                  uplink = "east-west";
+                  uplinks = [ "east-west" ];
+                };
+                routes = [
+                  {
+                    dst = "fd42:dead:cafe:20::/64";
+                    via6 = "fd42:dead:cafe:1000::c";
+                  }
+                ];
+              };
+            };
+          };
+          uplinks = { };
+          wanUplinkName = null;
+        };
       upstreamSelectorRoutes =
         lib.concatLists (
           map (network: network.routes or [ ]) (builtins.attrValues upstreamSelectorRender.networks)
         );
+      upstreamSelectorRules =
+        lib.concatLists (
+          map (network: network.routingPolicyRules or [ ]) (builtins.attrValues upstreamSelectorRender.networks)
+        );
+      tableFor = incomingInterface:
+        let
+          matches =
+            builtins.filter
+              (rule:
+                (rule.IncomingInterface or null) == incomingInterface
+                && (rule.Table or null) != 254)
+              upstreamSelectorRules;
+        in
+        if matches == [ ] then null else (builtins.head matches).Table;
+      branchTable = tableFor "policy-branch";
       branchHasWanDefault =
         builtins.any
           (route:
             (route.Destination or null) == "::/0"
             && (route.Gateway or null) == "fd42:dead:feed:1000::6"
-            && (route.Table or null) == 2003)
+            && (route.Table or null) == branchTable)
           upstreamSelectorRoutes;
       branchLeaksOverlayDefault =
         builtins.any
           (route:
             (route.Destination or null) == "::/0"
             && (route.Gateway or null) == "fd42:dead:feed:1000::4"
-            && (route.Table or null) == 2003)
+            && (route.Table or null) == branchTable)
           upstreamSelectorRoutes;
+      siteCOverlayIngressRoutes =
+        lib.concatLists (
+          map (network: network.routes or [ ]) (builtins.attrValues siteCOverlayIngressRender.networks)
+        );
+      siteCOverlayIngressRules =
+        lib.concatLists (
+          map (network: network.routingPolicyRules or [ ]) (builtins.attrValues siteCOverlayIngressRender.networks)
+        );
+      siteCTable =
+        let
+          matches =
+            builtins.filter
+              (rule:
+                (rule.IncomingInterface or null) == "core-nebula"
+                && (rule.Table or null) != 254)
+              siteCOverlayIngressRules;
+        in
+        if matches == [ ] then null else (builtins.head matches).Table;
+      siteCOverlayIngressDefault =
+        builtins.any
+          (route:
+            (route.Destination or null) == "::/0"
+            && (route.Gateway or null) == "fd42:dead:cafe:1000::c"
+            && (route.Table or null) == siteCTable)
+          siteCOverlayIngressRoutes;
+      siteCOverlayMainDefault =
+        builtins.any
+          (route:
+            (route.Destination or null) == "::/0"
+            && (route.Gateway or null) == "fd42:dead:cafe:1000::c"
+            && !(route ? Table))
+          siteCOverlayIngressRoutes;
     in
-      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault then
+      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault then
         true
       else
-        throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, not as main defaults or unrelated ingress-table defaults. Remove this error only after delegated hostile public egress can select Nebula without turning overlay into a generic branch WAN default."
+        throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, including site-c core-nebula overlay ingress defaults, not as main defaults or unrelated ingress-table defaults. Remove this error only after delegated hostile public egress can select Nebula and then site-c client policy without turning overlay into a generic branch WAN default."
   ' >/dev/null
 
 echo "PASS policy-only-routes"
