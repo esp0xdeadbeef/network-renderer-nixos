@@ -180,11 +180,11 @@ in
         in
         {
           routes = builtins.foldl' (
-            routesAcc: sourceIfName:
+            routesAcc: outputIfName:
             routesAcc
             // {
-              ${sourceIfName} =
-                (routesAcc.${sourceIfName} or [ ]) ++ (routesByInterface.${sourceIfName} or [ ]);
+              ${outputIfName} =
+                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterface.${outputIfName} or [ ]);
             }
           ) acc.routes (builtins.attrNames routesByInterface);
           rules = acc.rules // {

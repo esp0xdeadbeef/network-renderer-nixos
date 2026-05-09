@@ -232,9 +232,7 @@ REPO_ROOT="${repo_root}" nix eval \
             && (route.Table or null) == branchTable)
           upstreamSelectorRoutes;
       siteCOverlayIngressRoutes =
-        lib.concatLists (
-          map (network: network.routes or [ ]) (builtins.attrValues siteCOverlayIngressRender.networks)
-        );
+        siteCOverlayIngressRender.networks."10-pol-client-ew".routes or [ ];
       siteCOverlayIngressRules =
         lib.concatLists (
           map (network: network.routingPolicyRules or [ ]) (builtins.attrValues siteCOverlayIngressRender.networks)
