@@ -92,11 +92,20 @@ let
     else
       builtins.head matchingInterfaces;
 
+  isDefaultRoute =
+    route:
+    (route.dst or null) == "0.0.0.0/0"
+    || (route.dst or null) == "::/0"
+    || (route.dst or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
+
   rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:
     let
+      targetIfName = lib.findFirst (name: renderedInterfaceNames.${name} == interfaceName) null interfaceNames;
       sourceRoutes =
-        if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
+        if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName then
+          lib.filter (route: builtins.isAttrs route && !(isDefaultRoute route)) (interfaces.${sourceIfName}.routes or [ ])
+        else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
           returnRoutes.forUpstreamCore interfaceName sourceIfName
         else
           (interfaces.${sourceIfName}.routes or [ ])

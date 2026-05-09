@@ -57,6 +57,7 @@ in
   forTarget =
     targetName:
     let
+      targetIfKey = lib.findFirst (name: renderedNameFor name == targetName) null interfaceNames;
       pairKey = downstreamPairKeyFor targetName;
       pairPrefix =
         if stringHasPrefix "access-" targetName then
@@ -70,16 +71,22 @@ in
     if isSelector && pairKey != null && pairPrefix != null then
       lib.filter (name: renderedNameFor name == "${pairPrefix}${pairKey}") interfaceNames
     else if isUpstreamSelector && isUpstreamSelectorCoreInterface targetName then
-      lib.filter (
-        name:
-        isUpstreamSelectorPolicyInterface (renderedNameFor name)
-        && (interfaceRoutesTowardTarget targetName name || upstreamLanesMatch targetName (renderedNameFor name))
-      ) interfaceNames
+      lib.unique (
+        lib.optionals (targetIfKey != null) [ targetIfKey ]
+        ++ lib.filter (
+          name:
+          isUpstreamSelectorPolicyInterface (renderedNameFor name)
+          && (interfaceRoutesTowardTarget targetName name || upstreamLanesMatch targetName (renderedNameFor name))
+        ) interfaceNames
+      )
     else if isUpstreamSelector && isUpstreamSelectorPolicyInterface targetName then
       lib.filter (
         name:
         isUpstreamSelectorCoreInterface (renderedNameFor name)
-        && upstreamLanesMatch targetName (renderedNameFor name)
+        && (
+          upstreamLanesMatch targetName (renderedNameFor name)
+          || (targetIfKey != null && interfaceRoutesTowardTarget (renderedNameFor name) targetIfKey)
+        )
       ) interfaceNames
     else if isPolicy && tenantKey != null && isPolicyDownstreamInterface targetName then
       lib.filter (
