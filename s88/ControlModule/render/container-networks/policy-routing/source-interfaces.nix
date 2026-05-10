@@ -87,7 +87,6 @@ in
         ++ lib.filter (
           name:
           isUpstreamSelectorPolicyInterface (renderedNameFor name)
-          && (interfaceRoutesTowardTarget targetName name || upstreamLanesMatch targetName (renderedNameFor name))
         ) interfaceNames
       )
     else if isUpstreamSelector && isUpstreamSelectorPolicyInterface targetName then

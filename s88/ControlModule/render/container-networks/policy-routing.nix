@@ -27,29 +27,20 @@ let
     inherit lib common;
   };
 
+  firewallRules = import ./policy-routing/firewall-rules.nix {
+    inherit lib;
+  };
+
   routeSources = import ./policy-routing/source-interfaces.nix {
-    inherit
-      lib
-      common
-      interfaces
-      interfaceNames
-      renderedInterfaceNames
-      upstreamLanesMatch
-      isSelector
-      isUpstreamSelector
-      isPolicy
-      isUpstreamSelectorCoreInterface
-      isUpstreamSelectorPolicyInterface
-      isPolicyDownstreamInterface
-      isPolicyUpstreamInterface
-      isOverlayInterface
-      isCoreTransitInterface
-      ;
+    inherit lib common interfaces interfaceNames renderedInterfaceNames upstreamLanesMatch;
+    inherit isSelector isUpstreamSelector isPolicy isUpstreamSelectorCoreInterface;
+    inherit isUpstreamSelectorPolicyInterface isPolicyDownstreamInterface isPolicyUpstreamInterface;
+    inherit isOverlayInterface isCoreTransitInterface;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     forwardingRules =
       (((containerModel.runtimeTarget or { }).forwardingIntent or { }).rules or [ ])
       ++ ((if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { }).rules or [ ])
-      ++ forwardingRulesFromRuleset;
+      ++ firewallRules.forwardingRulesFromRuleset firewallRuleset;
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {
@@ -107,67 +98,56 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
-  forwardingRulesFromRuleset =
-    if builtins.isString firewallRuleset then
-      lib.filter (rule: rule != null) (
-        lib.imap0 (
-          _: line:
-          let
-            match = builtins.match ''.*iifname "([^"]+)" oifname "([^"]+)".* accept.*'' line;
-          in
-          if match == null then
-            null
-          else
-            {
-              action = "accept";
-              fromInterface = builtins.elemAt match 0;
-              toInterface = builtins.elemAt match 1;
-            }
-        ) (lib.splitString "\n" firewallRuleset)
-      )
-    else
-      [ ];
+  explicitReturnRoutes = import ./policy-routing/explicit-return-routes.nix {
+    inherit lib common interfaces interfaceNames renderedInterfaceNames;
+    inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
+  };
 
-  mayProjectPolicyOnlyRoute =
-    targetName: sourceIfName:
-    let
-      sourceName = renderedInterfaceNames.${sourceIfName};
-      targetPairKey = common.downstreamPairKeyFor targetName;
-      sourcePairKey = common.downstreamPairKeyFor sourceName;
-    in
-    (
-      isPolicy
-      && isPolicyDownstreamInterface targetName
-      && isPolicyUpstreamInterface sourceName
-      && common.policyTenantKeyFor targetName != null
-      && common.policyTenantKeyFor targetName == common.policyTenantKeyFor sourceName
-    )
-    || (
-      isSelector
-      && isDownstreamSelectorAccessInterface targetName
-      && isDownstreamSelectorPolicyInterface sourceName
-      && targetPairKey != null
-      && targetPairKey == sourcePairKey
-    );
+  policyOnlyProjection = import ./policy-routing/policy-only-projection.nix {
+    inherit common renderedInterfaceNames isSelector isPolicy;
+    inherit isDownstreamSelectorAccessInterface isDownstreamSelectorPolicyInterface;
+    inherit isPolicyDownstreamInterface isPolicyUpstreamInterface;
+  };
 
   rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:
     let
       targetIfName = lib.findFirst (name: renderedInterfaceNames.${name} == interfaceName) null interfaceNames;
+      explicitNonDefaultRoutes =
+        lib.filter
+          (
+            route:
+            builtins.isAttrs route
+            && !(isDefaultRoute route)
+            && !(isPolicyOnlyRoute route)
+          )
+          (interfaces.${sourceIfName}.routes or [ ]);
+      upstreamCoreReturnRoutes =
+        if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
+          lib.concatMap (
+            name:
+            if isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name} then
+              (returnRoutes.forUpstreamCore interfaceName name) ++ (explicitReturnRoutes.forPolicyInterface name)
+            else
+              [ ]
+          ) interfaceNames
+        else
+          [ ];
       sourceRoutes =
         if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName then
-          lib.filter
+          (lib.filter
             (route: builtins.isAttrs route && (!(isDefaultRoute route) || isPolicyOnlyRoute route))
-            (interfaces.${sourceIfName}.routes or [ ])
+            (interfaces.${sourceIfName}.routes or [ ]))
+          ++ upstreamCoreReturnRoutes
         else if isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName && sourceIfName == targetIfName then
           lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ])
         else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
-          returnRoutes.forUpstreamCore interfaceName sourceIfName
+          (returnRoutes.forUpstreamCore interfaceName sourceIfName) ++ explicitNonDefaultRoutes
         else
           (interfaces.${sourceIfName}.routes or [ ])
           ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName);
       scopedSourceRoutes =
-        if sourceIfName == targetIfName || mayProjectPolicyOnlyRoute interfaceName sourceIfName then
+        if sourceIfName == targetIfName || policyOnlyProjection.mayProject interfaceName sourceIfName then
           sourceRoutes
         else
           lib.filter (route: !(isPolicyOnlyRoute route)) sourceRoutes;
