@@ -138,15 +138,9 @@ run_one() {
           hasServiceDnsPolicy =
             lib.hasInfix "comment \\\"allow-sitea-tenants-to-mgmt-dns\\\"" policyRules
             && lib.hasInfix "oifname \\\"downstream-mgmt\\\"" policyRules;
-          hasDirectDnsDropOrdering =
-            builtins.match
-              "(.|\\n)*deny-direct-dns-egress(.|\\n)*iifname \\\"tenant-admin\\\" oifname \\\"transit\\\" accept(.|\\n)*"
-              accessAdminRules
-            != null
-            && builtins.match
-              "(.|\\n)*deny-direct-dns-egress(.|\\n)*iifname \\\"tenant-mgmt\\\" oifname \\\"transit\\\" accept(.|\\n)*"
-              accessMgmtRules
-            != null;
+          accessDoesNotPreemptPolicyDns =
+            !lib.hasInfix "deny-direct-dns-egress" accessAdminRules
+            && !lib.hasInfix "deny-direct-dns-egress" accessMgmtRules;
           hasCoreOverlayInputAccept =
             let
               coreRules = nftRules rendered.containers."s-router-core-nebula";
@@ -318,7 +312,7 @@ run_one() {
           && hasIngressPolicyRouting
           && hasIngressTableRoutes
           && hasServiceDnsPolicy
-          && hasDirectDnsDropOrdering
+          && accessDoesNotPreemptPolicyDns
           && hasCoreOverlayInputAccept
           && hasStrictNebulaCoreForwarding
           && hasNebulaMssClamp

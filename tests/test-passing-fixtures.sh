@@ -96,6 +96,7 @@ bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 
 # Regression: policy ingress lanes must render DNS-service reachability routes.
 bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
+bash "${repo_root}/tests/test-dns-service-access-policy-exceptions.sh"
 bash "${repo_root}/tests/test-policy-service-ingress-routes.sh"
 
 # Regression: CPM policy-only routes must not become generic main defaults.
