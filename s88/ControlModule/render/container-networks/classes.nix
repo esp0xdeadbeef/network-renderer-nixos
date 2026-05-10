@@ -40,7 +40,11 @@ let
   isDownstreamSelectorAccessInterface = name: stringHasPrefix "access-" name;
   isDownstreamSelectorPolicyInterface = name: stringHasPrefix "policy-" name;
   isUpstreamSelectorCoreInterface =
-    name: stringHasPrefix "core-" name || name == "upstream" || stringHasPrefix "upstream-" name;
+    name:
+    name == lib.removeSuffix "-" "core-"
+    || stringHasPrefix "core-" name
+    || name == "upstream"
+    || stringHasPrefix "upstream-" name;
   isUpstreamSelectorPolicyInterface =
     name: stringHasPrefix "pol-" name || stringHasPrefix "policy-" name;
   isPolicyDownstreamInterface =

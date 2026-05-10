@@ -98,6 +98,25 @@ run_case() {
           builtins.any
             (route: isDefault route && (route.Gateway or null) == gateway)
             (routesForTable (tableForInterface renderedName));
+        hasRouteVia =
+          renderedName: destination: gateway:
+          builtins.any
+            (route: (route.Destination or null) == destination && (route.Gateway or null) == gateway)
+            (routesForTable (tableForInterface renderedName));
+        exampleReturnRouteChecks =
+          if label != "example" then
+            { }
+          else
+            {
+              core_returns_sitec_dmz_prefix_v4 =
+                hasRouteVia "core" "10.90.10.0/24" "10.80.0.18";
+              core_returns_sitec_dmz_access_transit_v4 =
+                hasRouteVia "core" "10.80.0.2/31" "10.80.0.18";
+              core_returns_sitec_dmz_prefix_v6 =
+                hasRouteVia "core" "fd42:dead:cafe:10::/64" "fd42:dead:cafe:1000:0:0:0:12";
+              core_returns_sitec_dmz_access_transit_v6 =
+                hasRouteVia "core" "fd42:dead:cafe:1000:0:0:0:2/127" "fd42:dead:cafe:1000:0:0:0:12";
+            };
         labSigmaLaneDefaultChecks =
           if label != "lab-sigma" then
             { }
@@ -124,7 +143,7 @@ run_case() {
           at_least_one_core_interface_rendered = coreNetworks != { };
           policy_lane_main_defaults_absent =
             badPolicyLaneDefaults == [ ];
-        } // labSigmaLaneDefaultChecks;
+        } // exampleReturnRouteChecks // labSigmaLaneDefaultChecks;
       in
       {
         ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);

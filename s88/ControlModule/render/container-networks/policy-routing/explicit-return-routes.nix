@@ -2,54 +2,50 @@
   lib,
   common,
   interfaces,
+  interfaceNames,
   renderedInterfaceNames,
-  isUpstreamSelector,
-  isUpstreamSelectorCoreInterface,
   addressForFamily,
   ipv4PeerFor31,
   ipv6PeerFor127,
-  returnDestinationsForTenant,
 }:
 
 let
-  inherit (common) policyTenantKeyFor;
+  isDefaultRoute =
+    route:
+    (route.dst or null) == "0.0.0.0/0"
+    || (route.dst or null) == "::/0"
+    || (route.dst or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
 
-  isDefaultDestination =
-    dst:
-    dst == "0.0.0.0/0"
-    || dst == "::/0"
-    || dst == "0000:0000:0000:0000:0000:0000:0000:0000/0";
-
-  explicitDestinationsForTenant =
+  explicitDestinationsForPolicyTenant =
     tenantKey:
     lib.concatMap (
-      ifName:
+      name:
       let
-        renderedName = renderedInterfaceNames.${ifName};
+        renderedName = renderedInterfaceNames.${name};
       in
-      if policyTenantKeyFor renderedName != tenantKey then
+      if common.policyTenantKeyFor renderedName != tenantKey then
         [ ]
       else
         lib.concatMap (
           route:
-          let
-            dst = route.dst or null;
-          in
-          if builtins.isString dst && !(isDefaultDestination dst) then [ dst ] else [ ]
-        ) (interfaces.${ifName}.routes or [ ])
-    ) (builtins.attrNames interfaces);
+          if builtins.isAttrs route && builtins.isString (route.dst or null) && !(isDefaultRoute route) then
+            [ route.dst ]
+          else
+            [ ]
+        ) (interfaces.${name}.routes or [ ])
+    ) interfaceNames;
 in
 {
-  forUpstreamCore =
-    targetName: sourceIfName:
+  forPolicyInterface =
+    sourceIfName:
     let
       sourceIface = interfaces.${sourceIfName} or { };
       sourceRenderedName = renderedInterfaceNames.${sourceIfName};
-      tenantKey = policyTenantKeyFor sourceRenderedName;
+      tenantKey = common.policyTenantKeyFor sourceRenderedName;
       peer4 = ipv4PeerFor31 (addressForFamily 4 sourceIface);
       peer6 = ipv6PeerFor127 (addressForFamily 6 sourceIface);
     in
-    if !(isUpstreamSelector && isUpstreamSelectorCoreInterface targetName) || tenantKey == null then
+    if tenantKey == null then
       [ ]
     else
       lib.filter (route: route != null) (
@@ -71,6 +67,6 @@ in
               inherit dst;
               via4 = gateway;
             }
-        ) ((returnDestinationsForTenant tenantKey) ++ (explicitDestinationsForTenant tenantKey))
+        ) (explicitDestinationsForPolicyTenant tenantKey)
       );
 }
