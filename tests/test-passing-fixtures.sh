@@ -107,6 +107,7 @@ bash "${repo_root}/tests/test-upstream-selector-core-main-routes.sh"
 
 # Regression: rendered DNS services must listen, forward, and filter from CPM output.
 bash "${repo_root}/tests/test-cross-site-dns-service-render.sh"
+bash "${repo_root}/tests/test-dns-dual-stack-forwarders-prefer-ipv4.sh"
 
 # Regression: strict renderer must fail when required WAN group binding is absent.
 bash "${repo_root}/tests/test-missing-wan-group-assignment.sh"

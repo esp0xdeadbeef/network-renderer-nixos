@@ -60,6 +60,10 @@ else
       else
         [ ];
 
+    forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;
+    forwarder6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) forwarders;
+    hasMixedForwarders = forwarder4 != [ ] && forwarder6 != [ ];
+
     localZones =
       if dnsService ? localZones && builtins.isList dnsService.localZones then
         lib.filter (
@@ -149,6 +153,9 @@ else
           "do-ip6" = true;
           "infra-host-ttl" = 1;
           "infra-lame-ttl" = 1;
+        }
+        // lib.optionalAttrs hasMixedForwarders {
+          "prefer-ip4" = true;
         }
         // lib.optionalAttrs (localZoneSettings != [ ]) {
           "local-zone" = localZoneSettings;

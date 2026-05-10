@@ -49,6 +49,11 @@ let
         '')
       forward.matches;
 
+  renderServiceSnat = forward:
+    ''
+          ip saddr ${forward.targetIPv4} ct status dnat masquerade comment ${nftString "${forward.comment}-snat"}
+    '';
+
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
     let
       targetIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].targetIPv4" (forward.targetIPv4 or null);
@@ -104,6 +109,7 @@ in
     nftString
     renderServiceForward
     renderServiceAccept
+    renderServiceSnat
     renderRuntimeForward
     renderRuntimeAccept
     ;
