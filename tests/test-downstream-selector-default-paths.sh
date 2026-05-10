@@ -7,15 +7,10 @@ source "${repo_root}/tests/lib/example-render-scan.sh"
 
 result_json="$(mktemp)"
 eval_stderr="$(mktemp)"
-lab_inventory="$(mktemp --suffix=.nix)"
 violations="$(mktemp)"
-trap 'rm -f "${result_json}" "${eval_stderr}" "${lab_inventory}" "${violations}"' EXIT
+trap 'rm -f "${result_json}" "${eval_stderr}" "${violations}"' EXIT
 
 labs_root="$(flake_input_path network-labs)"
-
-cat >"${lab_inventory}" <<EOF
-import ${labs_root}/labs/lab-s-sigma/s-router-test-three-site/getResolvedInventory.nix { renderer = "nixos"; }
-EOF
 
 check_box() {
   local label="$1"
@@ -62,18 +57,13 @@ check_example() {
 for example_dir in \
   "${labs_root}/examples/single-wan" \
   "${labs_root}/examples/single-wan-with-nebula" \
-  "${labs_root}/examples/overlay-east-west"
+  "${labs_root}/examples/overlay-east-west" \
+  "${labs_root}/examples/s-router-overlay-dns-lane-policy"
 do
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-downstream-paths.XXXXXX")"
   check_example "${example_dir}" "${tmp_dir}"
   rm -rf "${tmp_dir}"
 done
-
-check_box \
-  "lab-sigma-s-router-test-three-site" \
-  "s-router-test" \
-  "${labs_root}/labs/lab-s-sigma/s-router-test-three-site/intent.nix" \
-  "${lab_inventory}"
 
 if [[ -s "${violations}" ]]; then
   cat "${violations}" >&2
