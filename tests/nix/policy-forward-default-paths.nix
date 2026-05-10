@@ -1,0 +1,200 @@
+let
+  repoRoot = builtins.getEnv "REPO_ROOT";
+  boxName = builtins.getEnv "BOX_NAME";
+  flake = builtins.getFlake ("path:" + repoRoot);
+  lib = flake.inputs.nixpkgs.lib;
+  system = "x86_64-linux";
+  cpmPath = builtins.getEnv "CPM_PATH";
+  cpm =
+    if cpmPath == "" then
+      { }
+    else
+      builtins.fromJSON (builtins.readFile cpmPath);
+
+  containers = flake.lib.containers.buildForBox {
+    inherit boxName system;
+    intentPath = builtins.getEnv "INTENT_PATH";
+    inventoryPath = builtins.getEnv "INVENTORY_PATH";
+  };
+
+  isDefault =
+    route:
+    (route.Destination or null) == "0.0.0.0/0"
+    || (route.Destination or null) == "::/0"
+    || (route.Destination or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
+
+  isDownstream = name:
+    lib.hasPrefix "downstr-" name || lib.hasPrefix "downstream-" name || lib.hasPrefix "down-" name;
+
+  isUpstream = name:
+    lib.hasPrefix "up-" name || lib.hasPrefix "upstream-" name;
+
+  parseTerminal =
+    index: line:
+    let
+      match = builtins.match ''[[:space:]]*iifname "([^"]+)" oifname "([^"]+)" (accept|drop)( comment ".*")?[[:space:]]*'' line;
+    in
+    if match == null then
+      null
+    else
+      {
+        iif = builtins.elemAt match 0;
+        oif = builtins.elemAt match 1;
+        action = builtins.elemAt match 2;
+        inherit index;
+        inherit line;
+      };
+
+  pairKey = pair: "${pair.iif}->${pair.oif}";
+
+  tableForIngress =
+    networks: iif:
+    let
+      rules = (networks."10-${iif}" or { }).routingPolicyRules or [ ];
+      matches = builtins.filter (
+        rule:
+        (rule.Table or null) != null
+        && (rule.Table or null) != 254
+        && (rule.SuppressPrefixLength or null) == null
+      ) rules;
+    in
+    if matches == [ ] then null else (builtins.head matches).Table;
+
+  hasDefaultRoute =
+    networks: oif: table:
+    table != null
+    && builtins.any (
+      route:
+      (route.Table or null) == table && isDefault route
+    ) ((networks."10-${oif}" or { }).routes or [ ]);
+
+  checkContainer =
+    name: container:
+    let
+      policyCpmTargets = lib.filter (
+        target:
+        (target.role or "") == "policy"
+        && ((target.logicalNode or { }).name or "") == name
+      ) (
+        lib.concatMap (
+          enterprise:
+          lib.concatMap (
+            site:
+            builtins.attrValues (
+              (((cpm.control_plane_model or { }).data or { }).${enterprise}.${site}.runtimeTargets or { })
+            )
+          ) (builtins.attrNames (((cpm.control_plane_model or { }).data or { }).${enterprise} or { }))
+        ) (builtins.attrNames (((cpm.control_plane_model or { }).data or { })))
+      );
+      cpmForwardingRules = lib.concatMap (
+        target:
+        if builtins.isList ((target.forwardingIntent or { }).rules or null) then
+          target.forwardingIntent.rules
+        else
+          [ ]
+      ) policyCpmTargets;
+      cpmHasUntypedDeny = builtins.any (
+        rule:
+        (rule.action or null) == "deny"
+        && ((rule.trafficType or "any") == "any")
+      ) cpmForwardingRules;
+      cpmTypedDenyRelationIds = lib.unique (
+        lib.filter (id: id != null) (
+          map (
+            rule:
+            if
+              (rule.action or null) == "deny"
+              && (rule.trafficType or "any") != "any"
+              && builtins.isString (rule.relationId or null)
+            then
+              rule.relationId
+            else
+              null
+          ) cpmForwardingRules
+        )
+      );
+      cfg = (lib.nixosSystem {
+        inherit system;
+        modules = [ container.config ];
+      }).config;
+      networks = cfg.systemd.network.networks or { };
+      lines = lib.splitString "\n" (cfg.networking.nftables.ruleset or "");
+      terminals = lib.filter (entry: entry != null) (lib.imap0 parseTerminal lines);
+      bareDrops = lib.filter (entry: entry.action == "drop") terminals;
+      accepts = lib.filter (entry: entry.action == "accept") terminals;
+      drops = lib.filter (entry: entry.action == "drop") terminals;
+      hasEarlierDrop =
+        accept:
+        builtins.any (
+          drop: pairKey drop == pairKey accept && drop.index < accept.index
+        ) drops;
+      conflictingPairs = lib.filter hasEarlierDrop accepts;
+      downstreamUplinkAccepts = lib.filter (
+        accept:
+        isDownstream accept.iif
+        && isUpstream accept.oif
+        && !(lib.hasInfix "east-west" accept.line)
+        && !(lib.hasSuffix "-ew" accept.oif)
+      ) accepts;
+      missingDefaults = lib.filter (
+        accept:
+        let table = tableForIngress networks accept.iif;
+        in !(hasDefaultRoute networks accept.oif table)
+      ) downstreamUplinkAccepts;
+      typedDenyWithoutTypedRender = lib.filter (
+        relationId:
+        !(builtins.any (
+          line:
+          lib.hasInfix "drop comment \"${relationId}\"" line
+          && (lib.hasInfix "meta l4proto" line || lib.hasInfix "ip protocol" line || lib.hasInfix "ip6 nexthdr" line)
+        ) lines)
+      ) cpmTypedDenyRelationIds;
+    in
+    {
+      cpmParityViolations =
+        (lib.optionals (!cpmHasUntypedDeny && bareDrops != [ ]) (
+          map (drop: {
+            container = name;
+            reason = "renderer emitted an untyped drop even though CPM has no trafficType=any deny rule";
+            inherit (drop) iif oif line;
+          }) bareDrops
+        ))
+        ++ (map (relationId: {
+          container = name;
+          reason = "CPM typed deny relation was not rendered as a typed nft drop";
+          inherit relationId;
+        }) typedDenyWithoutTypedRender);
+      terminalConflicts = map (pair: {
+        container = name;
+        inherit (pair) iif oif line;
+      }) conflictingPairs;
+      missingDefaultRoutes = map (
+        pair:
+        let table = tableForIngress networks pair.iif;
+        in
+        {
+          container = name;
+          inherit (pair) iif oif line;
+          ingressTable = table;
+        }
+      ) missingDefaults;
+    };
+
+  policyContainers = lib.filterAttrs (
+    _: container: (container.specialArgs.s88RoleName or "") == "policy"
+  ) containers;
+
+  results = lib.mapAttrsToList checkContainer policyContainers;
+  cpmParityViolations = lib.concatMap (result: result.cpmParityViolations) results;
+  terminalConflicts = lib.concatMap (result: result.terminalConflicts) results;
+  missingDefaultRoutes = lib.concatMap (result: result.missingDefaultRoutes) results;
+in
+{
+  ok = cpmParityViolations == [ ] && terminalConflicts == [ ] && missingDefaultRoutes == [ ];
+  failed =
+    (lib.optionals (cpmParityViolations != [ ]) [ "cpm_renderer_policy_semantics_parity" ])
+    ++
+    (lib.optionals (terminalConflicts != [ ]) [ "policy_nft_terminal_conflicts" ])
+    ++ (lib.optionals (missingDefaultRoutes != [ ]) [ "policy_downstream_uplink_default_routes" ]);
+  inherit cpmParityViolations terminalConflicts missingDefaultRoutes;
+}

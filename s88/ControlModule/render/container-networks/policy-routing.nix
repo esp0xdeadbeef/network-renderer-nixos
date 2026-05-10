@@ -101,6 +101,17 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
+  mayProjectPolicyOnlyRoute =
+    targetName: sourceIfName:
+    let
+      sourceName = renderedInterfaceNames.${sourceIfName};
+    in
+    isPolicy
+    && isPolicyDownstreamInterface targetName
+    && isPolicyUpstreamInterface sourceName
+    && common.policyTenantKeyFor targetName != null
+    && common.policyTenantKeyFor targetName == common.policyTenantKeyFor sourceName;
+
   rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:
     let
@@ -118,7 +129,7 @@ let
           (interfaces.${sourceIfName}.routes or [ ])
           ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName);
       scopedSourceRoutes =
-        if sourceIfName == targetIfName then
+        if sourceIfName == targetIfName || mayProjectPolicyOnlyRoute interfaceName sourceIfName then
           sourceRoutes
         else
           lib.filter (route: !(isPolicyOnlyRoute route)) sourceRoutes;
