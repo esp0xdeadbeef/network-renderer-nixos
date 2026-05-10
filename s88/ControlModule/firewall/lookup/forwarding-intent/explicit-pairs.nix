@@ -42,7 +42,14 @@ let
 
   fromRules = lib.filter (pair: pair != null) (
     map normalizeForwardRule (
-      if nodeForwarding ? rules && builtins.isList nodeForwarding.rules then lib.filter builtins.isAttrs nodeForwarding.rules else [ ]
+      if
+        (nodeForwarding.mode or null) == "explicit-selector-forwarding"
+        && nodeForwarding ? rules
+        && builtins.isList nodeForwarding.rules
+      then
+        lib.filter builtins.isAttrs nodeForwarding.rules
+      else
+        [ ]
     )
   );
 

@@ -49,6 +49,8 @@ bash "${repo_root}/tests/test-upstream-selector-no-core-crossconnect.sh"
 bash "${repo_root}/tests/test-downstream-selector-no-lane-crossconnect.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-unscoped-catchall.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-invalid-actions.sh"
+bash "${repo_root}/tests/test-policy-cpm-firewall-parity.sh"
+bash "${repo_root}/tests/test-policy-forward-default-paths.sh"
 
 # Renderer must expose site-scoped CPM outputs (overlays/ipv6/routing) without guessing.
 "${repo_root}/tests/cases/site-projections.sh"
