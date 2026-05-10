@@ -109,6 +109,8 @@ let
       lib.hasInfix "iifname \"br-wan\" oifname \"br-wan\" ip daddr 10.90.10.100 meta l4proto udp udp dport 4242 accept comment \"s88-public-service-dmz-nebula\"" rules;
     serviceHairpinDoesNotSnat =
       !(lib.hasInfix "s88-host-public-ingress-hairpin-snat" rules);
+    serviceTargetSnatsPublicReplies =
+      lib.hasInfix "ip saddr 10.90.10.100 ct status dnat masquerade comment \"s88-public-service-dmz-nebula-snat\"" rules;
     serviceTargetRouteUsesRuntimeGateway =
       builtins.elem
         { Destination = "10.90.10.100/32"; Gateway = "172.31.254.3"; }

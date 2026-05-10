@@ -18,6 +18,7 @@ let
     nftString
     renderServiceForward
     renderServiceAccept
+    renderServiceSnat
     renderRuntimeForward
     renderRuntimeAccept
     ;
@@ -116,6 +117,11 @@ let
       (map (renderServiceAccept bridgeInterface) serviceIngresses)
       ++ (map (renderRuntimeAccept bridgeInterface requiredString) runtimeForwards)
     );
+  postroutingRules =
+    lib.concatStringsSep "\n" (
+      [ ''          ip saddr ${snatSourceCidr4} oifname != ${nftString bridgeInterface} masquerade comment "s88-host-public-ingress-snat"'' ]
+      ++ (map renderServiceSnat serviceIngresses)
+    );
 in
 if !enabled then
   { }
@@ -136,7 +142,7 @@ ${preroutingRules}
 
         chain postrouting {
           type nat hook postrouting priority srcnat; policy accept;
-          ip saddr ${snatSourceCidr4} oifname != ${nftString bridgeInterface} masquerade comment "s88-host-public-ingress-snat"
+${postroutingRules}
         }
 
         chain forward {
