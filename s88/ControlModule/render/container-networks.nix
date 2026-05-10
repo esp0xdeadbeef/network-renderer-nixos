@@ -3,6 +3,8 @@
   containerModel,
   uplinks,
   wanUplinkName,
+  forwardingIntent ? null,
+  firewallRuleset ? null,
 }:
 
 let
@@ -46,7 +48,7 @@ let
   };
 
   policyRouting = import ./container-networks/policy-routing.nix {
-    inherit lib containerModel common;
+    inherit lib containerModel common forwardingIntent firewallRuleset;
     inherit (interfaceView)
       interfaces
       interfaceNames
