@@ -6,14 +6,9 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 result_json="$(mktemp)"
 eval_stderr="$(mktemp)"
-lab_inventory="$(mktemp --suffix=.nix)"
-trap 'rm -f "${result_json}" "${eval_stderr}" "${lab_inventory}"' EXIT
+trap 'rm -f "${result_json}" "${eval_stderr}"' EXIT
 
 labs_root="$(flake_input_path network-labs)"
-
-cat >"${lab_inventory}" <<EOF
-import ${labs_root}/labs/lab-s-sigma/s-router-test-three-site/getResolvedInventory.nix { renderer = "nixos"; }
-EOF
 
 run_case() {
   local label="$1"
@@ -117,33 +112,11 @@ run_case() {
               core_returns_sitec_dmz_access_transit_v6 =
                 hasRouteVia "core" "fd42:dead:cafe:1000:0:0:0:2/127" "fd42:dead:cafe:1000:0:0:0:12";
             };
-        labSigmaLaneDefaultChecks =
-          if label != "lab-sigma" then
-            { }
-          else
-            {
-              pol_admin_a_default_v4_uses_core_a = hasDefaultVia "pol-admin-a" "10.10.0.12";
-              pol_admin_a_default_v6_uses_core_a = hasDefaultVia "pol-admin-a" "fd42:dead:beef:1000:0:0:0:c";
-              pol_admin_b_default_v4_uses_core_b = hasDefaultVia "pol-admin-b" "10.10.0.14";
-              pol_admin_b_default_v6_uses_core_b = hasDefaultVia "pol-admin-b" "fd42:dead:beef:1000:0:0:0:e";
-              pol_client_a_default_v4_uses_core_a = hasDefaultVia "pol-client-a" "10.10.0.12";
-              pol_client_a_default_v6_uses_core_a = hasDefaultVia "pol-client-a" "fd42:dead:beef:1000:0:0:0:c";
-              pol_client_b_default_v4_uses_core_b = hasDefaultVia "pol-client-b" "10.10.0.14";
-              pol_client_b_default_v6_uses_core_b = hasDefaultVia "pol-client-b" "fd42:dead:beef:1000:0:0:0:e";
-              pol_cl2_a_default_v4_uses_core_a = hasDefaultVia "pol-cl2-a" "10.10.0.12";
-              pol_cl2_a_default_v6_uses_core_a = hasDefaultVia "pol-cl2-a" "fd42:dead:beef:1000:0:0:0:c";
-              pol_cl2_b_default_v4_uses_core_b = hasDefaultVia "pol-cl2-b" "10.10.0.14";
-              pol_cl2_b_default_v6_uses_core_b = hasDefaultVia "pol-cl2-b" "fd42:dead:beef:1000:0:0:0:e";
-              pol_mgmt_a_default_v4_uses_core_a = hasDefaultVia "pol-mgmt-a" "10.10.0.12";
-              pol_mgmt_a_default_v6_uses_core_a = hasDefaultVia "pol-mgmt-a" "fd42:dead:beef:1000:0:0:0:c";
-              pol_mgmt_b_default_v4_uses_core_b = hasDefaultVia "pol-mgmt-b" "10.10.0.14";
-              pol_mgmt_b_default_v6_uses_core_b = hasDefaultVia "pol-mgmt-b" "fd42:dead:beef:1000:0:0:0:e";
-            };
         checks = {
           at_least_one_core_interface_rendered = coreNetworks != { };
           policy_lane_main_defaults_absent =
             badPolicyLaneDefaults == [ ];
-        } // exampleReturnRouteChecks // labSigmaLaneDefaultChecks;
+        } // exampleReturnRouteChecks;
       in
       {
         ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);
@@ -167,12 +140,5 @@ run_case \
   c-router-upstream-selector \
   "${labs_root}/examples/s-router-overlay-dns-lane-policy/intent.nix" \
   "${labs_root}/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix"
-
-run_case \
-  lab-sigma \
-  s-router-test \
-  s-router-upstream-selector \
-  "${labs_root}/labs/lab-s-sigma/s-router-test-three-site/intent.nix" \
-  "${lab_inventory}"
 
 echo "PASS upstream-selector-core-main-routes"

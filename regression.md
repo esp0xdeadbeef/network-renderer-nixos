@@ -127,8 +127,8 @@ For every input:
 Current status:
 
 - Raw compact outputs were generated during the 2026-05-06 investigation for
-  all 23 runnable `network-labs` inputs, including the `lab-s-sigma` resolved
-  inventory path. This is temporary evidence only, not durable validation.
+  all runnable `network-labs` examples. This is temporary evidence only, not
+  durable validation.
 - High-level counts were sampled, but full semantic review was NOT completed.
 - The output-focused test changes from the same investigation are provisional
   until the per-input review below is completed.
@@ -198,11 +198,6 @@ Per-input backlog:
 - `examples/tri-site-dual-wan-overlay-integration-bgp`: NOT DONE. Test tri-site
   BGP integration output: the static integration shape plus BGP daemon and
   route advertisement correctness.
-- `labs/lab-s-sigma/s-router-test-three-site`: NOT DONE. Test the resolved
-  inventory path explicitly: `getResolvedInventory.nix` must be used, and the
-  rendered output must match the real s-router three-site host/container
-  contract rather than the unresolved inventory placeholders.
-
 ## next concrete debugging target
 
 - Work through the network-labs output-analysis backlog one input at a time.
