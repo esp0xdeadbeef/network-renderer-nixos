@@ -1,6 +1,6 @@
 # network-renderer-nixos regression state
 
-Last updated: 2026-05-06.
+Last updated: 2026-05-10.
 
 ## architecture shape
 
@@ -10,6 +10,20 @@ Last updated: 2026-05-06.
 
 ## fixed and locally tested
 
+- Downstream selectors now preserve explicit CPM `policyOnly` default routes
+  from the paired `policy-*` interface into the `access-*` ingress policy
+  table. This fixes the live failure where access traffic reached the
+  downstream selector and died before the policy router even though CPM had
+  modeled the policy-side default route. Covered by
+  `tests/test-downstream-selector-default-paths.sh`.
+- Policy-router ingress tables now include service/tenant routes required by
+  explicit accepted forwarding pairs from the rendered CPM-backed nft contract.
+  This fixes the live site-c DNS failure where `c-router-policy` allowed
+  `up-client-ew -> downstream-dmz` DNS, but the `up-client-ew` policy table had
+  no route to the DMZ DNS service. Covered by
+  `tests/test-policy-service-ingress-routes.sh`.
+- `tests/test-passing-fixtures.sh` passed on 2026-05-10 after the downstream
+  selector and policy service-ingress route fixes.
 - ControlModule boundary is explicit: `s88/ControlModule` must not import or
   execute `s88/Unit`, `s88/EquipmentModule`, or `s88/Site` code.
 - Unit owns host/runtime selection: deciding which runtime units and containers
@@ -59,32 +73,32 @@ Last updated: 2026-05-06.
 - `tests/test-nix-file-loc.sh` reports by layer and hard-fails only over
   500 LOC by default. Files over 250 LOC must state either
   `TEMPORARY OVER-LIMIT` or `ACCEPTED OVER-LIMIT`.
-- `s88/ControlModule/lookup/host-query/inventory.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/lookup/host-query/inventory.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: builds the host inventory query adapter.
   Suspected split: inventory shape normalization vs host matching.
-- `s88/ControlModule/firewall/lookup/assumptions.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/firewall/lookup/assumptions.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: collects firewall assumption alarms.
   Suspected split: assumption discovery vs alarm grouping/formatting.
-- `s88/ControlModule/render/dry-config-model.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/render/dry-config-model.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: assembles the dry render debug model.
   Suspected split: host/container mapping vs debug output shaping.
 - `s88/ControlModule/alarm/isa18.nix`: ACCEPTED OVER-LIMIT FOR NOW.
   Current responsibility: defines ISA-18 alarm vocabulary and formatting.
   Reason kept: mostly declarative alarm structure.
   Revisit if formatting and policy classification diverge.
-- `s88/ControlModule/render/containers/bgp-services.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/render/containers/bgp-services.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: renders BGP container services.
   Suspected split: service config assembly vs validation.
-- `s88/ControlModule/render/containers/default.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/render/containers/default.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: composes container render modules.
   Suspected split: service assembly vs module selection.
-- `s88/ControlModule/firewall/lookup/communication-contract.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/firewall/lookup/communication-contract.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: resolves firewall communication contracts.
   Suspected split: relation parsing vs endpoint mapping.
-- `s88/Unit/physical/realization-ports/inventory.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/Unit/physical/realization-ports/inventory.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: adapts Unit realization-port inventory.
   Suspected split: inventory parsing vs attach identity extraction.
-- `s88/ControlModule/firewall/policy/access.nix`: TEMPORARY OVER-LIMIT until 2026-05-09.
+- `s88/ControlModule/firewall/policy/access.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: renders access firewall policy.
   Suspected split: endpoint classification vs rule assembly.
 
@@ -194,7 +208,7 @@ Per-input backlog:
 - Work through the network-labs output-analysis backlog one input at a time.
   Do not mark an input complete until the full compact output has been inspected
   and the resulting regression test asserts the actual rendered output contract.
-- Before 2026-05-09, either split every `TEMPORARY OVER-LIMIT` file by the
+- Before 2026-05-17, either split every `TEMPORARY OVER-LIMIT` file by the
   suspected responsibility split above, or replace the temporary marker with a
   real accepted-over-limit reason.
 - After local tests are green, run live validation for `s-router-test`,

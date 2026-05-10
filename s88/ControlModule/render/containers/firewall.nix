@@ -19,9 +19,44 @@ let
     else
       { };
 
+  runtimeTarget =
+    if renderedModel ? runtimeTarget && builtins.isAttrs renderedModel.runtimeTarget then
+      renderedModel.runtimeTarget
+    else
+      { };
+
+  interfaces =
+    if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces && renderedModel.interfaces != { } then
+      renderedModel.interfaces
+    else
+      runtimeInterfaces;
+
+  wanIfs =
+    if renderedModel ? wanInterfaceNames && builtins.isList renderedModel.wanInterfaceNames then
+      renderedModel.wanInterfaceNames
+    else
+      [ ];
+
+  lanIfs =
+    if renderedModel ? lanInterfaceNames && builtins.isList renderedModel.lanInterfaceNames then
+      renderedModel.lanInterfaceNames
+    else
+      [ ];
+
+  forwardingIntent = import ../../firewall/lookup/forwarding-intent.nix {
+    inherit
+      lib
+      runtimeTarget
+      interfaces
+      wanIfs
+      lanIfs
+      uplinks
+      ;
+  };
+
   mkFirewallArg =
-    nftRuleset:
-    if builtins.isString nftRuleset && nftRuleset != "" then
+    nftRuleset: forwardingIntent:
+    (if builtins.isString nftRuleset && nftRuleset != "" then
       {
         enable = true;
         ruleset = nftRuleset;
@@ -30,7 +65,10 @@ let
       {
         enable = false;
         ruleset = null;
-      };
+      })
+    // {
+      inherit forwardingIntent;
+    };
 in
 if cpm == null then
   if renderedModel ? firewall && builtins.isAttrs renderedModel.firewall then
@@ -50,24 +88,10 @@ else
     assumptionFamily = renderedModel.assumptionFamily or null;
     preferSiteNode = renderedModel.preferSiteNode or false;
     strictEndpointBindings = renderedModel.strictEndpointBindings or false;
-    runtimeTarget =
-      if renderedModel ? runtimeTarget && builtins.isAttrs renderedModel.runtimeTarget then
-        renderedModel.runtimeTarget
-      else
-        { };
-    interfaces =
-      if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces && renderedModel.interfaces != { } then
-        renderedModel.interfaces
-      else
-        runtimeInterfaces;
-    wanIfs =
-      if renderedModel ? wanInterfaceNames && builtins.isList renderedModel.wanInterfaceNames then
-        renderedModel.wanInterfaceNames
-      else
-        [ ];
-    lanIfs =
-      if renderedModel ? lanInterfaceNames && builtins.isList renderedModel.lanInterfaceNames then
-        renderedModel.lanInterfaceNames
-      else
-        [ ];
-  })
+    inherit
+      runtimeTarget
+      interfaces
+      wanIfs
+      lanIfs
+      ;
+  }) forwardingIntent

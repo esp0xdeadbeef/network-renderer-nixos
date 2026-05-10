@@ -17,6 +17,7 @@
   isPolicyUpstreamInterface,
   isOverlayInterface,
   isCoreTransitInterface,
+  forwardingRules ? [ ],
 }:
 
 let
@@ -52,6 +53,16 @@ let
     builtins.any
       (route: builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route))
       routes;
+
+  hasAcceptForwardingRule =
+    fromName: toName:
+    builtins.any
+      (rule:
+        builtins.isAttrs rule
+        && (rule.action or null) == "accept"
+        && (rule.fromInterface or null) == fromName
+        && (rule.toInterface or null) == toName)
+      forwardingRules;
 in
 {
   forTarget =
@@ -91,19 +102,26 @@ in
           )
         ) interfaceNames
       )
-    else if isPolicy && tenantKey != null && isPolicyDownstreamInterface targetName then
+    else if isPolicy && isPolicyDownstreamInterface targetName then
       lib.filter (
         name:
         isPolicyDownstreamInterface (renderedNameFor name)
         || (isPolicyUpstreamInterface (renderedNameFor name)
-          && policyTenantKeyFor (renderedNameFor name) == tenantKey)
+          && (
+            (tenantKey != null && policyTenantKeyFor (renderedNameFor name) == tenantKey)
+            || hasAcceptForwardingRule targetName (renderedNameFor name)
+          ))
       ) interfaceNames
-    else if isPolicy && tenantKey != null && isPolicyUpstreamInterface targetName then
+    else if isPolicy && isPolicyUpstreamInterface targetName then
       lib.filter (
         name:
         (isPolicyDownstreamInterface (renderedNameFor name)
-          && policyTenantKeyFor (renderedNameFor name) == tenantKey)
+          && (
+            (tenantKey != null && policyTenantKeyFor (renderedNameFor name) == tenantKey)
+            || hasAcceptForwardingRule targetName (renderedNameFor name)
+          ))
         || (isPolicyUpstreamInterface (renderedNameFor name)
+          && tenantKey != null
           && policyTenantKeyFor (renderedNameFor name) == tenantKey)
       ) interfaceNames
     else if isOverlayInterface targetName then

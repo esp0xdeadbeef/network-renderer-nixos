@@ -2,6 +2,8 @@
   lib,
   containerModel,
   common,
+  forwardingIntent ? null,
+  firewallRuleset ? null,
   interfaces,
   interfaceNames,
   renderedInterfaceNames,
@@ -44,6 +46,10 @@ let
       isCoreTransitInterface
       ;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
+    forwardingRules =
+      (((containerModel.runtimeTarget or { }).forwardingIntent or { }).rules or [ ])
+      ++ ((if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { }).rules or [ ])
+      ++ forwardingRulesFromRuleset;
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {
@@ -101,16 +107,48 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
+  forwardingRulesFromRuleset =
+    if builtins.isString firewallRuleset then
+      lib.filter (rule: rule != null) (
+        lib.imap0 (
+          _: line:
+          let
+            match = builtins.match ''.*iifname "([^"]+)" oifname "([^"]+)".* accept.*'' line;
+          in
+          if match == null then
+            null
+          else
+            {
+              action = "accept";
+              fromInterface = builtins.elemAt match 0;
+              toInterface = builtins.elemAt match 1;
+            }
+        ) (lib.splitString "\n" firewallRuleset)
+      )
+    else
+      [ ];
+
   mayProjectPolicyOnlyRoute =
     targetName: sourceIfName:
     let
       sourceName = renderedInterfaceNames.${sourceIfName};
+      targetPairKey = common.downstreamPairKeyFor targetName;
+      sourcePairKey = common.downstreamPairKeyFor sourceName;
     in
-    isPolicy
-    && isPolicyDownstreamInterface targetName
-    && isPolicyUpstreamInterface sourceName
-    && common.policyTenantKeyFor targetName != null
-    && common.policyTenantKeyFor targetName == common.policyTenantKeyFor sourceName;
+    (
+      isPolicy
+      && isPolicyDownstreamInterface targetName
+      && isPolicyUpstreamInterface sourceName
+      && common.policyTenantKeyFor targetName != null
+      && common.policyTenantKeyFor targetName == common.policyTenantKeyFor sourceName
+    )
+    || (
+      isSelector
+      && isDownstreamSelectorAccessInterface targetName
+      && isDownstreamSelectorPolicyInterface sourceName
+      && targetPairKey != null
+      && targetPairKey == sourcePairKey
+    );
 
   rawRoutesForPolicyTable =
     tableId: interfaceName: sourceIfName:

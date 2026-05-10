@@ -51,6 +51,7 @@ bash "${repo_root}/tests/test-policy-firewall-no-unscoped-catchall.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-invalid-actions.sh"
 bash "${repo_root}/tests/test-policy-cpm-firewall-parity.sh"
 bash "${repo_root}/tests/test-policy-forward-default-paths.sh"
+bash "${repo_root}/tests/test-downstream-selector-default-paths.sh"
 
 # Renderer must expose site-scoped CPM outputs (overlays/ipv6/routing) without guessing.
 "${repo_root}/tests/cases/site-projections.sh"
@@ -95,6 +96,7 @@ bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 
 # Regression: policy ingress lanes must render DNS-service reachability routes.
 bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
+bash "${repo_root}/tests/test-policy-service-ingress-routes.sh"
 
 # Regression: CPM policy-only routes must not become generic main defaults.
 bash "${repo_root}/tests/test-policy-only-routes.sh"

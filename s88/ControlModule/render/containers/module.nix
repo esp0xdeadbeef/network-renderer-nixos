@@ -22,6 +22,8 @@ let
   containerNetworkRender = import ../container-networks.nix {
     inherit lib uplinks wanUplinkName;
     containerModel = renderedModel;
+    forwardingIntent = firewallArg.forwardingIntent or null;
+    firewallRuleset = firewallArg.ruleset or null;
   };
 
   interfaceRenames = import ./module/interface-renames.nix {
