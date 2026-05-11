@@ -5,23 +5,12 @@
 }:
 
 let
-  externalValidationDelegatedPrefixSources =
-    if
-      containerModel ? externalValidationDelegatedPrefixSources
-      && builtins.isAttrs containerModel.externalValidationDelegatedPrefixSources
-    then
-      containerModel.externalValidationDelegatedPrefixSources
-    else
-      { };
-
   delegatedPrefixSourceForRoute =
     route:
-    if
-      builtins.isAttrs route
-      && builtins.isString (route.dst or null)
-      && builtins.hasAttr route.dst externalValidationDelegatedPrefixSources
-    then
-      externalValidationDelegatedPrefixSources.${route.dst}
+    if builtins.isString (route.sourceFile or null) && route.sourceFile != "" then
+      route.sourceFile
+    else if builtins.isAttrs (route.delegatedPrefix or null) && builtins.isString (route.delegatedPrefix.sourceFile or null) then
+      route.delegatedPrefix.sourceFile
     else
       null;
 in
