@@ -1,4 +1,4 @@
-{ lib, escapeComment, forwardingIntent ? null }:
+{ lib, escapeComment, renderTrafficType ? (_: [ "" ]), forwardingIntent ? null }:
 
 let
   asList =
@@ -48,7 +48,16 @@ let
           " comment \"${escapeComment pair.comment}\""
         else
           "";
+      trafficMatches =
+        if pair ? trafficType && builtins.isString pair.trafficType then
+          renderTrafficType pair.trafficType
+        else
+          [ "" ];
     in
-    "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])} ${action}${commentExpr}";
+    map
+      (matchExpr:
+        let matchPart = if matchExpr == "" then "" else " ${matchExpr}";
+        in "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])}${matchPart} ${action}${commentExpr}")
+      trafficMatches;
 in
-map renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs)
+lib.concatMap renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs)

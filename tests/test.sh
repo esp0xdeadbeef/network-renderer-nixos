@@ -11,5 +11,8 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 while IFS= read -r -d '' test_file; do
   printf '==> %s\n' "${test_file#${repo_root}/}"
-  bash "${test_file}"
+  (
+    source "${repo_root}/tests/lib/test-common.sh"
+    source "${test_file}"
+  )
 done < <(find "${repo_root}/tests" -maxdepth 1 -type f -name 'test-*.sh' -print0 | sort -z)
