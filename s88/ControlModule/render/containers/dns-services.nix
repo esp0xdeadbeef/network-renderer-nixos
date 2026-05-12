@@ -86,6 +86,37 @@ else
       else
         [ ];
 
+    nftString = value:
+      ''"${lib.replaceStrings [ ''\'' "\\" ''"'' ] [ ''\\'' "\\\\" ''\"'' ] (toString value)}"'';
+
+    interfaces =
+      if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces then
+        renderedModel.interfaces
+      else
+        { };
+
+    ingressInterfaceNames =
+      if dnsService.blockDirectEgress or false then
+        lib.unique (
+          lib.filter (name: name != "") (
+            map (
+              ifName:
+              let
+                iface = interfaces.${ifName} or { };
+                sourceKind = iface.sourceKind or "";
+              in
+              if sourceKind == "wan" || sourceKind == "overlay" then
+                ""
+              else if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
+                iface.interfaceName
+              else
+                ifName
+            ) (builtins.attrNames interfaces)
+          )
+        )
+      else
+        [ ];
+
     accessControl = map (cidr: "${cidr} allow") allowFrom;
 
     localZoneSettings = map (zone: "${zone.name} ${zone.type or "static"}") localZones;
@@ -117,7 +148,14 @@ else
       ++ (map (
         addr:
         "${pkgs.nftables}/bin/nft add rule inet router input ip6 daddr ${addr} tcp dport 53 accept comment \"allow-dns-service\""
-      ) listen6);
+      ) listen6)
+      ++ (lib.concatMap (
+        ifName:
+        [
+          "${pkgs.nftables}/bin/nft add rule inet router forward iifname ${nftString ifName} udp dport 53 drop comment \"deny-direct-dns-egress\""
+          "${pkgs.nftables}/bin/nft add rule inet router forward iifname ${nftString ifName} tcp dport 53 drop comment \"deny-direct-dns-egress\""
+        ]
+      ) ingressInterfaceNames);
 
   in
   {

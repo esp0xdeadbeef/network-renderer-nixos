@@ -156,7 +156,7 @@ nix_eval_json_or_fail \
           hostile_dns_nft_opens_ipv6 =
             has "ip6 daddr fd42:dead:feed:70::1 udp dport 53 accept comment \"allow-dns-service\"" hostileNftScript;
           hostile_direct_dns_leak_drop =
-            has "iifname \\\"tenant-hostile\\\" udp dport 53 drop comment \"deny-direct-dns-egress\"" hostileNftScript;
+            has "iifname \"tenant-hostile\" udp dport 53 drop comment \"deny-direct-dns-egress\"" hostileNftScript;
           hostile_forward_chain_defaults_drop =
             has "type filter hook forward priority filter; policy drop;" hostileRules;
           sitec_dns_listens_on_service_v4 =
@@ -176,7 +176,7 @@ nix_eval_json_or_fail \
           sitec_dns_nft_opens_ipv6 =
             has "ip6 daddr fd42:dead:cafe:10::1 udp dport 53 accept comment \"allow-dns-service\"" sitecNftScript;
           sitec_direct_dns_leak_drop =
-            has "iifname \\\"tenant-dmz\\\" udp dport 53 drop comment \"deny-direct-dns-egress\"" sitecNftScript;
+            has "iifname \"tenant-dmz\" udp dport 53 drop comment \"deny-direct-dns-egress\"" sitecNftScript;
           sitec_forward_chain_defaults_drop =
             has "type filter hook forward priority filter; policy drop;" sitecRules;
         };

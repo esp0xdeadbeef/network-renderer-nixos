@@ -200,7 +200,14 @@ let
 
   renderedRules = lib.unique (lib.concatMap (rendering: rendering.rules) relationRenderings);
 
-  explicitForwardRules = import ./explicit-forwarding.nix { inherit lib escapeComment forwardingIntent; };
+  explicitForwardRules = import ./explicit-forwarding.nix {
+    inherit
+      lib
+      escapeComment
+      renderTrafficType
+      forwardingIntent
+      ;
+  };
 
   _validateCommunicationContract =
     if communicationContract != { } then

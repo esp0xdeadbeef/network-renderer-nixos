@@ -37,13 +37,36 @@ let
         inIfs = resolveInterfaceTokens (attrOr rule "fromInterface" [ ]);
         outIfs = resolveInterfaceTokens (attrOr rule "toInterface" [ ]);
         action = normalizeAction (if rule ? action && builtins.isString rule.action then rule.action else "accept");
+        comment =
+          if builtins.isString (rule.relationId or null) then
+            rule.relationId
+          else if builtins.isString (rule.comment or null) then
+            rule.comment
+          else
+            null;
       in
-      if inIfs == [ ] || outIfs == [ ] then null else { "in" = inIfs; "out" = outIfs; inherit action; };
+      if inIfs == [ ] || outIfs == [ ] then
+        null
+      else
+        {
+          "in" = inIfs;
+          "out" = outIfs;
+          inherit action;
+        }
+        // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
+          trafficType = rule.trafficType;
+        }
+        // lib.optionalAttrs (comment != null && comment != "") {
+          inherit comment;
+        };
 
   fromRules = lib.filter (pair: pair != null) (
     map normalizeForwardRule (
       if
-        (nodeForwarding.mode or null) == "explicit-selector-forwarding"
+        builtins.elem (nodeForwarding.mode or null) [
+          "explicit-selector-forwarding"
+          "explicit-policy-forwarding"
+        ]
         && nodeForwarding ? rules
         && builtins.isList nodeForwarding.rules
       then
