@@ -28,6 +28,7 @@ INVENTORY_PATH="${inventory_path}" \
             system = "x86_64-linux";
             modules = [ builtContainers."b-router-upstream-selector".config ];
           }).config;
+        bindMounts = builtContainers."b-router-upstream-selector".bindMounts or { };
         serviceNames = builtins.attrNames cfg.systemd.services;
         dynamicRouteServices =
           builtins.filter
@@ -48,8 +49,14 @@ INVENTORY_PATH="${inventory_path}" \
               && builtins.match ".*?family=6.*" script != null
               && builtins.match ".*?ip -6 route replace.*?\\$prefix.*" script != null)
             scripts;
+        hasIpv4SecretMount =
+          bindMounts."/run/secrets/site-c-lighthouse-public-ipv4".hostPath or null
+            == "/run/secrets/site-c-lighthouse-public-ipv4";
+        hasIpv6SecretMount =
+          bindMounts."/run/secrets/site-c-lighthouse-public-ipv6".hostPath or null
+            == "/run/secrets/site-c-lighthouse-public-ipv6";
       in
-        hasIpv4EndpointRoute && hasIpv6EndpointRoute
+        hasIpv4EndpointRoute && hasIpv6EndpointRoute && hasIpv4SecretMount && hasIpv6SecretMount
     '
 
 pass "runtime-underlay-endpoint-source-routes"
