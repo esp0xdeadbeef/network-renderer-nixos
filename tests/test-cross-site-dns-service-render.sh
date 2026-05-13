@@ -170,12 +170,18 @@ nix_eval_json_or_fail \
           sitec_dns_forwards_to_public_v6 =
             hasMember "2606:4700:4700::1111" sitecForwardZone.forward-addr
             && hasMember "2620:fe::fe" sitecForwardZone.forward-addr;
-          sitec_dns_does_not_bind_public_recursion_to_service_ip =
-            !(builtins.hasAttr "outgoing-interface" sitecServer);
+          sitec_dns_egress_uses_service_source_v4 =
+            hasMember "10.90.10.1" (sitecServer."outgoing-interface" or [ ]);
+          sitec_dns_egress_uses_service_source_v6 =
+            hasMember "fd42:dead:cafe:10::1" (sitecServer."outgoing-interface" or [ ]);
           sitec_dns_nft_opens_ipv4 =
             has "ip daddr 10.90.10.1 udp dport 53 accept comment \"allow-dns-service\"" sitecNftScript;
           sitec_dns_nft_opens_ipv6 =
             has "ip6 daddr fd42:dead:cafe:10::1 udp dport 53 accept comment \"allow-dns-service\"" sitecNftScript;
+          sitec_dns_nft_allows_service_egress =
+            has "allow-dns-service-egress" sitecNftScript;
+          sitec_dns_nft_drops_public_dns_output_leak =
+            has "deny-public-dns-output-leak" sitecNftScript;
           sitec_direct_dns_leak_drop =
             has "iifname \"tenant-dmz\" udp dport 53 drop comment \"deny-direct-dns-egress\"" sitecNftScript;
           sitec_forward_chain_defaults_drop =

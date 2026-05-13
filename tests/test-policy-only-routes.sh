@@ -261,8 +261,79 @@ REPO_ROOT="${repo_root}" nix eval \
             && (route.Gateway or null) == "fd42:dead:cafe:1000::c"
             && !(route ? Table))
           siteCOverlayIngressRoutes;
+      branchIpv4Render =
+        import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib;
+          containerModel = {
+            interfaces = {
+              core-nebula = {
+                containerInterfaceName = "core-nebula";
+                addresses = [ "10.50.0.5/31" ];
+                backingRef.lane = {
+                  kind = "uplink";
+                  uplink = "east-west";
+                  uplinks = [ "east-west" ];
+                };
+                routes = [
+                  {
+                    dst = "0.0.0.0/0";
+                    via4 = "10.50.0.4";
+                    metric = 50;
+                    policyOnly = true;
+                    intent.kind = "delegated-public-egress";
+                  }
+                ];
+              };
+              pol-hostile-ew = {
+                containerInterfaceName = "pol-hostile-ew";
+                addresses = [ "10.50.0.17/31" ];
+                backingRef.lane = {
+                  access = "b-router-access-hostile";
+                  kind = "access-uplink";
+                  uplink = "east-west";
+                  uplinks = [ "east-west" ];
+                };
+                routes = [ ];
+              };
+            };
+          };
+          uplinks = { };
+          wanUplinkName = null;
+        };
+      branchIpv4Rules =
+        lib.concatLists (
+          map (network: network.routingPolicyRules or [ ]) (builtins.attrValues branchIpv4Render.networks)
+        );
+      branchIpv4Routes =
+        lib.concatLists (
+          map (network: network.routes or [ ]) (builtins.attrValues branchIpv4Render.networks)
+        );
+      branchHostileTable =
+        let
+          matches =
+            builtins.filter
+              (rule:
+                (rule.IncomingInterface or null) == "pol-hostile-ew"
+                && (rule.Table or null) != 254)
+              branchIpv4Rules;
+        in
+        if matches == [ ] then null else (builtins.head matches).Table;
+      branchHostileIpv4Default =
+        builtins.any
+          (route:
+            (route.Destination or null) == "0.0.0.0/0"
+            && (route.Gateway or null) == "10.50.0.4"
+            && (route.Table or null) == branchHostileTable)
+          branchIpv4Routes;
+      branchHostileIpv4MainDefault =
+        builtins.any
+          (route:
+            (route.Destination or null) == "0.0.0.0/0"
+            && (route.Gateway or null) == "10.50.0.4"
+            && !(route ? Table))
+          branchIpv4Routes;
     in
-      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault then
+      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault then
         true
       else
         throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, including site-c core-nebula overlay ingress defaults, not as main defaults or unrelated ingress-table defaults. Remove this error only after delegated hostile public egress can select Nebula and then site-c client policy without turning overlay into a generic branch WAN default."

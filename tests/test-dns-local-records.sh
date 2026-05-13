@@ -37,6 +37,7 @@ REPO_ROOT="${repo_root}" nix eval \
               a = [ "10.20.0.20" ];
             }
           ];
+          deniedResolverCidrs = [ "1.1.1.1/32" "2606:4700:4700::1111/128" ];
         };
         interfaces.transit = {
           sourceKind = "p2p";
@@ -57,13 +58,14 @@ REPO_ROOT="${repo_root}" nix eval \
               runtimeTarget.services.dns =
                 renderedModel.runtimeTarget.services.dns
                 // {
-                  outgoingInterfaces = [ "transit" ];
+                  outgoingInterfaces = [ "10.99.0.2" ];
                 };
             };
         };
       server = rendered.services.unbound.settings.server;
       explicitServer = renderedWithExplicitOutgoing.services.unbound.settings.server;
       unboundService = rendered.systemd.services.unbound;
+      nftScript = renderedWithExplicitOutgoing.systemd.services.nft-allow-dns-service.script;
       localZones = server."local-zone" or [ ];
       localData = server."local-data" or [ ];
       ok =
@@ -73,7 +75,10 @@ REPO_ROOT="${repo_root}" nix eval \
         && builtins.elem "\"test-machine-01.printer. IN AAAA fd00:20::10\"" localData
         && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
         && !(server ? "outgoing-interface")
-        && (explicitServer."outgoing-interface" or [ ]) == [ "transit" ]
+        && (explicitServer."outgoing-interface" or [ ]) == [ "10.99.0.2" ]
+        && lib.hasInfix "ip saddr 10.99.0.2 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" nftScript
+        && !(lib.hasInfix "ip saddr 10.53.0.1 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" nftScript)
+        && lib.hasInfix "deny-public-dns-output-leak" nftScript
         && server."infra-host-ttl" == 1
         && server."infra-lame-ttl" == 1
         && builtins.elem "network-online.target" unboundService.after
