@@ -63,6 +63,13 @@ else
     forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;
     forwarder6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) forwarders;
     hasMixedForwarders = forwarder4 != [ ] && forwarder6 != [ ];
+    deniedResolverCidrs =
+      if dnsService ? deniedResolverCidrs && builtins.isList dnsService.deniedResolverCidrs then
+        lib.unique (lib.filter builtins.isString dnsService.deniedResolverCidrs)
+      else
+        [ ];
+    deniedResolverCidrs4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) deniedResolverCidrs;
+    deniedResolverCidrs6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) deniedResolverCidrs;
 
     localZones =
       if dnsService ? localZones && builtins.isList dnsService.localZones then
@@ -85,6 +92,13 @@ else
         lib.unique (lib.filter builtins.isString dnsService.outgoingInterfaces)
       else
         [ ];
+    dnsEgressSources =
+      if outgoingInterfaces != [ ] then
+        outgoingInterfaces
+      else
+        listenAddresses;
+    dnsEgressSources4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) dnsEgressSources;
+    dnsEgressSources6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) dnsEgressSources;
 
     nftString = value:
       ''"${lib.replaceStrings [ ''\'' "\\" ''"'' ] [ ''\\'' "\\\\" ''\"'' ] (toString value)}"'';
@@ -158,7 +172,54 @@ else
           "${pkgs.nftables}/bin/nft add rule inet router forward iifname ${nftString ifName} tcp dport 53 drop comment \"deny-direct-dns-egress\""
         ]
       ) ingressInterfaceNames);
-
+    dnsOutputRules =
+      (lib.concatMap (
+        source:
+        map (
+          forwarder:
+          "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr ${forwarder} udp dport 53 accept comment \"allow-dns-service-egress\""
+        ) forwarder4
+      ) dnsEgressSources4)
+      ++ (lib.concatMap (
+        source:
+        map (
+          forwarder:
+          "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr ${forwarder} tcp dport 53 accept comment \"allow-dns-service-egress\""
+        ) forwarder4
+      ) dnsEgressSources4)
+      ++ (lib.concatMap (
+        source:
+        map (
+          forwarder:
+          "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr ${forwarder} udp dport 53 accept comment \"allow-dns-service-egress\""
+        ) forwarder6
+      ) dnsEgressSources6)
+      ++ (lib.concatMap (
+        source:
+        map (
+          forwarder:
+          "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr ${forwarder} tcp dport 53 accept comment \"allow-dns-service-egress\""
+        ) forwarder6
+      ) dnsEgressSources6)
+      ++ (lib.concatMap (
+        cidr:
+        [
+          "${pkgs.nftables}/bin/nft add rule inet router output ip daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-output-leak\""
+          "${pkgs.nftables}/bin/nft add rule inet router output ip daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-output-leak\""
+        ]
+      ) deniedResolverCidrs4)
+      ++ (lib.concatMap (
+        cidr:
+        [
+          "${pkgs.nftables}/bin/nft add rule inet router output ip6 daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-output-leak\""
+          "${pkgs.nftables}/bin/nft add rule inet router output ip6 daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-output-leak\""
+        ]
+      ) deniedResolverCidrs6);
+    dnsOutputScript =
+      if dnsOutputRules != [ ] then
+        lib.concatStringsSep "\n          " dnsOutputRules
+      else
+        ":";
   in
   {
     services.unbound = {
@@ -210,6 +271,10 @@ else
 
         if ! ${pkgs.nftables}/bin/nft list chain inet router input | grep -q 'allow-dns-service'; then
           ${lib.concatStringsSep "\n          " nftRules}
+        fi
+
+        if ! ${pkgs.nftables}/bin/nft list ruleset | grep -q 'allow-dns-service-egress'; then
+          ${dnsOutputScript}
         fi
       '';
     };

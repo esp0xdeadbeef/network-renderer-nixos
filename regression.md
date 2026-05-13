@@ -67,6 +67,21 @@ Last updated: 2026-05-13.
   validation has been completed for the DNS source-address change in this
   renderer entry. Treat the current state as locally tested, not
   production-ready.
+- DNS service source binding and public resolver output leak guard are locally
+  covered by `bash tests/test-dns-local-records.sh`: the renderer consumes
+  explicit `services.dns.outgoingInterfaces` as Unbound `outgoing-interface`
+  values and emits nft output rules that accept DNS service egress only from
+  modeled source addresses before dropping modeled public resolver CIDRs. The
+  cross-site renderer test is updated for the same contract but needs the
+  downstream lock to consume the CPM `outgoingInterfaces` output before it can
+  pass through the locked chain.
+- Upstream-selector policy-only IPv4 default projection is locally covered by
+  `bash tests/test-policy-only-routes.sh`. The renderer now projects a
+  `policyOnly` default from the matching upstream-selector core lane into the
+  same-uplink policy-lane ingress table without installing it as a main-table
+  default. This targets the live hostile symptom where
+  `b-router-upstream-selector` needed table `2004` default via
+  `core-nebula`.
 - 2026-05-13 live enumeration captured NixOS-rendered endpoint/router nft
   posture across `s-router-test`, `s-router-test-clients`, and the Hetzner
   validator. The evidence is current but not yet a pass: direct
@@ -84,6 +99,65 @@ Last updated: 2026-05-13.
 
 ## still broken
 
+- 2026-05-14 live `s-router-test` + Hetzner enumeration found hostile IPv4
+  public egress is not production-safe. Baseline `b-router-access-hostile`
+  host-origin traffic selected `10.50.0.3` and died before public egress.
+  Temporary live route fixes proved missing IPv4 policy-default projection in
+  several rendered ingress tables:
+  `b-router-upstream-selector` needed `table 2004 default via 10.50.0.4 dev
+  core-nebula`, `b-router-core-nebula` needed `table 2002 default via
+  100.96.10.3 dev nebula1`, and Hetzner `c-router-upstream-selector` needed
+  `table 2001 default via 10.80.0.4 dev core`. The branch upstream-selector
+  same-uplink core-to-policy-lane projection is fixed locally; the core-nebula
+  and Hetzner-side defaults still need locked-chain/live validation and may
+  require additional CPM/provider route ownership if not present in CPM output.
+- The same live probe separated host-origin access-router traffic from
+  tenant-origin hostile traffic. `b-router-access-hostile` shell pings source
+  from `10.50.0.2`, while hostile tenant traffic should source
+  `10.70.10.0/24`. Any durable fix/test must state which behavior is intended:
+  host-origin diagnostics may need modeled management/router egress, but tenant
+  hostile egress must preserve the hostile lane over `core-nebula`.
+- After the temporary branch-side route fixes, branch packets reached
+  `b-router-core-nebula` and were forwarded toward `nebula1`, but Hetzner
+  `c-router-upstream-selector` counters still stayed at zero. Nebula logs on
+  both ends showed repeated branch/Hetzner handshakes followed by
+  `Tunnel status ... state:dead`; this is a second bug, not solved by nftables
+  flushes. Check rendered Nebula runtime routes/certs/underlay reachability and
+  add a focused renderer/runtime regression for live overlay health.
+- 2026-05-14 Hetzner live enumeration found the public WAN core works while
+  modeled access and Nebula paths do not. `c-router-core` can reach public IPv4
+  and direct public DNS through `eth0`, and `c-router-nebula-core` works when
+  sourced from `portforward`, but `c-router-nebula-core` fails via its modeled
+  `upstream` path with `Destination Net Unreachable` from
+  `c-router-upstream-selector` (`10.80.0.11`). That reproduces the missing
+  policy-default problem for `core-nebula` ingress on the Hetzner side.
+- 2026-05-14 endpoint enumeration from `s-router-test-clients` showed
+  `hostile-node01` has the floating public IPv6 prefix
+  `2a01:4f9:c01f:4186::/64`, but DNS, direct public DNS, public IPv4 ping/curl,
+  and public IPv6 ping all fail. That means the allocator fix is consumed, but
+  hostile egress is still blocked by route/policy/overlay behavior.
+- 2026-05-14 endpoint enumeration showed direct public DNS remains blocked from
+  tested endpoints, while `s-router-access-mgmt` and `c-router-lighthouse`
+  router/container contexts can direct-DNS to `1.1.1.1`. Confirm whether this is
+  intended management/lighthouse policy; otherwise add leak-prevention tests for
+  those contexts.
+- 2026-05-14 DNS service enumeration showed access routers are rendered with
+  Kea DHCPv4, radvd RDNSS, and Unbound tenant listeners, while core routers
+  have no Unbound or modeled DNS listener. Cores do not inherently need
+  Kea/radvd, but if CPM emits an explicit core/service-node DNS listener target
+  the renderer must materialize it without role-name or lab-topology inference.
+- 2026-05-14 Hetzner live DNS probe showed `c-router-access-client` and
+  `c-router-access-dmz` Unbound listeners are active, but local queries to
+  loopback and tenant DNS addresses time out. The rendered Unbound configs have
+  forwarders but no `outgoing-interface`, and route-get to those forwarders
+  selects transit/p2p source addresses. First check whether CPM emits an
+  explicit DNS outgoing/source contract; if it does, the renderer must preserve
+  it, and if it does not this is upstream CPM/model ownership.
+- 2026-05-14 Hetzner `c-router-policy` rendered very broad repeated DNS and
+  port-4242 accepts, including same-interface combinations such as
+  `up-client-wan -> up-client-wan` and `up-dmz-wan -> up-dmz-wan`. Check
+  whether CPM is emitting these accepted pairs or the renderer is over-expanding
+  firewall relations; this may be too permissive for production.
 - `tests/test-nix-file-loc.sh` reports by layer and hard-fails only over
   500 LOC by default. Files over 250 LOC must state either
   `TEMPORARY OVER-LIMIT` or `ACCEPTED OVER-LIMIT`.

@@ -105,8 +105,9 @@ let
   };
 
   policyOnlyProjection = import ./policy-routing/policy-only-projection.nix {
-    inherit common renderedInterfaceNames isSelector isPolicy;
+    inherit common renderedInterfaceNames isSelector isUpstreamSelector isPolicy upstreamLanesMatch;
     inherit isDownstreamSelectorAccessInterface isDownstreamSelectorPolicyInterface;
+    inherit isUpstreamSelectorCoreInterface isUpstreamSelectorPolicyInterface;
     inherit isPolicyDownstreamInterface isPolicyUpstreamInterface;
   };
 

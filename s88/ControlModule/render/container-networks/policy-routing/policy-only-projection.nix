@@ -2,11 +2,15 @@
   common,
   renderedInterfaceNames,
   isSelector,
+  isUpstreamSelector,
   isPolicy,
   isDownstreamSelectorAccessInterface,
   isDownstreamSelectorPolicyInterface,
+  isUpstreamSelectorCoreInterface,
+  isUpstreamSelectorPolicyInterface,
   isPolicyDownstreamInterface,
   isPolicyUpstreamInterface,
+  upstreamLanesMatch,
 }:
 
 {
@@ -23,6 +27,12 @@
       && isPolicyUpstreamInterface sourceName
       && common.policyTenantKeyFor targetName != null
       && common.policyTenantKeyFor targetName == common.policyTenantKeyFor sourceName
+    )
+    || (
+      isUpstreamSelector
+      && isUpstreamSelectorPolicyInterface targetName
+      && isUpstreamSelectorCoreInterface sourceName
+      && upstreamLanesMatch targetName sourceName
     )
     || (
       isSelector
