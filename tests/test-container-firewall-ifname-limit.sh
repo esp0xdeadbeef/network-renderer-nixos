@@ -11,7 +11,7 @@ labs_root="$(
   ' "${repo_root}/flake.lock"
 )"
 
-ruleset="$(
+firewall_text="$(
   nix eval --raw --impure --expr '
     let
       flake = builtins.getFlake (toString '"${repo_root}"');
@@ -20,12 +20,23 @@ ruleset="$(
         inventoryPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
         boxName = "s-router-hetzner-anywhere";
       };
+      nixpkgsLib = flake.inputs.nixpkgs.lib;
+      cfgFor = name:
+        (nixpkgsLib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [ built.${name}.config ];
+        }).config;
+      dnsScripts = nixpkgsLib.concatStringsSep "\n" (
+        map
+          (name: ((cfgFor name).systemd.services.nft-allow-dns-service.script or ""))
+          (builtins.attrNames built)
+      );
     in
-      built."c-router-upstream-selector".specialArgs.s88Firewall.ruleset
+      built."c-router-upstream-selector".specialArgs.s88Firewall.ruleset + "\n" + dnsScripts
   '
 )"
 
-if grep -q 'policy-client-wan' <<<"${ruleset}"; then
+if grep -q 'policy-client-wan' <<<"${firewall_text}"; then
   echo "firewall ruleset leaked unresolved logical port token policy-client-wan" >&2
   exit 1
 fi
@@ -36,4 +47,4 @@ awk '
     failed = 1
   }
   END { exit failed }
-' <<<"${ruleset}"
+' <<<"${firewall_text}"
