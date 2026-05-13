@@ -13,6 +13,38 @@
 let
   uniqueStrings = values: lib.unique (lib.filter builtins.isString values);
 
+  routeSourceFile =
+    route:
+    if builtins.isString (route.sourceFile or null) && route.sourceFile != "" then
+      route.sourceFile
+    else if
+      builtins.isAttrs (route.delegatedPrefix or null)
+      && builtins.isString (route.delegatedPrefix.sourceFile or null)
+      && route.delegatedPrefix.sourceFile != ""
+    then
+      route.delegatedPrefix.sourceFile
+    else
+      "";
+
+  runtimeRouteSourceFiles =
+    uniqueStrings (
+      lib.filter (path: lib.hasPrefix "/run/secrets/" path) (
+        lib.concatLists (
+          lib.mapAttrsToList (
+            _ifName: iface:
+            map routeSourceFile (
+              if builtins.isAttrs iface && builtins.isList (iface.routes or null) then iface.routes else [ ]
+            )
+          ) (renderedModel.interfaces or { })
+        )
+      )
+    );
+
+  runtimeRouteSourceFileMounts = lib.genAttrs runtimeRouteSourceFiles (sourceFile: {
+    hostPath = sourceFile;
+    isReadOnly = true;
+  });
+
   warningMessages =
     if alarmModel ? warningMessages && builtins.isList alarmModel.warningMessages then
       uniqueStrings alarmModel.warningMessages
@@ -50,10 +82,11 @@ in
       null;
 
   bindMounts =
-    if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
+    (if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
       renderedModel.bindMounts
     else
-      { };
+      { })
+    // runtimeRouteSourceFileMounts;
 
   extraVeths = renderedModel.veths or { };
 
