@@ -1,6 +1,6 @@
 # network-renderer-nixos regression state
 
-Last updated: 2026-05-10.
+Last updated: 2026-05-13.
 
 ## architecture shape
 
@@ -67,6 +67,20 @@ Last updated: 2026-05-10.
   validation has been completed for the DNS source-address change in this
   renderer entry. Treat the current state as locally tested, not
   production-ready.
+- 2026-05-13 live enumeration captured NixOS-rendered endpoint/router nft
+  posture across `s-router-test`, `s-router-test-clients`, and the Hetzner
+  validator. The evidence is current but not yet a pass: direct
+  `dig @1.1.1.1` is blocked from tested access routers and most endpoints, but
+  succeeds from Hetzner `c-router-lighthouse`; endpoint firewalls commonly have
+  input hook `policy accept`; some access routers have `deny-direct-dns-egress`
+  rules while others do not. This needs focused renderer/CPM contract tests
+  before any production-ready claim.
+- 2026-05-13 fast visible-scope refresh captured
+  `/tmp/s-router-fast-enum-20260513T212251Z/summary/fast.tsv` while Hetzner was
+  down/not visible. It confirms direct public DNS remains blocked from
+  endpoints and access routers, endpoint public egress is mixed by lane, and
+  the host contexts leak over the home WAN and must not be counted as lab
+  success. The concrete home public IPv4 must not enter `network-*` diffs.
 
 ## still broken
 
