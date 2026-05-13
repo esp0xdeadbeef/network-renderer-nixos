@@ -46,6 +46,13 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
+  isServiceIngressRoute =
+    route:
+    builtins.isAttrs route
+    && (route.proto or null) == "service-ingress"
+    && (route.policyOnly or false) != true
+    && (route._s88PolicyOnly or false) != true;
+
   isMainTableRoute = route: !(route ? Table) || route.Table == 254;
 
   isDefaultRoute =
@@ -78,6 +85,8 @@ let
               staticRawRoutes
             else
               lib.filter (route: routeGatewayMatchesInterface iface route) staticRawRoutes;
+          serviceIngressMainRawRoutes =
+            lib.filter (route: isServiceIngressRoute route && routeGatewayMatchesInterface iface route) staticRawRoutes;
           staticRawRoutes = lib.filter (
             route: !(isExternalValidationDelegatedPrefixRoute route) && !(isPolicyOnlyRoute route)
           ) rawRoutes;
@@ -90,6 +99,9 @@ let
           renderedRoutes =
             (lib.optionals keepStaticRoutesInMain (
               lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
+            ))
+            ++ (lib.optionals (!keepStaticRoutesInMain) (
+              lib.filter (route: route != null) (map mkRoute serviceIngressMainRawRoutes)
             ))
             ++ policyMainRoutes
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);

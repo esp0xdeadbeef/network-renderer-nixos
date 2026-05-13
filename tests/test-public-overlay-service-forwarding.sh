@@ -38,8 +38,56 @@ let
     inherit system;
     modules = [ branchCoreContainer.config ];
   };
+  upstreamSelectorRender =
+    import ./s88/ControlModule/render/container-networks.nix {
+      inherit lib;
+      uplinks = { };
+      wanUplinkName = null;
+      containerModel = {
+        interfaces = {
+          core = {
+            containerInterfaceName = "core";
+            addresses = [ "10.80.0.5/31" ];
+            backingRef.lane = { kind = "uplink"; uplinks = [ "wan" ]; };
+            routes = [
+              {
+                dst = "10.90.10.100";
+                via4 = "10.80.0.18";
+                proto = "service-ingress";
+                intent.kind = "service-ingress";
+              }
+            ];
+          };
+          policy-dmz-wan = {
+            containerInterfaceName = "policy-dmz-wan";
+            addresses = [ "10.80.0.19/31" ];
+            backingRef.lane = {
+              kind = "access-uplink";
+              access = "c-router-access-dmz";
+              uplinks = [ "wan" ];
+            };
+            routes = [
+              {
+                dst = "10.90.10.100";
+                via4 = "10.80.0.18";
+                proto = "service-ingress";
+                intent.kind = "service-ingress";
+              }
+            ];
+          };
+        };
+      };
+    };
   rules = evaluated.config.networking.nftables.ruleset;
   branchCoreRules = branchCoreEvaluated.config.networking.nftables.ruleset;
+  upstreamSelectorNetworks = upstreamSelectorRender.networks;
+  hasMainRoute = networkName: destination: gateway:
+    builtins.any
+      (route:
+        (route.Destination or null) == destination
+        && (route.Gateway or null) == gateway
+        && !(route ? Table))
+      ((upstreamSelectorNetworks.${networkName} or { }).routes or [ ]);
   checks = {
     rendersUdpServiceDnat =
       lib.hasInfix "udp dport 4242 dnat to 10.90.10.100" rules;
@@ -49,6 +97,8 @@ let
       lib.hasInfix "allow-sitec-wan-to-dmz-nebula" rules;
     allowsBranchUnderlayFromExplicitTrafficType =
       lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-overlay-underlay-to-core\"" branchCoreRules;
+    rendersServiceIngressMainRouteForUnmarkedDnat =
+      hasMainRoute "10-policy-dmz-wan" "10.90.10.100" "10.80.0.18";
   };
 in
 {
