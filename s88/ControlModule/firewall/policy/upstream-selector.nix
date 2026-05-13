@@ -1,5 +1,6 @@
 {
   lib,
+  communicationContract ? { },
   interfaceView ? null,
   forwardingIntent ? null,
   ...
@@ -41,9 +42,92 @@ let
     && builtins.isAttrs forwardingIntent
     && (forwardingIntent.authoritativeUpstreamSelectorForwarding or false);
 
-  forwardPairs =
+  escapeComment = value: builtins.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] value;
+
+  trafficTypeDefinitions =
+    if communicationContract ? trafficTypes && builtins.isList communicationContract.trafficTypes then
+      builtins.listToAttrs (
+        map
+          (trafficType: {
+            name = trafficType.name;
+            value = trafficType;
+          })
+          (
+            lib.filter (
+              trafficType:
+              builtins.isAttrs trafficType && trafficType ? name && builtins.isString trafficType.name
+            ) communicationContract.trafficTypes
+          )
+      )
+    else
+      { };
+
+  renderMatch =
+    match:
+    let
+      family = if match ? family && builtins.isString match.family then match.family else "any";
+      proto = if match ? proto && builtins.isString match.proto then match.proto else null;
+      dports =
+        if match ? dports && builtins.isList match.dports then
+          lib.filter builtins.isInt match.dports
+        else
+          [ ];
+      portExpr =
+        if dports == [ ] then
+          ""
+        else
+          " ${proto} dport { ${builtins.concatStringsSep ", " (map builtins.toString dports)} }";
+      familyPrefix =
+        if family == "ipv4" then
+          "meta nfproto ipv4 "
+        else if family == "ipv6" then
+          "meta nfproto ipv6 "
+        else
+          "";
+    in
+    if proto == null || proto == "any" then
+      [ "" ]
+    else if proto == "icmp" then
+      if family == "ipv4" then
+        [ "meta nfproto ipv4 ip protocol icmp" ]
+      else if family == "ipv6" then
+        [ "meta nfproto ipv6 ip6 nexthdr ipv6-icmp" ]
+      else
+        [
+          "meta nfproto ipv4 ip protocol icmp"
+          "meta nfproto ipv6 ip6 nexthdr ipv6-icmp"
+        ]
+    else if proto == "icmpv6" || proto == "icmp6" then
+      [ "meta nfproto ipv6 ip6 nexthdr ipv6-icmp" ]
+    else if proto == "tcp" || proto == "udp" then
+      [ "${familyPrefix}meta l4proto ${proto}${portExpr}" ]
+    else
+      [ "${familyPrefix}meta l4proto ${proto}" ];
+
+  renderTrafficType =
+    trafficTypeName:
+    if trafficTypeName == null || trafficTypeName == "any" then
+      [ "" ]
+    else if builtins.hasAttr trafficTypeName trafficTypeDefinitions then
+      let
+        trafficType = trafficTypeDefinitions.${trafficTypeName};
+        matches =
+          if trafficType ? match && builtins.isList trafficType.match then trafficType.match else [ ];
+      in
+      if matches == [ ] then [ "" ] else lib.concatMap renderMatch matches
+    else
+      [ "" ];
+
+  forwardRules =
     if useExplicitForwarding then
-      forwardingIntent.upstreamSelectorForwardPairs or [ ]
+      import ./explicit-forwarding.nix {
+        inherit
+          lib
+          escapeComment
+          renderTrafficType
+          forwardingIntent
+          ;
+      }
     else
       [ ];
 
@@ -61,5 +145,5 @@ else
     inputPolicy = "drop";
     outputPolicy = "accept";
     forwardPolicy = "drop";
-    inherit inputRules forwardPairs;
+    inherit inputRules forwardRules;
   }

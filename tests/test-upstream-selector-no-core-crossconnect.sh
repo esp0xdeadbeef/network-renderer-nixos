@@ -11,8 +11,11 @@ check_upstream_selector_core_crossconnects() {
 
   _jq -r --arg example "${example_dir}" '
     def core_expr: "(\"core-[^\"]+\"|\\{[^}]*\"core-[^\"]+\"[^}]*\\})";
+    def allowed_nebula_underlay:
+      test("meta l4proto (tcp tcp|udp udp) dport \\{ 4242 \\} accept comment \"allow-[^\"]*nebula-underlay[^\"]*\"");
     def bad_core_pair:
-      test("^\\s*iifname " + core_expr + " oifname " + core_expr + ".* accept($| )");
+      test("^\\s*iifname " + core_expr + " oifname " + core_expr + ".* accept($| )")
+      and (allowed_nebula_underlay | not);
 
     .render.containers
     | to_entries[] as $host
