@@ -140,6 +140,7 @@ let
           {
             name = "delegated-prefix-route-${interfaceName}-${builtins.toString index}";
             inherit interfaceName sourceFile gateway;
+            family = route.family or null;
             metric = route.metric or null;
           }
       ) (iface.routes or [ ])
