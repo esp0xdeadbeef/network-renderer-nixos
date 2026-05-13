@@ -69,6 +69,7 @@ let
       isCoreTransitInterface
       ;
     inherit (routeRender) mkRoute;
+    inherit (routeRender) isExternalValidationDelegatedPrefixRoute;
   };
 
   loopback = import ./container-networks/loopback.nix {

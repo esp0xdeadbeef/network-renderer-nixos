@@ -20,6 +20,7 @@
   isOverlayInterface,
   isCoreTransitInterface,
   mkRoute,
+  isExternalValidationDelegatedPrefixRoute,
 }:
 
 let
@@ -146,11 +147,13 @@ let
         else
           (interfaces.${sourceIfName}.routes or [ ])
           ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName);
+      staticPolicyRoutes =
+        lib.filter (route: !(isExternalValidationDelegatedPrefixRoute route)) sourceRoutes;
       scopedSourceRoutes =
         if sourceIfName == targetIfName || policyOnlyProjection.mayProject interfaceName sourceIfName then
-          sourceRoutes
+          staticPolicyRoutes
         else
-          lib.filter (route: !(isPolicyOnlyRoute route)) sourceRoutes;
+          lib.filter (route: !(isPolicyOnlyRoute route)) staticPolicyRoutes;
     in
     lib.filter builtins.isAttrs (
       map (route: if builtins.isAttrs route then route // { table = tableId; } else null) scopedSourceRoutes
