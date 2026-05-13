@@ -12,22 +12,52 @@ let
           interface=${lib.escapeShellArg route.interfaceName}
           gateway=${if route.gateway == null then "''" else lib.escapeShellArg route.gateway}
           metric=${if route.metric == null then "''" else lib.escapeShellArg (toString route.metric)}
+          family=${if route.family == null then "''" else lib.escapeShellArg (toString route.family)}
 
           [ -s "$source_file" ] || exit 0
           prefix="$(${pkgs.coreutils}/bin/tr -d '[:space:]' < "$source_file")"
           [ -n "$prefix" ] || exit 0
-
-          if [ -n "$gateway" ]; then
-            if [ -n "$metric" ]; then
-              ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+          if [ -z "$family" ]; then
+            case "$prefix" in
+              *:*) family=6 ;;
+              *) family=4 ;;
+            esac
+          fi
+          if ! printf '%s' "$prefix" | ${pkgs.gnugrep}/bin/grep -q '/'; then
+            if [ "$family" = "6" ]; then
+              prefix="$prefix/128"
             else
-              ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" proto static onlink
+              prefix="$prefix/32"
+            fi
+          fi
+
+          if [ "$family" = "6" ]; then
+            if [ -n "$gateway" ]; then
+              if [ -n "$metric" ]; then
+                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+              else
+                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" proto static onlink
+              fi
+            else
+              if [ -n "$metric" ]; then
+                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" metric "$metric" proto static
+              else
+                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" proto static
+              fi
             fi
           else
-            if [ -n "$metric" ]; then
-              ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" metric "$metric" proto static
+            if [ -n "$gateway" ]; then
+              if [ -n "$metric" ]; then
+                ${pkgs.iproute2}/bin/ip route replace "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+              else
+                ${pkgs.iproute2}/bin/ip route replace "$prefix" via "$gateway" dev "$interface" proto static onlink
+              fi
             else
-              ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" proto static
+              if [ -n "$metric" ]; then
+                ${pkgs.iproute2}/bin/ip route replace "$prefix" dev "$interface" metric "$metric" proto static
+              else
+                ${pkgs.iproute2}/bin/ip route replace "$prefix" dev "$interface" proto static
+              fi
             fi
           fi
         '';
@@ -35,7 +65,7 @@ let
       {
         name = serviceName;
         value = {
-          description = "Install delegated external-validation IPv6 route on ${route.interfaceName}";
+          description = "Install runtime source-file route on ${route.interfaceName}";
           wantedBy = [ "multi-user.target" ];
           after = [ "systemd-networkd.service" ];
           wants = [ "systemd-networkd.service" ];
