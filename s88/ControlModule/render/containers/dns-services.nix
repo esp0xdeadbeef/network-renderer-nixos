@@ -107,6 +107,8 @@ else
               in
               if sourceKind == "wan" || sourceKind == "overlay" then
                 ""
+              else if iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != "" then
+                iface.renderedIfName
               else if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
                 iface.interfaceName
               else
