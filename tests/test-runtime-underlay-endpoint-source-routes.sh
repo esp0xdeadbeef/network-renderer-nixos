@@ -29,6 +29,7 @@ INVENTORY_PATH="${inventory_path}" \
             modules = [ builtContainers."b-router-upstream-selector".config ];
           }).config;
         bindMounts = builtContainers."b-router-upstream-selector".bindMounts or { };
+        ruleset = cfg.networking.nftables.ruleset;
         serviceNames = builtins.attrNames cfg.systemd.services;
         dynamicRouteServices =
           builtins.filter
@@ -55,8 +56,18 @@ INVENTORY_PATH="${inventory_path}" \
         hasIpv6SecretMount =
           bindMounts."/run/secrets/site-c-lighthouse-public-ipv6".hostPath or null
             == "/run/secrets/site-c-lighthouse-public-ipv6";
+        hasUdpUnderlayFirewall =
+          flake.inputs.nixpkgs.lib.hasInfix
+            "iifname \"core-nebula\" oifname \"core-isp\" meta l4proto udp udp dport { 4242 } accept"
+            ruleset;
+        hasTcpUnderlayFirewall =
+          flake.inputs.nixpkgs.lib.hasInfix
+            "iifname \"core-nebula\" oifname \"core-isp\" meta l4proto tcp tcp dport { 4242 } accept"
+            ruleset;
       in
-        hasIpv4EndpointRoute && hasIpv6EndpointRoute && hasIpv4SecretMount && hasIpv6SecretMount
+        hasIpv4EndpointRoute && hasIpv6EndpointRoute
+        && hasIpv4SecretMount && hasIpv6SecretMount
+        && hasUdpUnderlayFirewall && hasTcpUnderlayFirewall
     '
 
 pass "runtime-underlay-endpoint-source-routes"
