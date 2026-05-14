@@ -2,10 +2,13 @@
   lib,
   currentNodeName,
   interfaceNameForLink,
+  interfaceNameForLinkMatching,
+  interfaceLaneAccessMatches,
   transitAdjacencies,
   adjacencyUnits,
   adjacencyLinkName,
-  adjacencyForPair,
+  adjacenciesForPair,
+  adjacencyLaneAccessMatches,
   common,
 }:
 
@@ -77,20 +80,59 @@ in
       let
         path = findPath { start = currentNodeName; goal = targetUnit; };
         hop = if path != null && builtins.length path >= 2 then builtins.elemAt path 1 else null;
-        adjacency =
+        matchingAdjacencies =
           if hop != null then
-            adjacencyForPair {
+            adjacenciesForPair {
               a = currentNodeName;
               b = hop;
-              linkNameMatches =
-                if builtins.isString targetUnit && targetUnit != "" then
-                  (ln: builtins.match ".*--access-${targetUnit}($|--).*" ln != null)
-                else
-                  null;
             }
           else
-            null;
-        linkName = if adjacency != null then adjacencyLinkName adjacency else null;
+            [ ];
+        matchedLinkNames = lib.filter (ln: ln != null) (
+          map
+            (
+              adjacency:
+              let
+                linkName = adjacencyLinkName adjacency;
+              in
+              if
+                linkName != null
+                && interfaceNameForLinkMatching linkName (interfaceLaneAccessMatches targetUnit) != null
+              then
+                linkName
+              else
+                null
+            )
+            matchingAdjacencies
+        );
+        fallbackLinkNames = lib.filter (ln: ln != null) (map adjacencyLinkName matchingAdjacencies);
+        linkName =
+          if builtins.length matchedLinkNames == 1 then
+            builtins.head matchedLinkNames
+          else if builtins.length matchedLinkNames > 1 then
+            throw ''
+              s88/ControlModule/firewall/mapping/policy-endpoints.nix: interface lane metadata matched multiple first-hop adjacencies for '${currentNodeName}' toward '${targetUnit}'
+
+              matches:
+              ${builtins.toJSON matchedLinkNames}
+            ''
+          else if builtins.length fallbackLinkNames == 1 then
+            builtins.head fallbackLinkNames
+          else if fallbackLinkNames == [ ] then
+            null
+          else
+            throw ''
+              s88/ControlModule/firewall/mapping/policy-endpoints.nix: multiple first-hop adjacencies matched '${currentNodeName}' toward '${targetUnit}' and CPM interface lane metadata did not disambiguate them
+
+              matches:
+              ${builtins.toJSON fallbackLinkNames}
+            '';
       in
-      if linkName != null then interfaceNameForLink linkName else null;
+      if linkName != null then
+        let
+          matched = interfaceNameForLinkMatching linkName (interfaceLaneAccessMatches targetUnit);
+        in
+        if matched != null then matched else interfaceNameForLink linkName
+      else
+        null;
 }

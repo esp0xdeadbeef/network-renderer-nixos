@@ -28,10 +28,6 @@ let
     inherit lib common;
   };
 
-  firewallRules = import ./policy-routing/firewall-rules.nix {
-    inherit lib;
-  };
-
   routeSources = import ./policy-routing/source-interfaces.nix {
     inherit lib common interfaces interfaceNames renderedInterfaceNames upstreamLanesMatch;
     inherit isSelector isUpstreamSelector isPolicy isUpstreamSelectorCoreInterface;
@@ -40,8 +36,7 @@ let
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     forwardingRules =
       (((containerModel.runtimeTarget or { }).forwardingIntent or { }).rules or [ ])
-      ++ ((if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { }).rules or [ ])
-      ++ firewallRules.forwardingRulesFromRuleset firewallRuleset;
+      ++ ((if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { }).rules or [ ]);
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {

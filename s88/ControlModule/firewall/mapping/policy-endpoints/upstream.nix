@@ -7,7 +7,10 @@
   transitAdjacencies,
   adjacencyUnits,
   adjacencyLinkName,
+  adjacencyLaneUplinkMatches,
+  interfaceLaneUplinkMatches,
   interfaceNameForLink,
+  interfaceNameForLinkMatching,
   sourceKindOf,
   common,
 }:
@@ -57,34 +60,25 @@ let
     else
       [ ];
 
-  upstreamAdjacencyLinkNames = lib.filter (ln: ln != null) (map adjacencyLinkName upstreamMatches);
-
   upstreamInterfacesForUplink =
     uplinkName:
     let
-      candidates =
-        if !builtins.isString uplinkName || uplinkName == "" then
-          [ ]
-        else
-          let
-            raw = [
-              uplinkName
-              "uplink-${uplinkName}"
-            ];
-          in
-          if lib.hasPrefix "uplink-" uplinkName then
-            raw ++ [ (lib.removePrefix "uplink-" uplinkName) ]
-          else
-            raw;
-
       matches = lib.filter (
-        ln:
-        lib.any (
-          candidate: builtins.isString candidate && candidate != "" && lib.hasInfix candidate ln
-        ) candidates
-      ) upstreamAdjacencyLinkNames;
+        adjacency: adjacencyLaneUplinkMatches uplinkName adjacency
+      ) upstreamMatches;
+      linkNames = lib.filter (ln: ln != null) (map adjacencyLinkName matches);
     in
-    sortedStrings (lib.filter (n: n != null) (map interfaceNameForLink matches));
+    sortedStrings (
+      lib.filter (n: n != null) (
+        map (
+          linkName:
+          let
+            matched = interfaceNameForLinkMatching linkName (interfaceLaneUplinkMatches uplinkName);
+          in
+          if matched != null then matched else interfaceNameForLink linkName
+        ) linkNames
+      )
+    );
 
   routesOf =
     entry:

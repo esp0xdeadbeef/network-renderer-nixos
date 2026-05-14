@@ -40,7 +40,14 @@ let
     inherit lib common;
     inherit (node) currentNodeName;
     inherit (interfaces) interfaceNameForLink;
-    inherit (transitAdjacency) transitAdjacencies adjacencyUnits adjacencyLinkName adjacencyForPair;
+    inherit (interfaces) interfaceNameForLinkMatching interfaceLaneAccessMatches;
+    inherit (transitAdjacency)
+      transitAdjacencies
+      adjacencyUnits
+      adjacencyLinkName
+      adjacenciesForPair
+      adjacencyLaneAccessMatches
+      ;
   };
 
   tenants = import ./policy-endpoints/tenants.nix {
@@ -62,9 +69,15 @@ let
 
   upstream = import ./policy-endpoints/upstream.nix {
     inherit lib interfaceView currentSite common;
-    inherit (interfaces) interfaceEntries sourceKindOf interfaceNameForLink;
+    inherit (interfaces)
+      interfaceEntries
+      interfaceLaneUplinkMatches
+      interfaceNameForLink
+      interfaceNameForLinkMatching
+      sourceKindOf
+      ;
     inherit (node) currentNodeName;
-    inherit (transitAdjacency) transitAdjacencies adjacencyUnits adjacencyLinkName;
+    inherit (transitAdjacency) transitAdjacencies adjacencyUnits adjacencyLinkName adjacencyLaneUplinkMatches;
   };
 
   resolver = import ./policy-endpoints/resolver.nix {
