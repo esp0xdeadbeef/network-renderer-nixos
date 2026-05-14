@@ -28,6 +28,34 @@ let
     inherit lib common;
   };
 
+  forwardingIntentData =
+    if forwardingIntent != null && builtins.isAttrs forwardingIntent then
+      forwardingIntent
+    else
+      { };
+
+  runtimeForwardingIntent =
+    if builtins.isAttrs ((containerModel.runtimeTarget or { }).forwardingIntent or null) then
+      containerModel.runtimeTarget.forwardingIntent
+    else
+      { };
+
+  explicitPairsToRules =
+    pairs:
+    lib.concatMap (
+      pair:
+      if !(builtins.isAttrs pair) || (pair.action or "accept") != "accept" then
+        [ ]
+      else
+        lib.concatMap (
+          fromInterface:
+          map (toInterface: {
+            action = "accept";
+            inherit fromInterface toInterface;
+          }) (pair."out" or [ ])
+        ) (pair."in" or [ ])
+    ) pairs;
+
   routeSources = import ./policy-routing/source-interfaces.nix {
     inherit lib common interfaces interfaceNames renderedInterfaceNames upstreamLanesMatch;
     inherit isSelector isUpstreamSelector isPolicy isUpstreamSelectorCoreInterface;
@@ -35,8 +63,10 @@ let
     inherit isOverlayInterface isCoreTransitInterface;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     forwardingRules =
-      (((containerModel.runtimeTarget or { }).forwardingIntent or { }).rules or [ ])
-      ++ ((if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { }).rules or [ ]);
+      (runtimeForwardingIntent.rules or [ ])
+      ++ (forwardingIntentData.rules or [ ])
+      ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
+      ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]));
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {
