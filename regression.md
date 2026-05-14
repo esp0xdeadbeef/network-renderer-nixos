@@ -44,13 +44,15 @@ Last updated: 2026-05-14.
   validation is still pending.
 - 2026-05-14 live return-path debugging showed Hetzner `c-router-nebula-core`
   looped public replies back out `upstream` until the remote delegated prefix
-  was installed on `nebula1`. The renderer still blocks generic overlay
-  provider route synthesis, but now allows explicit CPM
-  `runtime-routed-prefix-return` routes with a `sourceFile` on overlay
-  interfaces to become runtime-managed delegated prefix routes. Covered locally
-  by `bash tests/test-dynamic-source-forwarding.sh` and
-  `bash tests/test-overlay-delegated-prefix-boundary.sh`; full lab validation
-  is still pending.
+  was installed on `nebula1`. A later full-loop run proved the previous generic
+  NixOS renderer exception was wrong: it installed
+  `2a01:4f9:c01f:4186::/64 dev overlay-west`, which won over the provider
+  `nebula1` route and broke the return path. The renderer now blocks all
+  overlay-provider delegated prefix route synthesis; provider-specific
+  runtime routes belong in `network-renderer-nebula` or another provider
+  renderer. Covered locally by `bash tests/test-dynamic-source-forwarding.sh`
+  and `bash tests/test-overlay-delegated-prefix-boundary.sh`; full lab
+  validation is still pending.
 - Network pipeline contract audit found policy endpoint mapping still parsed
   generated p2p lane names (`--access-` / `--uplink-`) to select firewall
   interfaces. The mapper now consumes explicit CPM/NFM transit adjacency lane

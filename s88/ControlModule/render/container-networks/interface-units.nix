@@ -65,8 +65,7 @@ let
 
   isOverlayProviderRoute =
     iface: route:
-    ((iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay"))
-    && ((route.intent or { }).kind or null) != "runtime-routed-prefix-return";
+    (iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay");
 
   stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" "sourceFile" "delegatedPrefix" "family" ];
 
