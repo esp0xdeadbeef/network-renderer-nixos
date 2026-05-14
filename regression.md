@@ -1,6 +1,6 @@
 # network-renderer-nixos regression state
 
-Last updated: 2026-05-13.
+Last updated: 2026-05-14.
 
 ## architecture shape
 
@@ -10,6 +10,19 @@ Last updated: 2026-05-13.
 
 ## fixed and locally tested
 
+- 2026-05-14 live hostile delegated IPv6 public-egress debugging found
+  `b-router-upstream-selector` accepted `pol-hostile-ew -> core-nebula` in
+  nftables, but real packets were routed with `oif core-isp` and dropped
+  because the policy table contained a projected ISP default. After replacing
+  table 2004 with only the `core-nebula` default, replies looped on
+  `core-nebula` until a main-table return route plus an earlier
+  `iif pol-hostile-ew lookup 2004` rule were installed. The renderer now
+  refuses to project default routes from non-target source interfaces into a
+  policy table, and upstream-selector policy ingress rules consult the policy
+  table before main-table fallback. Covered locally by
+  `bash tests/test-dns-service-policy-routes.sh` and
+  `bash tests/test-upstream-selector-core-main-routes.sh`; full lab validation
+  is still pending.
 - 2026-05-14 live hostile delegated IPv6 public-egress debugging showed CPM now
   emits sourceFile-scoped `core-nebula -> core` forwarding intent for runtime
   routed prefixes. The renderer now preserves `sourceFiles` on explicit

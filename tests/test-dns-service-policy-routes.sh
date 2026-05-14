@@ -72,6 +72,23 @@ nix_eval_json_or_fail \
               (rule.IncomingInterface or null) == incomingInterface
               && (rule.Table or null) == table)
             rules;
+        rulePriority = rules: incomingInterface: table:
+          let
+            matches =
+              builtins.filter
+                (rule:
+                  (rule.IncomingInterface or null) == incomingInterface
+                  && (rule.Table or null) == table
+                  && builtins.isInt (rule.Priority or null))
+                rules;
+          in
+            if matches == [ ] then null else (builtins.head matches).Priority;
+        tableRuleBeforeMainFallback = rules: incomingInterface: table:
+          let
+            tablePriority = rulePriority rules incomingInterface table;
+            mainPriority = rulePriority rules incomingInterface 254;
+          in
+            tablePriority != null && mainPriority != null && tablePriority < mainPriority;
         policyTableFor = networks: networkName:
           let
             rules = networks.${networkName}.routingPolicyRules or [ ];
@@ -116,6 +133,7 @@ nix_eval_json_or_fail \
         branchHostileOverlayRoutes = branchUpstreamNetworks."10-core-nebula".routes or [ ];
         branchHostileWanRoutes = branchUpstreamNetworks."10-core-isp".routes or [ ];
         branchCoreNebulaRules = branchUpstreamNetworks."10-core-nebula".routingPolicyRules or [ ];
+        branchHostileEwRules = branchUpstreamNetworks."10-pol-hostile-ew".routingPolicyRules or [ ];
         sitecClientRoutes = sitecNetworks."10-downstr-client".routes or [ ];
         branchCoreNebulaTable = policyTableFor branchUpstreamNetworks "10-core-nebula";
         branchBranchEwTable = policyTableFor branchUpstreamNetworks "10-pol-branch-ew";
@@ -170,6 +188,12 @@ nix_eval_json_or_fail \
             hasPolicyRoute branchUpstreamNetworks "10.90.10.1" "10.50.0.4" branchHostileEwTable;
           branch_hostile_sitec_dns_not_on_wan =
             missingRoute branchHostileWanRoutes "10.90.10.1" "10.50.0.4" 2004;
+          branch_hostile_public_default_uses_overlay =
+            hasPolicyRoute branchUpstreamNetworks "::/0" "fd42:dead:feed:1000:0:0:0:4" branchHostileEwTable;
+          branch_hostile_public_default_not_on_isp =
+            missingRoute branchHostileWanRoutes "::/0" "fd42:dead:feed:1000:0:0:0:6" branchHostileEwTable;
+          branch_hostile_policy_table_before_main =
+            tableRuleBeforeMainFallback branchHostileEwRules "pol-hostile-ew" branchHostileEwTable;
           sitea_upstream_dns_route =
             hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.48" siteaCoreNebulaTable;
           sitea_upstream_wrong_lane_absent =

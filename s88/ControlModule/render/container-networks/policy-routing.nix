@@ -146,10 +146,12 @@ let
       staticPolicyRoutes =
         lib.filter (route: !(isExternalValidationDelegatedPrefixRoute route)) sourceRoutes;
       scopedSourceRoutes =
-        if sourceIfName == targetIfName || policyOnlyProjection.mayProject interfaceName sourceIfName then
+        if sourceIfName == targetIfName then
           staticPolicyRoutes
+        else if policyOnlyProjection.mayProject interfaceName sourceIfName then
+          lib.filter (route: !(isDefaultRoute route)) staticPolicyRoutes
         else
-          lib.filter (route: !(isPolicyOnlyRoute route)) staticPolicyRoutes;
+          lib.filter (route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)) staticPolicyRoutes;
     in
     lib.filter builtins.isAttrs (
       map (route: if builtins.isAttrs route then route // { table = tableId; } else null) scopedSourceRoutes
@@ -157,23 +159,38 @@ let
 
   policyRulesFor =
     interfaceName: tableId: sourceIfNames:
+    let
+      tableRule = {
+        Family = "both";
+        IncomingInterface = interfaceName;
+        Priority = tableId;
+        Table = tableId;
+      };
+      mainFallbackRule = {
+        Family = "both";
+        IncomingInterface = interfaceName;
+        Priority = 10000 + tableId;
+        Table = 254;
+        SuppressPrefixLength = 0;
+      };
+      mainFirstRule = mainFallbackRule // {
+        Priority = tableId;
+      };
+      tableSecondRule = tableRule // {
+        Priority = 10000 + tableId;
+      };
+    in
     if sourceIfNames == [ ] then
       [ ]
+    else if isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName then
+      [
+        tableRule
+        mainFallbackRule
+      ]
     else
       [
-        {
-          Family = "both";
-          IncomingInterface = interfaceName;
-          Priority = tableId;
-          Table = 254;
-          SuppressPrefixLength = 0;
-        }
-        {
-          Family = "both";
-          IncomingInterface = interfaceName;
-          Priority = 10000 + tableId;
-          Table = tableId;
-        }
+        mainFirstRule
+        tableSecondRule
       ];
 in
 {
