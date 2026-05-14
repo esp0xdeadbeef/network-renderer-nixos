@@ -100,7 +100,14 @@ let
   };
 
   routeForwardingIntent = forwardingIntent // {
-    inherit policyRelationForwardPairs;
+    policyRelationForwardPairs =
+      if
+        (forwardingIntent.normalizedExplicitForwardPairs or [ ]) != [ ]
+        && (forwardingIntent.nodeForwarding.mode or null) == "explicit-selector-forwarding"
+      then
+        [ ]
+      else
+        policyRelationForwardPairs;
   };
 
   mkFirewallArg =

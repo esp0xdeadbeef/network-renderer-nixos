@@ -14,6 +14,7 @@ bash "${repo_root}/tests/test-s88-call-flow.sh"
 bash "${repo_root}/tests/test-s88-call-flow-profiler.sh"
 bash "${repo_root}/tests/test-s88-structural-keyword-warnings.sh"
 bash "${repo_root}/tests/test-policy-endpoint-no-generated-link-parsing.sh"
+bash "${repo_root}/tests/test-explicit-forwarding-suppresses-relation-fallback.sh"
 bash "${repo_root}/tests/test-container-policy-routing-no-rendered-firewall-parsing.sh"
 
 # Container firewall rules must use rendered Linux ifnames, not long logical ports.
