@@ -91,6 +91,7 @@ in
     explicitNatInterfaces
     explicitNat4Interfaces
     explicitNat6Interfaces
+    explicitNat6SourcePrefixes
     explicitClampMssInterfaces
     resolvedLocalAdapterNames
     resolvedUplinkNames
@@ -107,6 +108,7 @@ in
     coreNatInterfaces
     coreNat4Interfaces
     coreNat6Interfaces
+    coreNat6SourcePrefixes
     accessClampMssInterfaces
     coreClampMssInterfaces
     authoritativeAccessForwarding

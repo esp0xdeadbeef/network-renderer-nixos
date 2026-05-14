@@ -106,7 +106,7 @@ else
     outputPolicy = "accept";
     forwardPolicy = "drop";
     inherit inputRules;
-    inherit (forwarding) forwardPairs natInterfaces nat6Interfaces clampMssInterfaces;
+    inherit (forwarding) forwardPairs natInterfaces nat6Interfaces nat6SourcePrefixes clampMssInterfaces;
     inherit (renderedNat) natPreroutingRules4 natPreroutingRules6;
     forwardRules = renderedNat.portForwardForwardRules;
   }

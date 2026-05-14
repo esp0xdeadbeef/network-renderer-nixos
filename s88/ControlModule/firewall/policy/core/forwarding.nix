@@ -50,6 +50,7 @@ in
     else
       [ ];
   nat6Interfaces = if useExplicitNat then forwardingIntent.coreNat6Interfaces or [ ] else [ ];
+  nat6SourcePrefixes = if useExplicitNat then forwardingIntent.coreNat6SourcePrefixes or [ ] else [ ];
 
   clampMssInterfaces =
     if useExplicitNat || useExplicitForwarding then forwardingIntent.coreClampMssInterfaces or [ ] else wanNames;
