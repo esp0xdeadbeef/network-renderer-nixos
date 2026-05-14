@@ -74,6 +74,7 @@ let
 in
 {
   inherit
+    nodeForwarding
     nodeForwardingEnabled
     egressAuthority
     natEnabled

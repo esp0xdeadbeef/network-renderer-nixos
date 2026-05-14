@@ -10,6 +10,18 @@ Last updated: 2026-05-14.
 
 ## fixed and locally tested
 
+- 2026-05-14 full-loop local and Hetzner rebuilds failed while evaluating
+  upstream-selector firewalls because relation-derived endpoint mapping tried
+  to resolve tenant/external communication relations across both WAN and
+  east-west first-hop adjacencies. Current CPM output already emits exact
+  explicit forwarding pairs for these selector nodes, for example
+  `core-isp -> policy-branch`, `core-nebula -> pol-branch-ew`, `core ->
+  policy-wan`, and `core-nebula -> pol-client-ew`. The renderer now suppresses
+  relation-derived fallback pairs whenever CPM explicit forwarding pairs are
+  present, so it does not rediscover broader relation endpoints after CPM has
+  resolved the concrete interface contract. Covered locally by
+  `bash tests/test-explicit-forwarding-suppresses-relation-fallback.sh`; full
+  lab validation is still pending.
 - 2026-05-14 full-loop endpoint dual-stack validation failed on
   `branch-node01` IPv4 public egress. Live tcpdump showed echo replies reached
   `b-router-upstream-selector` on `core-isp` but did not leave toward
