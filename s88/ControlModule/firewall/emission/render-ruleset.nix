@@ -11,6 +11,7 @@
   outputRules ? [ ],
   natInterfaces ? [ ],
   nat6Interfaces ? [ ],
+  nat6SourcePrefixes ? [ ],
   natPreroutingRules4 ? [ ],
   natPreroutingRules6 ? [ ],
   clampMssInterfaces ? [ ],
@@ -45,6 +46,18 @@ let
       "\"${builtins.head names}\""
     else
       "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") names)} }";
+
+  renderValueExpr =
+    values:
+    let
+      names = sortedStrings values;
+    in
+    if names == [ ] then
+      abort "s88/ControlModule/firewall/emission/render-ruleset.nix: empty value expression"
+    else if builtins.length names == 1 then
+      builtins.head names
+    else
+      "{ ${builtins.concatStringsSep ", " names} }";
 
   attrOr =
     name: fallback: attrs:
@@ -97,6 +110,7 @@ let
 
   natIfs4 = sortedStrings natInterfaces;
   natIfs6 = sortedStrings nat6Interfaces;
+  nat6Sources = sortedStrings nat6SourcePrefixes;
   prerouting4 = lib.filter (rule: builtins.isString rule && rule != "") natPreroutingRules4;
   prerouting6 = lib.filter (rule: builtins.isString rule && rule != "") natPreroutingRules6;
   clampIfs = sortedStrings clampMssInterfaces;
@@ -145,7 +159,7 @@ in
   ${lib.optionalString (natIfs6 != [ ]) ''
     chain postrouting {
       type nat hook postrouting priority 100; policy accept;
-      oifname ${renderIfExpr natIfs6} masquerade
+      oifname ${renderIfExpr natIfs6}${lib.optionalString (nat6Sources != [ ]) " ip6 saddr ${renderValueExpr nat6Sources}"} masquerade
     }
   ''}
     }

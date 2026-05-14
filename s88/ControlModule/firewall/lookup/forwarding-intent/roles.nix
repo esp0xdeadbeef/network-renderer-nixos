@@ -62,6 +62,16 @@ let
     [ "egress" "masquerade" "interfaces6" ]
   ] (entry: boolOrFalse entry.explicit.explicitNatEnabled);
 
+  explicitNat6SourcePrefixes = stringListFromPaths {
+    roots = [ runtimeTarget nodeForwarding nodeEgress nodeNat ];
+    paths = [
+      [ "natSourcePrefixes6" ] [ "masqueradeSourcePrefixes6" ] [ "nat" "sourcePrefixes6" ]
+      [ "masquerade" "sourcePrefixes6" ] [ "egress" "natSourcePrefixes6" ]
+      [ "egress" "nat" "sourcePrefixes6" ] [ "egress" "masqueradeSourcePrefixes6" ]
+      [ "egress" "masquerade" "sourcePrefixes6" ]
+    ];
+  };
+
   explicitClampMssInterfaces = explicitNames [ runtimeTarget nodeForwarding nodeEgress nodeNat ] [
     [ "clampMssInterfaces" ] [ "tcpMssClampInterfaces" ] [ "clampMss" "interfaces" ]
     [ "tcpMssClamp" "interfaces" ] [ "egress" "clampMssInterfaces" ]
@@ -88,7 +98,7 @@ in
   inherit
     explicitLocalAdapterNames explicitUplinkNames explicitTransitNames explicitWanNames
     explicitExitEligibleNames explicitNatInterfaces explicitNat4Interfaces explicitNat6Interfaces
-    explicitClampMssInterfaces overlayInterfaceNames
+    explicitNat6SourcePrefixes explicitClampMssInterfaces overlayInterfaceNames
     ;
   resolvedLocalAdapterNames = if explicitLocalAdapterNames != [ ] then explicitLocalAdapterNames else fallbackLocalAdapterNames;
   resolvedWanNames = if explicitWanNames != [ ] then explicitWanNames else fallbackWanNames;

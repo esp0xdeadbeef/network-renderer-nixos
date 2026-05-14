@@ -56,4 +56,31 @@ if ! rg -q 'table ip6 nat' "${rules_file}" || ! rg -q 'oifname "eth0" masquerade
   exit 1
 fi
 
+scoped_rules="$(
+  nix eval --raw --extra-experimental-features 'nix-command flakes' --impure --expr '
+    let
+      flake = builtins.getFlake ("path:" + toString ./.);
+      renderRuleset = import ./s88/ControlModule/firewall/emission/render-ruleset.nix {
+        lib = flake.inputs.nixpkgs.lib;
+      };
+    in
+      renderRuleset {
+        nat6Interfaces = [ "eth0" ];
+        nat6SourcePrefixes = [ "fd42:dead:feed:10::/64" ];
+      }
+  '
+)"
+
+if ! grep -Fq 'oifname "eth0" ip6 saddr fd42:dead:feed:10::/64 masquerade' <<<"${scoped_rules}"; then
+  echo "FAIL core-ipv6-nat-rendering: explicit IPv6 NAT source prefixes must scope NAT66" >&2
+  printf "%s\n" "${scoped_rules}" >&2
+  exit 1
+fi
+
+if grep -Fq 'oifname "eth0" masquerade' <<<"${scoped_rules}"; then
+  echo "FAIL core-ipv6-nat-rendering: source-scoped NAT66 must not also emit unscoped masquerade" >&2
+  rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
+  exit 1
+fi
+
 pass "core-ipv6-nat-rendering"
