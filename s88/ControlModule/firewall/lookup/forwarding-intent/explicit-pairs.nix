@@ -56,6 +56,12 @@ let
         // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
           trafficType = rule.trafficType;
         }
+        // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
+          sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
+        }
+        // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
+          family = rule.family;
+        }
         // lib.optionalAttrs (comment != null && comment != "") {
           inherit comment;
         };

@@ -13,6 +13,7 @@ let
           gateway=${if route.gateway == null then "''" else lib.escapeShellArg route.gateway}
           metric=${if route.metric == null then "''" else lib.escapeShellArg (toString route.metric)}
           family=${if route.family == null then "''" else lib.escapeShellArg (toString route.family)}
+          table=${if route.table == null then "''" else lib.escapeShellArg (toString route.table)}
 
           [ -s "$source_file" ] || exit 0
           prefix="$(${pkgs.coreutils}/bin/tr -d '[:space:]' < "$source_file")"
@@ -34,29 +35,29 @@ let
           if [ "$family" = "6" ]; then
             if [ -n "$gateway" ]; then
               if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
               else
-                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" via "$gateway" dev "$interface" proto static onlink
+                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" proto static onlink
               fi
             else
               if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" metric "$metric" proto static
+                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" metric "$metric" proto static
               else
-                ${pkgs.iproute2}/bin/ip -6 route replace "$prefix" dev "$interface" proto static
+                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" proto static
               fi
             fi
           else
             if [ -n "$gateway" ]; then
               if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip route replace "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
               else
-                ${pkgs.iproute2}/bin/ip route replace "$prefix" via "$gateway" dev "$interface" proto static onlink
+                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" proto static onlink
               fi
             else
               if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip route replace "$prefix" dev "$interface" metric "$metric" proto static
+                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" metric "$metric" proto static
               else
-                ${pkgs.iproute2}/bin/ip route replace "$prefix" dev "$interface" proto static
+                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" proto static
               fi
             fi
           fi

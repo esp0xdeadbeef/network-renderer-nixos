@@ -59,5 +59,8 @@ in
         // lib.optionalAttrs (destination != null) { Destination = destination; }
         // lib.optionalAttrs (route ? table && builtins.isInt route.table) { Table = route.table; }
         // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) { Metric = route.metric; }
-        // lib.optionalAttrs ((route.policyOnly or false) == true) { _s88PolicyOnly = true; };
+        // lib.optionalAttrs ((route.policyOnly or false) == true) { _s88PolicyOnly = true; }
+        // lib.optionalAttrs (builtins.isString (route.sourceFile or null) && route.sourceFile != "") { inherit (route) sourceFile; }
+        // lib.optionalAttrs (builtins.isAttrs (route.delegatedPrefix or null)) { inherit (route) delegatedPrefix; }
+        // lib.optionalAttrs (route ? family) { inherit (route) family; };
 }

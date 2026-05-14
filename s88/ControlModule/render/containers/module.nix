@@ -39,6 +39,11 @@ let
     dynamicDelegatedRoutes = containerNetworkRender.dynamicDelegatedRoutes or [ ];
   };
 
+  dynamicForwarding = import ./module/dynamic-forwarding.nix {
+    inherit lib pkgs;
+    dynamicSourceForwardRules = containerNetworkRender.dynamicSourceForwardRules or [ ];
+  };
+
   edgeServices =
     if renderedModel.enableEdgeServices or false then
       import ../../access/render/default.nix {
@@ -64,6 +69,7 @@ in
     }
     networkManager.config
     delegatedRoutes.config
+    dynamicForwarding.config
     (lib.optionalAttrs ((containerNetworkRender.ipv6AcceptRAInterfaces or [ ]) != [ ]) {
       boot.kernel.sysctl = import ./module/ipv6-ra-sysctls.nix {
         inherit lib;

@@ -67,7 +67,7 @@ let
     iface: route:
     (iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay");
 
-  stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" ];
+  stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" "sourceFile" "delegatedPrefix" "family" ];
 
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
@@ -154,8 +154,40 @@ let
             inherit interfaceName sourceFile gateway;
             family = route.family or null;
             metric = route.metric or null;
+            table = route.Table or null;
           }
       ) (iface.routes or [ ])
+    ) interfaceNames
+  );
+
+  dynamicPolicyDelegatedRoutes = lib.concatLists (
+    map (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        interfaceName = renderedInterfaceNames.${ifName};
+      in
+      lib.imap0 (
+        index: route:
+        let
+          sourceFile = delegatedPrefixSourceForRoute route;
+          gateway =
+            if builtins.isString (route.Gateway or null) && route.Gateway != "" then
+              route.Gateway
+            else
+              null;
+        in
+        if sourceFile == null || isOverlayProviderRoute iface route then
+          null
+        else
+          {
+            name = "delegated-prefix-policy-route-${interfaceName}-${builtins.toString index}";
+            inherit interfaceName sourceFile gateway;
+            family = route.Family or route.family or null;
+            metric = route.Metric or route.metric or null;
+            table = route.Table or null;
+          }
+      ) (policyRoutingByInterface.routes.${ifName} or [ ])
     ) interfaceNames
   );
 in
@@ -172,5 +204,5 @@ in
     ) (builtins.attrValues interfaces)
   );
 
-  dynamicDelegatedRoutes = lib.filter (route: route != null) dynamicDelegatedRoutes;
+  dynamicDelegatedRoutes = lib.filter (route: route != null) (dynamicDelegatedRoutes ++ dynamicPolicyDelegatedRoutes);
 }
