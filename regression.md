@@ -10,6 +10,14 @@ Last updated: 2026-05-14.
 
 ## fixed and locally tested
 
+- 2026-05-14 full-loop branch DNS validation reached
+  `s-router-policy-only` on `up-cli-ew`; nftables had the explicit
+  `up-cli-ew -> downstream-mgmt` DNS accept, but the `up-cli-ew` policy table
+  lacked the route to `10.20.10.0/24`. Policy routing source discovery consumed
+  `forwardingIntent.rules` but ignored the explicit CPM
+  `normalizedExplicitForwardPairs` already used by firewall rendering. This is
+  now covered by `tests/test-policy-routing-explicit-forward-pairs.sh`; full
+  lab validation is still pending.
 - 2026-05-14 live hostile delegated IPv6 public-egress debugging found
   `b-router-upstream-selector` accepted `pol-hostile-ew -> core-nebula` in
   nftables, but real packets were routed with `oif core-isp` and dropped
