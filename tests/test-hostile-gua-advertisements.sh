@@ -23,10 +23,21 @@ INVENTORY_PATH="${inventory_path}" \
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
+        hetznerContainers = flake.lib.containers.buildForBox {
+          boxName = "s-router-hetzner-anywhere";
+          system = "x86_64-linux";
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        };
         cfg =
           (flake.inputs.nixpkgs.lib.nixosSystem {
             system = "x86_64-linux";
             modules = [ builtContainers."b-router-access-hostile".config ];
+          }).config;
+        hetznerCoreCfg =
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [ hetznerContainers."c-router-core".config ];
           }).config;
         coreCfg =
           (flake.inputs.nixpkgs.lib.nixosSystem {
@@ -40,10 +51,31 @@ INVENTORY_PATH="${inventory_path}" \
         routes = tenantNetwork.routes or [ ];
         coreUpstreamRoutes = coreCfg.systemd.network.networks."10-upstream".routes or [ ];
         coreServiceNames = builtins.attrNames coreCfg.systemd.services;
+        hetznerServiceNames = builtins.attrNames hetznerCoreCfg.systemd.services;
         hasDelegatedRouteService =
           builtins.any
             (name: builtins.match "s88-delegated-prefix-route-upstream-.*" name != null)
             coreServiceNames;
+        hetznerDelegatedRouteScripts =
+          map
+            (name: builtins.readFile hetznerCoreCfg.systemd.services.${name}.serviceConfig.ExecStart)
+            (builtins.filter
+              (name: builtins.match "s88-delegated-prefix-route-.*" name != null)
+              hetznerServiceNames);
+        hostileSourceFile = "/run/secrets/access-node-ipv6-prefix-espbranch-site-b-b-router-access-hostile";
+        hetznerHostileRouteScripts =
+          builtins.filter
+            (script: builtins.match (".*" + hostileSourceFile + ".*") script != null)
+            hetznerDelegatedRouteScripts;
+        hasOneHetznerHostileRouteService =
+          builtins.length hetznerHostileRouteScripts == 1;
+        hetznerHostileRouteUsesUpstream =
+          hasOneHetznerHostileRouteService
+          && builtins.match ".*interface=upstream.*" (builtins.head hetznerHostileRouteScripts) != null;
+        hetznerHostileRouteDoesNotUseEth0 =
+          !(builtins.any
+            (script: builtins.match (".*" + hostileSourceFile + ".*interface=eth0.*") script != null)
+            hetznerDelegatedRouteScripts);
         hasHostileGuaOnlinkRoute =
           builtins.any (
             route:
@@ -66,6 +98,9 @@ INVENTORY_PATH="${inventory_path}" \
         && !hasHardcodedHostileRaPrefix
         && !hasHostileGuaOnlinkRoute
         && hasDelegatedRouteService
+        && hasOneHetznerHostileRouteService
+        && hetznerHostileRouteUsesUpstream
+        && hetznerHostileRouteDoesNotUseEth0
         && !hasStaleCoreMainRoute
         && !(builtins.elem "2a01:4f8:1c17:b337::1/64" addresses)
     '

@@ -67,6 +67,11 @@ let
     iface: route:
     (iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay");
 
+  isWanInterface = iface:
+    (iface.sourceKind or null) == "wan"
+    || (iface.carrier or null) == "wan"
+    || (iface.type or null) == "wan";
+
   stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" "sourceFile" "delegatedPrefix" "family" ];
 
   interfaceUnits = builtins.listToAttrs (
@@ -127,7 +132,7 @@ let
     )
   );
 
-  dynamicDelegatedRoutes = lib.concatLists (
+  dynamicDelegatedRouteCandidates = lib.concatLists (
     map (
       ifName:
       let
@@ -155,12 +160,13 @@ let
             family = route.family or null;
             metric = route.metric or null;
             table = route.Table or null;
+            priority = if isWanInterface iface then 10 else 0;
           }
       ) (iface.routes or [ ])
     ) interfaceNames
   );
 
-  dynamicPolicyDelegatedRoutes = lib.concatLists (
+  dynamicPolicyDelegatedRouteCandidates = lib.concatLists (
     map (
       ifName:
       let
@@ -186,10 +192,30 @@ let
             family = route.Family or route.family or null;
             metric = route.Metric or route.metric or null;
             table = route.Table or null;
+            priority = if isWanInterface iface then 10 else 0;
           }
       ) (policyRoutingByInterface.routes.${ifName} or [ ])
     ) interfaceNames
   );
+
+  dynamicDelegatedRouteCandidatesBySource = builtins.groupBy (route: route.sourceFile) (
+    lib.filter (route: route != null) (dynamicDelegatedRouteCandidates ++ dynamicPolicyDelegatedRouteCandidates)
+  );
+
+  sortDynamicDelegatedRoutes =
+    routes:
+    builtins.sort (
+      left: right:
+      if (left.priority or 0) == (right.priority or 0) then
+        left.name < right.name
+      else
+        (left.priority or 0) < (right.priority or 0)
+    ) routes;
+
+  dynamicDelegatedRoutes =
+    lib.mapAttrsToList
+      (_: routes: builtins.removeAttrs (builtins.head (sortDynamicDelegatedRoutes routes)) [ "priority" ])
+      dynamicDelegatedRouteCandidatesBySource;
 in
 {
   inherit interfaceUnits;
@@ -204,5 +230,5 @@ in
     ) (builtins.attrValues interfaces)
   );
 
-  dynamicDelegatedRoutes = lib.filter (route: route != null) (dynamicDelegatedRoutes ++ dynamicPolicyDelegatedRoutes);
+  inherit dynamicDelegatedRoutes;
 }
