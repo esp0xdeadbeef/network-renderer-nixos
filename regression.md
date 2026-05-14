@@ -17,6 +17,15 @@ Last updated: 2026-05-13.
   installs a runtime nft rule from the delegated prefix file instead. Covered
   locally by `bash tests/test-dynamic-source-forwarding.sh`; full lab
   validation is still pending.
+- 2026-05-14 live return-path debugging showed Hetzner `c-router-nebula-core`
+  looped public replies back out `upstream` until the remote delegated prefix
+  was installed on `nebula1`. The renderer still blocks generic overlay
+  provider route synthesis, but now allows explicit CPM
+  `runtime-routed-prefix-return` routes with a `sourceFile` on overlay
+  interfaces to become runtime-managed delegated prefix routes. Covered locally
+  by `bash tests/test-dynamic-source-forwarding.sh` and
+  `bash tests/test-overlay-delegated-prefix-boundary.sh`; full lab validation
+  is still pending.
 - Network pipeline contract audit found policy endpoint mapping still parsed
   generated p2p lane names (`--access-` / `--uplink-`) to select firewall
   interfaces. The mapper now consumes explicit CPM/NFM transit adjacency lane
