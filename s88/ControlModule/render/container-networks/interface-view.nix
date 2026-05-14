@@ -39,31 +39,6 @@ let
     else
       { };
 
-  laneForInterfaceKey =
-    ifName:
-    let
-      iface = interfaces.${ifName} or { };
-      backingRef = backingRefForInterface iface;
-    in
-    if builtins.isString (backingRef.lane or null) && backingRef.lane != "" then
-      backingRef.lane
-    else
-      null;
-
-  uplinkNamesFromLane =
-    lane:
-    let
-      coreMatch = if builtins.isString lane then builtins.match "uplink::(.+)" lane else null;
-      accessMatch =
-        if builtins.isString lane then builtins.match "access::.+::uplink::(.+)" lane else null;
-    in
-    if coreMatch != null then
-      [ (builtins.elemAt coreMatch 0) ]
-    else if accessMatch != null then
-      [ (builtins.elemAt accessMatch 0) ]
-    else
-      [ ];
-
   uplinkNamesForRenderedName =
     name:
     let
@@ -82,7 +57,7 @@ let
         else
           [ ];
     in
-    lib.unique (explicitUplinks ++ laneUplinks ++ uplinkNamesFromLane (laneForInterfaceKey ifName));
+    lib.unique (explicitUplinks ++ laneUplinks);
 in
 {
   inherit

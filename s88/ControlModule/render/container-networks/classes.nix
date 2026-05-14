@@ -7,7 +7,6 @@
 }:
 
 let
-  inherit (common) stringHasPrefix;
   interfaceKeyForRenderedName =
     renderedName:
     lib.findFirst (
@@ -28,33 +27,31 @@ let
     else
       { };
 
-  laneForRenderedName =
+  backingRefForRenderedName =
     renderedName:
     let
       ifName = interfaceKeyForRenderedName renderedName;
       iface = if ifName == null then { } else interfaces.${ifName} or { };
-      backingRef = backingRefFor iface;
     in
-    if builtins.isString (backingRef.lane or null) then backingRef.lane else "";
+    backingRefFor iface;
 
-  isDownstreamSelectorAccessInterface = name: stringHasPrefix "access-" name;
-  isDownstreamSelectorPolicyInterface = name: stringHasPrefix "policy-" name;
-  isUpstreamSelectorCoreInterface =
-    name:
-    name == lib.removeSuffix "-" "core-"
-    || stringHasPrefix "core-" name
-    || name == "upstream"
-    || stringHasPrefix "upstream-" name;
-  isUpstreamSelectorPolicyInterface =
-    name: stringHasPrefix "pol-" name || stringHasPrefix "policy-" name;
-  isPolicyDownstreamInterface =
-    name:
-    stringHasPrefix "downstr-" name
-    || stringHasPrefix "downstream-" name
-    || stringHasPrefix "down-" name;
-  isPolicyUpstreamInterface = name: stringHasPrefix "up-" name || stringHasPrefix "upstream-" name;
-  isOverlayInterface = name: stringHasPrefix "overlay-" name;
-  isCoreTransitInterface = name: name == "upstream" || stringHasPrefix "upstream-" name;
+  laneForRenderedName =
+    renderedName:
+    let
+      lane = (backingRefForRenderedName renderedName).lane or { };
+    in
+    if builtins.isAttrs lane then lane else { };
+
+  laneKindForRenderedName = name: (laneForRenderedName name).kind or null;
+
+  isDownstreamSelectorAccessInterface = name: laneKindForRenderedName name == "access-edge";
+  isDownstreamSelectorPolicyInterface = name: laneKindForRenderedName name == "access";
+  isUpstreamSelectorCoreInterface = name: laneKindForRenderedName name == "uplink";
+  isUpstreamSelectorPolicyInterface = name: laneKindForRenderedName name == "access-uplink";
+  isPolicyDownstreamInterface = name: laneKindForRenderedName name == "access";
+  isPolicyUpstreamInterface = name: laneKindForRenderedName name == "access-uplink";
+  isOverlayInterface = name: (backingRefForRenderedName name).kind or null == "overlay";
+  isCoreTransitInterface = name: laneKindForRenderedName name == "uplink";
 
   isSelector =
     lib.any (name: isDownstreamSelectorAccessInterface renderedInterfaceNames.${name}) interfaceNames

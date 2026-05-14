@@ -13,6 +13,8 @@ bash "${repo_root}/tests/test-controlmodule-boundary.sh"
 bash "${repo_root}/tests/test-s88-call-flow.sh"
 bash "${repo_root}/tests/test-s88-call-flow-profiler.sh"
 bash "${repo_root}/tests/test-s88-structural-keyword-warnings.sh"
+bash "${repo_root}/tests/test-policy-endpoint-no-generated-link-parsing.sh"
+bash "${repo_root}/tests/test-container-policy-routing-no-rendered-firewall-parsing.sh"
 
 # Container firewall rules must use rendered Linux ifnames, not long logical ports.
 bash "${repo_root}/tests/test-container-firewall-ifname-limit.sh"

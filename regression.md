@@ -10,6 +10,30 @@ Last updated: 2026-05-13.
 
 ## fixed and locally tested
 
+- Network pipeline contract audit found policy endpoint mapping still parsed
+  generated p2p lane names (`--access-` / `--uplink-`) to select firewall
+  interfaces. The mapper now consumes explicit CPM/NFM transit adjacency lane
+  metadata (`lane`, `laneMeta`, `uplinks`) instead. Covered locally by
+  `tests/test-policy-endpoint-no-generated-link-parsing.sh`; full live
+  validation is still pending.
+- Network pipeline contract audit found container policy-routing derived source
+  interface sets by scanning rendered nftables text. The renderer now consumes
+  explicit CPM `forwardingIntent.rules` only. Covered locally by
+  `tests/test-container-policy-routing-no-rendered-firewall-parsing.sh`; full
+  live validation is still pending.
+- Network pipeline contract audit found container network interface view could
+  recover lane/uplink semantics from rendered lane strings such as
+  `uplink::...`. The renderer now uses structured CPM backingRef lane/uplink
+  metadata. Covered by `tests/test-policy-endpoint-no-generated-link-parsing.sh`
+  and `tests/test-policy-forward-default-paths.sh`; full live validation is
+  still pending.
+- Network pipeline contract audit found container policy-routing classes still
+  classified selector/policy/core interfaces from rendered ifname prefixes such
+  as `access-`, `policy-`, `upstream-`, and `overlay-`. Classification now uses
+  structured CPM `backingRef.lane.kind` and `backingRef.kind`. Covered locally
+  by `tests/test-policy-forward-default-paths.sh` and
+  `tests/test-policy-cpm-firewall-parity.sh`; full live validation is still
+  pending.
 - Downstream selectors now preserve explicit CPM `policyOnly` default routes
   from the paired `policy-*` interface into the `access-*` ingress policy
   table. This fixes the live failure where access traffic reached the
@@ -153,6 +177,27 @@ Last updated: 2026-05-13.
   selects transit/p2p source addresses. First check whether CPM emits an
   explicit DNS outgoing/source contract; if it does, the renderer must preserve
   it, and if it does not this is upstream CPM/model ownership.
+- 2026-05-14 00:58 UTC live refresh reproduced DNS failures on both
+  `s-router-test` and Hetzner. `b-router-access-hostile`,
+  `b-router-access-branch`, `c-router-access-client`, and
+  `c-router-access-dmz` all have active Unbound listeners on loopback plus
+  tenant DNS addresses and nft output accepts that allow DNS service egress
+  only from tenant DNS source addresses. Foreground testing on
+  `c-router-access-dmz` disproved the first renderer hypothesis: live
+  `/etc/unbound/unbound.conf` already contains `outgoing-interface:
+  10.90.10.1` and `outgoing-interface: fd42:dead:cafe:10::1`, and manually
+  running Unbound with that binding still timed out. Direct
+  `dig -b 10.90.10.1 @1.1.1.1`, `ping -I 10.90.10.1 1.1.1.1`, and
+  source-bound traceroute also failed while reaching the policy/upstream/core
+  path. The next renderer/CPM check is forwarding/NAT/firewall
+  materialization and over-expanded accepted pairs, not Unbound source binding.
+- The same live packet proof showed the query is NATed correctly at
+  `c-router-core` and the public DNS reply is de-NATed back out the core's
+  `upstream` interface toward `10.90.10.1`, but the reply was not observed on
+  `c-router-policy`. The next owning-repo test should focus on
+  upstream-selector return-path route/firewall materialization for site-C DMZ
+  DNS egress, plus whether CPM or the renderer is producing the broad
+  same-interface DNS/4242 accepts observed on `c-router-policy`.
 - 2026-05-14 Hetzner `c-router-policy` rendered very broad repeated DNS and
   port-4242 accepts, including same-interface combinations such as
   `up-client-wan -> up-client-wan` and `up-dmz-wan -> up-dmz-wan`. Check

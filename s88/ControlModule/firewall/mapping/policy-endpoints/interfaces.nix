@@ -7,6 +7,23 @@
 let
   inherit (common) sortedStrings entryFieldOr lastStringSegment;
 
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
+  ifaceOf =
+    entry:
+    if builtins.isAttrs (entry.iface or null) then
+      entry.iface
+    else
+      { };
+
+  entryOrIfaceField =
+    entry: field: default:
+    let
+      direct = entryFieldOr entry field null;
+      iface = ifaceOf entry;
+    in
+    if direct != null then direct else entryFieldOr iface field default;
+
   rawInterfaceEntries =
     if interfaceView != null && builtins.isAttrs interfaceView && interfaceView ? interfaceEntries then
       lib.filter builtins.isAttrs interfaceView.interfaceEntries
@@ -34,7 +51,7 @@ let
     entry:
     let
       semanticInterface = semanticInterfaceOf entry;
-      sourceKind = entryFieldOr entry "sourceKind" null;
+      sourceKind = entryOrIfaceField entry "sourceKind" null;
     in
     if semanticInterface ? kind && builtins.isString semanticInterface.kind then
       semanticInterface.kind
@@ -46,20 +63,22 @@ let
   interfaceRefStrings =
     entry:
     let
-      backingRef = entryFieldOr entry "backingRef" { };
+      backingRef = entryOrIfaceField entry "backingRef" { };
+      iface = ifaceOf entry;
     in
     sortedStrings [
       (entry.name or null)
       (entry.key or null)
-      (entryFieldOr entry "sourceInterface" null)
-      (entryFieldOr entry "runtimeIfName" null)
-      (entryFieldOr entry "renderedIfName" null)
-      (entryFieldOr entry "ifName" null)
-      (entryFieldOr entry "containerInterfaceName" null)
-      (entryFieldOr entry "hostInterfaceName" null)
-      (entryFieldOr entry "desiredInterfaceName" null)
-      (entryFieldOr entry "assignedUplinkName" null)
-      (entryFieldOr entry "upstream" null)
+      (entryOrIfaceField entry "sourceInterface" null)
+      (entryOrIfaceField entry "runtimeIfName" null)
+      (entryOrIfaceField entry "renderedIfName" null)
+      (entryOrIfaceField entry "ifName" null)
+      (entryOrIfaceField entry "containerInterfaceName" null)
+      (entryOrIfaceField entry "hostInterfaceName" null)
+      (entryOrIfaceField entry "desiredInterfaceName" null)
+      (entryOrIfaceField entry "assignedUplinkName" null)
+      (entryOrIfaceField entry "upstream" null)
+      (iface.interfaceName or null)
       (if builtins.isAttrs backingRef then backingRef.name or null else null)
       (
         if builtins.isAttrs backingRef && backingRef ? id && builtins.isString backingRef.id then
@@ -69,6 +88,32 @@ let
       )
       (if builtins.isAttrs backingRef then backingRef.kind or null else null)
     ];
+
+  interfaceLane =
+    entry:
+    let
+      backingRef = entryOrIfaceField entry "backingRef" { };
+    in
+    attrsOrEmpty (backingRef.lane or null);
+
+  interfaceLaneAccessMatches =
+    targetUnit: entry:
+    let
+      lane = interfaceLane entry;
+    in
+    builtins.isString targetUnit && targetUnit != "" && (lane.access or null) == targetUnit;
+
+  interfaceLaneUplinkMatches =
+    uplinkName: entry:
+    let
+      lane = interfaceLane entry;
+      uplinks =
+        sortedStrings (
+          (if builtins.isList (lane.uplinks or null) then lane.uplinks else [ ])
+          ++ [ (lane.uplink or null) ]
+        );
+    in
+    builtins.isString uplinkName && uplinkName != "" && builtins.elem uplinkName uplinks;
 
   interfaceAliasMap = builtins.listToAttrs (
     lib.concatMap (
@@ -102,10 +147,16 @@ let
 
   interfaceNameForLink =
     linkName:
+    interfaceNameForLinkMatching linkName (_: true);
+
+  interfaceNameForLinkMatching =
+    linkName: entryMatches:
     let
       matches = sortedStrings (
         map (entry: entry.name) (
-          lib.filter (entry: builtins.elem linkName (interfaceRefStrings entry)) interfaceEntries
+          lib.filter (
+            entry: builtins.elem linkName (interfaceRefStrings entry) && entryMatches entry
+          ) interfaceEntries
         )
       );
     in
@@ -122,7 +173,14 @@ let
       '';
 in
 {
-  inherit interfaceEntries sourceKindOf interfaceNameForLink;
+  inherit
+    interfaceEntries
+    interfaceLaneAccessMatches
+    interfaceLaneUplinkMatches
+    interfaceNameForLink
+    interfaceNameForLinkMatching
+    sourceKindOf
+    ;
 
   resolveInterfaceAlias =
     name:
