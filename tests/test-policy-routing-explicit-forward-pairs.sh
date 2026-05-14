@@ -20,11 +20,11 @@ nix_eval_true_or_fail \
             uplinks = { };
             wanUplinkName = null;
             forwardingIntent = {
-              normalizedExplicitForwardPairs = [
+              policyRelationForwardPairs = [
                 {
                   action = "accept";
                   "in" = [ "up-cli-ew" ];
-                  "out" = [ "downstream-mgmt" ];
+                  "out" = [ "up-mgt-ew" ];
                   comment = "allow-east-west-to-nixos-mgmt-dns";
                 }
               ];
@@ -57,6 +57,22 @@ nix_eval_true_or_fail \
                     uplinks = [ "east-west" ];
                   };
                   routes = [ ];
+                };
+                up-mgt-ew = {
+                  containerInterfaceName = "up-mgt-ew";
+                  addresses = [ "10.10.0.49/31" ];
+                  backingRef.lane = {
+                    kind = "access-uplink";
+                    access = "s-router-access-mgmt";
+                    uplink = "east-west";
+                    uplinks = [ "east-west" ];
+                  };
+                  routes = [
+                    {
+                      dst = "10.20.10.0/24";
+                      via4 = "10.10.0.26";
+                    }
+                  ];
                 };
               };
             };

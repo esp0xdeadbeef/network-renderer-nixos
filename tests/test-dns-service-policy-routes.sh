@@ -145,6 +145,7 @@ nix_eval_json_or_fail \
         siteaAdminEwTable = policyTableFor siteaUpstreamNetworks "10-pol-adm-ew";
         siteaAdminWanTable = policyTableFor siteaUpstreamNetworks "10-pol-admin-a";
         siteaMgmtWanTable = policyTableFor siteaUpstreamNetworks "10-pol-mgmt-a";
+        siteaPolicyClientEwTable = policyTableFor siteaPolicyNetworks "10-up-cli-ew";
         checks = {
           branch_v4_dns_route =
             hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.13" 2000;
@@ -226,6 +227,10 @@ nix_eval_json_or_fail \
             hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.26" 2004;
           sitea_mgmt_downstream_dns_v6 =
             hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:1a" 2004;
+          sitea_policy_client_ew_mgmt_dns_v4 =
+            hasPolicyRoute siteaPolicyNetworks "10.20.10.0/24" "10.10.0.26" siteaPolicyClientEwTable;
+          sitea_policy_client_ew_mgmt_dns_v6 =
+            hasPolicyRoute siteaPolicyNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:1a" siteaPolicyClientEwTable;
           sitea_dns_udp_rule =
             lib.hasInfix "iifname \"downstr-client\" oifname \"downstream-mgmt\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
           sitea_dns_tcp_rule =

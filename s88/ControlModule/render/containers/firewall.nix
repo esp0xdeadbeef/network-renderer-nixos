@@ -43,6 +43,14 @@ let
     else
       [ ];
 
+  unitKey = if renderedModel ? unitKey then renderedModel.unitKey else null;
+  unitName = if renderedModel ? unitName then renderedModel.unitName else null;
+  roleName = if renderedModel ? roleName then renderedModel.roleName else null;
+  policyModulePath = renderedModel.firewallPolicyPath or null;
+  assumptionFamily = renderedModel.assumptionFamily or null;
+  preferSiteNode = renderedModel.preferSiteNode or false;
+  strictEndpointBindings = renderedModel.strictEndpointBindings or false;
+
   forwardingIntent = import ../../firewall/lookup/forwarding-intent.nix {
     inherit
       lib
@@ -52,6 +60,47 @@ let
       lanIfs
       uplinks
       ;
+  };
+
+  communication = import ../../firewall/lookup/communication-contract.nix {
+    inherit
+      lib
+      cpm
+      runtimeTarget
+      ;
+  };
+
+  interfaceView = import ../../firewall/lookup/interface-view.nix {
+    inherit
+      lib
+      interfaces
+      wanIfs
+      lanIfs
+      ;
+  };
+
+  endpointMap = import ../../firewall/mapping/policy-endpoints.nix {
+    inherit
+      lib
+      interfaceView
+      runtimeTarget
+      roleName
+      unitName
+      preferSiteNode
+      strictEndpointBindings
+      ;
+    currentSite = communication.currentSite;
+    communicationContract = communication.communicationContract;
+    ownership = communication.ownership;
+  };
+
+  policyRelationForwardPairs = import ../../firewall/policy/relation-forward-pairs.nix {
+    inherit lib endpointMap;
+    communicationContract = communication.communicationContract;
+  };
+
+  routeForwardingIntent = forwardingIntent // {
+    inherit policyRelationForwardPairs;
   };
 
   mkFirewallArg =
@@ -79,19 +128,21 @@ if cpm == null then
       ruleset = null;
     }
 else
-  mkFirewallArg (firewall {
+    mkFirewallArg (firewall {
     inherit cpm inventory uplinks;
-    unitKey = if renderedModel ? unitKey then renderedModel.unitKey else null;
-    unitName = if renderedModel ? unitName then renderedModel.unitName else null;
-    roleName = if renderedModel ? roleName then renderedModel.roleName else null;
-    policyModulePath = renderedModel.firewallPolicyPath or null;
-    assumptionFamily = renderedModel.assumptionFamily or null;
-    preferSiteNode = renderedModel.preferSiteNode or false;
-    strictEndpointBindings = renderedModel.strictEndpointBindings or false;
+    inherit
+      unitKey
+      unitName
+      roleName
+      policyModulePath
+      assumptionFamily
+      preferSiteNode
+      strictEndpointBindings
+      ;
     inherit
       runtimeTarget
       interfaces
       wanIfs
       lanIfs
       ;
-  }) forwardingIntent
+  }) routeForwardingIntent

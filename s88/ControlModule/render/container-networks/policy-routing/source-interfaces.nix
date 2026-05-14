@@ -121,7 +121,10 @@ in
           ))
         || (isPolicyUpstreamInterface (renderedNameFor name)
           && tenantKey != null
-          && policyTenantKeyFor (renderedNameFor name) == tenantKey)
+          && (
+            policyTenantKeyFor (renderedNameFor name) == tenantKey
+            || hasAcceptForwardingRule targetName (renderedNameFor name)
+          ))
       ) interfaceNames
     else if isOverlayInterface targetName then
       lib.unique (
