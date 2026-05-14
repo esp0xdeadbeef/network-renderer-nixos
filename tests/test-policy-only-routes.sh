@@ -293,7 +293,15 @@ REPO_ROOT="${repo_root}" nix eval \
                   uplink = "east-west";
                   uplinks = [ "east-west" ];
                 };
-                routes = [ ];
+                routes = [
+                  {
+                    dst = "0.0.0.0/0";
+                    via4 = "10.50.0.4";
+                    metric = 2000;
+                    policyOnly = true;
+                    intent.kind = "delegated-public-egress";
+                  }
+                ];
               };
             };
           };
@@ -308,6 +316,99 @@ REPO_ROOT="${repo_root}" nix eval \
         lib.concatLists (
           map (network: network.routes or [ ]) (builtins.attrValues branchIpv4Render.networks)
         );
+      downstreamSelectorRender =
+        import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib;
+          containerModel = {
+            interfaces = {
+              access-client = {
+                containerInterfaceName = "access-client";
+                backingRef.lane = {
+                  kind = "access-edge";
+                  access = "client";
+                };
+                addresses = [ "10.10.0.3/31" ];
+                routes = [
+                  {
+                    dst = "10.20.20.0/24";
+                    via4 = "10.10.0.2";
+                  }
+                ];
+              };
+              access-stream = {
+                containerInterfaceName = "access-stream";
+                backingRef.lane = {
+                  kind = "access-edge";
+                  access = "stream";
+                };
+                addresses = [ "10.10.0.11/31" ];
+                routes = [
+                  {
+                    dst = "10.20.50.0/24";
+                    via4 = "10.10.0.10";
+                  }
+                ];
+              };
+              policy-client = {
+                containerInterfaceName = "policy-client";
+                backingRef.lane = {
+                  kind = "access";
+                  access = "client";
+                };
+                addresses = [ "10.10.0.20/31" ];
+                routes = [
+                  {
+                    dst = "10.20.20.0/24";
+                    via4 = "10.10.0.2";
+                  }
+                ];
+              };
+              policy-stream = {
+                containerInterfaceName = "policy-stream";
+                backingRef.lane = {
+                  kind = "access";
+                  access = "stream";
+                };
+                addresses = [ "10.10.0.28/31" ];
+                routes = [
+                  {
+                    dst = "10.20.50.0/24";
+                    via4 = "10.10.0.10";
+                  }
+                ];
+              };
+            };
+          };
+          uplinks = { };
+          wanUplinkName = null;
+        };
+      downstreamSelectorRoutes =
+        lib.concatLists (
+          map (network: network.routes or [ ]) (builtins.attrValues downstreamSelectorRender.networks)
+        );
+      downstreamSelectorRules =
+        lib.concatLists (
+          map (network: network.routingPolicyRules or [ ]) (builtins.attrValues downstreamSelectorRender.networks)
+        );
+      downstreamPolicyStreamRules =
+        builtins.filter (rule: (rule.IncomingInterface or null) == "policy-stream") downstreamSelectorRules;
+      downstreamPolicyStreamTableRules =
+        builtins.filter (rule: (rule.Table or null) != 254) downstreamPolicyStreamRules;
+      downstreamPolicyStreamMainRules =
+        builtins.filter (rule: (rule.Table or null) == 254) downstreamPolicyStreamRules;
+      downstreamPolicyStreamTable =
+        if downstreamPolicyStreamTableRules == [ ] then null else (builtins.head downstreamPolicyStreamTableRules).Table;
+      downstreamPolicyStreamTableFirst =
+        downstreamPolicyStreamTableRules != [ ]
+        && downstreamPolicyStreamMainRules != [ ]
+        && (builtins.head downstreamPolicyStreamTableRules).Priority < (builtins.head downstreamPolicyStreamMainRules).Priority;
+      downstreamPolicyStreamReturnRoute =
+        builtins.any
+          (route:
+            (route.Destination or null) == "10.20.50.0/24"
+            && (route.Gateway or null) == "10.10.0.10"
+            && (route.Table or null) == downstreamPolicyStreamTable)
+          downstreamSelectorRoutes;
       branchHostileTable =
         let
           matches =
@@ -332,11 +433,25 @@ REPO_ROOT="${repo_root}" nix eval \
             && (route.Gateway or null) == "10.50.0.4"
             && !(route ? Table))
           branchIpv4Routes;
+      checks = {
+        inherit
+          hasPolicyOnlyTableRoute
+          hasPolicyOnlyMainRoute
+          branchHasWanDefault
+          branchLeaksOverlayDefault
+          siteCOverlayIngressDefault
+          siteCOverlayMainDefault
+          branchHostileIpv4Default
+          branchHostileIpv4MainDefault
+          downstreamPolicyStreamTableFirst
+          downstreamPolicyStreamReturnRoute
+          ;
+      };
     in
-      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault then
+      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault && downstreamPolicyStreamTableFirst && downstreamPolicyStreamReturnRoute then
         true
       else
-        throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, including site-c core-nebula overlay ingress defaults, not as main defaults or unrelated ingress-table defaults. Remove this error only after delegated hostile public egress can select Nebula and then site-c client policy without turning overlay into a generic branch WAN default."
+        throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, including site-c core-nebula overlay ingress defaults and downstream-selector policy ingress return tables, not as main defaults or unrelated ingress-table defaults. checks=${builtins.toJSON checks}"
   ' >/dev/null
 
 echo "PASS policy-only-routes"

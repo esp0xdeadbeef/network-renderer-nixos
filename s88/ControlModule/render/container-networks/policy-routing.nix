@@ -188,7 +188,10 @@ let
     in
     if sourceIfNames == [ ] then
       [ ]
-    else if isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName then
+    else if
+      (isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName)
+      || (isSelector && isDownstreamSelectorPolicyInterface interfaceName)
+    then
       [
         tableRule
         mainFallbackRule
