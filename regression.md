@@ -10,6 +10,19 @@ Last updated: 2026-05-14.
 
 ## fixed and locally tested
 
+- 2026-05-14 full-loop endpoint dual-stack validation failed on
+  `branch-node01` IPv4 public egress. Live tcpdump showed echo replies reached
+  `b-router-upstream-selector` on `core-isp` but did not leave toward
+  `policy-branch`; a temporary
+  `ip rule add pref 11999 iif core-isp to 10.60.10.0/24 lookup 2003` made
+  branch IPv4 ping/curl pass. Renderer policy-routing projected every
+  upstream-selector policy interface into a core-ingress table, so the
+  `core-isp` table received an east-west branch-prefix route before the
+  policy-WAN return route despite CPM forwarding intent only allowing
+  `core-isp -> policy-branch`. The renderer now scopes upstream-selector
+  core-ingress source interfaces to explicit accept forwarding rules when
+  present. Covered locally by `bash tests/test-lane-route-scoping.sh`; full lab
+  validation is still pending.
 - 2026-05-14 full-loop branch DNS validation reached
   `s-router-policy-only` on `up-cli-ew`; nftables had the explicit
   `up-cli-ew -> downstream-mgmt` DNS accept, but the `up-cli-ew` policy table
