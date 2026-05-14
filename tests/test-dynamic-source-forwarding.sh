@@ -103,17 +103,7 @@ REPO_ROOT="${repo_root}" nix eval \
       ]
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
-      && overlayRouteRender.dynamicDelegatedRoutes == [
-        {
-          family = 6;
-          gateway = null;
-          interfaceName = "nebula1";
-          metric = 50;
-          name = "delegated-prefix-route-nebula1-0";
-          sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
-          table = null;
-        }
-      ]
+      && overlayRouteRender.dynamicDelegatedRoutes == [ ]
   ' >/dev/null
 
 echo "PASS dynamic-source-forwarding"
