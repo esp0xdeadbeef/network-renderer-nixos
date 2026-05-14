@@ -8,6 +8,12 @@ Last updated: 2026-05-14.
 - state=required | target=no oversized implementation files | reason=Nix implementation files over 200 LOC must be split by concrete renderer responsibility unless they are flake/test wiring or explicitly documented as a temporary regression with a split target.
 - state=hard-fail | target=no repeated S88 role/site/name literals outside include routing | reason=role names (`access`, `policy`, `upstream-selector`, `downstream-selector`, `core`), role abbreviations, and lab/site literals (`esp0xdeadbeef`, `s-router`, `site-a`, etc.) are topology identity, not local renderer logic. They are acceptable when used to include the file that owns that structural slice, but using them in implementation expressions means a module is rediscovering S88 structure from names instead of receiving parsed Enterprise/Site/Unit/EquipmentModule/ControlModule data. That creates silent false matches when examples add new names or abbreviations, so the gate must hard-exit instead of warning.
 
+## live lab failures to cover
+
+- state=still-broken | target=core overlay-local DNS route/firewall materialization | evidence=2026-05-14 late live debugging proved the branch-to-site-A DNS p2p route chain was correct through branch access, downstream selector, policy, upstream selector, branch Nebula core, site-A Nebula core, upstream selector, policy, downstream selector, and access-mgmt. DNS replies were present on `s-router-core-nebula` but did not consistently arrive on `b-router-core-nebula` through `nebula1`. A temporary runtime NixOS-layer hotfix made `dig -b 10.60.10.1 @10.20.10.1 example.com A` pass 30/30 by adding `10.20.10.1/32 via 100.96.10.1 dev overlay-west` on `b-router-core-nebula`, `10.60.10.0/24 via 100.96.10.2 dev overlay-west` on `s-router-core-nebula`, and narrow `temp-live-dns-*overlaywest` nft accepts on both cores. | reason=Provider-specific peer discovery belongs in `network-renderer-nebula`, but this renderer owns NixOS routes and nftables emitted from explicit CPM/provider-neutral interface data. Tests should assert clean core output does not require ad hoc route replacement or temporary nft accepts for a permitted DNS lane.
+- state=still-broken | target=hostile endpoint public egress route proof | evidence=2026-05-14 endpoint-context probes from `hostile-node01` showed `10.70.10.100/24`, delegated public IPv6, IPv4 route to `1.1.1.1 via 10.70.10.1 dev eth0`, but `ping 1.1.1.1`, `dig @1.1.1.1`, and IPv6 public route-get failed before `s-router-test` became unreachable and Hetzner disappeared. Host or router-shell output was shown to be misleading because it can use management or router-origin sources. | reason=Renderer tests for endpoint route/firewall emission must verify tenant-origin sources and policy tables, not host-origin or router-shell success. The live bug is not a DNS-only failure until the endpoint public route and return path are proven.
+- state=still-broken | target=direct public DNS allow/deny parity | evidence=2026-05-14 endpoint sweeps showed direct `dig @1.1.1.1` timed out for hostile, branch, client, client2, DMZ, and streaming endpoints, while `mgmt-test` direct public DNS returned answers. | reason=If CPM explicitly allows management direct public DNS, renderer output must make that visible and tests must classify it as allowed. If not, NixOS firewall/policy rendering must deny it. Future tests should cover direct public DNS per endpoint class from container context.
+
 ## fixed and locally tested
 
 - 2026-05-14 full-loop local and Hetzner rebuilds failed while evaluating
@@ -159,6 +165,24 @@ Last updated: 2026-05-14.
 
 ## implemented but not yet live-validated
 
+- 2026-05-14 live hostile IPv4/DNS hotpatching produced concrete regression
+  seeds. Runtime hotpatches were: `b-router-core-nebula` received manual
+  `ip route replace 0.0.0.0/1 dev nebula1 scope link mtu 1200` and
+  `ip route replace 128.0.0.0/1 dev nebula1 scope link mtu 1200`; Hetzner
+  `c-router-nebula-core` received a disposable cert reissued through the
+  external CA-unseal/bootstrap path with `0.0.0.0/1` and `128.0.0.0/1` added
+  to unsafeNetworks; profiles were redistributed with
+  `nebula-profile-bootstrap.service`; `nebula-runtime.service` was restarted
+  on both Nebula cores. After those hotpatches, valid `hostile-node01` endpoint
+  IPv4 TCP/HTTP still timed out, while DNS to `10.90.10.1` returned and branch
+  `nebula1` capture preserved source `10.70.10.100`. Hetzner still contains
+  temporary nft rules named `temp-live-hostile-policy-egress-proof` and
+  `temp-live-dns-return-proof`, and `c-router-policy` contains broad
+  same-interface DNS/4242 accepts that are not yet proven by CPM. Expected
+  renderer/NixOS tests: generated routes must select `nebula1` for hostile
+  endpoint IPv4 public egress from source `10.70.10.100`, endpoint validation
+  must run in `machinectl` contexts, no `temp-live-*` rule may be needed, and
+  same-interface DNS/4242 accepts must require explicit CPM forwarding pairs.
 - Long logical realization port aliases are preserved into rendered container
   interfaces so firewall rules resolve to concrete Linux ifnames. This prevents
   over-15-character logical names from leaking into nftables.
@@ -201,6 +225,16 @@ Last updated: 2026-05-14.
 
 ## still broken
 
+- Runtime observability is a production requirement. The 2026-05-14 hostile
+  IPv4 egress live debugging needed ad hoc `tcpdump`, `ip route get`, `nft`,
+  DNS, and TCP probes across generated site-B and Hetzner containers before
+  the real hop was isolated. The renderer should provide a default debug
+  component/profile for generated router containers with packet-capture tools
+  and policy-derived active probes: DNS to modeled service/core DNS targets,
+  allowed public-egress checks, denied direct-public-DNS checks, overlay
+  reachability checks, and lane/route selection checks. This must be emitted
+  from explicit CPM/provider data, not inferred from names, and is required for
+  maintainable Hetzner validation.
 - 2026-05-14 live `s-router-test` + Hetzner enumeration found hostile IPv4
   public egress is not production-safe. Baseline `b-router-access-hostile`
   host-origin traffic selected `10.50.0.3` and died before public egress.
@@ -213,6 +247,21 @@ Last updated: 2026-05-14.
   same-uplink core-to-policy-lane projection is fixed locally; the core-nebula
   and Hetzner-side defaults still need locked-chain/live validation and may
   require additional CPM/provider route ownership if not present in CPM output.
+- Critical security regression: hostile DNS/egress must be treated as failed
+  unless packet evidence proves the intended policy-controlled hop chain.
+  2026-05-14 `hostile-node01` received `NOERROR` from Hetzner DMZ DNS
+  (`10.90.10.1`), but a DNS answer over a wrong interface, direct core
+  shortcut, wrong uplink, or policy bypass is a CVSS-10 isolation failure, not
+  partial success. The renderer/provider contract must make the allowed path
+  explicit and testable from CPM/provider data.
+- 2026-05-14 later hostile tenant-origin probing refined the IPv4 blocker:
+  `b-router-core-nebula` can be hotpatched so
+  `10.70.10.100 -> 1.1.1.1:443` enters `upstream` and leaves `nebula1` toward
+  Hetzner relay `100.96.10.3`, but Hetzner captures still see zero packets.
+  The remaining renderer/provider contract question is whether NixOS/overlay
+  rendering emits the right route and Nebula unsafe-route/provider state for
+  non-DNS hostile IPv4 egress. Hostile delegated IPv6 must stay routed via
+  `2a01:4f9:c01f:4186::/64`; do not add IPv6 NAT for that public prefix.
 - The same live probe separated host-origin access-router traffic from
   tenant-origin hostile traffic. `b-router-access-hostile` shell pings source
   from `10.50.0.2`, while hostile tenant traffic should source
