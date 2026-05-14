@@ -66,7 +66,8 @@ let
       (runtimeForwardingIntent.rules or [ ])
       ++ (forwardingIntentData.rules or [ ])
       ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
-      ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]));
+      ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]))
+      ++ (explicitPairsToRules (forwardingIntentData.policyRelationForwardPairs or [ ]));
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {
