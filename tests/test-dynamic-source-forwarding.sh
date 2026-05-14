@@ -65,6 +65,30 @@ REPO_ROOT="${repo_root}" nix eval \
           dynamicSourceForwardRules = render.dynamicSourceForwardRules;
         };
       service = dynamicForwarding.config.systemd.services."s88-dynamic-forward-0" or null;
+      overlayRouteRender =
+        import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib;
+          uplinks = { };
+          wanUplinkName = null;
+          containerModel = {
+            interfaces = {
+              overlay-east-west = {
+                containerInterfaceName = "nebula1";
+                sourceKind = "overlay";
+                addresses = [ "fd42:dead:beef:ee::3/128" ];
+                routes = [
+                  {
+                    proto = "overlay";
+                    family = 6;
+                    sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
+                    intent.kind = "runtime-routed-prefix-return";
+                    metric = 50;
+                  }
+                ];
+              };
+            };
+          };
+        };
     in
       firewallRules == [ ]
       && render.dynamicSourceForwardRules == [
@@ -79,6 +103,17 @@ REPO_ROOT="${repo_root}" nix eval \
       ]
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
+      && overlayRouteRender.dynamicDelegatedRoutes == [
+        {
+          family = 6;
+          gateway = null;
+          interfaceName = "nebula1";
+          metric = 50;
+          name = "delegated-prefix-route-nebula1-0";
+          sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
+          table = null;
+        }
+      ]
   ' >/dev/null
 
 echo "PASS dynamic-source-forwarding"
