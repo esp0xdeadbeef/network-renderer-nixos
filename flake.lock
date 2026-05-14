@@ -232,11 +232,11 @@
         "nixpkgs-network": "nixpkgs-network_6"
       },
       "locked": {
-        "lastModified": 1778735692,
-        "narHash": "sha256-zRMWPyMA9Q9JGCJREgx1oYMZSPzRy1SRLc3VKfCrQ94=",
+        "lastModified": 1778777199,
+        "narHash": "sha256-WkjknODMktQK9pl3mZ4MaeuSFk/Wa3/3QYIQQnSxMuc=",
         "owner": "esp0xdeadbeef",
         "repo": "nixos-network-compiler",
-        "rev": "2cf600c5807d4fbb0ec992139f5f14f106de9052",
+        "rev": "a371a3e75e0d2720c90589d86ce3f74208921400",
         "type": "github"
       },
       "original": {
