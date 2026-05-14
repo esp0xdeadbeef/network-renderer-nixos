@@ -125,6 +125,20 @@ REPO_ROOT="${repo_root}" nix eval \
         };
       upstreamSelectorSplitRender =
         render {
+          forwardingIntent = {
+            rules = [
+              {
+                action = "accept";
+                fromInterface = "core-isp";
+                toInterface = "policy-hostile";
+              }
+              {
+                action = "accept";
+                fromInterface = "policy-hostile";
+                toInterface = "core-isp";
+              }
+            ];
+          };
           interfaces = {
             core-nebula = {
               containerInterfaceName = "core-nebula";
@@ -143,9 +157,21 @@ REPO_ROOT="${repo_root}" nix eval \
             };
             pol-hostile-ew = {
               containerInterfaceName = "pol-hostile-ew";
+              routes = [
+                {
+                  dst = "10.70.10.0/24";
+                  via4 = "10.50.0.16";
+                }
+              ];
             };
             policy-hostile = {
               containerInterfaceName = "policy-hostile";
+              routes = [
+                {
+                  dst = "10.70.10.0/24";
+                  via4 = "10.50.0.18";
+                }
+              ];
             };
           };
         };
@@ -221,6 +247,8 @@ REPO_ROOT="${repo_root}" nix eval \
     && hasRoute splitNebulaRoutes "::/1" "fd42:dead:feed:1000::6" hostileEwTable
     && !(hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileEwTable)
     && hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileWanTable
+    && !(hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.16" hostileWanTable)
+    && hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.18" hostileWanTable
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1

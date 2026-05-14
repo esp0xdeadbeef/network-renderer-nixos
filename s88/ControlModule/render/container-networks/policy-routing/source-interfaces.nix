@@ -82,12 +82,21 @@ in
     if isSelector && pairKey != null && pairPrefix != null then
       lib.filter (name: renderedNameFor name == "${pairPrefix}${pairKey}") interfaceNames
     else if isUpstreamSelector && isUpstreamSelectorCoreInterface targetName then
+      let
+        policyInterfaces =
+          lib.filter (
+            name:
+            isUpstreamSelectorPolicyInterface (renderedNameFor name)
+          ) interfaceNames;
+        acceptedPolicyInterfaces =
+          lib.filter (
+            name:
+            hasAcceptForwardingRule targetName (renderedNameFor name)
+          ) policyInterfaces;
+      in
       lib.unique (
         lib.optionals (targetIfKey != null) [ targetIfKey ]
-        ++ lib.filter (
-          name:
-          isUpstreamSelectorPolicyInterface (renderedNameFor name)
-        ) interfaceNames
+        ++ (if acceptedPolicyInterfaces != [ ] then acceptedPolicyInterfaces else policyInterfaces)
       )
     else if isUpstreamSelector && isUpstreamSelectorPolicyInterface targetName then
       lib.unique (
