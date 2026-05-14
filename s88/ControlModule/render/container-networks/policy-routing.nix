@@ -148,8 +148,14 @@ let
       scopedSourceRoutes =
         if sourceIfName == targetIfName then
           staticPolicyRoutes
-        else if policyOnlyProjection.mayProject interfaceName sourceIfName then
+        else if
+          policyOnlyProjection.mayProject interfaceName sourceIfName
+          && isUpstreamSelector
+          && isUpstreamSelectorPolicyInterface interfaceName
+        then
           lib.filter (route: !(isDefaultRoute route)) staticPolicyRoutes
+        else if policyOnlyProjection.mayProject interfaceName sourceIfName then
+          lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) staticPolicyRoutes
         else
           lib.filter (route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)) staticPolicyRoutes;
     in

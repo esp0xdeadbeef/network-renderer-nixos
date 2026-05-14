@@ -23,6 +23,18 @@ Last updated: 2026-05-14.
   `bash tests/test-dns-service-policy-routes.sh` and
   `bash tests/test-upstream-selector-core-main-routes.sh`; full lab validation
   is still pending.
+- 2026-05-14 full-loop site-C DNS-over-overlay failed at
+  `dig -b 10.70.10.1 @10.90.10.1`. Live tcpdump showed DNS requests left
+  `b-router-access-hostile` but never reached `b-router-policy
+  downstr-hostile`; `b-router-downstream-selector` allowed
+  `access-hostile -> policy-hostile` in nftables but had no route in the
+  `access-hostile` ingress table toward `policy-hostile`. The upstream-selector
+  default-filter fix is now scoped only to upstream-selector policy ingress, so
+  downstream-selector access ingress can still receive the paired policy
+  interface's explicit `policyOnly` default route. Covered locally by
+  `bash tests/test-downstream-selector-default-paths.sh` and rechecked with
+  `bash tests/test-dns-service-policy-routes.sh`; full lab validation is still
+  pending.
 - 2026-05-14 live hostile delegated IPv6 public-egress debugging showed CPM now
   emits sourceFile-scoped `core-nebula -> core` forwarding intent for runtime
   routed prefixes. The renderer now preserves `sourceFiles` on explicit
