@@ -49,7 +49,9 @@ let
         else
           "";
       trafficMatches =
-        if pair ? trafficType && builtins.isString pair.trafficType then
+        if pair ? sourceFiles && builtins.isList pair.sourceFiles && pair.sourceFiles != [ ] then
+          [ "__s88_dynamic_source_forward__" ]
+        else if pair ? trafficType && builtins.isString pair.trafficType then
           renderTrafficType pair.trafficType
         else
           [ "" ];
@@ -57,7 +59,11 @@ let
     map
       (matchExpr:
         let matchPart = if matchExpr == "" then "" else " ${matchExpr}";
-        in "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])}${matchPart} ${action}${commentExpr}")
+        in
+        if matchExpr == "__s88_dynamic_source_forward__" then
+          ""
+        else
+          "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])}${matchPart} ${action}${commentExpr}")
       trafficMatches;
 in
-lib.concatMap renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs)
+lib.filter (rule: rule != "") (lib.concatMap renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs))

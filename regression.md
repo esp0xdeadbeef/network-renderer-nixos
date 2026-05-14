@@ -10,6 +10,13 @@ Last updated: 2026-05-13.
 
 ## fixed and locally tested
 
+- 2026-05-14 live hostile delegated IPv6 public-egress debugging showed CPM now
+  emits sourceFile-scoped `core-nebula -> core` forwarding intent for runtime
+  routed prefixes. The renderer now preserves `sourceFiles` on explicit
+  forwarding pairs, suppresses broad static nft accepts for those pairs, and
+  installs a runtime nft rule from the delegated prefix file instead. Covered
+  locally by `bash tests/test-dynamic-source-forwarding.sh`; full lab
+  validation is still pending.
 - Network pipeline contract audit found policy endpoint mapping still parsed
   generated p2p lane names (`--access-` / `--uplink-`) to select firewall
   interfaces. The mapper now consumes explicit CPM/NFM transit adjacency lane
