@@ -11,7 +11,6 @@ let
     (catalog)
     trafficTypeDefinitions
     serviceDefinitions
-    ownershipEndpoints
     inventoryEndpoints
     allowRelations
     ;
@@ -134,41 +133,23 @@ in
             providers:
             ${builtins.toJSON providers}
           '';
-      _validateProviderOwnership =
-        if providerName == null || builtins.hasAttr providerName ownershipEndpoints then
-          true
-        else
-          throw ''
-            s88/ControlModule/firewall/policy/core.nix: WAN-exposed service provider is missing from ownership.endpoints
-
-            relation:
-            ${builtins.toJSON relationName}
-
-            service:
-            ${builtins.toJSON serviceName}
-
-            provider:
-            ${builtins.toJSON providerName}
-          '';
     in
-    builtins.seq _validateProviderOwnership (
-      lib.filter (entry: entry != null) (
-        map (
-          traffic:
-          let
-            target = if providerName == null then null else providerTargetFor { inherit providerName serviceName relationName; family = traffic.family; };
-          in
-          if target == null then
-            null
-          else
-            {
-              inherit relationName serviceName target ingressIfNames;
-              family = traffic.family;
-              proto = traffic.proto;
-              dport = traffic.dport;
-            }
-        ) (renderTrafficMatches trafficTypeName)
-      )
+    lib.filter (entry: entry != null) (
+      map (
+        traffic:
+        let
+          target = if providerName == null then null else providerTargetFor { inherit providerName serviceName relationName; family = traffic.family; };
+        in
+        if target == null then
+          null
+        else
+          {
+            inherit relationName serviceName target ingressIfNames;
+            family = traffic.family;
+            proto = traffic.proto;
+            dport = traffic.dport;
+          }
+      ) (renderTrafficMatches trafficTypeName)
     )
   ) (lib.filter isWanToServiceAllow allowRelations);
 }
