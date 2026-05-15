@@ -8,6 +8,8 @@ let
     let stringValue = strOrNull value;
     in if stringValue == null then fail "${path} is required" else stringValue;
   stripMask = value: builtins.head (lib.splitString "/" (toString value));
+  sortedUniqueInts = values:
+    lib.sort (left: right: left < right) (lib.unique (builtins.filter builtins.isInt values));
   nftName = value:
     lib.replaceStrings
       [ "-" "." ":" "/" "::" ]
@@ -155,10 +157,34 @@ let
       "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.effectiveRuntimeRealization.interfaces.${interfaceName}.addr4"
       (iface.addr4 or null));
 
+  publicServiceInputDports =
+    cpmRoot:
+    sortedUniqueInts (
+      lib.concatMap
+        (item:
+          lib.concatMap
+            (service:
+              let
+                serviceName = service.name or null;
+                relations =
+                  if serviceName == null then
+                    [ ]
+                  else
+                    externalAllowServiceRelations item.site serviceName;
+                matches = lib.concatMap (relation: relationMatches item.site relation) relations;
+              in
+              lib.concatMap (match: listOr (match.dports or null)) matches)
+            (listOr (item.site.services or null)))
+        (siteItemsFrom cpmRoot)
+    );
+
   normalizeRuntimeForward =
-    cpmRoot: index: forward:
+    cpmRoot: derivedInputDports: index: forward:
     let
       runtimePath = "runtimeFacts.publicIngress.runtimeForwards[${toString index}]";
+      container = attrOr (forward.containerInterface or { });
+      hasForwardInputDports = forward ? inputDports;
+      hasContainerInputDports = container ? inputDports;
     in
     (builtins.removeAttrs forward [ "publicIPv4" "publicIPv4SecretPath" ])
     // publicIPv4Binding {
@@ -175,11 +201,17 @@ let
     }
     // {
       comment = forward.comment or "s88-public-runtime-forward-${toString index}";
+    }
+    // lib.optionalAttrs (!hasForwardInputDports && !hasContainerInputDports && derivedInputDports != [ ]) {
+      inputDports = derivedInputDports;
     };
 
   runtimeForwardsFor =
     { cpmRoot, publicIngressFacts }:
-    lib.imap0 (idx: forward: normalizeRuntimeForward cpmRoot idx (attrOr forward)) (
+    let
+      derivedInputDports = publicServiceInputDports cpmRoot;
+    in
+    lib.imap0 (idx: forward: normalizeRuntimeForward cpmRoot derivedInputDports idx (attrOr forward)) (
       listOr (publicIngressFacts.runtimeForwards or null)
     );
 
