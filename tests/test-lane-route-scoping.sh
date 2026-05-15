@@ -175,6 +175,56 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      upstreamSelectorServiceIngressRender =
+        render {
+          forwardingIntent = {
+            rules = [
+              {
+                action = "accept";
+                fromInterface = "core-nebula";
+                toInterface = "policy-dmz-wan";
+              }
+            ];
+          };
+          interfaces = {
+            core-nebula = {
+              containerInterfaceName = "core-nebula";
+              addresses = [ "10.80.0.11/31" "fd42:dead:cafe:1000::b/127" ];
+              routes = [
+                {
+                  dst = "10.90.10.1";
+                  via4 = "10.80.0.14";
+                }
+                {
+                  dst = "10.20.70.0/24";
+                  via4 = "10.80.0.10";
+                }
+                {
+                  dst = "fd42:dead:beef:70::/64";
+                  via6 = "fd42:dead:cafe:1000::a";
+                }
+              ];
+            };
+            policy-dmz-wan = {
+              containerInterfaceName = "policy-dmz-wan";
+              addresses = [ "10.80.0.14/31" "fd42:dead:cafe:1000::e/127" ];
+              routes = [
+                {
+                  dst = "10.90.10.1";
+                  via4 = "10.80.0.15";
+                }
+                {
+                  dst = "10.20.70.0/24";
+                  via4 = "10.80.0.14";
+                }
+                {
+                  dst = "fd42:dead:beef:70::/64";
+                  via6 = "fd42:dead:cafe:1000::e";
+                }
+              ];
+            };
+          };
+        };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
       selectorPolicyHostile = selectorRender.networks."10-policy-hostile".routes or [ ];
       selectorBranchRules = selectorRender.networks."10-access-branch".routingPolicyRules or [ ];
@@ -196,6 +246,11 @@ REPO_ROOT="${repo_root}" nix eval \
         upstreamSelectorSplitRender.networks."10-pol-hostile-ew".routingPolicyRules or [ ];
       splitHostileWanRules =
         upstreamSelectorSplitRender.networks."10-policy-hostile".routingPolicyRules or [ ];
+      serviceIngressPolicyRules =
+        upstreamSelectorServiceIngressRender.networks."10-policy-dmz-wan".routingPolicyRules or [ ];
+      serviceIngressPolicyTable = tableForIngress "policy-dmz-wan" serviceIngressPolicyRules;
+      serviceIngressCoreRoutes =
+        upstreamSelectorServiceIngressRender.networks."10-core-nebula".routes or [ ];
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -249,6 +304,8 @@ REPO_ROOT="${repo_root}" nix eval \
     && hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileWanTable
     && !(hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.16" hostileWanTable)
     && hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.18" hostileWanTable
+    && hasRoute serviceIngressCoreRoutes "10.20.70.0/24" "10.80.0.10" serviceIngressPolicyTable
+    && hasRoute serviceIngressCoreRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::a" serviceIngressPolicyTable
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1

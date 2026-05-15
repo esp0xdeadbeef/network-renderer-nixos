@@ -1,6 +1,6 @@
 # network-renderer-nixos regression state
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-15.
 
 ## architecture shape
 
@@ -16,6 +16,20 @@ Last updated: 2026-05-14.
 
 ## fixed and locally tested
 
+- 2026-05-15 full-loop site-C DNS validation still failed after CPM emitted
+  overlay-to-service routes/firewall: `nixos-router-access-hostile`
+  `dig -b 10.20.70.1 @10.90.10.1 example.com A` timed out. Live route checks
+  on preserved Hetzner server `131131993` showed the `policy-dmz-wan` ingress
+  table on `hetz-router-upstream` did not include the explicit
+  `core-nebula -> policy-dmz-wan` return route for `10.20.70.0/24` or
+  `fd42:dead:beef:70::/64`; route-only hotpatches adding those return routes
+  made both A and AAAA DNS queries return `NOERROR`. The renderer now treats
+  explicit upstream-selector core-to-policy forwarding intent as a source for
+  the policy ingress route table. Covered locally by
+  `bash tests/test-lane-route-scoping.sh`, `bash tests/test-policy-only-routes.sh`,
+  `bash tests/test-policy-service-ingress-routes.sh`, and
+  `bash tests/test-dns-service-policy-routes.sh`; full lab validation is still
+  pending.
 - 2026-05-15 full-loop Hetzner toplevel evaluation failed after the
   `s-router-test-three-site` lab renamed the hosted site from legacy
   `c-router-*` names to `hetz-router-*`: WAN relation
@@ -353,6 +367,14 @@ Last updated: 2026-05-14.
 - `s88/ControlModule/render/dry-config-model.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
   Current responsibility: assembles the dry render debug model.
   Suspected split: host/container mapping vs debug output shaping.
+- `s88/ControlModule/render/container-networks/policy-routing.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
+  Current responsibility: renders container policy-routing tables and rules
+  from explicit CPM route and forwarding contracts.
+  Suspected split: table route collection vs policy-rule emission.
+- `s88/ControlModule/render/containers/dns-services.nix`: TEMPORARY OVER-LIMIT until 2026-05-17.
+  Current responsibility: renders DNS service configuration from explicit CPM
+  service contracts.
+  Suspected split: Unbound server settings vs DNS policy helper services.
 - `s88/ControlModule/alarm/isa18.nix`: ACCEPTED OVER-LIMIT FOR NOW.
   Current responsibility: defines ISA-18 alarm vocabulary and formatting.
   Reason kept: mostly declarative alarm structure.
