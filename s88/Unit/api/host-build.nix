@@ -17,6 +17,35 @@ let
 
   inherit (import ../../ControlModule/api/container-defaults.nix { inherit lib; }) mergeContainerDefaults;
 
+  flattenRuntimeTargets = controlPlaneOut:
+    let
+      controlPlaneData = ((controlPlaneOut.control_plane_model or { }).data or { });
+    in
+    builtins.listToAttrs (
+      builtins.concatLists (
+        builtins.map
+          (enterpriseName:
+            let enterprise = controlPlaneData.${enterpriseName};
+            in
+            builtins.concatLists (
+              builtins.map
+                (siteName:
+                  let
+                    site = enterprise.${siteName};
+                    runtimeTargets = site.runtimeTargets or { };
+                  in
+                  builtins.map
+                    (targetName: {
+                      name = "${enterpriseName}.${siteName}.${targetName}";
+                      value = runtimeTargets.${targetName};
+                    })
+                    (builtins.attrNames runtimeTargets))
+                (builtins.attrNames enterprise)
+            ))
+          (builtins.attrNames controlPlaneData)
+      )
+    );
+
   buildHost =
     {
       selector ? null,
@@ -57,6 +86,8 @@ let
         inherit forwardingOut system;
         inventory = resolved.globalInventory;
       };
+
+      runtimeTargets = flattenRuntimeTargets controlPlaneOut;
 
       renderedHost = renderHostNetwork {
         hostName = resolved.selectorValue;
@@ -112,6 +143,8 @@ let
       selectedRoleNames = renderedHostWithSelectedContainers.selectedRoleNames or [ ];
       selectedRoles = renderedHostWithSelectedContainers.selectedRoles or { };
       containers = renderedHostWithSelectedContainers.containers or { };
+      inherit runtimeTargets;
+      runtimeTargetNames = builtins.attrNames runtimeTargets;
     };
 
   buildHostFromPaths =
