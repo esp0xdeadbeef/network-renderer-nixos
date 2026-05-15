@@ -16,6 +16,17 @@ Last updated: 2026-05-14.
 
 ## fixed and locally tested
 
+- 2026-05-15 full-loop Hetzner toplevel evaluation failed after the
+  `s-router-test-three-site` lab renamed the hosted site from legacy
+  `c-router-*` names to `hetz-router-*`: WAN relation
+  `allow-wan-to-nixos-hostile-4444` exposes a service whose provider endpoint
+  is remote to the Hetzner host, so it is present in explicit CPM/inventory
+  endpoint data but not in the local host ownership endpoints. The renderer now
+  allows WAN service DNAT to an explicit inventory endpoint without requiring
+  local ownership, while still skipping address families that do not have an
+  explicit provider address. Covered locally by
+  `bash tests/test-public-service-remote-provider.sh`; full lab validation is
+  still pending.
 - 2026-05-14 full-loop local and Hetzner rebuilds failed while evaluating
   upstream-selector firewalls because relation-derived endpoint mapping tried
   to resolve tenant/external communication relations across both WAN and
