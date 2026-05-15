@@ -58,6 +58,16 @@ let
           [ ];
     in
     lib.unique (explicitUplinks ++ laneUplinks);
+
+  laneAccessForRenderedName =
+    name:
+    let
+      ifName = interfaceKeyForRenderedName name;
+      iface = if ifName == null then { } else interfaces.${ifName} or { };
+      backingRef = backingRefForInterface iface;
+      lane = backingRef.lane or { };
+    in
+    if builtins.isAttrs lane && builtins.isString (lane.access or null) then lane.access else null;
 in
 {
   inherit
@@ -65,6 +75,7 @@ in
     interfaceNames
     renderedInterfaceNames
     interfaceKeyForRenderedName
+    laneAccessForRenderedName
     ;
 
   upstreamLanesMatch =

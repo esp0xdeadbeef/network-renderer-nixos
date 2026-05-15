@@ -1,6 +1,7 @@
 {
   lib,
   common,
+  containerModel,
   interfaces,
   interfaceNames,
   renderedInterfaceNames,
@@ -35,37 +36,32 @@ let
     in
     backingRefFor iface;
 
-  laneForRenderedName =
+  interfaceClassForRenderedName =
     renderedName:
     let
-      lane = (backingRefForRenderedName renderedName).lane or { };
+      ifName = interfaceKeyForRenderedName renderedName;
+      iface = if ifName == null then { } else interfaces.${ifName} or { };
+      ifaceClass = iface.interfaceClass or { };
     in
-    if builtins.isAttrs lane then lane else { };
+    if builtins.isAttrs ifaceClass then ifaceClass else { };
 
-  laneKindForRenderedName = name: (laneForRenderedName name).kind or null;
+  classFlag = flag: name: (interfaceClassForRenderedName name).${flag} or false;
 
-  isDownstreamSelectorAccessInterface = name: laneKindForRenderedName name == "access-edge";
-  isDownstreamSelectorPolicyInterface = name: laneKindForRenderedName name == "access";
-  isUpstreamSelectorCoreInterface = name: laneKindForRenderedName name == "uplink";
-  isUpstreamSelectorPolicyInterface = name: laneKindForRenderedName name == "access-uplink";
-  isPolicyDownstreamInterface = name: laneKindForRenderedName name == "access";
-  isPolicyUpstreamInterface = name: laneKindForRenderedName name == "access-uplink";
-  isOverlayInterface = name: (backingRefForRenderedName name).kind or null == "overlay";
-  isCoreTransitInterface = name: laneKindForRenderedName name == "uplink";
+  isDownstreamSelectorAccessInterface = classFlag "edgeFacing";
+  isDownstreamSelectorPolicyInterface = classFlag "fabricFacing";
+  isUpstreamSelectorCoreInterface = classFlag "coreFacing";
+  isUpstreamSelectorPolicyInterface = classFlag "exitFacing";
+  isPolicyDownstreamInterface = classFlag "fabricFacing";
+  isPolicyUpstreamInterface = classFlag "exitFacing";
+  isOverlayInterface = classFlag "overlay";
+  isCoreTransitInterface = classFlag "coreTransit";
 
-  isSelector =
-    lib.any (name: isDownstreamSelectorAccessInterface renderedInterfaceNames.${name}) interfaceNames
-    && lib.any (
-      name: isDownstreamSelectorPolicyInterface renderedInterfaceNames.${name}
-    ) interfaceNames;
+  networkBehavior =
+    if builtins.isAttrs (containerModel.networkBehavior or null) then containerModel.networkBehavior else { };
 
-  isUpstreamSelector =
-    lib.any (name: isUpstreamSelectorCoreInterface renderedInterfaceNames.${name}) interfaceNames
-    && lib.any (name: isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name}) interfaceNames;
-
-  isPolicy =
-    lib.any (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
-    && lib.any (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) interfaceNames;
+  isSelector = networkBehavior.isSelector or false;
+  isUpstreamSelector = networkBehavior.isUpstreamSelector or false;
+  isPolicy = networkBehavior.isPolicy or false;
 in
 {
   inherit
@@ -82,5 +78,5 @@ in
     isCoreTransitInterface
     ;
 
-  keepInterfaceRoutesInMain = !(isSelector || isUpstreamSelector || isPolicy);
+  keepInterfaceRoutesInMain = networkBehavior.keepInterfaceRoutesInMain or true;
 }

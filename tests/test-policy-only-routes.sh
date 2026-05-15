@@ -320,9 +320,16 @@ REPO_ROOT="${repo_root}" nix eval \
         import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
           inherit lib;
           containerModel = {
+            networkBehavior = {
+              isSelector = true;
+              isUpstreamSelector = false;
+              isPolicy = false;
+              keepInterfaceRoutesInMain = true;
+            };
             interfaces = {
               access-client = {
                 containerInterfaceName = "access-client";
+                interfaceClass.edgeFacing = true;
                 backingRef.lane = {
                   kind = "access-edge";
                   access = "client";
@@ -337,6 +344,7 @@ REPO_ROOT="${repo_root}" nix eval \
               };
               access-stream = {
                 containerInterfaceName = "access-stream";
+                interfaceClass.edgeFacing = true;
                 backingRef.lane = {
                   kind = "access-edge";
                   access = "stream";
@@ -351,6 +359,7 @@ REPO_ROOT="${repo_root}" nix eval \
               };
               policy-client = {
                 containerInterfaceName = "policy-client";
+                interfaceClass.fabricFacing = true;
                 backingRef.lane = {
                   kind = "access";
                   access = "client";
@@ -365,6 +374,7 @@ REPO_ROOT="${repo_root}" nix eval \
               };
               policy-stream = {
                 containerInterfaceName = "policy-stream";
+                interfaceClass.fabricFacing = true;
                 backingRef.lane = {
                   kind = "access";
                   access = "stream";

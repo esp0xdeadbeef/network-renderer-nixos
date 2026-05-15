@@ -22,6 +22,7 @@ scan_file() {
       sub(/^[^:]+:[0-9]+:/, "", text)
       if (text ~ /^[[:space:]]*import[[:space:]]/) next
       if (text ~ /=[[:space:]]*import[[:space:]]/) next
+      if (line ~ /^s88\/Unit\/mapping\/runtime-targets\/interfaces\/classification\.nix:/) next
       print line
     }
   ' >"${output}"

@@ -8,8 +8,11 @@ let
     inherit lib runtimeContext common;
   };
   hostBridge = import ./interfaces/host-bridge.nix { inherit lib common; };
+  classification = import ./interfaces/classification.nix { inherit common; };
+  policyRoutingSources = import ./interfaces/policy-routing-sources.nix { inherit lib common; };
+  networkBehavior = import ./interfaces/network-behavior.nix { inherit lib common; };
   normalize = import ./interfaces/normalize.nix {
-    inherit lib runtimeContext forwarding common renderedNames hostBridge;
+    inherit lib runtimeContext forwarding common renderedNames hostBridge classification;
   };
 in
 {
@@ -21,4 +24,5 @@ in
     ;
   inherit (renderedNames) desiredRenderedIfNameForInterface renderedInterfaceNamesForUnit;
   inherit (hostBridge) hostBridgeIdentityForInterface;
+  inherit policyRoutingSources networkBehavior;
 }

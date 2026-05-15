@@ -42,7 +42,7 @@ let
   };
 
   classes = import ./container-networks/classes.nix {
-    inherit lib common;
+    inherit lib common containerModel;
     inherit interfaces;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
   };
@@ -53,6 +53,7 @@ let
       interfaces
       interfaceNames
       renderedInterfaceNames
+      laneAccessForRenderedName
       upstreamLanesMatch
       ;
     inherit (classes)
