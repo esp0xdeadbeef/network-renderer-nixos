@@ -125,6 +125,7 @@ let
         assignedUplinkName = attachTarget.assignedUplinkName or null;
         hostInterfaceName = if usePrimaryHostBridge then null else null;
         connectivity = iface.connectivity or { };
+        interfaceClass = iface.interfaceClass or { };
         backingRef = iface.backingRef or { };
         hostBridge = iface.hostBridge or null;
         identity = attachTarget.identity or { };

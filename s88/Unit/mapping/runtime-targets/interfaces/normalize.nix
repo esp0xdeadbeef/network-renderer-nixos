@@ -5,6 +5,7 @@
   common,
   renderedNames,
   hostBridge,
+  classification,
 }:
 
 let
@@ -65,10 +66,11 @@ rec {
           else
             null;
       };
+      interfaceClass = classification { inherit sourceKind backingRef; };
     in
     iface
     // {
-      inherit renderedIfName connectivity sourceKind backingRef semanticInterface;
+      inherit renderedIfName connectivity sourceKind backingRef semanticInterface interfaceClass;
       addresses = (stringList (iface.addr4 or null)) ++ (stringList (iface.addr6 or null));
       routes = normalizeRoutes (iface.routes or { });
       hostBridge = hostBridge.hostBridgeIdentityForInterface { inherit unitName ifName iface file; };

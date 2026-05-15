@@ -16,12 +16,15 @@ let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
         inherit cpm unitName file;
       };
+      normalizedInterfaces = interfaces.normalizedInterfacesForUnit {
+        inherit cpm unitName file;
+      };
     in
     runtimeTarget
     // {
-      interfaces = interfaces.normalizedInterfacesForUnit {
-        inherit cpm unitName file;
-      };
+      interfaces = normalizedInterfaces;
+      policyRoutingSources = interfaces.policyRoutingSources normalizedInterfaces;
+      networkBehavior = interfaces.networkBehavior normalizedInterfaces;
       loopback = interfaces.emittedLoopbackForUnit {
         inherit cpm unitName file;
       };

@@ -63,6 +63,8 @@ in
         inherit unitName containerName;
         interfaces = runtimeTarget.interfaces or { };
       };
+      policyRoutingSources = runtimeTarget.policyRoutingSources or { };
+      networkBehavior = runtimeTarget.networkBehavior or { keepInterfaceRoutesInMain = true; };
       interfaceNames = lookup.sortedAttrNames renderedInterfaces;
       primaryHostBridgeInterfaceNames = lib.filter (
         ifName: renderedInterfaces.${ifName}.usePrimaryHostBridge or false
@@ -111,6 +113,8 @@ in
       profilePath = if containerConfig ? profilePath then containerConfig.profilePath else null;
       hostBridge = primaryHostBridge;
       interfaces = renderedInterfaces;
+      inherit policyRoutingSources;
+      inherit networkBehavior;
       loopback = runtimeTarget.loopback or { };
       veths = interfaces.vethsForInterfaces renderedInterfaces;
     };

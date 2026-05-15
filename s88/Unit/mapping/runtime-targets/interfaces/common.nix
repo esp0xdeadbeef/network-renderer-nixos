@@ -3,6 +3,8 @@
 rec {
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
   stringList =
     value:
     if value == null then

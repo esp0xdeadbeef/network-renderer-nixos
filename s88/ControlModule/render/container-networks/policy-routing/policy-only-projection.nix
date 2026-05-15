@@ -1,16 +1,6 @@
 {
-  common,
   renderedInterfaceNames,
-  isSelector,
-  isUpstreamSelector,
-  isPolicy,
-  isDownstreamSelectorAccessInterface,
-  isDownstreamSelectorPolicyInterface,
-  isUpstreamSelectorCoreInterface,
-  isUpstreamSelectorPolicyInterface,
-  isPolicyDownstreamInterface,
-  isPolicyUpstreamInterface,
-  upstreamLanesMatch,
+  policyRoutingSources ? { },
 }:
 
 {
@@ -18,27 +8,7 @@
     targetName: sourceIfName:
     let
       sourceName = renderedInterfaceNames.${sourceIfName};
-      targetPairKey = common.downstreamPairKeyFor targetName;
-      sourcePairKey = common.downstreamPairKeyFor sourceName;
+      sources = policyRoutingSources.${targetName} or [ ];
     in
-    (
-      isPolicy
-      && isPolicyDownstreamInterface targetName
-      && isPolicyUpstreamInterface sourceName
-      && common.policyTenantKeyFor targetName != null
-      && common.policyTenantKeyFor targetName == common.policyTenantKeyFor sourceName
-    )
-    || (
-      isUpstreamSelector
-      && isUpstreamSelectorPolicyInterface targetName
-      && isUpstreamSelectorCoreInterface sourceName
-      && upstreamLanesMatch targetName sourceName
-    )
-    || (
-      isSelector
-      && isDownstreamSelectorAccessInterface targetName
-      && isDownstreamSelectorPolicyInterface sourceName
-      && targetPairKey != null
-      && targetPairKey == sourcePairKey
-    );
+    builtins.elem sourceIfName sources || builtins.elem sourceName sources;
 }

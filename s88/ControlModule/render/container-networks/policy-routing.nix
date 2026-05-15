@@ -7,6 +7,7 @@
   interfaces,
   interfaceNames,
   renderedInterfaceNames,
+  laneAccessForRenderedName,
   upstreamLanesMatch,
   isSelector,
   isUpstreamSelector,
@@ -57,11 +58,9 @@ let
     ) pairs;
 
   routeSources = import ./policy-routing/source-interfaces.nix {
-    inherit lib common interfaces interfaceNames renderedInterfaceNames upstreamLanesMatch;
-    inherit isSelector isUpstreamSelector isPolicy isUpstreamSelectorCoreInterface;
-    inherit isUpstreamSelectorPolicyInterface isPolicyDownstreamInterface isPolicyUpstreamInterface;
-    inherit isOverlayInterface isCoreTransitInterface;
+    inherit lib interfaces interfaceNames renderedInterfaceNames;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
+    policyRoutingSources = containerModel.policyRoutingSources or { };
     forwardingRules =
       (runtimeForwardingIntent.rules or [ ])
       ++ (forwardingIntentData.rules or [ ])
@@ -131,10 +130,8 @@ let
   };
 
   policyOnlyProjection = import ./policy-routing/policy-only-projection.nix {
-    inherit common renderedInterfaceNames isSelector isUpstreamSelector isPolicy upstreamLanesMatch;
-    inherit isDownstreamSelectorAccessInterface isDownstreamSelectorPolicyInterface;
-    inherit isUpstreamSelectorCoreInterface isUpstreamSelectorPolicyInterface;
-    inherit isPolicyDownstreamInterface isPolicyUpstreamInterface;
+    inherit renderedInterfaceNames;
+    policyRoutingSources = containerModel.policyRoutingSources or { };
   };
 
   rawRoutesForPolicyTable =
