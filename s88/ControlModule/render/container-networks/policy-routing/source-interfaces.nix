@@ -106,6 +106,7 @@ in
           isUpstreamSelectorCoreInterface (renderedNameFor name)
           && (
             upstreamLanesMatch targetName (renderedNameFor name)
+            || hasAcceptForwardingRule (renderedNameFor name) targetName
             || (targetIfKey != null && interfaceRoutesTowardTarget (renderedNameFor name) targetIfKey)
           )
         ) interfaceNames
