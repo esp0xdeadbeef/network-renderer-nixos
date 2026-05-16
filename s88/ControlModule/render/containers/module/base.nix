@@ -7,6 +7,7 @@
 }:
 
 let
+  debugTools = import ../../../debug-tools.nix { inherit pkgs; };
   usesOnlyExtraVeths =
     !(builtins.isString (renderedModel.hostBridge or null) && renderedModel.hostBridge != "");
 in
@@ -34,22 +35,7 @@ in
     networking.useHostResolvConf = lib.mkForce false;
     services.resolved.enable = lib.mkForce false;
     networking.firewall.enable = lib.mkForce false;
-    environment.systemPackages = with pkgs; [
-      gron
-      jq
-      ethtool
-      lsof
-      mtr
-      procps
-      strace
-      traceroute
-      tcpdump
-      nftables
-      dnsutils
-      iproute2
-      iputils
-      ripgrep
-    ];
+    environment.systemPackages = debugTools;
     system.stateVersion = "25.11";
   };
 }
