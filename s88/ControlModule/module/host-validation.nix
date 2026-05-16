@@ -17,11 +17,12 @@ let
   validationStatus = import ./host-validation/status.nix {
     inherit pkgs;
   };
+  debugTools = import ../debug-tools.nix { inherit pkgs; };
 in
 {
   environment.etc."s88-network-validation/plan.json".text = builtins.toJSON validationPlan;
 
-  environment.systemPackages = [ validationStatus ];
+  environment.systemPackages = [ validationStatus ] ++ debugTools;
 
   systemd.services.s88-network-validation = {
     description = "Continuously validate rendered containers for DNS and IP readiness";

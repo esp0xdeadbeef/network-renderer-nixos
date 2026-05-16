@@ -291,6 +291,9 @@ run_one() {
             in
             builtins.elem "ripgrep" packageNames
             && builtins.elem "tcpdump" packageNames
+            && builtins.elem "conntrack-tools" packageNames
+            && builtins.elem "curl" packageNames
+            && builtins.elem "nmap" packageNames
             && builtins.elem "dnsutils" packageNames
             && builtins.elem "iproute2" packageNames
             && builtins.elem "iputils" packageNames;

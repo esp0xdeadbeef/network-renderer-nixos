@@ -1,4 +1,8 @@
-{ lib, ... }:
+{ lib, pkgs, ... }:
+
+let
+  debugTools = import ../debug-tools.nix { inherit pkgs; };
+in
 
 {
   boot.isContainer = true;
@@ -18,4 +22,6 @@
   };
 
   system.stateVersion = "25.11";
+
+  environment.systemPackages = debugTools;
 }
