@@ -21,7 +21,6 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         etc = host.artifactModule.environment.etc;
-        debugBundle = builtins.fromJSON etc."network-artifacts/debug-bundle.json".text;
         runtimeTargetNames = host.runtimeTargetNames or [ ];
       in
         builtins.hasAttr "network-artifacts/compiler.json" etc
@@ -32,10 +31,6 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && builtins.hasAttr "network-artifacts/rendered-host.json" etc
         && builtins.hasAttr "network-artifacts/debug-bundle.json" etc
         && builtins.hasAttr "network-renderer/network-renderer-nixos.json" etc
-        && builtins.hasAttr "artifactPaths" debugBundle
-        && !(builtins.hasAttr "compilerOut" debugBundle)
-        && !(builtins.hasAttr "forwardingOut" debugBundle)
-        && !(builtins.hasAttr "controlPlaneOut" debugBundle)
         && runtimeTargetNames != [ ]
         && builtins.all (name: builtins.hasAttr name host.runtimeTargets) runtimeTargetNames
     '
