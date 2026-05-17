@@ -15,55 +15,75 @@ args@{
   interfaces ? { },
   wanIfs ? [ ],
   lanIfs ? [ ],
+  interfaceView ? null,
+  forwardingIntent ? null,
+  communication ? null,
+  endpointMap ? null,
   ...
 }:
 
 let
   uplinks = if args ? uplinks && builtins.isAttrs args.uplinks then args.uplinks else { };
 
-  interfaceView = import ./lookup/interface-view.nix {
-    inherit
-      lib
-      interfaces
-      wanIfs
-      lanIfs
-      ;
-  };
-
-  forwardingIntent = import ./lookup/forwarding-intent.nix {
-    inherit
-      lib
-      runtimeTarget
-      interfaces
-      wanIfs
-      lanIfs
-      uplinks
-      ;
-  };
-
-  communication = import ./lookup/communication-contract.nix {
-    inherit
-      lib
-      cpm
-      flakeInputs
-      runtimeTarget
-      ;
-  };
-
-  endpointMap = import ./mapping/policy-endpoints.nix {
-    inherit
-      lib
+  interfaceViewResolved =
+    if interfaceView != null then
       interfaceView
-      runtimeTarget
-      roleName
-      unitName
-      preferSiteNode
-      strictEndpointBindings
-      ;
-    currentSite = communication.currentSite;
-    communicationContract = communication.communicationContract;
-    ownership = communication.ownership;
-  };
+    else
+      import ./lookup/interface-view.nix {
+        inherit
+          lib
+          interfaces
+          wanIfs
+          lanIfs
+          ;
+      };
+
+  forwardingIntentResolved =
+    if forwardingIntent != null then
+      forwardingIntent
+    else
+      import ./lookup/forwarding-intent.nix {
+        inherit
+          lib
+          runtimeTarget
+          interfaces
+          wanIfs
+          lanIfs
+          uplinks
+          ;
+      };
+
+  communicationResolved =
+    if communication != null then
+      communication
+    else
+      import ./lookup/communication-contract.nix {
+        inherit
+          lib
+          cpm
+          flakeInputs
+          runtimeTarget
+          ;
+      };
+
+  endpointMapResolved =
+    if endpointMap != null then
+      endpointMap
+    else
+      import ./mapping/policy-endpoints.nix {
+        inherit
+          lib
+          runtimeTarget
+          roleName
+          unitName
+          preferSiteNode
+          strictEndpointBindings
+          ;
+        interfaceView = interfaceViewResolved;
+        currentSite = communicationResolved.currentSite;
+        communicationContract = communicationResolved.communicationContract;
+        ownership = communicationResolved.ownership;
+      };
 
   ruleModelOrRuleset =
     if policyModulePath == null then
@@ -74,12 +94,12 @@ let
         // {
           inherit
             lib
-            interfaceView
-            endpointMap
-            forwardingIntent
             ;
-          communicationContract = communication.communicationContract;
-          ownership = communication.ownership;
+          interfaceView = interfaceViewResolved;
+          endpointMap = endpointMapResolved;
+          forwardingIntent = forwardingIntentResolved;
+          communicationContract = communicationResolved.communicationContract;
+          ownership = communicationResolved.ownership;
           inherit inventory;
         }
       );

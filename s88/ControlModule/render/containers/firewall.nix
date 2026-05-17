@@ -137,6 +137,9 @@ if cpm == null then
 else
     mkFirewallArg (firewall {
     inherit cpm inventory uplinks;
+    inherit interfaceView endpointMap;
+    communication = communication;
+    forwardingIntent = routeForwardingIntent;
     inherit
       unitKey
       unitName
