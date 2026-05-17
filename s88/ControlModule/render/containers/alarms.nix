@@ -3,6 +3,10 @@
   cpm ? null,
   uplinks ? { },
   renderedModel,
+  interfaceView ? null,
+  forwardingIntent ? null,
+  communication ? null,
+  endpointMap ? null,
 }:
 
 let
@@ -27,6 +31,10 @@ let
       lib
       cpm
       uplinks
+      interfaceView
+      forwardingIntent
+      communication
+      endpointMap
       ;
     runtimeTarget =
       if renderedModel ? runtimeTarget && builtins.isAttrs renderedModel.runtimeTarget then

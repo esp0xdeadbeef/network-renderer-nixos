@@ -11,33 +11,47 @@
   wanIfs ? [ ],
   lanIfs ? [ ],
   uplinks ? { },
+  interfaceView ? null,
+  forwardingIntent ? null,
+  communication ? null,
+  endpointMap ? null,
 }:
 
 let
   isa = import ../../alarm/isa18.nix { inherit lib; };
 
-  interfaceView = import ./interface-view.nix {
-    inherit
-      lib
-      interfaces
-      wanIfs
-      lanIfs
-      ;
-  };
+  interfaceViewResolved =
+    if interfaceView != null then
+      interfaceView
+    else
+      import ./interface-view.nix {
+        inherit
+          lib
+          interfaces
+          wanIfs
+          lanIfs
+          ;
+      };
 
-  forwardingIntent = import ./forwarding-intent.nix {
-    inherit
-      lib
-      runtimeTarget
-      interfaces
-      wanIfs
-      lanIfs
-      uplinks
-      ;
-  };
+  forwardingIntentResolved =
+    if forwardingIntent != null then
+      forwardingIntent
+    else
+      import ./forwarding-intent.nix {
+        inherit
+          lib
+          runtimeTarget
+          interfaces
+          wanIfs
+          lanIfs
+          uplinks
+          ;
+      };
 
-  communication =
-    if cpm != null then
+  communicationResolved =
+    if communication != null then
+      communication
+    else if cpm != null then
       import ./communication-contract.nix {
         inherit
           lib
@@ -57,28 +71,30 @@ let
         ownership = { };
       };
 
-  endpointMap =
-    if cpm != null then
+  endpointMapResolved =
+    if endpointMap != null then
+      endpointMap
+    else if cpm != null then
       import ../mapping/policy-endpoints.nix {
         inherit
           lib
-          interfaceView
           runtimeTarget
           roleName
           unitName
           containerName
           ;
-        currentSite = communication.currentSite;
-        communicationContract = communication.communicationContract;
-        ownership = communication.ownership;
+        interfaceView = interfaceViewResolved;
+        currentSite = communicationResolved.currentSite;
+        communicationContract = communicationResolved.communicationContract;
+        ownership = communicationResolved.ownership;
       }
     else
       {
         resolveEndpoint = _: [ ];
         allKnownInterfaces = [ ];
-        wanNames = interfaceView.wanNames or [ ];
+        wanNames = interfaceViewResolved.wanNames or [ ];
         p2pNames = [ ];
-        localAdapterNames = interfaceView.lanNames or [ ];
+        localAdapterNames = interfaceViewResolved.lanNames or [ ];
         authoritativeBindings = false;
         authorityGaps = [ ];
       };
@@ -104,22 +120,22 @@ let
       null;
 
   interfaceEntries =
-    if interfaceView ? interfaceEntries && builtins.isList interfaceView.interfaceEntries then
-      interfaceView.interfaceEntries
+    if interfaceViewResolved ? interfaceEntries && builtins.isList interfaceViewResolved.interfaceEntries then
+      interfaceViewResolved.interfaceEntries
     else
       [ ];
 
   interfaceNames = sortedStrings (map (entry: entry.name or null) interfaceEntries);
 
   fallbackWanNames =
-    if interfaceView ? wanNames && builtins.isList interfaceView.wanNames then
-      sortedStrings interfaceView.wanNames
+    if interfaceViewResolved ? wanNames && builtins.isList interfaceViewResolved.wanNames then
+      sortedStrings interfaceViewResolved.wanNames
     else
       [ ];
 
   fallbackLanNames =
-    if interfaceView ? lanNames && builtins.isList interfaceView.lanNames then
-      sortedStrings interfaceView.lanNames
+    if interfaceViewResolved ? lanNames && builtins.isList interfaceViewResolved.lanNames then
+      sortedStrings interfaceViewResolved.lanNames
     else
       [ ];
 
@@ -128,31 +144,31 @@ let
   );
 
   wanNames =
-    if forwardingIntent ? resolvedWanNames && builtins.isList forwardingIntent.resolvedWanNames then
-      sortedStrings forwardingIntent.resolvedWanNames
+    if forwardingIntentResolved ? resolvedWanNames && builtins.isList forwardingIntentResolved.resolvedWanNames then
+      sortedStrings forwardingIntentResolved.resolvedWanNames
     else
       fallbackWanNames;
 
   lanNames =
-    if forwardingIntent ? resolvedLanNames && builtins.isList forwardingIntent.resolvedLanNames then
-      sortedStrings forwardingIntent.resolvedLanNames
+    if forwardingIntentResolved ? resolvedLanNames && builtins.isList forwardingIntentResolved.resolvedLanNames then
+      sortedStrings forwardingIntentResolved.resolvedLanNames
     else
       fallbackLanNames;
 
   p2pNames =
     if
-      forwardingIntent ? resolvedTransitNames && builtins.isList forwardingIntent.resolvedTransitNames
+      forwardingIntentResolved ? resolvedTransitNames && builtins.isList forwardingIntentResolved.resolvedTransitNames
     then
-      sortedStrings forwardingIntent.resolvedTransitNames
+      sortedStrings forwardingIntentResolved.resolvedTransitNames
     else
       fallbackP2pNames;
 
   localAdapterNames =
     if
-      forwardingIntent ? resolvedLocalAdapterNames
-      && builtins.isList forwardingIntent.resolvedLocalAdapterNames
+      forwardingIntentResolved ? resolvedLocalAdapterNames
+      && builtins.isList forwardingIntentResolved.resolvedLocalAdapterNames
     then
-      sortedStrings forwardingIntent.resolvedLocalAdapterNames
+      sortedStrings forwardingIntentResolved.resolvedLocalAdapterNames
     else
       sortedStrings (
         map (entry: entry.name or null) (
@@ -168,10 +184,10 @@ let
 
   accessUplinkNames =
     if
-      forwardingIntent ? resolvedAccessUplinkNames
-      && builtins.isList forwardingIntent.resolvedAccessUplinkNames
+      forwardingIntentResolved ? resolvedAccessUplinkNames
+      && builtins.isList forwardingIntentResolved.resolvedAccessUplinkNames
     then
-      sortedStrings forwardingIntent.resolvedAccessUplinkNames
+      sortedStrings forwardingIntentResolved.resolvedAccessUplinkNames
     else if p2pNames != [ ] then
       p2pNames
     else
@@ -195,7 +211,7 @@ let
         && interfaceNames != [ ]
         && localAdapterNames != [ ]
         && accessUplinkNames != [ ]
-        && !(forwardingIntent.authoritativeAccessForwarding or false)
+        && !(forwardingIntentResolved.authoritativeAccessForwarding or false)
       )
       [
         (isa.mkDesignAssumptionAlarm {
@@ -223,7 +239,7 @@ let
           assumptionFamily == "egress"
           && interfaceNames != [ ]
           && wanNames != [ ]
-          && !(forwardingIntent.authoritativeCoreNat or false)
+          && !(forwardingIntentResolved.authoritativeCoreNat or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
@@ -252,32 +268,7 @@ let
         (
           assumptionFamily == "selector"
           && builtins.length p2pNames > 1
-          && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
-        )
-        [
-          (isa.mkDesignAssumptionAlarm {
-            alarmId = "firewall-${roleName}-forwarding-defaults";
-            summary = "${roleName} firewall forwarding policy is currently synthesized from role defaults";
-            file = "s88/ControlModule/firewall/lookup/assumptions.nix";
-            entityName = entityName;
-            roleName = roleName;
-            interfaces = p2pNames;
-            assumptions = [
-              "transit interface roles are resolved from explicit interface semantics when available"
-              "missing authoritative selector forwarding intent is treated as fail-closed; no selector transit accept rules are synthesized"
-            ];
-            extraText = [
-              "resolved transit interfaces: ${builtins.toJSON p2pNames}"
-            ];
-            authorityText = "Network forwarding model should provide authoritative selector forwarding intent.";
-          })
-        ]
-    ++
-      lib.optionals
-        (
-          assumptionFamily == "selector"
-          && builtins.length p2pNames > 1
-          && !(forwardingIntent.authoritativeUpstreamSelectorForwarding or false)
+          && !(forwardingIntentResolved.authoritativeUpstreamSelectorForwarding or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
@@ -301,8 +292,8 @@ let
       lib.optionals
         (
           assumptionFamily == "endpoint"
-          && communication.communicationContract != { }
-          && !(endpointMap.authoritativeBindings or false)
+          && communicationResolved.communicationContract != { }
+          && !(endpointMapResolved.authoritativeBindings or false)
         )
         [
           (isa.mkDesignAssumptionAlarm {
@@ -312,8 +303,8 @@ let
             entityName = entityName;
             roleName = roleName;
             interfaces =
-              if endpointMap ? allKnownInterfaces && builtins.isList endpointMap.allKnownInterfaces then
-                sortedStrings endpointMap.allKnownInterfaces
+              if endpointMapResolved ? allKnownInterfaces && builtins.isList endpointMapResolved.allKnownInterfaces then
+                sortedStrings endpointMapResolved.allKnownInterfaces
               else
                 [ ];
             assumptions = [
@@ -321,8 +312,8 @@ let
               "renderer can only emit allow and deny rules for endpoints that can be bound from the available explicit site data"
             ];
             extraText =
-              if endpointMap ? authorityGaps && builtins.isList endpointMap.authorityGaps then
-                endpointMap.authorityGaps
+              if endpointMapResolved ? authorityGaps && builtins.isList endpointMapResolved.authorityGaps then
+                endpointMapResolved.authorityGaps
               else
                 [ ];
             authorityText = "Control plane should provide canonical ${roleName} endpoint bindings and site interface tags.";

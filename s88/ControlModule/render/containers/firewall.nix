@@ -124,6 +124,14 @@ let
       })
     // {
       inherit forwardingIntent;
+      lookup = {
+        inherit
+          interfaceView
+          communication
+          endpointMap
+          ;
+        forwardingIntent = routeForwardingIntent;
+      };
     };
 in
 if cpm == null then
