@@ -1,5 +1,6 @@
 args@{
   lib,
+  repoPath,
   hostName,
   cpm,
   inventory ? { },

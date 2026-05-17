@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   hostName,
   cpm,
   inventory ? { },
@@ -7,6 +8,8 @@
 }:
 
 let
+  trace = import "${repoPath}/lib/trace.nix" { };
+
   realizationPorts = import ../../physical/realization-ports.nix { inherit lib; };
 
   sitesData =
@@ -34,7 +37,8 @@ let
     else
       { };
 
-  hostRuntime = import ../../lookup/host-runtime.nix {
+  hostRuntime = trace.emit "host-plan:${hostName}:host-runtime" (import ../../lookup/host-runtime.nix {
+    inherit repoPath;
     inherit
       lib
       hostName
@@ -42,23 +46,23 @@ let
       inventory
       hostContext
       ;
-  };
+  });
 
-  attachTargetsRuntime = realizationPorts.attachTargetsForUnitsFromRuntime {
+  attachTargetsRuntime = trace.emit "host-plan:${hostName}:attach-targets-all-host-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
     inherit inventory;
     selectedUnits = hostRuntime.unitsOnDeploymentHost;
     normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
     file = "s88/Unit/render/host-plan.nix";
-  };
+  });
 
-  attachTargetsRuntimeSelected = realizationPorts.attachTargetsForUnitsFromRuntime {
+  attachTargetsRuntimeSelected = trace.emit "host-plan:${hostName}:attach-targets-selected-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
     inherit inventory;
     selectedUnits = hostRuntime.selectedUnits;
     normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
     file = "s88/Unit/render/host-plan.nix";
-  };
+  });
 
-  bridgeModel = import ../../../EquipmentModule/mapping/host-bridges.nix {
+  bridgeModel = trace.emit "host-plan:${hostName}:bridge-model" (import ../../../EquipmentModule/mapping/host-bridges.nix {
     inherit
       lib
       attachTargetsRuntime
@@ -66,9 +70,9 @@ let
     inherit (hostRuntime)
       deploymentHost
       ;
-  };
+  });
 
-  wanAttachment = import ../../../EquipmentModule/mapping/wan-attachment.nix {
+  wanAttachment = trace.emit "host-plan:${hostName}:wan-attachment" (import ../../../EquipmentModule/mapping/wan-attachment.nix {
     inherit
       lib
       hostName
@@ -81,25 +85,25 @@ let
       renderHostConfig
       ;
     inherit (bridgeModel) attachTargetsBase;
-  };
+  });
 
-  transitBridgeModel = import ../../../EquipmentModule/physical/transit-bridges.nix {
+  transitBridgeModel = trace.emit "host-plan:${hostName}:transit-bridges" (import ../../../EquipmentModule/physical/transit-bridges.nix {
     inherit lib;
     inherit (hostRuntime)
       deploymentHostName
       deploymentHost
       realizationNodes
       ;
-  };
+  });
 
-  effectiveBridgeModel = import ../../../EquipmentModule/mapping/effective-host-bridges.nix {
+  effectiveBridgeModel = trace.emit "host-plan:${hostName}:effective-bridge-model" (import ../../../EquipmentModule/mapping/effective-host-bridges.nix {
     inherit
       lib
       bridgeModel
       wanAttachment
       transitBridgeModel
       ;
-  };
+  });
 in
 {
   inherit (hostRuntime)

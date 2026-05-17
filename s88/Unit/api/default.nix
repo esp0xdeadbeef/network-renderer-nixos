@@ -20,6 +20,7 @@ let
       inventory ? { },
     }:
     import ../render/host-network.nix {
+      repoPath = repoRoot;
       inherit
         lib
         hostName
@@ -51,6 +52,7 @@ let
     };
 
   hostBuilders = import ./host-build.nix {
+    repoPath = repoRoot;
     inherit
       lib
       selectors
@@ -127,6 +129,7 @@ in
 
     inherit (hostBuilders)
       buildHost
+      buildHostFromControlPlane
       buildHostFromPaths
       buildHostFromOutPath
       ;

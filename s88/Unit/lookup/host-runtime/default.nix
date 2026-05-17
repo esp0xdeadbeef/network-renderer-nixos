@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   hostName,
   cpm,
   inventory ? { },
@@ -19,7 +20,7 @@ let
   };
 
   selection = import ./selection.nix {
-    inherit lib cpm inventory;
+    inherit lib repoPath cpm inventory;
     inherit context;
     file = "s88/Unit/lookup/host-runtime.nix";
   };
