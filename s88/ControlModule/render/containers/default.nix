@@ -45,7 +45,7 @@ let
     };
 
   alarmModelForRenderedModel =
-    renderedModel:
+    renderedModel: firewallArg:
     import ./alarms.nix {
       inherit
         lib
@@ -53,6 +53,10 @@ let
         renderedModel
         ;
       uplinks = inputs.uplinks;
+      interfaceView = (firewallArg.lookup or { }).interfaceView or null;
+      forwardingIntent = (firewallArg.lookup or { }).forwardingIntent or null;
+      communication = (firewallArg.lookup or { }).communication or null;
+      endpointMap = (firewallArg.lookup or { }).endpointMap or null;
     };
 
   emitContainer =
@@ -60,7 +64,9 @@ let
     let
       renderedModel = trace.emit "containers:${deploymentHostName}:${containerName}:model" (renderModel model);
       firewallArg = trace.emit "containers:${deploymentHostName}:${containerName}:firewall" (firewallArgForModel renderedModel);
-      alarmModel = trace.emit "containers:${deploymentHostName}:${containerName}:alarms" (alarmModelForRenderedModel renderedModel);
+      alarmModel = trace.emit "containers:${deploymentHostName}:${containerName}:alarms" (
+        alarmModelForRenderedModel renderedModel firewallArg
+      );
     in
     trace.emit "containers:${deploymentHostName}:${containerName}:emission" (import ./emission.nix {
       inherit
