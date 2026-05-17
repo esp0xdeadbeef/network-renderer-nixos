@@ -4,6 +4,27 @@ let
   json = value: builtins.toJSON value;
 
   renderedHost = debugPayload.renderedHost or { };
+
+  artifactPaths = {
+    compiler = "/etc/network-artifacts/compiler.json";
+    forwarding = "/etc/network-artifacts/forwarding.json";
+    controlPlane = "/etc/network-artifacts/control-plane.json";
+    intent = "/etc/network-artifacts/intent.json";
+    inventory = "/etc/network-artifacts/inventory.json";
+    renderedHost = "/etc/network-artifacts/rendered-host.json";
+  };
+
+  debugBundle = {
+    inherit artifactPaths;
+    renderer = "network-renderer-nixos";
+    hostName = debugPayload.hostName or null;
+    system = debugPayload.system or null;
+    intentPath = debugPayload.intentPath or null;
+    inventoryPath = debugPayload.inventoryPath or null;
+    selectedUnits = renderedHost.selectedUnits or [ ];
+    selectedRoleNames = renderedHost.selectedRoleNames or [ ];
+    containers = builtins.attrNames (renderedHost.containers or { });
+  };
 in
 {
   environment.etc."network-artifacts/compiler.json".text =
@@ -25,7 +46,7 @@ in
     json renderedHost;
 
   environment.etc."network-artifacts/debug-bundle.json".text =
-    json debugPayload;
+    json debugBundle;
 
   environment.etc."network-renderer/network-renderer-nixos.json".text =
     json {
