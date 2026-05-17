@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   cpm,
   inventory ? { },
   context,
@@ -7,21 +8,23 @@
 }:
 
 let
+  trace = import "${repoPath}/lib/trace.nix" { };
+
   runtimeContext = import ../runtime-context.nix { inherit lib; };
   runtimeTargets = import ../../mapping/runtime-targets.nix { inherit lib; };
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  normalizedRuntimeTargets = runtimeTargets.normalizedRuntimeTargets {
+  normalizedRuntimeTargets = trace.emit "host-runtime:${context.deploymentHostName}:normalized-runtime-targets" (runtimeTargets.normalizedRuntimeTargets {
     inherit cpm file;
-  };
+  });
 
-  allUnitNames = sortedAttrNames normalizedRuntimeTargets;
+  allUnitNames = trace.emit "host-runtime:${context.deploymentHostName}:all-unit-names" (sortedAttrNames normalizedRuntimeTargets);
 
-  unitsOnDeploymentHost = runtimeContext.unitNamesForDeploymentHost {
+  unitsOnDeploymentHost = trace.emit "host-runtime:${context.deploymentHostName}:units-on-deployment-host" (runtimeContext.unitNamesForDeploymentHost {
     inherit cpm inventory file;
     deploymentHostName = context.deploymentHostName;
-  };
+  });
 
   runtimeRole =
     if
@@ -31,7 +34,7 @@ let
     else
       null;
 
-  selectedUnits = runtimeContext.selectedUnitsForHostContext {
+  selectedUnits = trace.emit "host-runtime:${context.deploymentHostName}:selected-units" (runtimeContext.selectedUnitsForHostContext {
     inherit
       cpm
       inventory
@@ -39,16 +42,16 @@ let
       file
       ;
     hostContext = context.effectiveHostContext;
-  };
+  });
 
-  selectedRoleNames = runtimeContext.selectedRoleNamesForUnits {
+  selectedRoleNames = trace.emit "host-runtime:${context.deploymentHostName}:selected-role-names" (runtimeContext.selectedRoleNamesForUnits {
     inherit
       cpm
       inventory
       selectedUnits
       file
       ;
-  };
+  });
 in
 {
   inherit

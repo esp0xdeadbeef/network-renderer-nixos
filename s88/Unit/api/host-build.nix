@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   selectors,
   builders,
   renderHostNetwork,
@@ -7,6 +8,8 @@
 }:
 
 let
+  trace = import "${repoPath}/lib/trace.nix" { };
+
   buildInputs = import ../../ControlModule/lookup/host-build-inputs.nix {
     inherit selectors;
   };
@@ -54,6 +57,9 @@ let
       inventory ? null,
       intentPath ? null,
       inventoryPath ? null,
+      controlPlaneOut ? null,
+      compilerOut ? null,
+      forwardingOut ? null,
       system ? currentSystem,
       containerDefaults ? { },
       disabled ? { },
@@ -73,37 +79,58 @@ let
           ;
       };
 
-      compilerOut = builders.buildCompiler {
-        intent = resolved.fabricInputs;
-        inherit system;
-      };
+      compilerOutResolved =
+        if compilerOut != null then
+          compilerOut
+        else if controlPlaneOut != null then
+          { }
+        else
+          trace.emit "host-build:${resolved.selectorValue}:compiler" (builders.buildCompiler {
+            intent = resolved.fabricInputs;
+            inherit system;
+          });
 
-      forwardingOut = builders.buildForwarding {
-        inherit compilerOut system;
-      };
+      forwardingOutResolved =
+        if forwardingOut != null then
+          forwardingOut
+        else if controlPlaneOut != null then
+          { }
+        else
+          trace.emit "host-build:${resolved.selectorValue}:forwarding" (builders.buildForwarding {
+            compilerOut = compilerOutResolved;
+            inherit system;
+          });
 
-      controlPlaneOut = builders.buildControlPlane {
-        inherit forwardingOut system;
-        inventory = resolved.globalInventory;
-      };
+      controlPlaneOutResolved =
+        if controlPlaneOut != null then
+          controlPlaneOut
+        else
+          trace.emit "host-build:${resolved.selectorValue}:control-plane" (builders.buildControlPlane {
+            forwardingOut = forwardingOutResolved;
+            inherit system;
+            inventory = resolved.globalInventory;
+          });
 
-      runtimeTargets = flattenRuntimeTargets controlPlaneOut;
+      runtimeTargets =
+        trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
+          flattenRuntimeTargets controlPlaneOutResolved
+        );
 
-      renderedHost = renderHostNetwork {
+      renderedHost = trace.emit "host-build:${resolved.selectorValue}:render-host-network" (renderHostNetwork {
         hostName = resolved.selectorValue;
         hostContext = resolved.hostContext;
-        cpm = controlPlaneOut;
+        cpm = controlPlaneOutResolved;
         inventory = resolved.globalInventory;
-      };
+      });
 
-      renderedHostWithSelectedContainers = hostSelection.selectedContainersForHost {
+      renderedHostWithSelectedContainers = trace.emit "host-build:${resolved.selectorValue}:select-containers" (hostSelection.selectedContainersForHost {
         inherit
           containerDefaults
           containerSelection
           renderedHost
           mergeContainerDefaults
           ;
-      };
+      });
 
       debugPayload = import ../../ControlModule/api/debug-payload.nix {
         inherit
@@ -114,22 +141,20 @@ let
         hostContext = resolved.hostContext;
         intent = resolved.fabricInputs;
         globalInventory = resolved.globalInventory;
-        inherit
-          compilerOut
-          forwardingOut
-          controlPlaneOut
-          ;
+        compilerOut = compilerOutResolved;
+        forwardingOut = forwardingOutResolved;
+        controlPlaneOut = controlPlaneOutResolved;
         renderedHostNetwork = renderedHostWithSelectedContainers;
         inherit intentPath inventoryPath;
       };
     in
     {
       inherit
-        compilerOut
-        forwardingOut
-        controlPlaneOut
         debugPayload
         ;
+      compilerOut = compilerOutResolved;
+      forwardingOut = forwardingOutResolved;
+      controlPlaneOut = controlPlaneOutResolved;
 
       renderedHost = renderedHostWithSelectedContainers;
 
@@ -173,6 +198,33 @@ let
         ;
     };
 
+  buildHostFromControlPlane =
+    {
+      controlPlaneOut,
+      inventory,
+      selector ? null,
+      hostname ? null,
+      system ? currentSystem,
+      containerDefaults ? { },
+      disabled ? { },
+      containerSelection ? disabledSelectionFrom disabled,
+      file ? "s88/Unit/api/host-build.nix",
+    }:
+    buildHost {
+      inherit
+        inventory
+        controlPlaneOut
+        selector
+        hostname
+        system
+        containerDefaults
+        disabled
+        containerSelection
+        file
+        ;
+      intent = { };
+    };
+
   buildHostFromOutPath =
     {
       outPath,
@@ -202,6 +254,7 @@ in
   inherit
     buildHost
     buildHostFromPaths
+    buildHostFromControlPlane
     buildHostFromOutPath
     ;
 }

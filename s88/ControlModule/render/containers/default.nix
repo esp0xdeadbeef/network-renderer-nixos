@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   hostPlan ? null,
   cpm ? null,
   inventory ? { },
@@ -12,6 +13,8 @@
 }:
 
 let
+  trace = import "${repoPath}/lib/trace.nix" { };
+
   inputs = import ./inputs.nix {
     inherit
       lib
@@ -55,11 +58,11 @@ let
   emitContainer =
     deploymentHostName: containerName: model:
     let
-      renderedModel = renderModel model;
-      firewallArg = firewallArgForModel renderedModel;
-      alarmModel = alarmModelForRenderedModel renderedModel;
+      renderedModel = trace.emit "containers:${deploymentHostName}:${containerName}:model" (renderModel model);
+      firewallArg = trace.emit "containers:${deploymentHostName}:${containerName}:firewall" (firewallArgForModel renderedModel);
+      alarmModel = trace.emit "containers:${deploymentHostName}:${containerName}:alarms" (alarmModelForRenderedModel renderedModel);
     in
-    import ./emission.nix {
+    trace.emit "containers:${deploymentHostName}:${containerName}:emission" (import ./emission.nix {
       inherit
         lib
         debugEnabled
@@ -71,7 +74,7 @@ let
         ;
       uplinks = inputs.uplinks;
       wanUplinkName = inputs.wanUplinkName;
-    };
+    });
 
   renderFlatContainers =
     containerModelsFlat:

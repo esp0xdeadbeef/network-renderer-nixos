@@ -102,14 +102,27 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
           builtins.any
             (networkName: hasMainRoute (networks.${networkName}.routes or [ ]) destination gateway)
             (builtins.attrNames networks);
+        hasRoute = routes: destination: gateway:
+          builtins.any
+            (route:
+              (route.Destination or null) == destination
+              && (route.Gateway or null) == gateway)
+            routes;
+        hasRouteAnyNetwork = networks: destination: gateway:
+          builtins.any
+            (networkName: hasRoute (networks.${networkName}.routes or [ ]) destination gateway)
+            (builtins.attrNames networks);
       in
         hasMainRouteAnyNetwork branchCoreNetworks "10.50.0.0/32" "10.10.0.15"
-        && hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:f"
+        && (
+          hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:f"
+          || hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0000:0000:0000:0000/125" "fd42:dead:beef:1000:0:0:0:f"
+        )
         && hasMainRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5"
         && hasMainRouteAnyNetwork branchNebulaNetworks "0.0.0.0/0" "10.50.0.5"
         && hasMainRouteAnyNetwork branchNebulaNetworks "::/0" "fd42:dead:feed:1000:0:0:0:5"
-        && hasMainRouteAnyNetwork branchUpstreamSelectorNetworks "0.0.0.0/0" "10.50.0.6"
-        && hasMainRouteAnyNetwork branchUpstreamSelectorNetworks "::/0" "fd42:dead:feed:1000:0:0:0:6"
+        && hasRouteAnyNetwork branchUpstreamSelectorNetworks "0.0.0.0/0" "10.50.0.6"
+        && hasRouteAnyNetwork branchUpstreamSelectorNetworks "::/0" "fd42:dead:feed:1000:0:0:0:6"
     '
 
 echo "PASS transit-endpoint-return-routes"

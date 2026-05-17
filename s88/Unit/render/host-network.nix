@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   hostName,
   cpm,
   inventory ? { },
@@ -7,6 +8,8 @@
 }:
 
 let
+  trace = import "${repoPath}/lib/trace.nix" { };
+
   isa = import ../../ControlModule/alarm/isa18.nix { inherit lib; };
 
   renderSites =
@@ -38,7 +41,8 @@ let
           ) sites
       ) data;
 
-  hostPlan = import ./host-plan.nix {
+  hostPlan = trace.emit "host-network:${hostName}:host-plan" (import ./host-plan.nix {
+    inherit repoPath;
     inherit
       lib
       hostName
@@ -46,22 +50,23 @@ let
       inventory
       hostContext
       ;
-  };
+  });
 
-  hostSystemd = import ../../ControlModule/render/systemd-host-network.nix {
+  hostSystemd = trace.emit "host-network:${hostName}:systemd-host-network" (import ../../ControlModule/render/systemd-host-network.nix {
     inherit lib hostPlan;
-  };
+  });
 
-  containerRenderings = import ../../ControlModule/render/containers.nix {
+  containerRenderings = trace.emit "host-network:${hostName}:containers" (import ../../ControlModule/render/containers.nix {
+    inherit repoPath;
     inherit
       lib
       hostPlan
       cpm
       inventory
       ;
-  };
+  });
 
-  pipelineAlarmModel = isa.normalizeModel cpm;
+  pipelineAlarmModel = trace.emit "host-network:${hostName}:alarms" (isa.normalizeModel cpm);
 in
 {
   inherit (hostPlan)

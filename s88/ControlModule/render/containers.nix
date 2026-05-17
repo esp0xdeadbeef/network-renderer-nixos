@@ -1,5 +1,6 @@
 args@{
   lib,
+  repoPath,
   hostPlan ? null,
   cpm ? null,
   inventory ? { },
