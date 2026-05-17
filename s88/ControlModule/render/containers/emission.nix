@@ -65,6 +65,11 @@ let
       wanUplinkName
       ;
   };
+
+  firewallSpecialArg = {
+    enable = firewallArg.enable or false;
+    ruleset = firewallArg.ruleset or null;
+  };
 in
 {
   autoStart =
@@ -117,7 +122,7 @@ in
   specialArgs = {
     inherit deploymentHostName;
     s88RoleName = renderedModel.roleName or null;
-    s88Firewall = firewallArg;
+    s88Firewall = firewallSpecialArg;
     s88Warnings = warningMessages;
     s88Alarms = alarms;
     unitName =
