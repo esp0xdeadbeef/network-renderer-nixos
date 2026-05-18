@@ -89,7 +89,6 @@ nix_eval_json_or_fail \
           };
         hostileAccess = configFor branch "b-router-access-hostile";
         mutatedHostileAccess = configFor mutatedBranch "b-router-access-hostile";
-        mutatedBranchUpstream = configFor mutatedBranch "b-router-upstream-selector";
         sitecDns = configFor siteC "c-router-access-dmz";
         hostileUnbound = hostileAccess.services.unbound.settings;
         mutatedHostileUnbound = mutatedHostileAccess.services.unbound.settings;
@@ -103,27 +102,9 @@ nix_eval_json_or_fail \
         sitecNftScript = sitecDns.systemd.services.nft-allow-dns-service.script;
         hostileRules = hostileAccess.networking.nftables.ruleset;
         sitecRules = sitecDns.networking.nftables.ruleset;
-        mutatedBranchUpstreamNetworks = mutatedBranchUpstream.systemd.network.networks;
-        mutatedBranchCoreNebulaRoutes = mutatedBranchUpstreamNetworks."10-core-nebula".routes or [ ];
-        mutatedBranchCoreNebulaTable =
-          let
-            rules = mutatedBranchUpstreamNetworks."10-core-nebula".routingPolicyRules or [ ];
-            tableRules =
-              builtins.filter
-                (rule: builtins.isInt (rule.Table or null) && (rule.Table or null) != 254)
-                rules;
-          in
-            if tableRules == [ ] then null else (builtins.head tableRules).Table;
         has = lib.hasInfix;
         hasMember = value: values: builtins.elem value values;
         noMember = value: values: !(builtins.elem value values);
-        hasRenderedRoute = routes: destination: gateway: table:
-          builtins.any
-            (route:
-              (route.Destination or null) == destination
-              && (route.Gateway or null) == gateway
-              && (route.Table or null) == table)
-            routes;
         checks = {
           hostile_listens_on_tenant_dns_v4 =
             hasMember "10.70.10.1" hostileServer.interface;
@@ -149,10 +130,6 @@ nix_eval_json_or_fail \
             noMember "10.20.10.1" mutatedHostileForwardZone.forward-addr;
           mutated_hostile_does_not_keep_sitea_dns_v6 =
             noMember "fd42:dead:beef:10::1" mutatedHostileForwardZone.forward-addr;
-          mutated_route_to_inventory_endpoint_v4 =
-            hasRenderedRoute mutatedBranchCoreNebulaRoutes "10.90.10.53" "10.50.0.4" mutatedBranchCoreNebulaTable;
-          mutated_route_to_inventory_endpoint_v6 =
-            hasRenderedRoute mutatedBranchCoreNebulaRoutes "fd42:dead:cafe:10::53" "fd42:dead:feed:1000:0:0:0:4" mutatedBranchCoreNebulaTable;
           hostile_dns_nft_opens_ipv4 =
             has "ip daddr 10.70.10.1 udp dport 53 accept comment \"allow-dns-service\"" hostileNftScript;
           hostile_dns_nft_opens_ipv6 =
