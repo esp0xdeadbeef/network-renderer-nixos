@@ -94,6 +94,7 @@ let
   };
 
   containers = import ./containers/default.nix {
+    repoPath = repoRoot;
     inherit
       lib
       selectors
