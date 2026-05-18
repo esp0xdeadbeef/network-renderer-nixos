@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   selectors,
   buildHostFromPaths,
   currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
@@ -62,6 +63,7 @@ in
 
       renderedContainers = import ../../../ControlModule/render/containers.nix {
         inherit lib;
+        inherit repoPath;
         hostPlan = resolved.hostPlan;
         cpm = resolved.controlPlaneOut;
         inventory = resolved.globalInventory;
