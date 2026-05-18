@@ -17,37 +17,35 @@ mutated_intent="${tmp_dir}/intent.nix"
 mutated_inventory="${tmp_dir}/inventory-nixos.nix"
 
 cat >"${mutated_intent}" <<EOF
-let
-  base = import ${intent_path};
-  siteB = base.espbranch."site-b";
-  contract = siteB.communicationContract;
-  rewriteService =
-    service:
-    if service.name or null == "sitec-public-dns" then
-      service // { providers = [ "sitec-dns-alt" ]; }
-    else
-      service;
-in
-base // {
-  espbranch = base.espbranch // {
-    "site-b" = siteB // {
-      communicationContract = contract // {
-        services = map rewriteService contract.services;
-      };
-    };
-  };
-}
+import ${intent_path}
 EOF
 
 cat >"${mutated_inventory}" <<EOF
 let
   base = import ${inventory_path};
+  hostile = base.realization.nodes."espbranch-site-b-b-router-access-hostile";
+  hostileServices = hostile.services;
+  hostileDns = hostileServices.dns;
 in
 base // {
   endpoints = base.endpoints // {
     sitec-dns-alt = {
       ipv4 = [ "10.90.10.53" ];
       ipv6 = [ "fd42:dead:cafe:10::53" ];
+    };
+  };
+  realization = base.realization // {
+    nodes = base.realization.nodes // {
+      "espbranch-site-b-b-router-access-hostile" = hostile // {
+        services = hostileServices // {
+          dns = hostileDns // {
+            forwarders = [
+              "10.90.10.53"
+              "fd42:dead:cafe:10::53"
+            ];
+          };
+        };
+      };
     };
   };
 }
@@ -131,14 +129,14 @@ nix_eval_json_or_fail \
             hasMember "10.70.10.1" hostileServer.interface;
           hostile_listens_on_tenant_dns_v6 =
             hasMember "fd42:dead:feed:70::1" hostileServer.interface;
-          hostile_forwards_to_sitec_dns_v4 =
-            hasMember "10.90.10.1" hostileForwardZone.forward-addr;
-          hostile_forwards_to_sitec_dns_v6 =
-            hasMember "fd42:dead:cafe:10::1" hostileForwardZone.forward-addr;
-          hostile_does_not_forward_to_sitea_dns_v4 =
-            noMember "10.20.10.1" hostileForwardZone.forward-addr;
-          hostile_does_not_forward_to_sitea_dns_v6 =
-            noMember "fd42:dead:beef:10::1" hostileForwardZone.forward-addr;
+          hostile_forwards_to_sitea_dns_v4 =
+            hasMember "10.20.10.1" hostileForwardZone.forward-addr;
+          hostile_forwards_to_sitea_dns_v6 =
+            hasMember "fd42:dead:beef:10::1" hostileForwardZone.forward-addr;
+          hostile_does_not_invent_sitec_dns_v4 =
+            noMember "10.90.10.1" hostileForwardZone.forward-addr;
+          hostile_does_not_invent_sitec_dns_v6 =
+            noMember "fd42:dead:cafe:10::1" hostileForwardZone.forward-addr;
           mutated_hostile_forwards_to_inventory_endpoint_v4 =
             hasMember "10.90.10.53" mutatedHostileForwardZone.forward-addr;
           mutated_hostile_forwards_to_inventory_endpoint_v6 =
@@ -147,6 +145,10 @@ nix_eval_json_or_fail \
             noMember "10.90.10.1" mutatedHostileForwardZone.forward-addr;
           mutated_hostile_does_not_keep_default_sitec_dns_v6 =
             noMember "fd42:dead:cafe:10::1" mutatedHostileForwardZone.forward-addr;
+          mutated_hostile_does_not_keep_sitea_dns_v4 =
+            noMember "10.20.10.1" mutatedHostileForwardZone.forward-addr;
+          mutated_hostile_does_not_keep_sitea_dns_v6 =
+            noMember "fd42:dead:beef:10::1" mutatedHostileForwardZone.forward-addr;
           mutated_route_to_inventory_endpoint_v4 =
             hasRenderedRoute mutatedBranchCoreNebulaRoutes "10.90.10.53" "10.50.0.4" mutatedBranchCoreNebulaTable;
           mutated_route_to_inventory_endpoint_v6 =
