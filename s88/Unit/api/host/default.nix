@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   selectors,
   buildHostFromPaths,
   currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
@@ -9,6 +10,7 @@ let
   boxInputs = import ../box-build-inputs.nix {
     inherit
       lib
+      repoPath
       selectors
       buildHostFromPaths
       currentSystem

@@ -10,6 +10,7 @@ let
   boxInputs = import ../box-build-inputs.nix {
     inherit
       lib
+      repoPath
       selectors
       buildHostFromPaths
       currentSystem

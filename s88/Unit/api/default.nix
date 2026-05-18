@@ -78,6 +78,7 @@ let
   };
 
   host = import ./host/default.nix {
+    repoPath = repoRoot;
     inherit
       lib
       selectors
@@ -86,6 +87,7 @@ let
   };
 
   bridges = import ./bridges/default.nix {
+    repoPath = repoRoot;
     inherit
       lib
       selectors

@@ -1,5 +1,6 @@
 {
   lib,
+  repoPath,
   selectors,
   buildHostFromPaths,
   currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
@@ -115,6 +116,7 @@ let
       };
 
       hostPlan = import ../render/host-plan.nix {
+        inherit repoPath;
         inherit lib;
         hostName = selectorValue;
         hostContext = narrowedHostContext;
