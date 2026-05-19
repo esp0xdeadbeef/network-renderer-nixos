@@ -72,6 +72,18 @@ let
     || (iface.carrier or null) == "wan"
     || (iface.type or null) == "wan";
 
+  dynamicRoutePriority =
+    iface: route:
+    let
+      intentKind = route.intent.kind or null;
+    in
+    if intentKind == "runtime-routed-prefix-return" then
+      -20
+    else if isWanInterface iface then
+      10
+    else
+      0;
+
   stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" "sourceFile" "delegatedPrefix" "family" ];
 
   interfaceUnits = builtins.listToAttrs (
@@ -160,7 +172,7 @@ let
             family = route.family or null;
             metric = route.metric or null;
             table = route.Table or null;
-            priority = if isWanInterface iface then 10 else 0;
+            priority = dynamicRoutePriority iface route;
           }
       ) (iface.routes or [ ])
     ) interfaceNames
@@ -192,7 +204,7 @@ let
             family = route.Family or route.family or null;
             metric = route.Metric or route.metric or null;
             table = route.Table or null;
-            priority = if isWanInterface iface then 10 else 0;
+            priority = dynamicRoutePriority iface route;
           }
       ) (policyRoutingByInterface.routes.${ifName} or [ ])
     ) interfaceNames
@@ -254,7 +266,7 @@ let
               inherit interfaceName sourceFile gateway table;
               family = route.family or null;
               metric = route.metric or null;
-              priority = if isWanInterface iface then 10 else 0;
+              priority = dynamicRoutePriority iface route;
             })
             upstreamCorePolicyTableIds
       ) (iface.routes or [ ])

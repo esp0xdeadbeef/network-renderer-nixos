@@ -71,6 +71,14 @@ REPO_ROOT="${repo_root}" nix eval \
                 containerInterfaceName = "core";
                 interfaceClass.coreFacing = true;
                 addresses = [ "fd42:dead:cafe:1000::5/127" ];
+                routes = [
+                  {
+                    family = 6;
+                    sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
+                    via6 = "fd42:dead:cafe:1000::4";
+                    intent.kind = "runtime-routed-prefix-public-egress";
+                  }
+                ];
               };
               core-nebula = {
                 containerInterfaceName = "core-nebula";
@@ -118,8 +126,8 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
-    in
-      firewallRules == [ ]
+      ok =
+        firewallRules == [ ]
       && render.dynamicSourceForwardRules == [
         {
           action = "accept";
@@ -139,7 +147,22 @@ REPO_ROOT="${repo_root}" nix eval \
           && route.gateway == "fd42:dead:cafe:1000::a"
           && route.table == 2000)
         policyRouteRender.dynamicDelegatedRoutes
+      && !(builtins.any
+        (route:
+          route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && route.interfaceName == "core"
+          && route.table == 2000)
+        policyRouteRender.dynamicDelegatedRoutes)
       && overlayRouteRender.dynamicDelegatedRoutes == [ ]
+      ;
+    in
+      if ok then true else throw ("dynamic-source-forwarding failed: " + builtins.toJSON {
+        inherit firewallRules;
+        dynamicSourceForwardRules = render.dynamicSourceForwardRules;
+        dynamicDelegatedRoutes = policyRouteRender.dynamicDelegatedRoutes;
+        overlayDynamicDelegatedRoutes = overlayRouteRender.dynamicDelegatedRoutes;
+        servicePresent = service != null;
+      })
   ' >/dev/null
 
 echo "PASS dynamic-source-forwarding"
