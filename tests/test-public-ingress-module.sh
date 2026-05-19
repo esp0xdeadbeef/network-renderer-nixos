@@ -31,7 +31,8 @@ let
         {
           publicIPv4SecretPath = "/run/secrets/core-public-ipv4";
           targetIPv4 = "172.31.254.2";
-          protocols = [ "tcp" "udp" ];
+          protocols = [ "udp" ];
+          inputDports = [ 4243 ];
           protectServiceDports = false;
           exceptTcpDports = [ 22 ];
           containerInterface = {
@@ -154,9 +155,10 @@ let
         { Destination = "10.90.10.100/32"; Gateway = "172.31.254.3"; }
         module.systemd.network.networks."30-br-wan".routes;
     runtimeForwardKeepsHostSsh =
-      lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto tcp tcp dport != { 22 } dnat to 172.31.254.2" rules;
-    runtimeForwardDoesNotStealServiceUdp =
-      lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto udp dnat to 172.31.254.2" rules;
+      !(lib.hasInfix "meta l4proto tcp" rules);
+    runtimeForwardOnlyOpensModeledUdpPort =
+      lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto udp udp dport 4243 dnat to 172.31.254.2" rules
+      && !(lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto udp dnat to 172.31.254.2" rules);
     publicIngressDefinesRuntimeSets =
       lib.hasInfix "set s88_public_service_acme_dmz_site_dmz_nebula" rules
       && lib.hasInfix "set s88_public_runtime_0" rules;
@@ -190,10 +192,9 @@ let
       let
         containerModule = module.containers.c-router-nebula-core.config { inherit lib; };
       in
-      lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto udp udp dport 4242 accept" containerModule.networking.nftables.ruleset.content
-      && lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto tcp tcp dport 4242 accept" containerModule.networking.nftables.ruleset.content
-      && lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto udp udp dport 4444 accept" containerModule.networking.nftables.ruleset.content
-      && lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto tcp tcp dport 4444 accept" containerModule.networking.nftables.ruleset.content;
+      lib.hasInfix "insert rule inet router input iifname \"portforward\" meta l4proto udp udp dport 4243 accept" containerModule.networking.nftables.ruleset.content
+      && !(lib.hasInfix "dport 4242 accept" containerModule.networking.nftables.ruleset.content)
+      && !(lib.hasInfix "dport 4444 accept" containerModule.networking.nftables.ruleset.content);
   };
 in
 {

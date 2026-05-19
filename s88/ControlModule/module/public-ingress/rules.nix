@@ -18,6 +18,17 @@ let
     else
       " dport != { ${lib.concatStringsSep ", " (map toString ports)} }";
 
+  dportMatchText = proto: dports:
+    let
+      ports = sortedUnique dports;
+      portText =
+        if builtins.length ports == 1 then
+          toString (builtins.head ports)
+        else
+          "{ ${lib.concatStringsSep ", " (map toString ports)} }";
+    in
+    if proto == "any" || ports == [ ] then "" else " ${proto} dport ${portText}";
+
   renderMatch = match:
     let
       proto = match.proto or "any";
@@ -58,6 +69,7 @@ let
     let
       targetIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].targetIPv4" (forward.targetIPv4 or null);
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
+      inputDports = listOr (forward.inputDports or null);
       exceptTcpDports = listOr (forward.exceptTcpDports or null);
       protectServiceDports = forward.protectServiceDports or true;
       comment = forward.comment or "s88-public-runtime-forward";
@@ -71,7 +83,9 @@ let
             else
               [ ];
           except =
-            if proto == "tcp" then
+            if inputDports != [ ] then
+              dportMatchText proto inputDports
+            else if proto == "tcp" then
               " tcp${exceptDportText (exceptTcpDports ++ protectedDports)}"
             else if protectedDports != [ ] then
               " ${proto}${exceptDportText protectedDports}"
@@ -87,6 +101,7 @@ let
     let
       targetIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].targetIPv4" (forward.targetIPv4 or null);
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
+      inputDports = listOr (forward.inputDports or null);
       exceptTcpDports = listOr (forward.exceptTcpDports or null);
       comment = forward.comment or "s88-public-runtime-forward";
     in
@@ -94,7 +109,9 @@ let
       (proto:
         let
           except =
-            if proto == "tcp" && exceptTcpDports != [ ] then
+            if inputDports != [ ] then
+              dportMatchText proto inputDports
+            else if proto == "tcp" && exceptTcpDports != [ ] then
               " tcp dport != { ${lib.concatStringsSep ", " (map toString exceptTcpDports)} }"
             else
               "";
