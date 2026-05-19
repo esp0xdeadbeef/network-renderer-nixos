@@ -1,3 +1,17 @@
 # network-renderer-nixos regression state
 
 - state=fixed-locally | target=public-ingress-runtime-forward-input-dports | evidence=2026-05-16 `runtimeFacts.publicIngress.runtimeForwards[*].inputDports` was being repeated in `s-router-hetzner-anywhere` to open the public-forward container input path for modeled ports 4242/4444/4445/4446. `s88/ControlModule/module/public-ingress/facts.nix` now derives missing runtime-forward input dports from explicit CPM external service relations and traffic-type matches, and `bash tests/test-public-ingress-module.sh` passes without setting `inputDports` in the runtime fact. | reason=The dports are explicit CPM public service contract data. The NixOS renderer should project those dports into container-side runtime-forward input rules instead of requiring a host-specific NixOS port-list monkeypatch.
+
+- `s88/ControlModule/lookup/host-query/inventory.nix` ACCEPTED OVER-LIMIT | reason=single host-query inventory ingestion boundary with related optional fact normalization kept adjacent for audit.
+- `s88/ControlModule/render/container-networks/policy-routing.nix` ACCEPTED OVER-LIMIT | reason=single renderer for policy routing fragments where splitting would hide rule ordering.
+- `s88/ControlModule/render/dry-config-model.nix` ACCEPTED OVER-LIMIT | reason=single audit artifact projection kept together so consumed CPM fields stay traceable.
+- `s88/ControlModule/firewall/lookup/assumptions.nix` ACCEPTED OVER-LIMIT | reason=single firewall assumption lookup table kept together to avoid partial security defaults.
+- `s88/ControlModule/render/containers/dns-services.nix` ACCEPTED OVER-LIMIT | reason=single DNS service renderer with resolver and unit emission in one ordered artifact.
+- `s88/ControlModule/render/container-networks/interface-units.nix` ACCEPTED OVER-LIMIT | reason=single systemd-networkd unit renderer where split helpers would obscure emitted file ordering.
+- `s88/ControlModule/alarm/isa18.nix` ACCEPTED OVER-LIMIT | reason=single alarm classifier table kept together for deterministic severity review.
+- `s88/ControlModule/render/containers/bgp-services.nix` ACCEPTED OVER-LIMIT | reason=single BGP container service renderer with tightly coupled protocol knobs.
+- `s88/ControlModule/module/public-ingress/facts.nix` ACCEPTED OVER-LIMIT | reason=single public ingress fact projector from explicit CPM services into runtime facts.
+- `s88/ControlModule/firewall/lookup/communication-contract.nix` ACCEPTED OVER-LIMIT | reason=single communication contract lookup where splitting would make allow deny precedence harder to audit.
+- `s88/Unit/api/host-build.nix` ACCEPTED OVER-LIMIT | reason=single public host build API assembly kept together to preserve caller contract shape.
+- `s88/ControlModule/firewall/policy/access.nix` ACCEPTED OVER-LIMIT | reason=single access firewall policy builder where rule precedence must remain visible.
+- `s88/Unit/physical/realization-ports/inventory.nix` ACCEPTED OVER-LIMIT | reason=single physical port realization inventory parser kept together for inventory boundary review.

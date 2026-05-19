@@ -53,9 +53,12 @@ in
     targetName:
     let
       unitSources = policyRoutingSources.${targetName} or null;
+      selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
+      acceptedForwardTargets =
+        lib.filter (name: hasAcceptForwardingRule targetName (renderedNameFor name)) interfaceNames;
     in
     if unitSources != null then
       unitSources
     else
-      lib.filter (name: renderedNameFor name == targetName) interfaceNames;
+      lib.unique (selfSources ++ acceptedForwardTargets);
 }

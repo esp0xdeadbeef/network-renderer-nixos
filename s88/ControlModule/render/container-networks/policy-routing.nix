@@ -294,7 +294,12 @@ in
           ifName = entry.ifName;
           interfaceName = renderedInterfaceNames.${ifName};
           tableId = 2000 + index;
-          sourceIfNames = routeSources.forTarget interfaceName;
+          baseSourceIfNames = routeSources.forTarget interfaceName;
+          policyIngressLocalSourceIfNames =
+            lib.optionals (isPolicy && isPolicyUpstreamInterface interfaceName) (
+              lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
+            );
+          sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
           rawPolicyRoutes =
             preferServiceDnsRoutes (
               lib.concatMap

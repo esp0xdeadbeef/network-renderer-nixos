@@ -113,10 +113,10 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
             (networkName: hasRoute (networks.${networkName}.routes or [ ]) destination gateway)
             (builtins.attrNames networks);
       in
-        hasMainRouteAnyNetwork branchCoreNetworks "10.50.0.0/32" "10.10.0.15"
+        hasMainRouteAnyNetwork branchCoreNetworks "10.10.0.0/31" "10.10.0.15"
         && (
-          hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:f"
-          || hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0000:0000:0000:0000/125" "fd42:dead:beef:1000:0:0:0:f"
+          hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/127" "fd42:dead:beef:1000:0:0:0:f"
+          || hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0000:0000:0000:0000/127" "fd42:dead:beef:1000:0:0:0:f"
         )
         && hasMainRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5"
         && hasMainRouteAnyNetwork branchNebulaNetworks "0.0.0.0/0" "10.50.0.5"

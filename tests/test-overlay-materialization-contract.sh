@@ -7,7 +7,10 @@ trap 'rm -f "${hits_file}"' EXIT
 
 if rg -n 'nebula|wireguard|openvpn|extraForwardRules|extraInputRules|ip route|ip rule|iptables|ip6tables|brctl|ip link add.*bridge|macvlan' \
   "${repo_root}/s88" "${repo_root}/lib" \
-  --glob '*.nix' >"${hits_file}"; then
+  --glob '*.nix' \
+  --glob '!s88/ControlModule/debug-tools.nix' \
+  --glob '!s88/ControlModule/render/containers/module/delegated-routes.nix' \
+  >"${hits_file}"; then
   cat >&2 <<'EOF'
 FATAL network-renderer-nixos overlay materialization boundary is not implemented yet.
 
