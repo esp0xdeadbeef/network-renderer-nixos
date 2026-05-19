@@ -65,7 +65,7 @@ let
 
   isOverlayProviderRoute =
     iface: route:
-    (iface.sourceKind or null) == "overlay" || (builtins.isAttrs route && (route.proto or null) == "overlay");
+    (iface.sourceKind or null) == "overlay";
 
   isWanInterface = iface:
     (iface.sourceKind or null) == "wan"

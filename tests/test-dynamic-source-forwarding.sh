@@ -86,6 +86,7 @@ REPO_ROOT="${repo_root}" nix eval \
                 addresses = [ "fd42:dead:cafe:1000::b/127" ];
                 routes = [
                   {
+                    proto = "overlay";
                     family = 6;
                     sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
                     via6 = "fd42:dead:cafe:1000::a";
