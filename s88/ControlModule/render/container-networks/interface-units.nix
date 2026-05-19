@@ -225,16 +225,14 @@ let
         interfaceNames
     );
 
-  upstreamCorePolicyTableIds =
+  allPolicyTableIds =
     lib.unique (
       lib.concatMap
         (ifName:
           let interfaceName = renderedInterfaceNames.${ifName};
-          in
-          if isUpstreamSelectorCoreInterface interfaceName && builtins.hasAttr interfaceName policyTableIdsByRenderedInterface then
+          in if builtins.hasAttr interfaceName policyTableIdsByRenderedInterface then
             [ policyTableIdsByRenderedInterface.${interfaceName} ]
-          else
-            [ ])
+          else [ ])
         interfaceNames
     );
 
@@ -268,7 +266,7 @@ let
               metric = route.metric or null;
               priority = dynamicRoutePriority iface route;
             })
-            upstreamCorePolicyTableIds
+            allPolicyTableIds
       ) (iface.routes or [ ])
     ) interfaceNames
   );
