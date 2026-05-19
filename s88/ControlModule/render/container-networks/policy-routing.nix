@@ -129,6 +129,22 @@ let
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
   };
 
+  connectedP2pRoutesForInterface =
+    ifName:
+    let
+      iface = interfaces.${ifName};
+      peer4 = peers.ipv4PeerFor31 (peers.addressForFamily 4 iface);
+      peer6 = peers.ipv6PeerFor127 (peers.addressForFamily 6 iface);
+    in
+    (lib.optional (peer4 != null) {
+      dst = "${peer4}/31";
+      via4 = peer4;
+    })
+    ++ (lib.optional (peer6 != null) {
+      dst = "${peer6}/127";
+      via6 = peer6;
+    });
+
   policyOnlyProjection = import ./policy-routing/policy-only-projection.nix {
     inherit renderedInterfaceNames;
     policyRoutingSources = containerModel.policyRoutingSources or { };
@@ -158,6 +174,17 @@ let
           ) interfaceNames
         else
           [ ];
+      upstreamPolicyCoreConnectedRoutes =
+        if isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName then
+          lib.concatMap (
+            name:
+            if isUpstreamSelectorCoreInterface renderedInterfaceNames.${name} then
+              connectedP2pRoutesForInterface name
+            else
+              [ ]
+          ) interfaceNames
+        else
+          [ ];
       sourceRoutes =
         if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName then
           (lib.filter
@@ -165,7 +192,7 @@ let
             (interfaces.${sourceIfName}.routes or [ ]))
           ++ upstreamCoreReturnRoutes
         else if isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName && sourceIfName == targetIfName then
-          lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ])
+          (lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ])) ++ upstreamPolicyCoreConnectedRoutes
         else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
           (returnRoutes.forUpstreamCore interfaceName sourceIfName) ++ explicitNonDefaultRoutes
         else
