@@ -64,8 +64,8 @@ INVENTORY_PATH="${inventory_path}" \
       in
         hasRoute "10.20.10.0/24" "10.50.0.17" 2004
         && hasRoute "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:11" 2004
-        && networkHasRoute "10-up-hostile-ew" "10.90.10.1" "10.50.0.17" 2001
-        && !(networkHasRoute "10-downstr-hostile" "10.90.10.1" "10.50.0.17" 2001)
+        && networkHasRoute "10-up-hostile-ew" "10.90.10.0/24" "10.50.0.17" 2001
+        && !(networkHasRoute "10-downstr-hostile" "10.90.10.0/24" "10.50.0.17" 2001)
         && networkHasDefaultVia "10-up-hostile-ew" "fd42:dead:feed:1000:0:0:0:11" 2001
         && !(networkHasDefaultVia "10-downstr-hostile" "fd42:dead:feed:1000:0:0:0:a" 2001)
     '
