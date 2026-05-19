@@ -70,4 +70,32 @@ INVENTORY_PATH="${inventory_path}" \
         && hasUdpUnderlayFirewall && hasTcpUnderlayFirewall
     '
 
+lab_root="$(flake_input_path network-labs)/labs/lab-s-sigma/s-router-test-three-site"
+
+nix_eval_true_or_fail "runtime-underlay-endpoint-source-routes-lab-relay" env REPO_ROOT="${repo_root}" \
+INTENT_PATH="${lab_root}/intent.nix" \
+INVENTORY_PATH="${lab_root}/inventory.nix" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        builtContainers = flake.lib.containers.buildForBox {
+          boxName = "s-router-test";
+          system = "x86_64-linux";
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        };
+        cfg =
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            system = "x86_64-linux";
+            modules = [ builtContainers."nixos-router-upstream".config ];
+          }).config;
+        ruleset = cfg.networking.nftables.ruleset;
+      in
+        flake.inputs.nixpkgs.lib.hasInfix
+          "iifname \"core-nebula\" oifname \"core-a\" meta l4proto udp udp dport { 4243 } accept comment \"allow-nebula-runtime-underlay-to-uplinks\""
+          ruleset
+    '
+
 pass "runtime-underlay-endpoint-source-routes"
