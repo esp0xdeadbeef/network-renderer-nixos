@@ -124,6 +124,11 @@ let
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
+  routeIntentKind = route: (route.intent.kind or null);
+
+  isServiceDnsReachabilityRoute =
+    route: builtins.isAttrs route && routeIntentKind route == "service-dns-reachability";
+
   explicitReturnRoutes = import ./policy-routing/explicit-return-routes.nix {
     inherit lib common interfaces interfaceNames renderedInterfaceNames;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
@@ -154,6 +159,15 @@ let
     tableId: interfaceName: sourceIfName:
     let
       targetIfName = lib.findFirst (name: renderedInterfaceNames.${name} == interfaceName) null interfaceNames;
+      targetServiceDnsDestinations =
+        if targetIfName == null then
+          [ ]
+        else
+          map (route: route.dst) (
+            lib.filter
+              (route: isServiceDnsReachabilityRoute route && builtins.isString (route.dst or null))
+              (interfaces.${targetIfName}.routes or [ ])
+          );
       explicitNonDefaultRoutes =
         lib.filter
           (
@@ -161,6 +175,7 @@ let
             builtins.isAttrs route
             && !(isDefaultRoute route)
             && !(isPolicyOnlyRoute route)
+            && !(builtins.elem (route.dst or null) targetServiceDnsDestinations)
           )
           (interfaces.${sourceIfName}.routes or [ ]);
       upstreamCoreReturnRoutes =
@@ -218,6 +233,18 @@ let
       map (route: if builtins.isAttrs route then route // { table = tableId; } else null) scopedSourceRoutes
     );
 
+  routeDestinationKey = route: "${toString (route.table or "main")}|${route.dst or ""}";
+
+  preferServiceDnsRoutes =
+    routes:
+    lib.concatMap
+      (group:
+        let
+          serviceRoutes = lib.filter isServiceDnsReachabilityRoute group;
+        in
+        if serviceRoutes == [ ] then group else serviceRoutes)
+      (builtins.attrValues (builtins.groupBy routeDestinationKey routes));
+
   policyRulesFor =
     interfaceName: tableId: sourceIfNames:
     let
@@ -268,24 +295,31 @@ in
           interfaceName = renderedInterfaceNames.${ifName};
           tableId = 2000 + index;
           sourceIfNames = routeSources.forTarget interfaceName;
-          routesByInterface = builtins.foldl' (
-            routesAcc: sourceIfName:
+          rawPolicyRoutes =
+            preferServiceDnsRoutes (
+              lib.concatMap
+                (sourceIfName:
+                  map (route: route // { _s88PolicySourceIfName = sourceIfName; })
+                    (rawRoutesForPolicyTable tableId interfaceName sourceIfName))
+                sourceIfNames
+            );
+          routesByInterface =
             builtins.foldl'
-              (innerAcc: rawRoute:
+              (routesAcc: rawRoute:
                 let
+                  sourceIfName = rawRoute._s88PolicySourceIfName;
                   outputIfName = routeOutputInterface sourceIfName rawRoute;
-                  renderedRoute = mkRoute rawRoute;
+                  renderedRoute = mkRoute (builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]);
                 in
                 if renderedRoute == null then
-                  innerAcc
+                  routesAcc
                 else
-                  innerAcc
+                  routesAcc
                   // {
-                    ${outputIfName} = (innerAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
+                    ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
                   })
-              routesAcc
-              (rawRoutesForPolicyTable tableId interfaceName sourceIfName)
-          ) { } sourceIfNames;
+              { }
+              rawPolicyRoutes;
         in
         {
           routes = builtins.foldl' (
