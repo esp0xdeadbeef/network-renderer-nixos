@@ -2,6 +2,7 @@
   lib,
   pkgs,
   renderedModel,
+  forwardingIntent ? { },
 }:
 
 let
@@ -109,6 +110,38 @@ else
       else
         { };
 
+    explicitDnsForwardPairs =
+      lib.filter
+        (pair:
+          builtins.isAttrs pair
+          && (pair.action or "accept") == "accept"
+          && (pair.trafficType or null) == "dns"
+          && builtins.isList (pair."in" or null))
+        (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+
+    hasExplicitDnsAllowFrom =
+      ifName:
+      builtins.any (pair: builtins.elem ifName (pair."in" or [ ])) explicitDnsForwardPairs;
+
+    directEgressBlockedTenants =
+      if dnsService ? directEgressBlockedTenants && builtins.isList dnsService.directEgressBlockedTenants then
+        lib.filter builtins.isString dnsService.directEgressBlockedTenants
+      else
+        null;
+
+    shouldBlockInterface =
+      ifName: iface:
+      let
+        sourceKind = iface.sourceKind or "";
+        tenant = iface.tenant or null;
+      in
+      if sourceKind == "wan" || sourceKind == "overlay" then
+        false
+      else if sourceKind == "tenant" && directEgressBlockedTenants != null then
+        builtins.isString tenant && builtins.elem tenant directEgressBlockedTenants
+      else
+        true;
+
     ingressInterfaceNames =
       if dnsService.blockDirectEgress or false then
         lib.unique (
@@ -117,14 +150,15 @@ else
               ifName:
               let
                 iface = interfaces.${ifName} or { };
-                sourceKind = iface.sourceKind or "";
               in
-              if sourceKind == "wan" || sourceKind == "overlay" then
+              if !(shouldBlockInterface ifName iface) then
                 ""
               else if iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != "" then
-                iface.renderedIfName
+                if hasExplicitDnsAllowFrom iface.renderedIfName then "" else iface.renderedIfName
               else if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
-                iface.interfaceName
+                if hasExplicitDnsAllowFrom iface.interfaceName then "" else iface.interfaceName
+              else if hasExplicitDnsAllowFrom ifName then
+                ""
               else
                 ifName
             ) (builtins.attrNames interfaces)
