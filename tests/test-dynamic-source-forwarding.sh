@@ -80,6 +80,18 @@ REPO_ROOT="${repo_root}" nix eval \
                   }
                 ];
               };
+              policy-wan = {
+                containerInterfaceName = "policy-wan";
+                sourceKind = "wan";
+                addresses = [ "fd42:dead:cafe:1900::2/127" ];
+                routes = [
+                  {
+                    family = 6;
+                    dst = "::/0";
+                    via6 = "fd42:dead:cafe:1900::3";
+                  }
+                ];
+              };
               core-nebula = {
                 containerInterfaceName = "core-nebula";
                 interfaceClass.coreFacing = true;
@@ -147,6 +159,13 @@ REPO_ROOT="${repo_root}" nix eval \
           && route.interfaceName == "core-nebula"
           && route.gateway == "fd42:dead:cafe:1000::a"
           && route.table == 2000)
+        policyRouteRender.dynamicDelegatedRoutes
+      && builtins.any
+        (route:
+          route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && route.interfaceName == "core-nebula"
+          && route.gateway == "fd42:dead:cafe:1000::a"
+          && route.table == 2002)
         policyRouteRender.dynamicDelegatedRoutes
       && !(builtins.any
         (route:
