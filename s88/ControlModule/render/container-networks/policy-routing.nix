@@ -181,7 +181,7 @@ let
           && isUpstreamSelector
           && isUpstreamSelectorPolicyInterface interfaceName
         then
-          lib.filter (route: !(isDefaultRoute route)) staticPolicyRoutes
+          lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) staticPolicyRoutes
         else if policyOnlyProjection.mayProject interfaceName sourceIfName then
           lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) staticPolicyRoutes
         else

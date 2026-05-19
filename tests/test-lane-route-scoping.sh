@@ -152,6 +152,7 @@ REPO_ROOT="${repo_root}" nix eval \
             core-isp = {
               containerInterfaceName = "core-isp";
               routes = [
+                (default4 "10.50.0.8")
                 (default6 "fd42:dead:feed:1000::8")
               ];
             };
@@ -301,6 +302,7 @@ REPO_ROOT="${repo_root}" nix eval \
     && hostileWanTable != null
     && hasRoute splitNebulaRoutes "::/1" "fd42:dead:feed:1000::6" hostileEwTable
     && !(hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileEwTable)
+    && hasRoute splitWanRoutes "0.0.0.0/0" "10.50.0.8" hostileWanTable
     && hasRoute splitWanRoutes "::/0" "fd42:dead:feed:1000::8" hostileWanTable
     && !(hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.16" hostileWanTable)
     && hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.18" hostileWanTable
