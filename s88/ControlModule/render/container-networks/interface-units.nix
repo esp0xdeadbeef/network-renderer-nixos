@@ -198,8 +198,75 @@ let
     ) interfaceNames
   );
 
-  dynamicDelegatedRouteCandidatesBySource = builtins.groupBy (route: route.sourceFile) (
-    lib.filter (route: route != null) (dynamicDelegatedRouteCandidates ++ dynamicPolicyDelegatedRouteCandidates)
+  policyTableIdsByRenderedInterface =
+    builtins.listToAttrs (
+      lib.concatMap
+        (ifName:
+          let
+            interfaceName = renderedInterfaceNames.${ifName};
+            tableRules =
+              lib.filter
+                (rule: builtins.isInt (rule.Table or null) && (rule.Table or null) != 254)
+                (policyRoutingByInterface.rules.${ifName} or [ ]);
+          in
+          map (rule: { name = interfaceName; value = rule.Table; }) tableRules)
+        interfaceNames
+    );
+
+  upstreamCorePolicyTableIds =
+    lib.unique (
+      lib.concatMap
+        (ifName:
+          let interfaceName = renderedInterfaceNames.${ifName};
+          in
+          if isUpstreamSelectorCoreInterface interfaceName && builtins.hasAttr interfaceName policyTableIdsByRenderedInterface then
+            [ policyTableIdsByRenderedInterface.${interfaceName} ]
+          else
+            [ ])
+        interfaceNames
+    );
+
+  dynamicUpstreamCoreDelegatedRouteCandidates = lib.concatLists (
+    map (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        interfaceName = renderedInterfaceNames.${ifName};
+      in
+      lib.imap0 (
+        index: route:
+        let
+          sourceFile = delegatedPrefixSourceForRoute route;
+          gateway =
+            if builtins.isString (route.via6 or null) && route.via6 != "" then
+              route.via6
+            else if builtins.isString (route.via4 or null) && route.via4 != "" then
+              route.via4
+            else
+              null;
+        in
+        if sourceFile == null || isOverlayProviderRoute iface route || !(isUpstreamSelectorCoreInterface interfaceName) then
+          [ ]
+        else
+          map
+            (table: {
+              name = "delegated-prefix-policy-route-${interfaceName}-${builtins.toString table}-${builtins.toString index}";
+              inherit interfaceName sourceFile gateway table;
+              family = route.family or null;
+              metric = route.metric or null;
+              priority = if isWanInterface iface then 10 else 0;
+            })
+            upstreamCorePolicyTableIds
+      ) (iface.routes or [ ])
+    ) interfaceNames
+  );
+
+  dynamicDelegatedRouteCandidatesBySource = builtins.groupBy (route: "${route.sourceFile}|${toString (route.table or "main")}") (
+    lib.filter (route: route != null) (
+      dynamicDelegatedRouteCandidates
+      ++ dynamicPolicyDelegatedRouteCandidates
+      ++ (builtins.concatLists dynamicUpstreamCoreDelegatedRouteCandidates)
+    )
   );
 
   sortDynamicDelegatedRoutes =

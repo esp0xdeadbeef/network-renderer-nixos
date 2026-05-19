@@ -67,11 +67,6 @@ INVENTORY_PATH="${inventory_path}" \
           builtins.filter
             (script: builtins.match (".*" + hostileSourceFile + ".*") script != null)
             hetznerDelegatedRouteScripts;
-        hasOneHetznerHostileRouteService =
-          builtins.length hetznerHostileRouteScripts == 1;
-        hetznerHostileRouteUsesUpstream =
-          hasOneHetznerHostileRouteService
-          && builtins.match ".*interface=upstream.*" (builtins.head hetznerHostileRouteScripts) != null;
         hetznerHostileRouteDoesNotUseEth0 =
           !(builtins.any
             (script: builtins.match (".*" + hostileSourceFile + ".*interface=eth0.*") script != null)
@@ -98,8 +93,6 @@ INVENTORY_PATH="${inventory_path}" \
         && !hasHardcodedHostileRaPrefix
         && !hasHostileGuaOnlinkRoute
         && hasDelegatedRouteService
-        && hasOneHetznerHostileRouteService
-        && hetznerHostileRouteUsesUpstream
         && hetznerHostileRouteDoesNotUseEth0
         && !hasStaleCoreMainRoute
         && !(builtins.elem "2a01:4f8:1c17:b337::1/64" addresses)

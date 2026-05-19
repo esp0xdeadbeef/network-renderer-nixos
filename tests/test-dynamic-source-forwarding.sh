@@ -59,6 +59,35 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      policyRouteRender =
+        import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib forwardingIntent;
+          uplinks = { };
+          wanUplinkName = null;
+          containerModel = {
+            networkBehavior.isUpstreamSelector = true;
+            interfaces = {
+              core = {
+                containerInterfaceName = "core";
+                interfaceClass.coreFacing = true;
+                addresses = [ "fd42:dead:cafe:1000::5/127" ];
+              };
+              core-nebula = {
+                containerInterfaceName = "core-nebula";
+                interfaceClass.coreFacing = true;
+                addresses = [ "fd42:dead:cafe:1000::b/127" ];
+                routes = [
+                  {
+                    family = 6;
+                    sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
+                    via6 = "fd42:dead:cafe:1000::a";
+                    intent.kind = "runtime-routed-prefix-return";
+                  }
+                ];
+              };
+            };
+          };
+        };
       dynamicForwarding =
         import (repoRoot + "/s88/ControlModule/render/containers/module/dynamic-forwarding.nix") {
           inherit lib pkgs;
@@ -103,6 +132,13 @@ REPO_ROOT="${repo_root}" nix eval \
       ]
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
+      && builtins.any
+        (route:
+          route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && route.interfaceName == "core-nebula"
+          && route.gateway == "fd42:dead:cafe:1000::a"
+          && route.table == 2000)
+        policyRouteRender.dynamicDelegatedRoutes
       && overlayRouteRender.dynamicDelegatedRoutes == [ ]
   ' >/dev/null
 
