@@ -186,7 +186,7 @@ nix_eval_json_or_fail \
           branch_upstream_wrong_v6_absent =
             missingRoute bUpstreamCoreIngressRoutes "fd42:dead:feed:1000:0:0:0:0" "fd42:dead:feed:1000:0:0:0:10" 2000;
           branch_hostile_sitec_dns_uses_overlay =
-            hasPolicyRoute branchUpstreamNetworks "10.90.10.1" "10.50.0.4" branchHostileEwTable;
+            hasPolicyRoute branchUpstreamNetworks "10.90.10.0/24" "10.50.0.4" branchHostileEwTable;
           branch_hostile_sitec_dns_not_on_wan =
             missingRoute branchHostileWanRoutes "10.90.10.1" "10.50.0.4" 2004;
           branch_hostile_public_default_uses_overlay =
@@ -219,18 +219,18 @@ nix_eval_json_or_fail \
             missingRoute siteaMgmtWanReturnRoutes "10.20.20.0/24" "10.10.0.50" 2000;
           sitea_mgmt_wan_client_return_v6_absent =
             missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:20::/64" "fd42:dead:beef:1000:0:0:0:32" 2000;
-          sitea_mgmt_ew_branch_p2p_v4 =
-            hasMainOrPolicyRoute siteaUpstreamNetworks "10.50.0.0/32" "10.10.0.16" siteaCoreNebulaTable;
-          sitea_mgmt_ew_branch_p2p_v6 =
-            hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:feed:1000:0:0:0:0/128" "fd42:dead:beef:1000:0:0:0:10" siteaCoreNebulaTable;
+          sitea_mgmt_ew_branch_reachability_v4 =
+            hasMainOrPolicyRoute siteaUpstreamNetworks "10.60.10.0/24" "10.10.0.16" siteaCoreNebulaTable;
+          sitea_mgmt_ew_branch_reachability_v6 =
+            hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:feed:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:10" siteaCoreNebulaTable;
           sitea_mgmt_downstream_dns_v4 =
             hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.26" 2004;
           sitea_mgmt_downstream_dns_v6 =
             hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:1a" 2004;
-          sitea_policy_client_ew_mgmt_dns_v4 =
-            hasPolicyRoute siteaPolicyNetworks "10.20.10.0/24" "10.10.0.26" siteaPolicyClientEwTable;
-          sitea_policy_client_ew_mgmt_dns_v6 =
-            hasPolicyRoute siteaPolicyNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:1a" siteaPolicyClientEwTable;
+          sitea_policy_client_ew_mgmt_dns_v4_absent =
+            !(hasPolicyRoute siteaPolicyNetworks "10.20.10.0/24" "10.10.0.37" siteaPolicyClientEwTable);
+          sitea_policy_client_ew_mgmt_dns_v6_absent =
+            !(hasPolicyRoute siteaPolicyNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:25" siteaPolicyClientEwTable);
           sitea_dns_udp_rule =
             lib.hasInfix "iifname \"downstr-client\" oifname \"downstream-mgmt\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
           sitea_dns_tcp_rule =

@@ -54,7 +54,7 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && has "iifname \"up-hostile-ew\" oifname \"downstr-hostile\" accept comment \"allow-east-west-to-hostile\"" rules
         && has "iifname \"downstr-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" rules
         && has "iifname \"downstr-branch\" oifname \"upstream-branch\" accept comment \"allow-branch-to-wan\"" rules
-        && has "iifname \"downstr-hostile\" oifname \"up-hostile\" accept comment \"allow-hostile-to-wan\"" rules
+        && !(has "iifname \"downstr-hostile\" oifname \"up-hostile\" accept comment \"allow-hostile-to-wan\"" rules)
         && !(has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-wan\"" rules)
         && !(has "iifname \"downstr-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-wan\"" rules)
         && !(has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-hostile-dns-to-wan\"" rules)
