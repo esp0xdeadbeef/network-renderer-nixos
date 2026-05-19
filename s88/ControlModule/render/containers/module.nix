@@ -53,7 +53,10 @@ let
     else
       { };
 
-  dnsServices = import ./dns-services.nix { inherit lib pkgs renderedModel; };
+  dnsServices = import ./dns-services.nix {
+    inherit lib pkgs renderedModel;
+    forwardingIntent = firewallArg.forwardingIntent or { };
+  };
   mdnsServices = import ./mdns-services.nix { inherit lib pkgs renderedModel; };
   bgpServices = import ./bgp-services.nix { inherit lib renderedModel; };
 in
