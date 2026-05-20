@@ -159,6 +159,9 @@ let
     runtimeForwardOnlyOpensModeledUdpPort =
       lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto udp udp dport 4243 dnat to 172.31.254.2" rules
       && !(lib.hasInfix "ip daddr @s88_public_runtime_0 meta l4proto udp dnat to 172.31.254.2" rules);
+    runtimeForwardAcceptsWanIngress =
+      !(lib.hasInfix "iifname != \"br-wan\" ip daddr @s88_public_runtime_0 meta l4proto udp udp dport 4243 dnat to 172.31.254.2" rules)
+      && lib.hasInfix "iifname \"br-wan\" oifname \"br-wan\" ip daddr 172.31.254.2 meta l4proto udp udp dport 4243 accept comment \"s88-public-runtime-forward-0\"" rules;
     publicIngressDefinesRuntimeSets =
       lib.hasInfix "set s88_public_service_acme_dmz_site_dmz_nebula" rules
       && lib.hasInfix "set s88_public_runtime_0" rules;

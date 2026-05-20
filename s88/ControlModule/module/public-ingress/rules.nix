@@ -93,7 +93,7 @@ let
               "";
         in
         ''
-          iifname != ${nftString bridgeInterface} ${publicIPv4Match forward} meta l4proto ${proto}${except} dnat to ${targetIPv4} comment ${nftString comment}
+          ${publicIPv4Match forward} meta l4proto ${proto}${except} dnat to ${targetIPv4} comment ${nftString comment}
         '')
       protocols;
 
@@ -118,6 +118,7 @@ let
         in
         ''
           iifname != ${nftString bridgeInterface} oifname ${nftString bridgeInterface} ip daddr ${targetIPv4} meta l4proto ${proto}${except} accept comment ${nftString comment}
+          iifname ${nftString bridgeInterface} oifname ${nftString bridgeInterface} ip daddr ${targetIPv4} meta l4proto ${proto}${except} accept comment ${nftString comment}
         '')
       protocols;
 in
