@@ -53,6 +53,7 @@ bash "${repo_root}/tests/test-downstream-selector-no-lane-crossconnect.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-unscoped-catchall.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-invalid-actions.sh"
 bash "${repo_root}/tests/test-policy-cpm-firewall-parity.sh"
+bash "${repo_root}/tests/test-policy-firewall-explicit-intent-cardinality.sh"
 bash "${repo_root}/tests/test-policy-forward-default-paths.sh"
 bash "${repo_root}/tests/test-downstream-selector-default-paths.sh"
 

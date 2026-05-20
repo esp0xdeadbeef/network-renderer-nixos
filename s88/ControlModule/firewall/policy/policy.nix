@@ -209,6 +209,11 @@ let
       ;
   };
 
+  useExplicitForwarding =
+    forwardingIntent != null
+    && builtins.isAttrs forwardingIntent
+    && (forwardingIntent.normalizedExplicitForwardPairs or [ ]) != [ ];
+
   _validateCommunicationContract =
     if communicationContract != { } then
       true
@@ -227,7 +232,7 @@ let
         icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
       ''
     ];
-    forwardRules = renderedRules ++ explicitForwardRules;
+    forwardRules = if useExplicitForwarding then explicitForwardRules else renderedRules;
   };
 in
 builtins.seq _validateCommunicationContract output
