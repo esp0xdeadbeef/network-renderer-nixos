@@ -227,9 +227,12 @@ let
         if isPolicy && isPolicyDownstreamInterface interfaceName then
           lib.concatMap
             (name:
-              lib.filter
-                (route: builtins.isAttrs route && isDefaultRoute route)
-                (interfaces.${name}.routes or [ ]))
+              if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name} then
+                lib.filter
+                  (route: builtins.isAttrs route && isDefaultRoute route)
+                  (interfaces.${name}.routes or [ ])
+              else
+                [ ])
             interfaceNames
         else
           [ ];
