@@ -139,6 +139,46 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      downstreamReturnRender =
+        import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib;
+          forwardingIntent.rules = [
+            { action = "accept"; fromInterface = "access-hostile"; toInterface = "policy-hostile"; }
+            { action = "accept"; fromInterface = "policy-hostile"; toInterface = "access-hostile"; }
+          ];
+          uplinks = { };
+          wanUplinkName = null;
+          containerModel = {
+            networkBehavior.isDownstreamSelector = true;
+            interfaces = {
+              access-hostile = {
+                containerInterfaceName = "access-hostile";
+                addresses = [ "fd42:dead:beef:1000::7/127" ];
+                routes = [
+                  {
+                    family = 6;
+                    sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
+                    via6 = "fd42:dead:beef:1000::6";
+                    intent.kind = "runtime-routed-prefix-return";
+                  }
+                ];
+              };
+              policy-hostile = {
+                containerInterfaceName = "policy-hostile";
+                addresses = [ "fd42:dead:beef:1000::18/127" ];
+                routes = [
+                  {
+                    family = 6;
+                    dst = "::/0";
+                    via6 = "fd42:dead:beef:1000::19";
+                    policyOnly = true;
+                    reason = "policy-derived-default";
+                  }
+                ];
+              };
+            };
+          };
+        };
       ok =
         firewallRules == [ ]
       && render.dynamicSourceForwardRules == [
@@ -174,12 +214,20 @@ REPO_ROOT="${repo_root}" nix eval \
           && route.table == 2000)
         policyRouteRender.dynamicDelegatedRoutes)
       && overlayRouteRender.dynamicDelegatedRoutes == [ ]
+      && builtins.any
+        (route:
+          route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && route.interfaceName == "access-hostile"
+          && route.gateway == "fd42:dead:beef:1000::6"
+          && route.table == 2001)
+        downstreamReturnRender.dynamicDelegatedRoutes
       ;
     in
       if ok then true else throw ("dynamic-source-forwarding failed: " + builtins.toJSON {
         inherit firewallRules;
         dynamicSourceForwardRules = render.dynamicSourceForwardRules;
         dynamicDelegatedRoutes = policyRouteRender.dynamicDelegatedRoutes;
+        downstreamDynamicDelegatedRoutes = downstreamReturnRender.dynamicDelegatedRoutes;
         overlayDynamicDelegatedRoutes = overlayRouteRender.dynamicDelegatedRoutes;
         servicePresent = service != null;
       })
