@@ -236,7 +236,7 @@ let
         interfaceNames
     );
 
-  dynamicUpstreamCoreDelegatedRouteCandidates = lib.concatLists (
+  dynamicPolicyTableDelegatedRouteCandidates = lib.concatLists (
     map (
       ifName:
       let
@@ -255,7 +255,7 @@ let
             else
               null;
         in
-        if sourceFile == null || isOverlayProviderRoute iface route || !(isUpstreamSelectorCoreInterface interfaceName) then
+        if sourceFile == null || isOverlayProviderRoute iface route then
           [ ]
         else
           map
@@ -275,7 +275,7 @@ let
     lib.filter (route: route != null) (
       dynamicDelegatedRouteCandidates
       ++ dynamicPolicyDelegatedRouteCandidates
-      ++ (builtins.concatLists dynamicUpstreamCoreDelegatedRouteCandidates)
+      ++ (builtins.concatLists dynamicPolicyTableDelegatedRouteCandidates)
     )
   );
 
