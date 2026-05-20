@@ -101,6 +101,7 @@ bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
 bash "${repo_root}/tests/test-dns-service-access-policy-exceptions.sh"
 bash "${repo_root}/tests/test-policy-service-ingress-routes.sh"
+bash "${repo_root}/tests/test-policy-downstream-default-route-lane-selection.sh"
 
 # Regression: CPM policy-only routes must not become generic main defaults.
 bash "${repo_root}/tests/test-policy-only-routes.sh"
