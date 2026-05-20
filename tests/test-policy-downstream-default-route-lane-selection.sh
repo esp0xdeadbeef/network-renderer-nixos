@@ -30,6 +30,7 @@ nix_eval_true_or_fail \
             };
             containerModel = {
               networkBehavior.isPolicy = true;
+              policyRoutingSources.downstream-dmz = [ "downstream-dmz" "up-client-wan" "up-dmz-wan" ];
               interfaces = {
                 downstream-dmz = {
                   containerInterfaceName = "downstream-dmz";

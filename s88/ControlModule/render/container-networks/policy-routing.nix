@@ -259,6 +259,7 @@ let
         else if
           isPolicy
           && isPolicyDownstreamInterface interfaceName
+          && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
           && builtins.any
             (route: builtins.isAttrs route && isDefaultRoute route)
             (interfaces.${sourceIfName}.routes or [ ])
