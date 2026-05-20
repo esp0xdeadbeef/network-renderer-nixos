@@ -57,12 +57,17 @@ let
         ) (pair."in" or [ ])
     ) pairs;
 
-  forwardingRulesResolved =
+  explicitForwardingRules =
     (runtimeForwardingIntent.rules or [ ])
     ++ (forwardingIntentData.rules or [ ])
     ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
-    ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]))
-    ++ (explicitPairsToRules (forwardingIntentData.policyRelationForwardPairs or [ ]));
+    ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]));
+
+  forwardingRulesResolved =
+    if explicitForwardingRules != [ ] then
+      explicitForwardingRules
+    else
+      explicitPairsToRules (forwardingIntentData.policyRelationForwardPairs or [ ]);
 
   hasAcceptForwardingRule =
     fromName: toName:

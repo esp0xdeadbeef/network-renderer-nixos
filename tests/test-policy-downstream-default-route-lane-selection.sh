@@ -27,6 +27,14 @@ nix_eval_true_or_fail \
                   toInterface = "up-dmz-wan";
                 }
               ];
+              policyRelationForwardPairs = [
+                {
+                  "in" = [ "downstream-dmz" ];
+                  "out" = [ "up-client-wan" "up-dmz-wan" ];
+                  action = "accept";
+                  comment = "allow-hetz-dns-service-to-wan";
+                }
+              ];
             };
             containerModel = {
               networkBehavior.isPolicy = true;
