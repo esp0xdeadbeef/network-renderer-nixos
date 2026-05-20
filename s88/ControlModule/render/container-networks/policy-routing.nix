@@ -167,6 +167,22 @@ let
       via6 = peer6;
     });
 
+  connectedP2pScopeRoutesForInterface =
+    ifName:
+    let
+      iface = interfaces.${ifName};
+      peer4 = peers.ipv4PeerFor31 (peers.addressForFamily 4 iface);
+      peer6 = peers.ipv6PeerFor127 (peers.addressForFamily 6 iface);
+    in
+    (lib.optional (peer4 != null) {
+      dst = "${peer4}/31";
+      scope = "link";
+    })
+    ++ (lib.optional (peer6 != null) {
+      dst = "${peer6}/127";
+      scope = "link";
+    });
+
   policyOnlyProjection = import ./policy-routing/policy-only-projection.nix {
     inherit renderedInterfaceNames;
     policyRoutingSources = containerModel.policyRoutingSources or { };
@@ -241,6 +257,15 @@ let
             interfaceNames
         else
           [ ];
+      downstreamSelectorReturnConnectedRoutes =
+        if
+          isSelector
+          && isDownstreamSelectorPolicyInterface interfaceName
+          && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+        then
+          connectedP2pScopeRoutesForInterface sourceIfName
+        else
+          [ ];
       sourceRoutes =
         if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName then
           (lib.filter
@@ -255,7 +280,8 @@ let
           (interfaces.${sourceIfName}.routes or [ ])
           ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName)
           ++ explicitForwardTargetDefaultRoutes
-          ++ policyDownstreamDefaultRoutes;
+          ++ policyDownstreamDefaultRoutes
+          ++ downstreamSelectorReturnConnectedRoutes;
       staticPolicyRoutes =
         lib.filter (route: !(isExternalValidationDelegatedPrefixRoute route)) sourceRoutes;
       scopedSourceRoutes =
