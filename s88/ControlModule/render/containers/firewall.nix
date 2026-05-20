@@ -46,6 +46,11 @@ let
   unitKey = if renderedModel ? unitKey then renderedModel.unitKey else null;
   unitName = if renderedModel ? unitName then renderedModel.unitName else null;
   roleName = if renderedModel ? roleName then renderedModel.roleName else null;
+  networkBehavior =
+    if renderedModel ? networkBehavior && builtins.isAttrs renderedModel.networkBehavior then
+      renderedModel.networkBehavior
+    else
+      { };
   policyModulePath = renderedModel.firewallPolicyPath or null;
   assumptionFamily = renderedModel.assumptionFamily or null;
   preferSiteNode = renderedModel.preferSiteNode or false;
@@ -104,6 +109,11 @@ let
       if
         (forwardingIntent.normalizedExplicitForwardPairs or [ ]) != [ ]
         && (forwardingIntent.nodeForwarding.mode or null) == "explicit-selector-forwarding"
+        && (
+          (networkBehavior.isSelector or false)
+          || (networkBehavior.isUpstreamSelector or false)
+          || (networkBehavior.isDownstreamSelector or false)
+        )
       then
         [ ]
       else

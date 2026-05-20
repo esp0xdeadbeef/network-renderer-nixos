@@ -22,7 +22,7 @@ let
   containerNetworkRender = import ../container-networks.nix {
     inherit lib uplinks wanUplinkName;
     containerModel = renderedModel;
-    forwardingIntent = firewallArg.forwardingIntent or null;
+    forwardingIntent = (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or null;
     firewallRuleset = firewallArg.ruleset or null;
   };
 
@@ -55,7 +55,7 @@ let
 
   dnsServices = import ./dns-services.nix {
     inherit lib pkgs renderedModel;
-    forwardingIntent = firewallArg.forwardingIntent or { };
+    forwardingIntent = (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or { };
   };
   mdnsServices = import ./mdns-services.nix { inherit lib pkgs renderedModel; };
   bgpServices = import ./bgp-services.nix { inherit lib renderedModel; };
