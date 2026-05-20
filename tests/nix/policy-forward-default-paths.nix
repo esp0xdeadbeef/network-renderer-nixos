@@ -32,15 +32,28 @@ let
   parseTerminal =
     index: line:
     let
-      match = builtins.match ''[[:space:]]*iifname "([^"]+)" oifname "([^"]+)" (accept|drop)( comment ".*")?[[:space:]]*'' line;
+      match = builtins.match ''[[:space:]]*iifname "([^"]+)" oifname "([^"]+)"(.*)'' line;
+      suffix = if match == null then "" else builtins.elemAt match 2;
+      action =
+        if lib.hasInfix " accept" suffix then
+          "accept"
+        else if lib.hasInfix " drop" suffix then
+          "drop"
+        else
+          null;
+      typed =
+        lib.hasInfix "meta l4proto" suffix
+        || lib.hasInfix "ip protocol" suffix
+        || lib.hasInfix "ip6 nexthdr" suffix;
     in
-    if match == null then
+    if match == null || action == null then
       null
     else
       {
         iif = builtins.elemAt match 0;
         oif = builtins.elemAt match 1;
-        action = builtins.elemAt match 2;
+        inherit action;
+        inherit typed;
         inherit index;
         inherit line;
       };
@@ -120,9 +133,9 @@ let
       networks = cfg.systemd.network.networks or { };
       lines = lib.splitString "\n" (cfg.networking.nftables.ruleset or "");
       terminals = lib.filter (entry: entry != null) (lib.imap0 parseTerminal lines);
-      bareDrops = lib.filter (entry: entry.action == "drop") terminals;
+      bareDrops = lib.filter (entry: entry.action == "drop" && !(entry.typed or false)) terminals;
       accepts = lib.filter (entry: entry.action == "accept") terminals;
-      drops = lib.filter (entry: entry.action == "drop") terminals;
+      drops = lib.filter (entry: entry.action == "drop" && !(entry.typed or false)) terminals;
       hasEarlierDrop =
         accept:
         builtins.any (

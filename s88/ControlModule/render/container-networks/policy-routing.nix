@@ -57,16 +57,28 @@ let
         ) (pair."in" or [ ])
     ) pairs;
 
+  forwardingRulesResolved =
+    (runtimeForwardingIntent.rules or [ ])
+    ++ (forwardingIntentData.rules or [ ])
+    ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
+    ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]))
+    ++ (explicitPairsToRules (forwardingIntentData.policyRelationForwardPairs or [ ]));
+
+  hasAcceptForwardingRule =
+    fromName: toName:
+    builtins.any
+      (rule:
+        builtins.isAttrs rule
+        && (rule.action or null) == "accept"
+        && (rule.fromInterface or null) == fromName
+        && (rule.toInterface or null) == toName)
+      forwardingRulesResolved;
+
   routeSources = import ./policy-routing/source-interfaces.nix {
     inherit lib interfaces interfaceNames renderedInterfaceNames;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     policyRoutingSources = containerModel.policyRoutingSources or { };
-    forwardingRules =
-      (runtimeForwardingIntent.rules or [ ])
-      ++ (forwardingIntentData.rules or [ ])
-      ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
-      ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]))
-      ++ (explicitPairsToRules (forwardingIntentData.policyRelationForwardPairs or [ ]));
+    forwardingRules = forwardingRulesResolved;
   };
 
   siteDestinations = import ./policy-routing/site-destinations.nix {
@@ -200,6 +212,27 @@ let
           ) interfaceNames
         else
           [ ];
+      explicitForwardTargetDefaultRoutes =
+        if
+          targetIfName != null
+          && sourceIfName != targetIfName
+          && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+        then
+          lib.filter
+            (route: builtins.isAttrs route && (isDefaultRoute route || isPolicyOnlyRoute route))
+            (interfaces.${targetIfName}.routes or [ ])
+        else
+          [ ];
+      policyDownstreamDefaultRoutes =
+        if isPolicy && isPolicyDownstreamInterface interfaceName then
+          lib.concatMap
+            (name:
+              lib.filter
+                (route: builtins.isAttrs route && isDefaultRoute route)
+                (interfaces.${name}.routes or [ ]))
+            interfaceNames
+        else
+          [ ];
       sourceRoutes =
         if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName then
           (lib.filter
@@ -212,11 +245,23 @@ let
           (returnRoutes.forUpstreamCore interfaceName sourceIfName) ++ explicitNonDefaultRoutes
         else
           (interfaces.${sourceIfName}.routes or [ ])
-          ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName);
+          ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName)
+          ++ explicitForwardTargetDefaultRoutes
+          ++ policyDownstreamDefaultRoutes;
       staticPolicyRoutes =
         lib.filter (route: !(isExternalValidationDelegatedPrefixRoute route)) sourceRoutes;
       scopedSourceRoutes =
         if sourceIfName == targetIfName then
+          staticPolicyRoutes
+        else if
+          isPolicy
+          && isPolicyDownstreamInterface interfaceName
+          && builtins.any
+            (route: builtins.isAttrs route && isDefaultRoute route)
+            (interfaces.${sourceIfName}.routes or [ ])
+        then
+          staticPolicyRoutes
+        else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
           staticPolicyRoutes
         else if
           policyOnlyProjection.mayProject interfaceName sourceIfName
