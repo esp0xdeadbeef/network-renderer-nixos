@@ -28,6 +28,11 @@ let
       { family = 4; gateway = route.via4; }
     else if builtins.isString (route.via6 or null) && route.via6 != "" then
       { family = 6; gateway = route.via6; }
+    else if builtins.isString (route.Gateway or null) && route.Gateway != "" then
+      {
+        family = if lib.hasInfix ":" route.Gateway then 6 else 4;
+        gateway = route.Gateway;
+      }
     else
       null;
 

@@ -112,6 +112,7 @@ bash "${repo_root}/tests/test-policy-only-routes.sh"
 # Regression: router-originated ICMP diagnostics need main-table return routes
 # for explicit non-default policy-lane reachability, without leaking defaults.
 bash "${repo_root}/tests/test-router-diagnostic-main-routes.sh"
+bash "${repo_root}/tests/test-sigma-router-diagnostic-main-routes.sh"
 
 # Regression: upstream-selector core ingress routes must not put cross-link
 # gateways into main .network routes; networkd rejects those before rules apply.
