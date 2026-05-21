@@ -69,6 +69,16 @@ let
     isReadOnly = true;
   });
 
+  nonEmptyBindMounts =
+    mounts:
+    lib.filterAttrs (
+      destination: mount:
+      destination != ""
+      && builtins.isAttrs mount
+      && builtins.isString (mount.hostPath or null)
+      && mount.hostPath != ""
+    ) mounts;
+
   warningMessages =
     if alarmModel ? warningMessages && builtins.isList alarmModel.warningMessages then
       uniqueStrings alarmModel.warningMessages
@@ -111,7 +121,7 @@ in
       null;
 
   bindMounts =
-    (
+    nonEmptyBindMounts (
       if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
         renderedModel.bindMounts
       else
