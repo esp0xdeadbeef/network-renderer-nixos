@@ -26,6 +26,11 @@ REPO_ROOT="${repo_root}" nix eval \
         // {
           hostBridge = "br-test";
         };
+      renderedModelWithPrimaryBridgeAndExtraVeth =
+        renderedModelWithPrimaryBridge
+        // {
+          veths.transit.hostBridge = "br-transit";
+        };
       module =
         import (repoRoot + "/s88/ControlModule/render/containers/module.nix") {
           inherit
@@ -54,6 +59,19 @@ REPO_ROOT="${repo_root}" nix eval \
           uplinks = { };
           wanUplinkName = null;
         };
+      moduleWithPrimaryBridgeAndExtraVeth =
+        import (repoRoot + "/s88/ControlModule/render/containers/module.nix") {
+          inherit lib;
+          renderedModel = renderedModelWithPrimaryBridgeAndExtraVeth;
+          containerName = "test-router";
+          firewallArg = {
+            enable = false;
+            ruleset = "";
+          };
+          alarmModel = { };
+          uplinks = { };
+          wanUplinkName = null;
+        };
       evaluated =
         (flake.inputs.nixpkgs.lib.nixosSystem {
           system = builtins.currentSystem;
@@ -64,9 +82,15 @@ REPO_ROOT="${repo_root}" nix eval \
           system = builtins.currentSystem;
           modules = [ moduleWithPrimaryBridge ];
         }).config;
+      evaluatedWithPrimaryBridgeAndExtraVeth =
+        (flake.inputs.nixpkgs.lib.nixosSystem {
+          system = builtins.currentSystem;
+          modules = [ moduleWithPrimaryBridgeAndExtraVeth ];
+        }).config;
     in
     (evaluated.systemd.services.systemd-networkd-wait-online.enable or true) == false
     && (evaluatedWithPrimaryBridge.systemd.services.systemd-networkd-wait-online.enable or true) == true
+    && (evaluatedWithPrimaryBridgeAndExtraVeth.systemd.services.systemd-networkd-wait-online.enable or true) == false
   ' >/dev/null || {
     echo "FAIL container-networkd-wait-online" >&2
     exit 1
