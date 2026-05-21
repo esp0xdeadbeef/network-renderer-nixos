@@ -1,27 +1,27 @@
-{ lib
-, containerModel
-, common
-, forwardingIntent ? null
-, firewallRuleset ? null
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-, laneAccessForRenderedName
-, upstreamLanesMatch
-, isSelector
-, isUpstreamSelector
-, isPolicy
-, isDownstreamSelectorAccessInterface
-, isDownstreamSelectorPolicyInterface
-, isUpstreamSelectorCoreInterface
-, isUpstreamSelectorPolicyInterface
-, isPolicyDownstreamInterface
-, isPolicyUpstreamInterface
-, isOverlayInterface
-, isCoreTransitInterface
-, mkRoute
-, isExternalValidationDelegatedPrefixRoute
-,
+{
+  lib,
+  containerModel,
+  common,
+  forwardingIntent ? null,
+  firewallRuleset ? null,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
+  laneAccessForRenderedName,
+  upstreamLanesMatch,
+  isSelector,
+  isUpstreamSelector,
+  isPolicy,
+  isDownstreamSelectorAccessInterface,
+  isDownstreamSelectorPolicyInterface,
+  isUpstreamSelectorCoreInterface,
+  isUpstreamSelectorPolicyInterface,
+  isPolicyDownstreamInterface,
+  isPolicyUpstreamInterface,
+  isOverlayInterface,
+  isCoreTransitInterface,
+  mkRoute,
+  isExternalValidationDelegatedPrefixRoute,
 }:
 
 let
@@ -35,7 +35,12 @@ let
   inherit (forwardingRuleSet) forwardingRulesResolved hasAcceptForwardingRule;
 
   routeSources = import ./policy-routing/source-interfaces.nix {
-    inherit lib interfaces interfaceNames renderedInterfaceNames;
+    inherit
+      lib
+      interfaces
+      interfaceNames
+      renderedInterfaceNames
+      ;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     policyRoutingSources = containerModel.policyRoutingSources or { };
     forwardingRules = forwardingRulesResolved;
@@ -46,18 +51,36 @@ let
   };
 
   returnRoutes = import ./policy-routing/return-routes.nix {
-    inherit lib common interfaces renderedInterfaceNames isUpstreamSelector isUpstreamSelectorCoreInterface;
+    inherit
+      lib
+      common
+      interfaces
+      renderedInterfaceNames
+      isUpstreamSelector
+      isUpstreamSelectorCoreInterface
+      ;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     inherit (siteDestinations) returnDestinationsForTenant;
   };
 
   routeHelpers = import ./policy-routing/route-helpers.nix {
-    inherit lib interfaces interfaceNames peers;
+    inherit
+      lib
+      interfaces
+      interfaceNames
+      peers
+      ;
   };
   inherit (routeHelpers) routeOutputInterface isServiceDnsReachabilityRoute;
 
   explicitReturnRoutes = import ./policy-routing/explicit-return-routes.nix {
-    inherit lib common interfaces interfaceNames renderedInterfaceNames;
+    inherit
+      lib
+      common
+      interfaces
+      interfaceNames
+      renderedInterfaceNames
+      ;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
   };
 
@@ -66,11 +89,35 @@ let
     policyRoutingSources = containerModel.policyRoutingSources or { };
   };
 
+  sourcePrefixes = import ./policy-routing/source-prefixes.nix {
+    inherit lib containerModel laneAccessForRenderedName;
+  };
+
   rawRoutesForPolicyTable = import ./policy-routing/raw-routes.nix {
-    inherit lib interfaces interfaceNames renderedInterfaceNames;
-    inherit isSelector isUpstreamSelector isPolicy isDownstreamSelectorPolicyInterface;
-    inherit isUpstreamSelectorCoreInterface isUpstreamSelectorPolicyInterface isPolicyDownstreamInterface;
-    inherit returnRoutes explicitReturnRoutes policyOnlyProjection routeHelpers hasAcceptForwardingRule;
+    inherit
+      lib
+      interfaces
+      interfaceNames
+      renderedInterfaceNames
+      ;
+    inherit
+      isSelector
+      isUpstreamSelector
+      isPolicy
+      isDownstreamSelectorPolicyInterface
+      ;
+    inherit
+      isUpstreamSelectorCoreInterface
+      isUpstreamSelectorPolicyInterface
+      isPolicyDownstreamInterface
+      ;
+    inherit
+      returnRoutes
+      explicitReturnRoutes
+      policyOnlyProjection
+      routeHelpers
+      hasAcceptForwardingRule
+      ;
     inherit isExternalValidationDelegatedPrefixRoute;
   };
 
@@ -78,16 +125,32 @@ let
 
   preferServiceDnsRoutes =
     routes:
-    lib.concatMap
-      (group:
+    lib.concatMap (
+      group:
       let
         serviceRoutes = lib.filter isServiceDnsReachabilityRoute group;
       in
-      if serviceRoutes == [ ] then group else serviceRoutes)
-      (builtins.attrValues (builtins.groupBy routeDestinationKey routes));
+      if serviceRoutes == [ ] then group else serviceRoutes
+    ) (builtins.attrValues (builtins.groupBy routeDestinationKey routes));
 
   policyRulesFor = import ./policy-routing/rules.nix {
-    inherit isSelector isUpstreamSelector isDownstreamSelectorPolicyInterface isUpstreamSelectorPolicyInterface;
+    inherit
+      lib
+      isSelector
+      isUpstreamSelector
+      isDownstreamSelectorPolicyInterface
+      isUpstreamSelectorPolicyInterface
+      ;
+  };
+
+  dynamicPolicyRulesFor = import ./policy-routing/dynamic-rules.nix {
+    inherit
+      lib
+      isSelector
+      isUpstreamSelector
+      isDownstreamSelectorPolicyInterface
+      isUpstreamSelectorPolicyInterface
+      ;
   };
 in
 {
@@ -95,64 +158,63 @@ in
     builtins.foldl'
       (
         acc: entry:
-          let
-            index = entry.index;
-            ifName = entry.ifName;
-            interfaceName = renderedInterfaceNames.${ifName};
-            tableId = 2000 + index;
-            baseSourceIfNames = routeSources.forTarget interfaceName;
-            policyIngressLocalSourceIfNames =
-              lib.optionals (isPolicy && isPolicyUpstreamInterface interfaceName) (
-                lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames
-              );
-            sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
-            rawPolicyRoutes =
-              preferServiceDnsRoutes (
-                lib.concatMap
-                  (sourceIfName:
-                    map (route: route // { _s88PolicySourceIfName = sourceIfName; })
-                      (rawRoutesForPolicyTable tableId interfaceName sourceIfName))
-                  sourceIfNames
-              );
-            routesByInterface =
-              builtins.foldl'
-                (routesAcc: rawRoute:
-                  let
-                    sourceIfName = rawRoute._s88PolicySourceIfName;
-                    outputIfName = routeOutputInterface sourceIfName rawRoute;
-                    renderedRoute = mkRoute (builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]);
-                  in
-                  if renderedRoute == null then
-                    routesAcc
-                  else
-                    routesAcc
-                    // {
-                      ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
-                    })
-                { }
-                rawPolicyRoutes;
-          in
-          {
-            routes = builtins.foldl'
-              (
-                routesAcc: outputIfName:
-                  routesAcc
-                  // {
-                    ${outputIfName} =
-                      (routesAcc.${outputIfName} or [ ]) ++ (routesByInterface.${outputIfName} or [ ]);
-                  }
+        let
+          index = entry.index;
+          ifName = entry.ifName;
+          interfaceName = renderedInterfaceNames.${ifName};
+          tableId = 2000 + index;
+          baseSourceIfNames = routeSources.forTarget interfaceName;
+          policyIngressLocalSourceIfNames = lib.optionals (
+            isPolicy && isPolicyUpstreamInterface interfaceName
+          ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
+          sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
+          sourceScope = sourcePrefixes.forInterface interfaceName;
+          rawPolicyRoutes = preferServiceDnsRoutes (
+            lib.concatMap (
+              sourceIfName:
+              map (route: route // { _s88PolicySourceIfName = sourceIfName; }) (
+                rawRoutesForPolicyTable tableId interfaceName sourceIfName
               )
-              acc.routes
-              (builtins.attrNames routesByInterface);
-            rules = acc.rules // {
-              ${ifName} =
-                (acc.rules.${ifName} or [ ]) ++ policyRulesFor interfaceName tableId sourceIfNames;
-            };
-          }
+            ) sourceIfNames
+          );
+          routesByInterface = builtins.foldl' (
+            routesAcc: rawRoute:
+            let
+              sourceIfName = rawRoute._s88PolicySourceIfName;
+              outputIfName = routeOutputInterface sourceIfName rawRoute;
+              renderedRoute = mkRoute (builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]);
+            in
+            if renderedRoute == null then
+              routesAcc
+            else
+              routesAcc
+              // {
+                ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
+              }
+          ) { } rawPolicyRoutes;
+        in
+        {
+          routes = builtins.foldl' (
+            routesAcc: outputIfName:
+            routesAcc
+            // {
+              ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ (routesByInterface.${outputIfName} or [ ]);
+            }
+          ) acc.routes (builtins.attrNames routesByInterface);
+          rules = acc.rules // {
+            ${ifName} =
+              (acc.rules.${ifName} or [ ])
+              ++ policyRulesFor interfaceName tableId sourceIfNames sourceScope.staticPrefixes;
+          };
+          dynamicSourceRules =
+            acc.dynamicSourceRules
+            ++ dynamicPolicyRulesFor interfaceName tableId sourceIfNames sourceScope.sourceFiles;
+        }
       )
       {
         routes = { };
         rules = { };
+        dynamicSourceRules = [ ];
       }
       (lib.imap0 (index: ifName: { inherit index ifName; }) interfaceNames);
 }

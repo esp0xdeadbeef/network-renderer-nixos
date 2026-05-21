@@ -1,13 +1,13 @@
-{ lib
-, debugEnabled ? false
-, deploymentHostName
-, containerName
-, renderedModel
-, firewallArg
-, alarmModel
-, uplinks
-, wanUplinkName
-,
+{
+  lib,
+  debugEnabled ? false,
+  deploymentHostName,
+  containerName,
+  renderedModel,
+  firewallArg,
+  alarmModel,
+  uplinks,
+  wanUplinkName,
 }:
 
 let
@@ -26,23 +26,45 @@ let
     else
       "";
 
-  runtimeRouteSourceFiles =
-    uniqueStrings (
-      lib.filter (path: lib.hasPrefix "/run/secrets/" path) (
-        lib.concatLists (
-          lib.mapAttrsToList
-            (
-              _ifName: iface:
-                map routeSourceFile (
-                  if builtins.isAttrs iface && builtins.isList (iface.routes or null) then iface.routes else [ ]
-                )
-            )
-            (renderedModel.interfaces or { })
-        )
+  runtimeRouteSourceFiles = uniqueStrings (
+    lib.filter (path: lib.hasPrefix "/run/secrets/" path) (
+      lib.concatLists (
+        lib.mapAttrsToList (
+          _ifName: iface:
+          map routeSourceFile (
+            if builtins.isAttrs iface && builtins.isList (iface.routes or null) then iface.routes else [ ]
+          )
+        ) (renderedModel.interfaces or { })
       )
-    );
+    )
+  );
+
+  tenantPrefixSourceFiles =
+    let
+      owners =
+        if builtins.isAttrs (renderedModel.site.tenantPrefixOwners or null) then
+          renderedModel.site.tenantPrefixOwners
+        else
+          { };
+      sourceFileFor =
+        key: value:
+        if builtins.isString (value.sourceFile or null) && value.sourceFile != "" then
+          value.sourceFile
+        else
+          let
+            parts = lib.splitString "|" key;
+            prefixPart = if builtins.length parts >= 2 then builtins.elemAt parts 1 else "";
+          in
+          if lib.hasPrefix "source:" prefixPart then lib.removePrefix "source:" prefixPart else "";
+    in
+    uniqueStrings (lib.mapAttrsToList sourceFileFor owners);
 
   runtimeRouteSourceFileMounts = lib.genAttrs runtimeRouteSourceFiles (sourceFile: {
+    hostPath = sourceFile;
+    isReadOnly = true;
+  });
+
+  tenantPrefixSourceFileMounts = lib.genAttrs tenantPrefixSourceFiles (sourceFile: {
     hostPath = sourceFile;
     isReadOnly = true;
   });
@@ -89,11 +111,14 @@ in
       null;
 
   bindMounts =
-    (if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
-      renderedModel.bindMounts
-    else
-      { })
-    // runtimeRouteSourceFileMounts;
+    (
+      if renderedModel ? bindMounts && builtins.isAttrs renderedModel.bindMounts then
+        renderedModel.bindMounts
+      else
+        { }
+    )
+    // runtimeRouteSourceFileMounts
+    // tenantPrefixSourceFileMounts;
 
   extraVeths = renderedModel.veths or { };
 
