@@ -1,10 +1,10 @@
-{ lib
-, containerModel
-, uplinks
-, wanUplinkName
-, forwardingIntent ? null
-, firewallRuleset ? null
-,
+{
+  lib,
+  containerModel,
+  uplinks,
+  wanUplinkName,
+  forwardingIntent ? null,
+  firewallRuleset ? null,
 }:
 
 let
@@ -29,11 +29,21 @@ let
   };
 
   dynamicWan = import ./container-networks/dynamic-wan.nix {
-    inherit lib uplinks wanUplinkName common;
+    inherit
+      lib
+      uplinks
+      wanUplinkName
+      common
+      ;
   };
 
   hostBridgeWan = import ./container-networks/host-bridge-wan.nix {
-    inherit lib containerModel uplinks wanUplinkName;
+    inherit
+      lib
+      containerModel
+      uplinks
+      wanUplinkName
+      ;
   };
 
   advertisements = import ./container-networks/advertisements.nix {
@@ -48,7 +58,13 @@ let
   };
 
   policyRouting = import ./container-networks/policy-routing.nix {
-    inherit lib containerModel common forwardingIntent firewallRuleset;
+    inherit
+      lib
+      containerModel
+      common
+      forwardingIntent
+      firewallRuleset
+      ;
     inherit (interfaceView)
       interfaces
       interfaceNames
@@ -78,7 +94,12 @@ let
   };
 
   interfaceUnits = import ./container-networks/interface-units.nix {
-    inherit lib interfaces networkManagerInterfaces common;
+    inherit
+      lib
+      interfaces
+      networkManagerInterfaces
+      common
+      ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
     inherit (routeRender)
       mkRoute
@@ -98,24 +119,18 @@ let
         if !(builtins.isAttrs pair) || !(builtins.isList (pair.sourceFiles or null)) then
           [ ]
         else
-          lib.concatMap
-            (
-              sourceFile:
-              lib.concatMap
-                (
-                  inIf:
-                  map
-                    (outIf: {
-                      inherit sourceFile inIf outIf;
-                      action = pair.action or "accept";
-                      family = pair.family or 6;
-                      comment = pair.comment or "runtime-routed-prefix-public-egress";
-                    })
-                    (pair."out" or [ ])
-                )
-                (pair."in" or [ ])
-            )
-            pair.sourceFiles
+          lib.concatMap (
+            sourceFile:
+            lib.concatMap (
+              inIf:
+              map (outIf: {
+                inherit sourceFile inIf outIf;
+                action = pair.action or "accept";
+                family = pair.family or 6;
+                comment = pair.comment or "runtime-routed-prefix-public-egress";
+              }) (pair."out" or [ ])
+            ) (pair."in" or [ ])
+          ) pair.sourceFiles
       )
       (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
 in
@@ -126,4 +141,5 @@ in
   );
   inherit (interfaceUnits) dynamicDelegatedRoutes;
   inherit dynamicSourceForwardRules;
+  dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
 }

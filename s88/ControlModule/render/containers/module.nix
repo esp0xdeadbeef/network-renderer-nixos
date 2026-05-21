@@ -1,27 +1,35 @@
-{ lib
-, containerName
-, renderedModel
-, firewallArg
-, alarmModel
-, uplinks
-, wanUplinkName
-,
+{
+  lib,
+  containerName,
+  renderedModel,
+  firewallArg,
+  alarmModel,
+  uplinks,
+  wanUplinkName,
 }:
 
-{ lib
-, pkgs
-, ...
+{
+  lib,
+  pkgs,
+  ...
 }:
 
 let
   base = import ./module/base.nix {
-    inherit lib pkgs containerName renderedModel alarmModel;
+    inherit
+      lib
+      pkgs
+      containerName
+      renderedModel
+      alarmModel
+      ;
   };
 
   containerNetworkRender = import ../container-networks.nix {
     inherit lib uplinks wanUplinkName;
     containerModel = renderedModel;
-    forwardingIntent = (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or null;
+    forwardingIntent =
+      (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or null;
     firewallRuleset = firewallArg.ruleset or null;
   };
 
@@ -43,19 +51,24 @@ let
     dynamicSourceForwardRules = containerNetworkRender.dynamicSourceForwardRules or [ ];
   };
 
+  dynamicPolicyRules = import ./module/dynamic-policy-rules.nix {
+    inherit lib pkgs;
+    dynamicPolicySourceRules = containerNetworkRender.dynamicPolicySourceRules or [ ];
+  };
+
   edgeServices =
     if renderedModel.enableEdgeServices or false then
-      import ../../access/render/default.nix
-        {
-          inherit lib pkgs;
-          containerModel = renderedModel;
-        }
+      import ../../access/render/default.nix {
+        inherit lib pkgs;
+        containerModel = renderedModel;
+      }
     else
       { };
 
   dnsServices = import ./dns-services.nix {
     inherit lib pkgs renderedModel;
-    forwardingIntent = (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or { };
+    forwardingIntent =
+      (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or { };
   };
   mdnsServices = import ./mdns-services.nix { inherit lib pkgs renderedModel; };
   bgpServices = import ./bgp-services.nix { inherit lib renderedModel; };
@@ -73,6 +86,7 @@ in
     networkManager.config
     delegatedRoutes.config
     dynamicForwarding.config
+    dynamicPolicyRules.config
     (lib.optionalAttrs ((containerNetworkRender.ipv6AcceptRAInterfaces or [ ]) != [ ]) {
       boot.kernel.sysctl = import ./module/ipv6-ra-sysctls.nix {
         inherit lib;
