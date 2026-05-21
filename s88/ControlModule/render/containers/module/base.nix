@@ -1,15 +1,14 @@
-{ lib
-, pkgs
-, containerName
-, renderedModel
-, alarmModel
-,
+{
+  lib,
+  pkgs,
+  containerName,
+  renderedModel,
+  alarmModel,
 }:
 
 let
   debugTools = import ../../../debug-tools.nix { inherit pkgs; };
-  usesOnlyExtraVeths =
-    !(builtins.isString (renderedModel.hostBridge or null) && renderedModel.hostBridge != "");
+  usesExtraVeths = builtins.attrNames (renderedModel.veths or { }) != [ ];
 in
 {
   imports = lib.optionals (renderedModel ? profilePath && renderedModel.profilePath != null) [
@@ -17,7 +16,10 @@ in
   ];
 
   resolvedHostName =
-    if renderedModel ? unitName && builtins.isString renderedModel.unitName then renderedModel.unitName else containerName;
+    if renderedModel ? unitName && builtins.isString renderedModel.unitName then
+      renderedModel.unitName
+    else
+      containerName;
 
   warningMessages =
     if alarmModel ? warningMessages && builtins.isList alarmModel.warningMessages then
@@ -29,7 +31,7 @@ in
     boot.isContainer = true;
     networking.useNetworkd = true;
     systemd.network.enable = true;
-    systemd.services.systemd-networkd-wait-online.enable = lib.mkIf usesOnlyExtraVeths (lib.mkForce false);
+    systemd.services.systemd-networkd-wait-online.enable = lib.mkIf usesExtraVeths (lib.mkForce false);
     networking.useDHCP = false;
     networking.networkmanager.enable = false;
     networking.useHostResolvConf = lib.mkForce false;
