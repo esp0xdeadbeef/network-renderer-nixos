@@ -42,6 +42,10 @@ let
     iface: route:
     let gateway = routeGateway route;
     in gateway == null || interfacePeerForFamily gateway.family iface == gateway.gateway;
+  routeGatewayExplicitlyMatchesInterface =
+    iface: route:
+    let gateway = routeGateway route;
+    in gateway != null && interfacePeerForFamily gateway.family iface == gateway.gateway;
 
   isPolicyOnlyRoute =
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
@@ -64,6 +68,12 @@ let
   isMainTableDefaultRoute = route: isMainTableRoute route && isDefaultRoute route;
 
   stripRouteMetadata = route: builtins.removeAttrs route [ "_s88PolicyOnly" "sourceFile" "delegatedPrefix" "family" ];
+  isDiagnosticMainRoute =
+    iface: route:
+    builtins.isAttrs route
+    && !(isPolicyOnlyRoute route)
+    && !(isDefaultRoute route)
+    && routeGatewayExplicitlyMatchesInterface iface route;
 
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
@@ -95,6 +105,10 @@ let
                     lib.filter (route: !(isPolicyOnlyRoute route)) (policyRoutingByInterface.routes.${ifName} or [ ])
                   )
                 );
+              diagnosticMainRoutes =
+                map (route: builtins.removeAttrs route [ "Table" ]) (
+                  lib.filter (isDiagnosticMainRoute iface) (policyRoutingByInterface.routes.${ifName} or [ ])
+                );
               renderedRoutes =
                 (lib.optionals keepStaticRoutesInMain (
                   lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
@@ -103,6 +117,7 @@ let
                   lib.filter (route: route != null) (map mkRoute serviceIngressMainRawRoutes)
                 ))
                 ++ policyMainRoutes
+                ++ diagnosticMainRoutes
                 ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
             in
             if builtins.elem interfaceName networkManagerInterfaces then
