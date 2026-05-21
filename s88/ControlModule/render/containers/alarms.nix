@@ -1,12 +1,12 @@
-{
-  lib,
-  cpm ? null,
-  uplinks ? { },
-  renderedModel,
-  interfaceView ? null,
-  forwardingIntent ? null,
-  communication ? null,
-  endpointMap ? null,
+{ lib
+, cpm ? null
+, uplinks ? { }
+, renderedModel
+, interfaceView ? null
+, forwardingIntent ? null
+, communication ? null
+, endpointMap ? null
+,
 }:
 
 let
@@ -14,12 +14,13 @@ let
 
   edgeAdvertisementModel =
     if renderedModel.enableEdgeServices or false then
-      import ../../access/lookup/advertisements.nix {
-        inherit
-          lib
-          ;
-        containerModel = renderedModel;
-      }
+      import ../../access/lookup/advertisements.nix
+        {
+          inherit
+            lib
+            ;
+          containerModel = renderedModel;
+        }
     else
       {
         alarms = [ ];

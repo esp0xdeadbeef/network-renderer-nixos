@@ -104,7 +104,7 @@ run_case() {
           else
             {
               core_returns_sitec_dmz_prefix_v4 =
-                hasRouteVia "core" "10.90.10.0/24" "10.80.0.18";
+                hasRouteVia "core" "10.90.10.0/24" "10.80.0.16";
               core_returns_sitec_dmz_access_transit_v4 =
                 hasRouteVia "core" "10.80.0.2/31" "10.80.0.18";
               core_returns_sitec_dmz_prefix_v6 =

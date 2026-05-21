@@ -1,7 +1,7 @@
-{
-  lib,
-  interfaces,
-  common,
+{ lib
+, interfaces
+, common
+,
 }:
 
 let
@@ -10,18 +10,22 @@ let
   interfaceNames = sortedAttrNames interfaces;
 
   renderedInterfaceNames = builtins.listToAttrs (
-    map (ifName: {
-      name = ifName;
-      value = interfaceNameFor interfaces.${ifName};
-    }) interfaceNames
+    map
+      (ifName: {
+        name = ifName;
+        value = interfaceNameFor interfaces.${ifName};
+      })
+      interfaceNames
   );
 
   interfaceKeyForRenderedName =
     name:
     let
-      matches = lib.filter (
-        ifName: ifName == name || renderedInterfaceNames.${ifName} == name
-      ) interfaceNames;
+      matches = lib.filter
+        (
+          ifName: ifName == name || renderedInterfaceNames.${ifName} == name
+        )
+        interfaceNames;
     in
     if matches == [ ] then null else builtins.head matches;
 

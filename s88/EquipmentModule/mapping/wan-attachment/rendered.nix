@@ -1,8 +1,8 @@
-{
-  lib,
-  lookup,
-  assignment,
-  attachTargetsBase,
+{ lib
+, lookup
+, assignment
+, attachTargetsBase
+,
 }:
 
 let
@@ -64,27 +64,29 @@ let
     uplinkBridgeNameMap.${originalBridge};
 
   attachTargets = builtins.seq assignment.validateStrictWanRendering (
-    map (
-      target:
-      let
-        wanGroupName = lookup.wanGroupNameForTarget target;
+    map
+      (
+        target:
+        let
+          wanGroupName = lookup.wanGroupNameForTarget target;
 
-        assignedUplinkName =
-          if wanGroupName != null && builtins.hasAttr wanGroupName assignment.wanGroupToUplinkName then
-            assignment.wanGroupToUplinkName.${wanGroupName}
-          else
-            null;
-      in
-      target
-      // {
-        inherit assignedUplinkName;
-        renderedHostBridgeName =
-          if assignedUplinkName != null then
-            renderedHostBridgeNameForWanGroup wanGroupName
-          else
-            target.baseRenderedHostBridgeName;
-      }
-    ) attachTargetsBase
+          assignedUplinkName =
+            if wanGroupName != null && builtins.hasAttr wanGroupName assignment.wanGroupToUplinkName then
+              assignment.wanGroupToUplinkName.${wanGroupName}
+            else
+              null;
+        in
+        target
+        // {
+          inherit assignedUplinkName;
+          renderedHostBridgeName =
+            if assignedUplinkName != null then
+              renderedHostBridgeNameForWanGroup wanGroupName
+            else
+              target.baseRenderedHostBridgeName;
+        }
+      )
+      attachTargetsBase
   );
 
   localAttachTargets = attachTargets;
@@ -121,53 +123,55 @@ let
         ${builtins.toJSON matches}
       '';
 
-  uplinks = builtins.mapAttrs (
-    uplinkName: uplink:
-    let
-      originalBridge =
-        if uplink ? bridge && builtins.isString uplink.bridge then
-          uplink.bridge
-        else
-          throw ''
-            s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' is missing bridge
+  uplinks = builtins.mapAttrs
+    (
+      uplinkName: uplink:
+        let
+          originalBridge =
+            if uplink ? bridge && builtins.isString uplink.bridge then
+              uplink.bridge
+            else
+              throw ''
+                s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' is missing bridge
 
-            uplink:
-            ${builtins.toJSON uplink}
-          '';
+                uplink:
+                ${builtins.toJSON uplink}
+              '';
 
-      assignedWanRenderedBridge = renderedHostBridgeNameForAssignedUplink uplinkName;
+          assignedWanRenderedBridge = renderedHostBridgeNameForAssignedUplink uplinkName;
 
-      renderedBridge =
-        if assignedWanRenderedBridge != null then
-          assignedWanRenderedBridge
-        else if uplinkName == assignment.wanUplinkName && wanAttachTarget != null then
-          wanAttachTarget.renderedHostBridgeName
-        else if
-          assignment.fabricUplinkName != null
-          && uplinkName == assignment.fabricUplinkName
-          && fabricAttachTarget != null
-        then
-          fabricAttachTarget.renderedHostBridgeName
-        else
-          uplinkBridgeNameMap.${originalBridge};
+          renderedBridge =
+            if assignedWanRenderedBridge != null then
+              assignedWanRenderedBridge
+            else if uplinkName == assignment.wanUplinkName && wanAttachTarget != null then
+              wanAttachTarget.renderedHostBridgeName
+            else if
+              assignment.fabricUplinkName != null
+              && uplinkName == assignment.fabricUplinkName
+              && fabricAttachTarget != null
+            then
+              fabricAttachTarget.renderedHostBridgeName
+            else
+              uplinkBridgeNameMap.${originalBridge};
 
-      mode =
-        if uplink ? mode && builtins.isString uplink.mode then
-          uplink.mode
-        else if uplink ? parent && builtins.isString uplink.parent && uplink ? vlan then
-          "vlan"
-        else
-          null;
-    in
-    uplink
-    // {
-      inherit originalBridge;
-      bridge = renderedBridge;
-      ipv4 = normalizeIpv4 (uplink.ipv4 or { });
-      ipv6 = normalizeIpv6 (uplink.ipv6 or { });
-    }
-    // lib.optionalAttrs (mode != null) { inherit mode; }
-  ) lookup.uplinksRaw;
+          mode =
+            if uplink ? mode && builtins.isString uplink.mode then
+              uplink.mode
+            else if uplink ? parent && builtins.isString uplink.parent && uplink ? vlan then
+              "vlan"
+            else
+              null;
+        in
+        uplink
+        // {
+          inherit originalBridge;
+          bridge = renderedBridge;
+          ipv4 = normalizeIpv4 (uplink.ipv4 or { });
+          ipv6 = normalizeIpv6 (uplink.ipv6 or { });
+        }
+        // lib.optionalAttrs (mode != null) { inherit mode; }
+    )
+    lookup.uplinksRaw;
 in
 {
   inherit

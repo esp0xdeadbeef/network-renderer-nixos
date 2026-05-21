@@ -49,24 +49,28 @@ rec {
           logicalName
         ]
       );
-      logicalMatches = lib.filter (
-        nodeName:
-        let nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
-        in
-        logicalName != null
-        && (nodeLogical.name or null) == logicalName
-        && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
-        && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
-      ) (sortedAttrNames realizationNodes);
-      prefixMatches = lib.filter (
-        nodeName:
-        let nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
-        in
-        runtimeTargetId != null
-        && lib.hasSuffix runtimeTargetId nodeName
-        && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
-        && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
-      ) (sortedAttrNames realizationNodes);
+      logicalMatches = lib.filter
+        (
+          nodeName:
+          let nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
+          in
+          logicalName != null
+          && (nodeLogical.name or null) == logicalName
+          && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
+          && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
+        )
+        (sortedAttrNames realizationNodes);
+      prefixMatches = lib.filter
+        (
+          nodeName:
+          let nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
+          in
+          runtimeTargetId != null
+          && lib.hasSuffix runtimeTargetId nodeName
+          && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
+          && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
+        )
+        (sortedAttrNames realizationNodes);
     in
     lib.unique (exactNames ++ logicalMatches ++ prefixMatches);
 

@@ -1,14 +1,14 @@
-{
-  lib,
-  common,
-  interfaces,
-  renderedInterfaceNames,
-  isUpstreamSelector,
-  isUpstreamSelectorCoreInterface,
-  addressForFamily,
-  ipv4PeerFor31,
-  ipv6PeerFor127,
-  returnDestinationsForTenant,
+{ lib
+, common
+, interfaces
+, renderedInterfaceNames
+, isUpstreamSelector
+, isUpstreamSelectorCoreInterface
+, addressForFamily
+, ipv4PeerFor31
+, ipv6PeerFor127
+, returnDestinationsForTenant
+,
 }:
 
 let
@@ -22,22 +22,26 @@ let
 
   explicitDestinationsForTenant =
     tenantKey:
-    lib.concatMap (
-      ifName:
-      let
-        renderedName = renderedInterfaceNames.${ifName};
-      in
-      if policyTenantKeyFor renderedName != tenantKey then
-        [ ]
-      else
-        lib.concatMap (
-          route:
-          let
-            dst = route.dst or null;
-          in
-          if builtins.isString dst && !(isDefaultDestination dst) then [ dst ] else [ ]
-        ) (interfaces.${ifName}.routes or [ ])
-    ) (builtins.attrNames interfaces);
+    lib.concatMap
+      (
+        ifName:
+        let
+          renderedName = renderedInterfaceNames.${ifName};
+        in
+        if policyTenantKeyFor renderedName != tenantKey then
+          [ ]
+        else
+          lib.concatMap
+            (
+              route:
+              let
+                dst = route.dst or null;
+              in
+              if builtins.isString dst && !(isDefaultDestination dst) then [ dst ] else [ ]
+            )
+            (interfaces.${ifName}.routes or [ ])
+      )
+      (builtins.attrNames interfaces);
 in
 {
   forUpstreamCore =
@@ -53,24 +57,26 @@ in
       [ ]
     else
       lib.filter (route: route != null) (
-        map (
-          dst:
-          let
-            isIpv6 = builtins.isString dst && lib.hasInfix ":" dst;
-            gateway = if isIpv6 then peer6 else peer4;
-          in
-          if gateway == null then
-            null
-          else if isIpv6 then
-            {
-              inherit dst;
-              via6 = gateway;
-            }
-          else
-            {
-              inherit dst;
-              via4 = gateway;
-            }
-        ) ((returnDestinationsForTenant tenantKey) ++ (explicitDestinationsForTenant tenantKey))
+        map
+          (
+            dst:
+            let
+              isIpv6 = builtins.isString dst && lib.hasInfix ":" dst;
+              gateway = if isIpv6 then peer6 else peer4;
+            in
+            if gateway == null then
+              null
+            else if isIpv6 then
+              {
+                inherit dst;
+                via6 = gateway;
+              }
+            else
+              {
+                inherit dst;
+                via4 = gateway;
+              }
+          )
+          ((returnDestinationsForTenant tenantKey) ++ (explicitDestinationsForTenant tenantKey))
       );
 }

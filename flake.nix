@@ -15,14 +15,13 @@
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      nixos-network-compiler,
-      network-control-plane-model,
-      network-forwarding-model,
-      network-labs,
-      ...
+    { self
+    , nixpkgs
+    , nixos-network-compiler
+    , network-control-plane-model
+    , network-forwarding-model
+    , network-labs
+    , ...
     }:
     let
       lib = nixpkgs.lib;
@@ -49,11 +48,11 @@
         system:
         let
           buildVm =
-            {
-              intentPath,
-              inventoryPath,
-              boxName,
-              simulatedContainerDefaults ? { },
+            { intentPath
+            , inventoryPath
+            , boxName
+            , simulatedContainerDefaults ? { }
+            ,
             }:
             let
               hostBuild = api.renderer.buildHostFromPaths {
@@ -65,11 +64,13 @@
 
               renderedContainersRaw = renderedHost.containers or { };
 
-              renderedContainers = lib.mapAttrs (
-                _name: container:
+              renderedContainers = lib.mapAttrs
+                (
+                  _name: container:
 
-                simulatedContainerDefaults // (if builtins.isAttrs container then container else { })
-              ) renderedContainersRaw;
+                    simulatedContainerDefaults // (if builtins.isAttrs container then container else { })
+                )
+                renderedContainersRaw;
             in
             {
               inherit boxName;

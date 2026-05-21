@@ -98,9 +98,11 @@ rec {
     { cpm, inventory ? { }, deploymentHostName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let targets = base.runtimeTargets cpm;
     in
-    lib.filter (
-      unitName: deploymentHostForUnit { inherit cpm inventory unitName file; } == deploymentHostName
-    ) (sortedAttrNames targets);
+    lib.filter
+      (
+        unitName: deploymentHostForUnit { inherit cpm inventory unitName file; } == deploymentHostName
+      )
+      (sortedAttrNames targets);
 
   requestedHostMatchesUnit =
     { cpm, inventory ? { }, unitName, requestedHostName, file ? "s88/Unit/lookup/runtime-context.nix" }:

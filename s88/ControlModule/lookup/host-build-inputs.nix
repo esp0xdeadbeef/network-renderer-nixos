@@ -1,13 +1,13 @@
-{
-  selectors,
+{ selectors
+,
 }:
 
 let
   resolveSingleDeploymentHostName =
-    {
-      hostContext,
-      selectorValue,
-      file ? "s88/CM/network/lookup/host-build-inputs.nix",
+    { hostContext
+    , selectorValue
+    , file ? "s88/CM/network/lookup/host-build-inputs.nix"
+    ,
     }:
     if hostContext ? deploymentHostName && builtins.isString hostContext.deploymentHostName then
       hostContext.deploymentHostName
@@ -26,14 +26,14 @@ let
       '';
 
   resolveBuildInputs =
-    {
-      selector ? null,
-      hostname ? null,
-      intent ? null,
-      inventory ? null,
-      intentPath ? null,
-      inventoryPath ? null,
-      file ? "s88/CM/network/lookup/host-build-inputs.nix",
+    { selector ? null
+    , hostname ? null
+    , intent ? null
+    , inventory ? null
+    , intentPath ? null
+    , inventoryPath ? null
+    , file ? "s88/CM/network/lookup/host-build-inputs.nix"
+    ,
     }:
     let
       queried = selectors.query {

@@ -47,13 +47,15 @@ in
       deploymentCandidates = deployment.unitNamesForDeploymentHost { inherit cpm inventory deploymentHostName file; };
       fallbackCandidates = base.sortedAttrNames (base.runtimeTargets cpm);
       identityFallbackCandidates = lib.filter matchesRequestedIdentity fallbackCandidates;
-      hostScopedCandidates = lib.filter (
-        unitName:
-        deployment.requestedHostMatchesUnit {
-          inherit cpm inventory unitName file;
-          requestedHostName = requestedHostName;
-        }
-      ) (if deploymentCandidates == [ ] then identityFallbackCandidates else deploymentCandidates);
+      hostScopedCandidates = lib.filter
+        (
+          unitName:
+          deployment.requestedHostMatchesUnit {
+            inherit cpm inventory unitName file;
+            requestedHostName = requestedHostName;
+          }
+        )
+        (if deploymentCandidates == [ ] then identityFallbackCandidates else deploymentCandidates);
       baseCandidatesOrFallback =
         if requestedHostName != deploymentHostName && hostScopedCandidates != [ ] then
           hostScopedCandidates
@@ -66,7 +68,9 @@ in
     if runtimeRole == null then
       identityScopedCandidates
     else
-      lib.filter (
-        unitName: base.roleForUnit { inherit cpm inventory unitName file; } == runtimeRole
-      ) identityScopedCandidates;
+      lib.filter
+        (
+          unitName: base.roleForUnit { inherit cpm inventory unitName file; } == runtimeRole
+        )
+        identityScopedCandidates;
 }

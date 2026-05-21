@@ -1,7 +1,7 @@
-{
-  lib,
-  interfaceView,
-  common,
+{ lib
+, interfaceView
+, common
+,
 }:
 
 let
@@ -30,9 +30,11 @@ let
     else
       [ ];
 
-  interfaceEntries = lib.filter (
-    entry: entry ? name && builtins.isString entry.name && entry.name != ""
-  ) rawInterfaceEntries;
+  interfaceEntries = lib.filter
+    (
+      entry: entry ? name && builtins.isString entry.name && entry.name != ""
+    )
+    rawInterfaceEntries;
 
   semanticInterfaceOf =
     entry:
@@ -116,33 +118,37 @@ let
     builtins.isString uplinkName && uplinkName != "" && builtins.elem uplinkName uplinks;
 
   interfaceAliasMap = builtins.listToAttrs (
-    lib.concatMap (
-      entry:
-      let
-        iface =
-          if builtins.isAttrs entry && entry ? iface && builtins.isAttrs entry.iface then
-            entry.iface
-          else
-            { };
-        aliases = sortedStrings (
-          lib.filter builtins.isString [
-            entry.name or null
-            entry.key or null
-            iface.renderedIfName or null
-            iface.runtimeIfName or null
-            iface.sourceInterface or null
-            iface.interfaceName or null
-            iface.containerInterfaceName or null
-            iface.hostInterfaceName or null
-            iface.ifName or null
-          ]
-        );
-      in
-      map (alias: {
-        name = alias;
-        value = entry.name;
-      }) aliases
-    ) interfaceEntries
+    lib.concatMap
+      (
+        entry:
+        let
+          iface =
+            if builtins.isAttrs entry && entry ? iface && builtins.isAttrs entry.iface then
+              entry.iface
+            else
+              { };
+          aliases = sortedStrings (
+            lib.filter builtins.isString [
+              entry.name or null
+              entry.key or null
+              iface.renderedIfName or null
+              iface.runtimeIfName or null
+              iface.sourceInterface or null
+              iface.interfaceName or null
+              iface.containerInterfaceName or null
+              iface.hostInterfaceName or null
+              iface.ifName or null
+            ]
+          );
+        in
+        map
+          (alias: {
+            name = alias;
+            value = entry.name;
+          })
+          aliases
+      )
+      interfaceEntries
   );
 
   interfaceNameForLink =
@@ -154,9 +160,11 @@ let
     let
       matches = sortedStrings (
         map (entry: entry.name) (
-          lib.filter (
-            entry: builtins.elem linkName (interfaceRefStrings entry) && entryMatches entry
-          ) interfaceEntries
+          lib.filter
+            (
+              entry: builtins.elem linkName (interfaceRefStrings entry) && entryMatches entry
+            )
+            interfaceEntries
         )
       );
     in

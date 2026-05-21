@@ -20,53 +20,59 @@ let
     else
       null;
 
-  networkdManagedInterfaces = lib.filter (
-    interfaceName: builtins.isString interfaceName && !(builtins.elem interfaceName networkManagerWanInterfaces)
-  ) (map interfaceNameFor (builtins.attrValues (renderedModel.interfaces or { })));
+  networkdManagedInterfaces = lib.filter
+    (
+      interfaceName: builtins.isString interfaceName && !(builtins.elem interfaceName networkManagerWanInterfaces)
+    )
+    (map interfaceNameFor (builtins.attrValues (renderedModel.interfaces or { })));
 
   connections = builtins.listToAttrs (
-    map (interfaceName: {
-      name = "NetworkManager/system-connections/s88-${interfaceName}.nmconnection";
-      value = {
-        mode = "0600";
-        text = ''
-          [connection]
-          id=s88-${interfaceName}
-          type=ethernet
-          interface-name=${interfaceName}
-          autoconnect=true
+    map
+      (interfaceName: {
+        name = "NetworkManager/system-connections/s88-${interfaceName}.nmconnection";
+        value = {
+          mode = "0600";
+          text = ''
+            [connection]
+            id=s88-${interfaceName}
+            type=ethernet
+            interface-name=${interfaceName}
+            autoconnect=true
 
-          [ethernet]
+            [ethernet]
 
-          [ipv4]
-          method=auto
+            [ipv4]
+            method=auto
 
-          [ipv6]
-          method=auto
-        '';
-      };
-    }) networkManagerWanInterfaces
+            [ipv6]
+            method=auto
+          '';
+        };
+      })
+      networkManagerWanInterfaces
   );
 
   activationServices = builtins.listToAttrs (
-    map (interfaceName: {
-      name = "s88-networkmanager-${interfaceName}";
-      value = {
-        description = "Activate NetworkManager WAN profile on ${interfaceName}";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "NetworkManager.service" ];
-        wants = [ "NetworkManager.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
+    map
+      (interfaceName: {
+        name = "s88-networkmanager-${interfaceName}";
+        value = {
+          description = "Activate NetworkManager WAN profile on ${interfaceName}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "NetworkManager.service" ];
+          wants = [ "NetworkManager.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          path = [ pkgs.networkmanager ];
+          script = ''
+            nmcli connection reload
+            nmcli connection up s88-${interfaceName} ifname ${interfaceName}
+          '';
         };
-        path = [ pkgs.networkmanager ];
-        script = ''
-          nmcli connection reload
-          nmcli connection up s88-${interfaceName} ifname ${interfaceName}
-        '';
-      };
-    }) networkManagerWanInterfaces
+      })
+      networkManagerWanInterfaces
   );
 in
 {

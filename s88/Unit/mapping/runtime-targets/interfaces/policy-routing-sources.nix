@@ -70,8 +70,10 @@ let
       [ target ];
 in
 builtins.listToAttrs (
-  map (target: {
-    name = renderedNameFor target;
-    value = sourcesFor target;
-  }) names
+  map
+    (target: {
+      name = renderedNameFor target;
+      value = sourcesFor target;
+    })
+    names
 )

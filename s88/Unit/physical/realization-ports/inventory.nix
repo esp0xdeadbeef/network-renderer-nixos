@@ -28,9 +28,9 @@ let
     ];
 
   namespacedDirectBridgeName =
-    {
-      node,
-      linkName,
+    { node
+    , linkName
+    ,
     }:
     let
       namespaceSegments = namespaceSegmentsForNode node;
@@ -39,10 +39,10 @@ let
     builtins.concatStringsSep "--" segments;
 
   nodeForUnit =
-    {
-      inventory,
-      unitName,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { inventory
+    , unitName
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       realizationNodes = realizationNodesFor inventory;
@@ -58,10 +58,10 @@ let
       '';
 
   portsForUnit =
-    {
-      inventory,
-      unitName,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { inventory
+    , unitName
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       node = nodeForUnit {
@@ -79,12 +79,12 @@ let
       '';
 
   attachForPort =
-    {
-      node,
-      port,
-      unitName ? "<unknown>",
-      portName ? "<unknown>",
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { node
+    , port
+    , unitName ? "<unknown>"
+    , portName ? "<unknown>"
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
@@ -143,10 +143,10 @@ let
       '';
 
   attachMapForUnit =
-    {
-      inventory,
-      unitName,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { inventory
+    , unitName
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       node = nodeForUnit {
@@ -158,82 +158,51 @@ let
       };
     in
     builtins.listToAttrs (
-      map (portName: {
-        name = portName;
-        value = attachForPort {
-          inherit
-            node
-            unitName
-            portName
-            file
-            ;
-          port = ports.${portName};
-        };
-      }) (sortedAttrNames ports)
+      map
+        (portName: {
+          name = portName;
+          value = attachForPort {
+            inherit
+              node
+              unitName
+              portName
+              file
+              ;
+            port = ports.${portName};
+          };
+        })
+        (sortedAttrNames ports)
     );
 
   attachMapForInventory =
-    {
-      inventory,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { inventory
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       realizationNodes = realizationNodesFor inventory;
     in
     builtins.listToAttrs (
-      map (unitName: {
-        name = unitName;
-        value = attachMapForUnit {
-          inherit inventory unitName file;
-        };
-      }) (sortedAttrNames realizationNodes)
+      map
+        (unitName: {
+          name = unitName;
+          value = attachMapForUnit {
+            inherit inventory unitName file;
+          };
+        })
+        (sortedAttrNames realizationNodes)
     );
 
-  unitNamesForDeploymentHost =
-    {
-      inventory,
-      deploymentHostName,
-    }:
-    let
-      realizationNodes = realizationNodesFor inventory;
-    in
-    lib.filter (
-      unitName:
-      let
-        node = realizationNodes.${unitName};
-      in
-      (node.host or null) == deploymentHostName
-    ) (sortedAttrNames realizationNodes);
-
-  attachTargetsForDeploymentHost =
-    {
-      inventory,
-      deploymentHostName,
-      file ? "s88/Unit/physical/realization-ports.nix",
-    }:
-    let
-      unitNames = unitNamesForDeploymentHost {
-        inherit inventory deploymentHostName;
-      };
-
-      attachTargetsByHostBridgeName = builtins.listToAttrs (
-        lib.concatMap (
-          unitName:
-          let
-            attachMap = attachMapForUnit {
-              inherit inventory unitName file;
-            };
-          in
-          map (portName: {
-            name = attachMap.${portName}.hostBridgeName;
-            value = attachMap.${portName};
-          }) (sortedAttrNames attachMap)
-        ) unitNames
-      );
-    in
-    map (hostBridgeName: attachTargetsByHostBridgeName.${hostBridgeName}) (
-      sortedAttrNames attachTargetsByHostBridgeName
-    );
+  deploymentHostHelpers = import ./inventory/deployment-host.nix {
+    inherit lib;
+    helpers = {
+      inherit
+        attachMapForUnit
+        realizationNodesFor
+        sortedAttrNames
+        ;
+    };
+  };
 in
 {
   inherit
@@ -245,7 +214,6 @@ in
     attachForPort
     attachMapForUnit
     attachMapForInventory
-    unitNamesForDeploymentHost
-    attachTargetsForDeploymentHost
     ;
+  inherit (deploymentHostHelpers) unitNamesForDeploymentHost attachTargetsForDeploymentHost;
 }

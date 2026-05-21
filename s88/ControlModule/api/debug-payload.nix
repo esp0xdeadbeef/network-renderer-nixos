@@ -1,16 +1,16 @@
-{
-  lib,
-  system,
-  hostName,
-  hostContext,
-  intent,
-  globalInventory,
-  compilerOut,
-  forwardingOut,
-  controlPlaneOut,
-  renderedHostNetwork,
-  intentPath,
-  inventoryPath,
+{ lib
+, system
+, hostName
+, hostContext
+, intent
+, globalInventory
+, compilerOut
+, forwardingOut
+, controlPlaneOut
+, renderedHostNetwork
+, intentPath
+, inventoryPath
+,
 }:
 
 let
@@ -92,10 +92,12 @@ let
     };
 
   sanitizedContainers = builtins.listToAttrs (
-    map (containerName: {
-      name = containerName;
-      value = sanitizeContainer containerName renderedHostNetwork.containers.${containerName};
-    }) (sortedAttrNames (renderedHostNetwork.containers or { }))
+    map
+      (containerName: {
+        name = containerName;
+        value = sanitizeContainer containerName renderedHostNetwork.containers.${containerName};
+      })
+      (sortedAttrNames (renderedHostNetwork.containers or { }))
   );
 in
 {

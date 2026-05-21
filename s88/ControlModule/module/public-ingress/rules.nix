@@ -62,7 +62,7 @@ let
 
   renderServiceSnat = forward:
     ''
-          ip saddr ${forward.targetIPv4} ct status dnat masquerade comment ${nftString "${forward.comment}-snat"}
+      ip saddr ${forward.targetIPv4} ct status dnat masquerade comment ${nftString "${forward.comment}-snat"}
     '';
 
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:

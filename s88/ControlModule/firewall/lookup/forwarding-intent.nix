@@ -1,10 +1,10 @@
-{
-  lib,
-  runtimeTarget ? { },
-  interfaces ? { },
-  wanIfs ? [ ],
-  lanIfs ? [ ],
-  uplinks ? { },
+{ lib
+, runtimeTarget ? { }
+, interfaces ? { }
+, wanIfs ? [ ]
+, lanIfs ? [ ]
+, uplinks ? { }
+,
 }:
 
 let

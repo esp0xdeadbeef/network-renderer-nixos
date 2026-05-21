@@ -1,7 +1,7 @@
-{
-  lib,
-  containers ? { },
-  containerSelection ? { },
+{ lib
+, containers ? { }
+, containerSelection ? { }
+,
 }:
 
 let
@@ -10,21 +10,24 @@ let
   selectionNames = sortedAttrNames containerSelection;
   containerNames = sortedAttrNames containers;
 
-  _validateSelectionValues = builtins.foldl' (
-    acc: name:
-    let
-      value = containerSelection.${name};
-    in
-    if builtins.isBool value then
-      acc
-    else
-      throw ''
-        s88/ControlModule/api/container-selection.nix: containerSelection entry '${name}' must be a boolean
+  _validateSelectionValues = builtins.foldl'
+    (
+      acc: name:
+        let
+          value = containerSelection.${name};
+        in
+        if builtins.isBool value then
+          acc
+        else
+          throw ''
+            s88/ControlModule/api/container-selection.nix: containerSelection entry '${name}' must be a boolean
 
-        value:
-        ${builtins.toJSON value}
-      ''
-  ) true selectionNames;
+            value:
+            ${builtins.toJSON value}
+          ''
+    )
+    true
+    selectionNames;
 
   aliasesForContainer =
     containerName:
@@ -59,9 +62,11 @@ let
   resolveSelector =
     selector:
     let
-      matches = lib.filter (
-        containerName: containerMatchesSelector selector containerName
-      ) containerNames;
+      matches = lib.filter
+        (
+          containerName: containerMatchesSelector selector containerName
+        )
+        containerNames;
     in
     if matches == [ ] then
       throw ''
@@ -96,9 +101,11 @@ let
 in
 builtins.seq _validateSelectionValues (
   builtins.listToAttrs (
-    map (name: {
-      inherit name;
-      value = containers.${name};
-    }) selectedNames
+    map
+      (name: {
+        inherit name;
+        value = containers.${name};
+      })
+      selectedNames
   )
 )

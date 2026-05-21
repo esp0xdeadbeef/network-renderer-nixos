@@ -1,11 +1,11 @@
-{
-  lib,
-  runtimeContext,
-  forwarding,
-  common,
-  renderedNames,
-  hostBridge,
-  classification,
+{ lib
+, runtimeContext
+, forwarding
+, common
+, renderedNames
+, hostBridge
+, classification
+,
 }:
 
 let
@@ -26,7 +26,7 @@ rec {
         else
           { };
     in
-    effectiveRuntimeRealization.loopback or { };
+      effectiveRuntimeRealization.loopback or { };
 
   normalizedInterfaceForUnit =
     { cpm, unitName, ifName, iface, renderedIfName, file ? "s88/Unit/mapping/runtime-targets.nix" }:
@@ -84,13 +84,15 @@ rec {
       renderedInterfaceNameMap = renderedNames.renderedInterfaceNamesForUnit { inherit cpm unitName file; };
     in
     builtins.listToAttrs (
-      map (ifName: {
-        name = ifName;
-        value = normalizedInterfaceForUnit {
-          inherit cpm unitName ifName file;
-          iface = interfaces.${ifName};
-          renderedIfName = renderedInterfaceNameMap.${ifName};
-        };
-      }) (sortedAttrNames interfaces)
+      map
+        (ifName: {
+          name = ifName;
+          value = normalizedInterfaceForUnit {
+            inherit cpm unitName ifName file;
+            iface = interfaces.${ifName};
+            renderedIfName = renderedInterfaceNameMap.${ifName};
+          };
+        })
+        (sortedAttrNames interfaces)
     );
 }

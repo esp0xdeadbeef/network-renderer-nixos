@@ -1,12 +1,12 @@
-{
-  lib,
-  hostName,
-  deploymentHostName,
-  deploymentHost,
-  renderHostConfig,
-  cpm,
-  inventory ? { },
-  attachTargetsBase,
+{ lib
+, hostName
+, deploymentHostName
+, deploymentHost
+, renderHostConfig
+, cpm
+, inventory ? { }
+, attachTargetsBase
+,
 }:
 
 let

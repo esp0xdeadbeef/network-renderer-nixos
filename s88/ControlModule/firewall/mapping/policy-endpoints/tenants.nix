@@ -1,25 +1,27 @@
-{
-  lib,
-  currentSite,
-  runtimeTarget,
-  currentNodeName,
-  firstHopInterfaceToUnit,
-  resolveInterfaceAlias,
-  common,
+{ lib
+, currentSite
+, runtimeTarget
+, currentNodeName
+, firstHopInterfaceToUnit
+, resolveInterfaceAlias
+, common
+,
 }:
 
 let
   tenantAttachments =
     if currentSite ? attachments && builtins.isList currentSite.attachments then
-      lib.filter (
-        attachment:
-        builtins.isAttrs attachment
-        && (attachment.kind or null) == "tenant"
-        && attachment ? name
-        && builtins.isString attachment.name
-        && attachment ? unit
-        && builtins.isString attachment.unit
-      ) currentSite.attachments
+      lib.filter
+        (
+          attachment:
+          builtins.isAttrs attachment
+          && (attachment.kind or null) == "tenant"
+          && attachment ? name
+          && builtins.isString attachment.name
+          && attachment ? unit
+          && builtins.isString attachment.unit
+        )
+        currentSite.attachments
     else
       [ ];
 
@@ -49,15 +51,17 @@ let
           lib.filter builtins.isAttrs tenantBinding.runtimeBindings
         else
           [ ];
-      matches = lib.filter (
-        binding:
-        let
-          logicalNode = binding.logicalNode or null;
-          runtimeTargetName = binding.runtimeTarget or null;
-        in
-        (logicalNode != null && logicalNode == currentNodeName)
-        || (runtimeTargetName != null && runtimeTargetName == (runtimeTarget.name or null))
-      ) runtimeBindings;
+      matches = lib.filter
+        (
+          binding:
+          let
+            logicalNode = binding.logicalNode or null;
+            runtimeTargetName = binding.runtimeTarget or null;
+          in
+          (logicalNode != null && logicalNode == currentNodeName)
+          || (runtimeTargetName != null && runtimeTargetName == (runtimeTarget.name or null))
+        )
+        runtimeBindings;
       binding = if matches == [ ] then null else builtins.head matches;
       candidates =
         if binding == null then
@@ -76,23 +80,25 @@ in
 
   tenantInterfaceByName = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
-      map (
-        attachment:
-        let
-          interfaceName =
-            if currentNodeName != null && attachment.unit == currentNodeName then
-              boundInterfaceForCurrentNodeTenant attachment.name
-            else
-              firstHopInterfaceToUnit attachment.unit;
-        in
-        if interfaceName != null then
-          {
-            name = attachment.name;
-            value = interfaceName;
-          }
-        else
-          null
-      ) tenantAttachments
+      map
+        (
+          attachment:
+          let
+            interfaceName =
+              if currentNodeName != null && attachment.unit == currentNodeName then
+                boundInterfaceForCurrentNodeTenant attachment.name
+              else
+                firstHopInterfaceToUnit attachment.unit;
+          in
+          if interfaceName != null then
+            {
+              name = attachment.name;
+              value = interfaceName;
+            }
+          else
+            null
+        )
+        tenantAttachments
     )
   );
 }

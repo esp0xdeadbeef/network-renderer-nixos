@@ -1,6 +1,6 @@
-{
-  lib,
-  lookup,
+{ lib
+, lookup
+,
 }:
 
 let

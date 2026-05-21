@@ -1,4 +1,4 @@
-{ }:
+{}:
 
 let
   enabled = builtins.getEnv "S88_RENDER_TRACE" == "1";

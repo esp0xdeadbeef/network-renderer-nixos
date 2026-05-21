@@ -7,16 +7,18 @@ let
   profileFiles = builtins.readDir profilesDir;
   profileNames =
     lib.sort builtins.lessThan (
-      lib.filter (
-        name:
-        let kind = profileFiles.${name};
-        in
-        kind == "regular"
-        && lib.hasSuffix ".nix" name
-        && !(lib.hasSuffix ".meta.nix" name)
-        && name != "common-router.nix"
-        && name != "registry.nix"
-      ) (builtins.attrNames profileFiles)
+      lib.filter
+        (
+          name:
+          let kind = profileFiles.${name};
+          in
+          kind == "regular"
+          && lib.hasSuffix ".nix" name
+          && !(lib.hasSuffix ".meta.nix" name)
+          && name != "common-router.nix"
+          && name != "registry.nix"
+        )
+        (builtins.attrNames profileFiles)
     );
 
   roleNameForFile = name: lib.removeSuffix ".nix" name;
@@ -60,8 +62,10 @@ let
     };
 in
 builtins.listToAttrs (
-  map (name: {
-    name = roleNameForFile name;
-    value = mkRole (roleNameForFile name);
-  }) profileNames
+  map
+    (name: {
+      name = roleNameForFile name;
+      value = mkRole (roleNameForFile name);
+    })
+    profileNames
 )

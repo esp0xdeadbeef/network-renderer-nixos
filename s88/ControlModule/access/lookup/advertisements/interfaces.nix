@@ -1,11 +1,11 @@
-{
-  lib,
-  containerModel,
-  containerInterfaces,
-  runtimeInterfaces,
-  defaultDhcp4Advertise,
-  defaultRadvdAdvertise,
-  common,
+{ lib
+, containerModel
+, containerInterfaces
+, runtimeInterfaces
+, defaultDhcp4Advertise
+, defaultRadvdAdvertise
+, common
+,
 }:
 
 let

@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  containerModel ? null,
-  model ? null,
-  ...
+{ lib
+, pkgs
+, containerModel ? null
+, model ? null
+, ...
 }:
 
 let
@@ -25,25 +24,29 @@ let
   };
 
   modules =
-    (map (
-      scope:
-      import ./kea.nix {
-        inherit
-          lib
-          pkgs
-          scope
-          ;
-      }
-    ) advertisementModel.dhcp4Scopes)
-    ++ (map (
-      scope:
-      import ./radvd.nix {
-        inherit
-          lib
-          pkgs
-          scope
-          ;
-      }
-    ) advertisementModel.radvdScopes);
+    (map
+      (
+        scope:
+        import ./kea.nix {
+          inherit
+            lib
+            pkgs
+            scope
+            ;
+        }
+      )
+      advertisementModel.dhcp4Scopes)
+    ++ (map
+      (
+        scope:
+        import ./radvd.nix {
+          inherit
+            lib
+            pkgs
+            scope
+            ;
+        }
+      )
+      advertisementModel.radvdScopes);
 in
 lib.mkMerge modules

@@ -1,25 +1,24 @@
 { lib }:
 
-args@{
-  cpm,
-  inventory ? { },
-  flakeInputs ? null,
-  runtimeTarget ? { },
-  unitKey ? null,
-  unitName ? null,
-  roleName ? null,
-  policyModulePath ? null,
-  assumptionFamily ? null,
-  preferSiteNode ? false,
-  strictEndpointBindings ? false,
-  interfaces ? { },
-  wanIfs ? [ ],
-  lanIfs ? [ ],
-  interfaceView ? null,
-  forwardingIntent ? null,
-  communication ? null,
-  endpointMap ? null,
-  ...
+args@{ cpm
+, inventory ? { }
+, flakeInputs ? null
+, runtimeTarget ? { }
+, unitKey ? null
+, unitName ? null
+, roleName ? null
+, policyModulePath ? null
+, assumptionFamily ? null
+, preferSiteNode ? false
+, strictEndpointBindings ? false
+, interfaces ? { }
+, wanIfs ? [ ]
+, lanIfs ? [ ]
+, interfaceView ? null
+, forwardingIntent ? null
+, communication ? null
+, endpointMap ? null
+, ...
 }:
 
 let

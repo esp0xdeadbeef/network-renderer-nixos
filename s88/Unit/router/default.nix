@@ -1,11 +1,10 @@
-{
-  outPath,
-  lib,
-  config,
-  selector ? null,
-  hostContext ? { },
-  globalInventory ? { },
-  ...
+{ outPath
+, lib
+, config
+, selector ? null
+, hostContext ? { }
+, globalInventory ? { }
+, ...
 }:
 
 let
@@ -23,11 +22,12 @@ in
 {
 
   imports =
-    lib.optionals (
-      (hostContext.includeLegacyHostConfig or false)
-      || (globalInventory.includeLegacyHostConfig or false)
-      || (config.includeLegacyHostConfig or false)
-    ) [ "${outPath}/library/10-vms/nixos-shell-vm/host-config-routers-without-network" ]
+    lib.optionals
+      (
+        (hostContext.includeLegacyHostConfig or false)
+        || (globalInventory.includeLegacyHostConfig or false)
+        || (config.includeLegacyHostConfig or false)
+      ) [ "${outPath}/library/10-vms/nixos-shell-vm/host-config-routers-without-network" ]
     ++ [ ../../EquipmentModule/default.nix ];
 
   _module.args = {

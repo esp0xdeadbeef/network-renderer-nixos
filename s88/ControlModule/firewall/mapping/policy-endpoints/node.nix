@@ -1,11 +1,11 @@
-{
-  lib,
-  currentSite,
-  runtimeTarget,
-  roleName,
-  preferSiteNode ? false,
-  interfaceEntries,
-  common,
+{ lib
+, currentSite
+, runtimeTarget
+, roleName
+, preferSiteNode ? false
+, interfaceEntries
+, common
+,
 }:
 
 let
@@ -22,13 +22,15 @@ let
     then
       let
         names = sortedStrings (
-          map (
-            ifName:
-            let
-              iface = runtimeTarget.interfaces.${ifName};
-            in
-            if iface ? logicalNode && builtins.isString iface.logicalNode then iface.logicalNode else null
-          ) (builtins.attrNames runtimeTarget.interfaces)
+          map
+            (
+              ifName:
+              let
+                iface = runtimeTarget.interfaces.${ifName};
+              in
+              if iface ? logicalNode && builtins.isString iface.logicalNode then iface.logicalNode else null
+            )
+            (builtins.attrNames runtimeTarget.interfaces)
         );
       in
       if builtins.length names == 1 then builtins.head names else null

@@ -1,8 +1,8 @@
-{
-  lib,
-  catalog,
-  interfaceSet,
-  common,
+{ lib
+, catalog
+, interfaceSet
+, common
+,
 }:
 
 let
@@ -24,23 +24,29 @@ let
         trafficType = trafficTypeDefinitions.${trafficTypeName};
         matches = if trafficType ? match && builtins.isList trafficType.match then trafficType.match else [ ];
       in
-      lib.concatMap (
-        match:
-        let
-          family = if match ? family && builtins.isString match.family then match.family else "any";
-          families = if family == "ipv4" then [ "ipv4" ] else if family == "ipv6" then [ "ipv6" ] else [ "ipv4" "ipv6" ];
-          proto = if match ? proto && builtins.isString match.proto then match.proto else null;
-          dports = if match ? dports && builtins.isList match.dports then lib.filter builtins.isInt match.dports else [ ];
-        in
-        lib.concatMap (
-          resolvedFamily:
-          map (port: {
-            family = resolvedFamily;
-            inherit proto;
-            dport = port;
-          }) (if dports == [ ] then [ null ] else dports)
-        ) families
-      ) matches
+      lib.concatMap
+        (
+          match:
+          let
+            family = if match ? family && builtins.isString match.family then match.family else "any";
+            families = if family == "ipv4" then [ "ipv4" ] else if family == "ipv6" then [ "ipv6" ] else [ "ipv4" "ipv6" ];
+            proto = if match ? proto && builtins.isString match.proto then match.proto else null;
+            dports = if match ? dports && builtins.isList match.dports then lib.filter builtins.isInt match.dports else [ ];
+          in
+          lib.concatMap
+            (
+              resolvedFamily:
+              map
+                (port: {
+                  family = resolvedFamily;
+                  inherit proto;
+                  dport = port;
+                })
+                (if dports == [ ] then [ null ] else dports)
+            )
+            families
+        )
+        matches
     else
       [ ];
 
@@ -58,9 +64,11 @@ let
       fromNamedWan = builtins.elem (endpoint.name or null) [ "wan" "external-wan" "upstream" ];
       fromRequestedUplinks = sortedStrings (
         map (entry: entry.name) (
-          lib.filter (
-            entry: builtins.isString (entry.assignedUplinkName or null) && builtins.elem entry.assignedUplinkName requestedUplinks
-          ) interfaceSet.wanEntries
+          lib.filter
+            (
+              entry: builtins.isString (entry.assignedUplinkName or null) && builtins.elem entry.assignedUplinkName requestedUplinks
+            )
+            interfaceSet.wanEntries
         )
       );
     in
@@ -106,50 +114,54 @@ let
     && builtins.hasAttr relation.to.name serviceDefinitions;
 in
 {
-  serviceNatEntries = lib.concatMap (
-    relation:
-    let
-      serviceName = relation.to.name;
-      relationName = relationNameOf relation;
-      ingressIfNames = wanInterfacesForExternalEndpoint relation.from;
-      service = serviceDefinitions.${serviceName};
-      trafficTypeName = if builtins.isString (relation.trafficType or null) then relation.trafficType else service.trafficType or null;
-      providers = providerNamesForService serviceName;
-      providerName =
-        if builtins.length providers == 1 then
-          builtins.head providers
-        else if providers == [ ] then
-          null
-        else
-          throw ''
-            s88/ControlModule/firewall/policy/core.nix: service resolves to multiple providers; DNAT target would be ambiguous
+  serviceNatEntries = lib.concatMap
+    (
+      relation:
+      let
+        serviceName = relation.to.name;
+        relationName = relationNameOf relation;
+        ingressIfNames = wanInterfacesForExternalEndpoint relation.from;
+        service = serviceDefinitions.${serviceName};
+        trafficTypeName = if builtins.isString (relation.trafficType or null) then relation.trafficType else service.trafficType or null;
+        providers = providerNamesForService serviceName;
+        providerName =
+          if builtins.length providers == 1 then
+            builtins.head providers
+          else if providers == [ ] then
+            null
+          else
+            throw ''
+              s88/ControlModule/firewall/policy/core.nix: service resolves to multiple providers; DNAT target would be ambiguous
 
-            relation:
-            ${builtins.toJSON relationName}
+              relation:
+              ${builtins.toJSON relationName}
 
-            service:
-            ${builtins.toJSON serviceName}
+              service:
+              ${builtins.toJSON serviceName}
 
-            providers:
-            ${builtins.toJSON providers}
-          '';
-    in
-    lib.filter (entry: entry != null) (
-      map (
-        traffic:
-        let
-          target = if providerName == null then null else providerTargetFor { inherit providerName serviceName relationName; family = traffic.family; };
-        in
-        if target == null then
-          null
-        else
-          {
-            inherit relationName serviceName target ingressIfNames;
-            family = traffic.family;
-            proto = traffic.proto;
-            dport = traffic.dport;
-          }
-      ) (renderTrafficMatches trafficTypeName)
+              providers:
+              ${builtins.toJSON providers}
+            '';
+      in
+      lib.filter (entry: entry != null) (
+        map
+          (
+            traffic:
+            let
+              target = if providerName == null then null else providerTargetFor { inherit providerName serviceName relationName; family = traffic.family; };
+            in
+            if target == null then
+              null
+            else
+              {
+                inherit relationName serviceName target ingressIfNames;
+                family = traffic.family;
+                proto = traffic.proto;
+                dport = traffic.dport;
+              }
+          )
+          (renderTrafficMatches trafficTypeName)
+      )
     )
-  ) (lib.filter isWanToServiceAllow allowRelations);
+    (lib.filter isWanToServiceAllow allowRelations);
 }

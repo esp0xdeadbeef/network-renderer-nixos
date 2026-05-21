@@ -1,37 +1,39 @@
-{
-  lib,
-  currentNodeName,
-  interfaceNameForLink,
-  interfaceNameForLinkMatching,
-  interfaceLaneAccessMatches,
-  transitAdjacencies,
-  adjacencyUnits,
-  adjacencyLinkName,
-  adjacenciesForPair,
-  adjacencyLaneAccessMatches,
-  common,
+{ lib
+, currentNodeName
+, interfaceNameForLink
+, interfaceNameForLinkMatching
+, interfaceLaneAccessMatches
+, transitAdjacencies
+, adjacencyUnits
+, adjacencyLinkName
+, adjacenciesForPair
+, adjacencyLaneAccessMatches
+, common
+,
 }:
 
 let
   inherit (common) sortedStrings;
 
-  transitEdges = lib.concatMap (
-    adjacency:
-    let
-      units = adjacencyUnits adjacency;
-    in
-    if builtins.length units == 2 then
+  transitEdges = lib.concatMap
+    (
+      adjacency:
       let
-        a = builtins.elemAt units 0;
-        b = builtins.elemAt units 1;
+        units = adjacencyUnits adjacency;
       in
-      [
-        { from = a; to = b; }
-        { from = b; to = a; }
-      ]
-    else
-      [ ]
-  ) transitAdjacencies;
+      if builtins.length units == 2 then
+        let
+          a = builtins.elemAt units 0;
+          b = builtins.elemAt units 1;
+        in
+        [
+          { from = a; to = b; }
+          { from = b; to = a; }
+        ]
+      else
+        [ ]
+    )
+    transitAdjacencies;
 
   neighborsOf =
     unit: sortedStrings (map (edge: edge.to) (lib.filter (edge: edge.from == unit) transitEdges));
@@ -82,10 +84,11 @@ in
         hop = if path != null && builtins.length path >= 2 then builtins.elemAt path 1 else null;
         matchingAdjacencies =
           if hop != null then
-            adjacenciesForPair {
-              a = currentNodeName;
-              b = hop;
-            }
+            adjacenciesForPair
+              {
+                a = currentNodeName;
+                b = hop;
+              }
           else
             [ ];
         matchedLinkNames = lib.filter (ln: ln != null) (

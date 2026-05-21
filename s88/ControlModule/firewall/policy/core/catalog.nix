@@ -1,18 +1,20 @@
-{
-  communicationContract,
-  ownership,
-  inventory,
-  common,
+{ communicationContract
+, ownership
+, inventory
+, common
+,
 }:
 
 let
   toNamedAttrs =
     values:
     builtins.listToAttrs (
-      map (entry: {
-        name = entry.name;
-        value = entry;
-      }) (builtins.filter (entry: builtins.isAttrs entry && builtins.isString (entry.name or null)) values)
+      map
+        (entry: {
+          name = entry.name;
+          value = entry;
+        })
+        (builtins.filter (entry: builtins.isAttrs entry && builtins.isString (entry.name or null)) values)
     );
 in
 {

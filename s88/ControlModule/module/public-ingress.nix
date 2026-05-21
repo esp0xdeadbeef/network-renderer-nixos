@@ -1,10 +1,10 @@
-{
-  lib,
-  pkgs ? null,
-  controlPlane,
-  inventory,
-  hostName,
-  runtimeFacts ? { },
+{ lib
+, pkgs ? null
+, controlPlane
+, inventory
+, hostName
+, runtimeFacts ? { }
+,
 }:
 
 let
@@ -126,68 +126,69 @@ in
 if !enabled then
   { }
 else
-  lib.recursiveUpdate {
+  lib.recursiveUpdate
+  {
     boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkForce true;
     containers = containerForwardModules;
     systemd.network.networks = (routeModule.systemd.network.networks or { });
     networking.nftables.enable = true;
     networking.nftables.ruleset = ''
-      table inet s88_host_public_ingress {
-${dynamicPublicIPv4Sets}
+            table inet s88_host_public_ingress {
+      ${dynamicPublicIPv4Sets}
 
-        chain prerouting {
-          type nat hook prerouting priority dstnat; policy accept;
-${preroutingRules}
-        }
+              chain prerouting {
+                type nat hook prerouting priority dstnat; policy accept;
+      ${preroutingRules}
+              }
 
-        chain postrouting {
-          type nat hook postrouting priority srcnat; policy accept;
-${postroutingRules}
-        }
+              chain postrouting {
+                type nat hook postrouting priority srcnat; policy accept;
+      ${postroutingRules}
+              }
 
-        chain forward {
-          type filter hook forward priority filter; policy drop;
-          iifname ${nftString bridgeInterface} oifname != ${nftString bridgeInterface} accept comment "s88-host-public-ingress-egress"
-          iifname != ${nftString bridgeInterface} oifname ${nftString bridgeInterface} ct state established,related accept comment "s88-host-public-ingress-return"
-${forwardRules}
-        }
-      }
+              chain forward {
+                type filter hook forward priority filter; policy drop;
+                iifname ${nftString bridgeInterface} oifname != ${nftString bridgeInterface} accept comment "s88-host-public-ingress-egress"
+                iifname != ${nftString bridgeInterface} oifname ${nftString bridgeInterface} ct state established,related accept comment "s88-host-public-ingress-return"
+      ${forwardRules}
+              }
+            }
     '';
   }
-  (lib.optionalAttrs (dynamicPublicIPv4Bindings != [ ]) {
-    systemd.services.s88-host-public-ingress-runtime-addresses = {
-      description = "Load runtime public ingress IPv4 nft sets";
-      wantedBy = [ "multi-user.target" ];
-      after = [
-        "nftables.service"
-        "sops-nix.service"
-      ];
-      wants = [ "nftables.service" ];
-      serviceConfig.Type = "oneshot";
-      script = ''
-        set -euo pipefail
+    (lib.optionalAttrs (dynamicPublicIPv4Bindings != [ ]) {
+      systemd.services.s88-host-public-ingress-runtime-addresses = {
+        description = "Load runtime public ingress IPv4 nft sets";
+        wantedBy = [ "multi-user.target" ];
+        after = [
+          "nftables.service"
+          "sops-nix.service"
+        ];
+        wants = [ "nftables.service" ];
+        serviceConfig.Type = "oneshot";
+        script = ''
+                  set -euo pipefail
 
-        load_public_ipv4() {
-          set_name="$1"
-          secret_path="$2"
-          assign_to_bridge="$3"
-          if [ ! -s "$secret_path" ]; then
-            echo "s88-host-public-ingress: missing runtime IPv4 secret $secret_path for nft set $set_name" >&2
-            exit 1
-          fi
-          value="$(${trBin} -d '[:space:]' <"$secret_path")"
-          if [ -z "$value" ]; then
-            echo "s88-host-public-ingress: empty runtime IPv4 secret $secret_path for nft set $set_name" >&2
-            exit 1
-          fi
-          if [ "$assign_to_bridge" = "1" ]; then
-            ${ipBin} addr replace "$value/32" dev ${nftString bridgeInterface}
-          fi
-          ${nftBin} flush set inet s88_host_public_ingress "$set_name"
-          ${nftBin} add element inet s88_host_public_ingress "$set_name" "{ $value }"
-        }
+                  load_public_ipv4() {
+                    set_name="$1"
+                    secret_path="$2"
+                    assign_to_bridge="$3"
+                    if [ ! -s "$secret_path" ]; then
+                      echo "s88-host-public-ingress: missing runtime IPv4 secret $secret_path for nft set $set_name" >&2
+                      exit 1
+                    fi
+                    value="$(${trBin} -d '[:space:]' <"$secret_path")"
+                    if [ -z "$value" ]; then
+                      echo "s88-host-public-ingress: empty runtime IPv4 secret $secret_path for nft set $set_name" >&2
+                      exit 1
+                    fi
+                    if [ "$assign_to_bridge" = "1" ]; then
+                      ${ipBin} addr replace "$value/32" dev ${nftString bridgeInterface}
+                    fi
+                    ${nftBin} flush set inet s88_host_public_ingress "$set_name"
+                    ${nftBin} add element inet s88_host_public_ingress "$set_name" "{ $value }"
+                  }
 
-${dynamicPublicIPv4Loader}
-      '';
-    };
-  })
+          ${dynamicPublicIPv4Loader}
+        '';
+      };
+    })

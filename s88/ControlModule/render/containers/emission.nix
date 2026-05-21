@@ -1,13 +1,13 @@
-{
-  lib,
-  debugEnabled ? false,
-  deploymentHostName,
-  containerName,
-  renderedModel,
-  firewallArg,
-  alarmModel,
-  uplinks,
-  wanUplinkName,
+{ lib
+, debugEnabled ? false
+, deploymentHostName
+, containerName
+, renderedModel
+, firewallArg
+, alarmModel
+, uplinks
+, wanUplinkName
+,
 }:
 
 let
@@ -30,12 +30,14 @@ let
     uniqueStrings (
       lib.filter (path: lib.hasPrefix "/run/secrets/" path) (
         lib.concatLists (
-          lib.mapAttrsToList (
-            _ifName: iface:
-            map routeSourceFile (
-              if builtins.isAttrs iface && builtins.isList (iface.routes or null) then iface.routes else [ ]
+          lib.mapAttrsToList
+            (
+              _ifName: iface:
+                map routeSourceFile (
+                  if builtins.isAttrs iface && builtins.isList (iface.routes or null) then iface.routes else [ ]
+                )
             )
-          ) (renderedModel.interfaces or { })
+            (renderedModel.interfaces or { })
         )
       )
     );

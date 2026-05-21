@@ -16,16 +16,18 @@ in
   attachTargetForInterface =
     { unitName, ifName, iface }:
     let
-      matches = lib.filter (
-        target:
-        (target.unitName or null) == unitName
-        && (
-          (target.ifName or null) == ifName
-          || ((target.renderedIfName or null) == (iface.renderedIfName or null))
-          || ((target.interface.renderedIfName or null) == (iface.renderedIfName or null))
-          || ((target.hostBridgeName or null) == (iface.hostBridge or null))
+      matches = lib.filter
+        (
+          target:
+          (target.unitName or null) == unitName
+          && (
+            (target.ifName or null) == ifName
+            || ((target.renderedIfName or null) == (iface.renderedIfName or null))
+            || ((target.interface.renderedIfName or null) == (iface.renderedIfName or null))
+            || ((target.hostBridgeName or null) == (iface.hostBridge or null))
+          )
         )
-      ) lookup.localAttachTargets;
+        lookup.localAttachTargets;
     in
     if builtins.length matches == 1 then
       builtins.head matches

@@ -1,7 +1,7 @@
-{
-  lib,
-  flakeInputs,
-  currentSystem ? builtins.currentSystem,
+{ lib
+, flakeInputs
+, currentSystem ? builtins.currentSystem
+,
 }:
 
 let
@@ -49,10 +49,10 @@ let
   propagateAlarmModel = upstream: downstream: appendAlarmModel downstream upstream;
 
   forwardingSubstitutionWarningModel =
-    {
-      system,
-      substituteSource,
-      substituteInputSource,
+    { system
+    , substituteSource
+    , substituteInputSource
+    ,
     }:
     isa.normalizeModel [
       (isa.mkImplementationWarningAlarm {
@@ -82,9 +82,9 @@ let
     ];
 
   buildCompiler =
-    {
-      intent,
-      system ? currentSystem,
+    { intent
+    , system ? currentSystem
+    ,
     }:
     if
       flakeInputs ? nixos-network-compiler
@@ -96,9 +96,9 @@ let
       throw "s88/CM/network/pipeline/builders.nix: flake input 'nixos-network-compiler' with lib.compile is required";
 
   buildForwarding =
-    {
-      compilerOut,
-      system ? currentSystem,
+    { compilerOut
+    , system ? currentSystem
+    ,
     }:
     if
       flakeInputs ? network-forwarding-model
@@ -139,10 +139,10 @@ let
       throw "s88/CM/network/pipeline/builders.nix: flake input 'network-forwarding-model' or function-shaped 'network-control-plane-model' is required";
 
   buildControlPlane =
-    {
-      forwardingOut,
-      inventory,
-      system ? currentSystem,
+    { forwardingOut
+    , inventory
+    , system ? currentSystem
+    ,
     }:
     if
       flakeInputs ? network-control-plane-model
@@ -153,14 +153,15 @@ let
         impl = flakeInputs.network-control-plane-model.lib.${system};
       in
       if builtins.isAttrs impl && impl ? build then
-        propagateAlarmModel forwardingOut (
-          withForwardingModel forwardingOut (
-            impl.build {
-              input = forwardingOut;
-              inherit inventory;
-            }
+        propagateAlarmModel forwardingOut
+          (
+            withForwardingModel forwardingOut (
+              impl.build {
+                input = forwardingOut;
+                inherit inventory;
+              }
+            )
           )
-        )
       else if builtins.isFunction impl then
         let
           result = impl { input = forwardingOut; };
@@ -178,9 +179,9 @@ let
       throw "s88/CM/network/pipeline/builders.nix: flake input 'network-control-plane-model' is required";
 
   buildCompilerFromPaths =
-    {
-      intentPath,
-      system ? currentSystem,
+    { intentPath
+    , system ? currentSystem
+    ,
     }:
     buildCompiler {
       intent = selectors.importMaybeFunction (builtins.toPath intentPath);
@@ -188,9 +189,9 @@ let
     };
 
   buildForwardingFromPaths =
-    {
-      intentPath,
-      system ? currentSystem,
+    { intentPath
+    , system ? currentSystem
+    ,
     }:
     buildForwarding {
       compilerOut = buildCompilerFromPaths {
@@ -200,10 +201,10 @@ let
     };
 
   buildControlPlaneFromPaths =
-    {
-      intentPath,
-      inventoryPath,
-      system ? currentSystem,
+    { intentPath
+    , inventoryPath
+    , system ? currentSystem
+    ,
     }:
     buildControlPlane {
       forwardingOut = buildForwardingFromPaths {

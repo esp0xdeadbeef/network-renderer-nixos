@@ -54,25 +54,29 @@ in
           logicalName
         ]
       );
-      logicalMatches = lib.filter (
-        nodeName:
-        let
-          nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
-        in
-        logicalName != null
-        && (nodeLogical.name or null) == logicalName
-        && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
-        && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
-      ) (sortedAttrNames realizationNodes);
-      prefixMatches = lib.filter (
-        nodeName:
-        let
-          nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
-        in
-        lib.hasSuffix nodeName runtimeTargetId
-        && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
-        && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
-      ) (sortedAttrNames realizationNodes);
+      logicalMatches = lib.filter
+        (
+          nodeName:
+          let
+            nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
+          in
+          logicalName != null
+          && (nodeLogical.name or null) == logicalName
+          && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
+          && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
+        )
+        (sortedAttrNames realizationNodes);
+      prefixMatches = lib.filter
+        (
+          nodeName:
+          let
+            nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
+          in
+          lib.hasSuffix nodeName runtimeTargetId
+          && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
+          && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
+        )
+        (sortedAttrNames realizationNodes);
       candidateNames = lib.unique (exactNames ++ logicalMatches ++ prefixMatches);
     in
     if candidateNames != [ ] then
@@ -95,13 +99,15 @@ in
     { inventory, normalizedRuntimeTargets, unitName, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
       realizationNodes = realizationNodesFor inventory;
-      scopedNames = lib.filter (
-        nodeName:
-        nodeScopeMatchesRuntimeUnit {
-          inherit normalizedRuntimeTargets unitName file;
-          node = realizationNodes.${nodeName};
-        }
-      ) (sortedAttrNames realizationNodes);
+      scopedNames = lib.filter
+        (
+          nodeName:
+          nodeScopeMatchesRuntimeUnit {
+            inherit normalizedRuntimeTargets unitName file;
+            node = realizationNodes.${nodeName};
+          }
+        )
+        (sortedAttrNames realizationNodes);
     in
     if scopedNames != [ ] then scopedNames else sortedAttrNames realizationNodes;
 }

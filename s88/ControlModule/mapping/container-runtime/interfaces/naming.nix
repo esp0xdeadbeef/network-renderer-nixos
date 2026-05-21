@@ -138,12 +138,14 @@ rec {
       resolved = assignUniqueName "hostVethBaseName" "hostVethName" candidates;
       resolvedByIfName = builtins.listToAttrs (map (entry: { name = entry.ifName; value = entry; }) resolved);
     in
-    map (
-      entry:
-      if entry.value.usePrimaryHostBridge or false then
-        entry
-      else
-        let resolvedEntry = resolvedByIfName.${entry.ifName};
-        in resolvedEntry // { value = resolvedEntry.value // { hostInterfaceName = resolvedEntry.value.hostVethName; }; }
-    ) entries;
+    map
+      (
+        entry:
+        if entry.value.usePrimaryHostBridge or false then
+          entry
+        else
+          let resolvedEntry = resolvedByIfName.${entry.ifName};
+          in resolvedEntry // { value = resolvedEntry.value // { hostInterfaceName = resolvedEntry.value.hostVethName; }; }
+      )
+      entries;
 }

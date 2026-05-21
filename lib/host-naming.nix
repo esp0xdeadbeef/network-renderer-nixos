@@ -19,21 +19,26 @@ let
   ensureUnique =
     names:
     let
-      shortened = map (n: {
-        original = n;
-        rendered = shorten n;
-      }) names;
+      shortened = map
+        (n: {
+          original = n;
+          rendered = shorten n;
+        })
+        names;
 
-      grouped = builtins.foldl' (
-        acc: entry:
-        let
-          key = entry.rendered;
-        in
-        acc
-        // {
-          ${key} = (acc.${key} or [ ]) ++ [ entry.original ];
-        }
-      ) { } shortened;
+      grouped = builtins.foldl'
+        (
+          acc: entry:
+            let
+              key = entry.rendered;
+            in
+            acc
+            // {
+              ${key} = (acc.${key} or [ ]) ++ [ entry.original ];
+            }
+        )
+        { }
+        shortened;
 
       collisions = lib.filterAttrs (_: v: builtins.length v > 1) grouped;
     in
@@ -45,10 +50,12 @@ let
       ''
     else
       builtins.listToAttrs (
-        map (entry: {
-          name = entry.original;
-          value = entry.rendered;
-        }) shortened
+        map
+          (entry: {
+            name = entry.original;
+            value = entry.rendered;
+          })
+          shortened
       );
 in
 {

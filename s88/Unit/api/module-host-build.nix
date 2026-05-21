@@ -1,17 +1,17 @@
-{
-  lib ? null,
-  selectors,
-  buildHostFromPaths,
+{ lib ? null
+, selectors
+, buildHostFromPaths
+,
 }:
 
-{
-  lib ? null,
-  system ? "x86_64-linux",
-  outPath,
-  hostName,
-  inventoryPath ? null,
-  selectorFile ? "s88/Unit/api/module-host-build.nix",
-  containerSelection ? { },
+{ lib ? null
+, system ? "x86_64-linux"
+, outPath
+, hostName
+, inventoryPath ? null
+, selectorFile ? "s88/Unit/api/module-host-build.nix"
+, containerSelection ? { }
+,
 }:
 
 let

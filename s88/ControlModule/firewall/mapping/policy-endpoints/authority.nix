@@ -1,26 +1,28 @@
-{
-  lib,
-  currentSite,
-  runtimeTarget,
-  roleName,
-  strictEndpointBindings ? false,
-  unitName,
-  containerName,
-  currentNodeName,
-  tenantAttachments,
-  tenantInterfaceByName,
-  upstreamSelectorNodeName,
-  upstreamInterfaceNames,
-  interfaceTags,
-  common,
+{ lib
+, currentSite
+, runtimeTarget
+, roleName
+, strictEndpointBindings ? false
+, unitName
+, containerName
+, currentNodeName
+, tenantAttachments
+, tenantInterfaceByName
+, upstreamSelectorNodeName
+, upstreamInterfaceNames
+, interfaceTags
+, common
+,
 }:
 
 let
   inherit (common) sortedStrings;
 
-  missingTenantBindings = lib.filter (
-    tenantName: !builtins.hasAttr tenantName tenantInterfaceByName
-  ) (sortedStrings (map (attachment: attachment.name) tenantAttachments));
+  missingTenantBindings = lib.filter
+    (
+      tenantName: !builtins.hasAttr tenantName tenantInterfaceByName
+    )
+    (sortedStrings (map (attachment: attachment.name) tenantAttachments));
 
   authorityGaps = lib.unique (
     lib.optionals (currentNodeName == null) [

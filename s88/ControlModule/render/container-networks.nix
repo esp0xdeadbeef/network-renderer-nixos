@@ -1,10 +1,10 @@
-{
-  lib,
-  containerModel,
-  uplinks,
-  wanUplinkName,
-  forwardingIntent ? null,
-  firewallRuleset ? null,
+{ lib
+, containerModel
+, uplinks
+, wanUplinkName
+, forwardingIntent ? null
+, firewallRuleset ? null
+,
 }:
 
 let
@@ -92,26 +92,32 @@ let
   };
 
   dynamicSourceForwardRules =
-    lib.concatMap (
-      pair:
-      if !(builtins.isAttrs pair) || !(builtins.isList (pair.sourceFiles or null)) then
-        [ ]
-      else
-        lib.concatMap (
-          sourceFile:
-          lib.concatMap (
-            inIf:
-            map
-              (outIf: {
-                inherit sourceFile inIf outIf;
-                action = pair.action or "accept";
-                family = pair.family or 6;
-                comment = pair.comment or "runtime-routed-prefix-public-egress";
-              })
-              (pair."out" or [ ])
-          ) (pair."in" or [ ])
-        ) pair.sourceFiles
-    ) (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+    lib.concatMap
+      (
+        pair:
+        if !(builtins.isAttrs pair) || !(builtins.isList (pair.sourceFiles or null)) then
+          [ ]
+        else
+          lib.concatMap
+            (
+              sourceFile:
+              lib.concatMap
+                (
+                  inIf:
+                  map
+                    (outIf: {
+                      inherit sourceFile inIf outIf;
+                      action = pair.action or "accept";
+                      family = pair.family or 6;
+                      comment = pair.comment or "runtime-routed-prefix-public-egress";
+                    })
+                    (pair."out" or [ ])
+                )
+                (pair."in" or [ ])
+            )
+            pair.sourceFiles
+      )
+      (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
 in
 {
   networks = loopback.loopbackUnit // hostBridgeWan.networks // interfaceUnits.interfaceUnits;

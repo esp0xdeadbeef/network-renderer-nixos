@@ -1,11 +1,10 @@
-{
-  lib,
-  hostPlan ? null,
-  containerModelsByHost ? null,
-  containerModels ? null,
-  deploymentContainers ? null,
-  models ? null,
-  ...
+{ lib
+, hostPlan ? null
+, containerModelsByHost ? null
+, containerModels ? null
+, deploymentContainers ? null
+, models ? null
+, ...
 }:
 
 let
@@ -41,9 +40,10 @@ let
 
   flatModels =
     if hostPlan != null then
-      import ../../mapping/container-runtime.nix {
-        inherit lib hostPlan;
-      }
+      import ../../mapping/container-runtime.nix
+        {
+          inherit lib hostPlan;
+        }
     else
       null;
 

@@ -53,54 +53,58 @@ let
     wan = [ [ "wan" ] [ "roles" "wan" ] ];
   };
 
-  rawInterfaceEntries = map (
-    ifName:
-    let
-      iface = interfaces.${ifName};
-      semanticInterface = semanticInterfaceFor iface;
-      backingRef = if iface ? backingRef && builtins.isAttrs iface.backingRef then iface.backingRef else { };
-      backingRefIdTail =
-        if backingRef ? id && builtins.isString backingRef.id then lastStringSegment "::" backingRef.id else null;
-    in
-    {
-      key = ifName;
-      name = actualNameForInterface ifName iface;
-      inherit iface semanticInterface backingRef;
-      sourceKind = sourceKindForInterface iface semanticInterface;
-      refs = sortedStrings ([
-        ifName
-        (actualNameForInterface ifName iface)
-        (iface.renderedIfName or null)
-        (iface.interfaceName or null)
-        (iface.containerInterfaceName or null)
-        (iface.hostInterfaceName or null)
-        (iface.ifName or null)
-        (iface.realizationPortName or null)
-        (iface.sourceInterface or null)
-        (iface.connectivity.upstream or null)
-        (backingRef.name or null)
-        backingRefIdTail
-        (backingRef.kind or null)
-      ] ++ (asStringList (iface.interfaceAliases or [ ])));
-    }
-  ) (lib.sort builtins.lessThan (builtins.attrNames interfaces));
+  rawInterfaceEntries = map
+    (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        semanticInterface = semanticInterfaceFor iface;
+        backingRef = if iface ? backingRef && builtins.isAttrs iface.backingRef then iface.backingRef else { };
+        backingRefIdTail =
+          if backingRef ? id && builtins.isString backingRef.id then lastStringSegment "::" backingRef.id else null;
+      in
+      {
+        key = ifName;
+        name = actualNameForInterface ifName iface;
+        inherit iface semanticInterface backingRef;
+        sourceKind = sourceKindForInterface iface semanticInterface;
+        refs = sortedStrings ([
+          ifName
+          (actualNameForInterface ifName iface)
+          (iface.renderedIfName or null)
+          (iface.interfaceName or null)
+          (iface.containerInterfaceName or null)
+          (iface.hostInterfaceName or null)
+          (iface.ifName or null)
+          (iface.realizationPortName or null)
+          (iface.sourceInterface or null)
+          (iface.connectivity.upstream or null)
+          (backingRef.name or null)
+          backingRefIdTail
+          (backingRef.kind or null)
+        ] ++ (asStringList (iface.interfaceAliases or [ ])));
+      }
+    )
+    (lib.sort builtins.lessThan (builtins.attrNames interfaces));
 
-  interfaceEntries = map (
-    entry:
-    let roots = [ entry.iface entry.semanticInterface ];
-    in
-    entry // {
-      explicit = {
-        explicitLocalAdapter = boolLikeFromPaths { inherit roots; paths = rolePaths.localAdapter; };
-        explicitUplink = boolLikeFromPaths { inherit roots; paths = rolePaths.uplink; };
-        explicitTransit = boolLikeFromPaths { inherit roots; paths = rolePaths.transit; };
-        explicitExitEligible = boolLikeFromPaths { inherit roots; paths = rolePaths.exitEligible; };
-        explicitNatEnabled = boolLikeFromPaths { inherit roots; paths = rolePaths.natEnabled; };
-        explicitClampMss = boolLikeFromPaths { inherit roots; paths = rolePaths.clampMss; };
-        explicitWan = boolLikeFromPaths { inherit roots; paths = rolePaths.wan; };
-      };
-    }
-  ) rawInterfaceEntries;
+  interfaceEntries = map
+    (
+      entry:
+      let roots = [ entry.iface entry.semanticInterface ];
+      in
+      entry // {
+        explicit = {
+          explicitLocalAdapter = boolLikeFromPaths { inherit roots; paths = rolePaths.localAdapter; };
+          explicitUplink = boolLikeFromPaths { inherit roots; paths = rolePaths.uplink; };
+          explicitTransit = boolLikeFromPaths { inherit roots; paths = rolePaths.transit; };
+          explicitExitEligible = boolLikeFromPaths { inherit roots; paths = rolePaths.exitEligible; };
+          explicitNatEnabled = boolLikeFromPaths { inherit roots; paths = rolePaths.natEnabled; };
+          explicitClampMss = boolLikeFromPaths { inherit roots; paths = rolePaths.clampMss; };
+          explicitWan = boolLikeFromPaths { inherit roots; paths = rolePaths.wan; };
+        };
+      }
+    )
+    rawInterfaceEntries;
 
   namesForInterfaceToken =
     token:
@@ -111,11 +115,13 @@ let
   resolveInterfaceTokens =
     tokens:
     sortedStrings (
-      lib.concatMap (
-        token:
-        let matches = namesForInterfaceToken token;
-        in if matches != [ ] then matches else [ token ]
-      ) (asStringList tokens)
+      lib.concatMap
+        (
+          token:
+          let matches = namesForInterfaceToken token;
+          in if matches != [ ] then matches else [ token ]
+        )
+        (asStringList tokens)
     );
 in
 {

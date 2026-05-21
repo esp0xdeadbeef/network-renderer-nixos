@@ -23,9 +23,9 @@ let
     lib.unique (lib.filter (value: builtins.isString value && value != "") (flattenList values));
 
   bulletBlock =
-    {
-      title,
-      values,
+    { title
+    , values
+    ,
     }:
     let
       renderedValues = uniqueStrings values;
@@ -40,22 +40,22 @@ let
     builtins.concatStringsSep "\n" (lib.filter (line: builtins.isString line && line != "") lines);
 
   mkAlarm =
-    {
-      alarmId,
-      summary,
-      file,
-      kind,
-      classification,
-      subjectLabel ? null,
-      subjectValue ? null,
-      roleName ? null,
-      interfaces ? [ ],
-      assumptions ? [ ],
-      details ? [ ],
-      actionItems ? [ ],
-      authorityText ? null,
-      source ? { },
-      severity ? "warning",
+    { alarmId
+    , summary
+    , file
+    , kind
+    , classification
+    , subjectLabel ? null
+    , subjectValue ? null
+    , roleName ? null
+    , interfaces ? [ ]
+    , assumptions ? [ ]
+    , details ? [ ]
+    , actionItems ? [ ]
+    , authorityText ? null
+    , source ? { }
+    , severity ? "warning"
+    ,
     }:
     let
       message = renderMessage (
@@ -177,10 +177,11 @@ let
     let
       directWarnings =
         if builtins.isAttrs value then
-          uniqueStrings (
-            (if value ? warningMessages then value.warningMessages else [ ])
-            ++ (if value ? warnings then value.warnings else [ ])
-          )
+          uniqueStrings
+            (
+              (if value ? warningMessages then value.warningMessages else [ ])
+              ++ (if value ? warnings then value.warnings else [ ])
+            )
         else if builtins.isString value then
           [ value ]
         else if builtins.isList value then
@@ -203,73 +204,7 @@ let
       warnings = warningMessages;
     };
 
-  mkDesignAssumptionAlarm =
-    {
-      alarmId,
-      summary,
-      file,
-      entityName ? null,
-      roleName ? null,
-      interfaces ? [ ],
-      assumptions ? [ ],
-      extraText ? [ ],
-      authorityText ? null,
-      source ? { },
-      severity ? "warning",
-    }:
-    mkAlarm {
-      inherit
-        alarmId
-        summary
-        file
-        roleName
-        interfaces
-        assumptions
-        source
-        severity
-        authorityText
-        ;
-      kind = "design-assumption";
-      classification = "design-assumption";
-      subjectLabel = "container";
-      subjectValue = entityName;
-      details = extraText;
-      actionItems = [ ];
-    };
-
-  mkImplementationWarningAlarm =
-    {
-      alarmId,
-      summary,
-      file,
-      component ? null,
-      roleName ? null,
-      interfaces ? [ ],
-      details ? [ ],
-      todo ? [ ],
-      authorityText ? null,
-      source ? { },
-      severity ? "warning",
-    }:
-    mkAlarm {
-      inherit
-        alarmId
-        summary
-        file
-        roleName
-        interfaces
-        source
-        severity
-        authorityText
-        ;
-      kind = "implementation-warning";
-      classification = "implementation-gap";
-      subjectLabel = "component";
-      subjectValue = component;
-      assumptions = [ ];
-      inherit details;
-      actionItems = todo;
-    };
+  constructors = import ./isa18/constructors.nix { inherit mkAlarm; };
 
   mergeModels =
     models:
@@ -290,10 +225,9 @@ in
 {
   inherit
     asStringList
-    mkDesignAssumptionAlarm
-    mkImplementationWarningAlarm
     warningsFromAlarms
     normalizeModel
     mergeModels
     ;
+  inherit (constructors) mkDesignAssumptionAlarm mkImplementationWarningAlarm;
 }

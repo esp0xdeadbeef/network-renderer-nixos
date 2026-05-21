@@ -1,17 +1,16 @@
-{
-  lib,
-  containerName,
-  renderedModel,
-  firewallArg,
-  alarmModel,
-  uplinks,
-  wanUplinkName,
+{ lib
+, containerName
+, renderedModel
+, firewallArg
+, alarmModel
+, uplinks
+, wanUplinkName
+,
 }:
 
-{
-  lib,
-  pkgs,
-  ...
+{ lib
+, pkgs
+, ...
 }:
 
 let
@@ -46,10 +45,11 @@ let
 
   edgeServices =
     if renderedModel.enableEdgeServices or false then
-      import ../../access/render/default.nix {
-        inherit lib pkgs;
-        containerModel = renderedModel;
-      }
+      import ../../access/render/default.nix
+        {
+          inherit lib pkgs;
+          containerModel = renderedModel;
+        }
     else
       { };
 

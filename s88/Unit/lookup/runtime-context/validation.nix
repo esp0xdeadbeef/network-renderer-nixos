@@ -6,10 +6,10 @@ let
   sortedAttrNames = base.sortedAttrNames;
 
   emittedInterfacesForUnit =
-    {
-      cpm,
-      unitName,
-      file ? "s88/Unit/lookup/runtime-context.nix",
+    { cpm
+    , unitName
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    ,
     }:
     let
       target = base.runtimeTargetForUnit {
@@ -40,13 +40,13 @@ let
       '';
 
   validateStringField =
-    {
-      value,
-      fieldName,
-      unitName,
-      ifName ? null,
-      file ? "s88/Unit/lookup/runtime-context.nix",
-      context ? { },
+    { value
+    , fieldName
+    , unitName
+    , ifName ? null
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    , context ? { }
+    ,
     }:
     if builtins.isString value then
       true
@@ -61,13 +61,13 @@ let
       '';
 
   validateOptionalStringOrListField =
-    {
-      value,
-      fieldName,
-      unitName,
-      ifName ? null,
-      file ? "s88/Unit/lookup/runtime-context.nix",
-      context ? { },
+    { value
+    , fieldName
+    , unitName
+    , ifName ? null
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    , context ? { }
+    ,
     }:
     if value == null || builtins.isString value || builtins.isList value then
       true
@@ -82,13 +82,13 @@ let
       '';
 
   validateOptionalAttrField =
-    {
-      value,
-      fieldName,
-      unitName,
-      ifName ? null,
-      file ? "s88/Unit/lookup/runtime-context.nix",
-      context ? { },
+    { value
+    , fieldName
+    , unitName
+    , ifName ? null
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    , context ? { }
+    ,
     }:
     if value == null || builtins.isAttrs value then
       true
@@ -103,11 +103,11 @@ let
       '';
 
   validateInterfaceForUnit =
-    {
-      unitName,
-      ifName,
-      iface,
-      file ? "s88/Unit/lookup/runtime-context.nix",
+    { unitName
+    , ifName
+    , iface
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    ,
     }:
     let
       backingRef =
@@ -187,47 +187,51 @@ let
     true;
 
   validateRuntimeTargetForUnit =
-    {
-      cpm,
-      inventory ? { },
-      unitName,
-      file ? "s88/Unit/lookup/runtime-context.nix",
+    { cpm
+    , inventory ? { }
+    , unitName
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    ,
     }:
     let
       _interfaces = emittedInterfacesForUnit {
         inherit cpm unitName file;
       };
 
-      _validateInterfaces = map (
-        ifName:
-        validateInterfaceForUnit {
-          inherit unitName ifName file;
-          iface = _interfaces.${ifName};
-        }
-      ) (sortedAttrNames _interfaces);
+      _validateInterfaces = map
+        (
+          ifName:
+          validateInterfaceForUnit {
+            inherit unitName ifName file;
+            iface = _interfaces.${ifName};
+          }
+        )
+        (sortedAttrNames _interfaces);
     in
     true;
 
   validateAllRuntimeTargets =
-    {
-      cpm,
-      inventory ? { },
-      file ? "s88/Unit/lookup/runtime-context.nix",
+    { cpm
+    , inventory ? { }
+    , file ? "s88/Unit/lookup/runtime-context.nix"
+    ,
     }:
     let
       targets = base.runtimeTargets cpm;
 
-      _validations = map (
-        unitName:
-        validateRuntimeTargetForUnit {
-          inherit
-            cpm
-            inventory
-            unitName
-            file
-            ;
-        }
-      ) (sortedAttrNames targets);
+      _validations = map
+        (
+          unitName:
+          validateRuntimeTargetForUnit {
+            inherit
+              cpm
+              inventory
+              unitName
+              file
+              ;
+          }
+        )
+        (sortedAttrNames targets);
     in
     true;
 in

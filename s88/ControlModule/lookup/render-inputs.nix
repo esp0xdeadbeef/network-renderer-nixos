@@ -1,12 +1,12 @@
-{
-  lib,
-  renderer,
-  repoRoot,
-  cpm ? null,
-  cpmPath ? null,
-  inventory ? { },
-  inventoryPath ? null,
-  exampleDir ? null,
+{ lib
+, renderer
+, repoRoot
+, cpm ? null
+, cpmPath ? null
+, inventory ? { }
+, inventoryPath ? null
+, exampleDir ? null
+,
 }:
 
 let

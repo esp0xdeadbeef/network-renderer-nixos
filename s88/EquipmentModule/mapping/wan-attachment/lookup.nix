@@ -1,10 +1,10 @@
-{
-  lib,
-  deploymentHostName,
-  deploymentHost,
-  cpm,
-  inventory ? { },
-  attachTargetsBase,
+{ lib
+, deploymentHostName
+, deploymentHost
+, cpm
+, inventory ? { }
+, attachTargetsBase
+,
 }:
 
 let
@@ -41,18 +41,22 @@ let
               [ ];
         in
         overlays ++ overlayReachability;
-      overlayNames = lib.concatMap (
-        enterpriseName:
-        lib.concatMap (siteName: siteOverlayNames enterpriseName siteName) (
-          builtins.attrNames data.${enterpriseName}
+      overlayNames = lib.concatMap
+        (
+          enterpriseName:
+          lib.concatMap (siteName: siteOverlayNames enterpriseName siteName) (
+            builtins.attrNames data.${enterpriseName}
+          )
         )
-      ) (builtins.attrNames data);
+        (builtins.attrNames data);
     in
     builtins.listToAttrs (
-      map (name: {
-        inherit name;
-        value = true;
-      }) (lib.unique (lib.filter builtins.isString overlayNames))
+      map
+        (name: {
+          inherit name;
+          value = true;
+        })
+        (lib.unique (lib.filter builtins.isString overlayNames))
     );
 
   sourceKindForTarget =
@@ -160,13 +164,15 @@ let
         lib.filter builtins.isString ([ wanGroupName ] ++ (upstreamNamesForWanGroup wanGroupName))
       );
     in
-    lib.filter (
-      uplinkName:
-      let
-        keys = uplinkMatchKeys uplinkName;
-      in
-      lib.any (key: builtins.elem key keys) groupKeys
-    ) uplinkNames;
+    lib.filter
+      (
+        uplinkName:
+        let
+          keys = uplinkMatchKeys uplinkName;
+        in
+        lib.any (key: builtins.elem key keys) groupKeys
+      )
+      uplinkNames;
 in
 {
   inherit

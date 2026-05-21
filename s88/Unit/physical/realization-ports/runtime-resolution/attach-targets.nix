@@ -72,30 +72,34 @@ in
 {
   attachTargetsForUnitsFromRuntime =
     { inventory ? { }, selectedUnits, normalizedRuntimeTargets, file ? "s88/Unit/physical/realization-ports.nix" }:
-    lib.concatMap (
-      unitName:
-      let
-        runtimeTarget = runtimeTargetForUnitFromNormalized { inherit normalizedRuntimeTargets unitName file; };
-        interfaces =
-          if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
-            runtimeTarget.interfaces
-          else
-            { };
-      in
-      map (
-        ifName:
+    lib.concatMap
+      (
+        unitName:
         let
-          iface = interfaces.${ifName};
-          authoritativeTarget =
-            if inventory == { } then
-              null
+          runtimeTarget = runtimeTargetForUnitFromNormalized { inherit normalizedRuntimeTargets unitName file; };
+          interfaces =
+            if runtimeTarget ? interfaces && builtins.isAttrs runtimeTarget.interfaces then
+              runtimeTarget.interfaces
             else
-              attachTargetForRuntimeInterface { inherit inventory normalizedRuntimeTargets unitName ifName iface file; };
+              { };
         in
-        if authoritativeTarget != null then
-          authoritativeTarget
-        else
-          fallbackAttachTargetForRuntimeInterface { inherit unitName ifName iface file; }
-      ) (sortedAttrNames interfaces)
-    ) selectedUnits;
+        map
+          (
+            ifName:
+            let
+              iface = interfaces.${ifName};
+              authoritativeTarget =
+                if inventory == { } then
+                  null
+                else
+                  attachTargetForRuntimeInterface { inherit inventory normalizedRuntimeTargets unitName ifName iface file; };
+            in
+            if authoritativeTarget != null then
+              authoritativeTarget
+            else
+              fallbackAttachTargetForRuntimeInterface { inherit unitName ifName iface file; }
+          )
+          (sortedAttrNames interfaces)
+      )
+      selectedUnits;
 }

@@ -64,9 +64,11 @@ in
       takeTenantSegment =
         prefix:
         let
-          stripped = builtins.substring (builtins.stringLength prefix) (
-            builtins.stringLength name - builtins.stringLength prefix
-          ) name;
+          stripped = builtins.substring (builtins.stringLength prefix)
+            (
+              builtins.stringLength name - builtins.stringLength prefix
+            )
+            name;
           parts = lib.splitString "-" stripped;
         in
         if parts == [ ] then null else normalizeTenantKey (builtins.elemAt parts 0);

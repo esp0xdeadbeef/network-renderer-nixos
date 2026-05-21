@@ -1,7 +1,7 @@
-{
-  lib,
-  repoRoot ? ../../..,
-  flakeInputs ? { },
+{ lib
+, repoRoot ? ../../..
+, flakeInputs ? { }
+,
 }:
 
 import ../../Unit/api/default.nix {

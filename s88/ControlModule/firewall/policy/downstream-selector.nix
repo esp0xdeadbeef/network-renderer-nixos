@@ -1,8 +1,7 @@
-{
-  lib,
-  interfaceView ? null,
-  forwardingIntent ? null,
-  ...
+{ lib
+, interfaceView ? null
+, forwardingIntent ? null
+, ...
 }:
 
 let

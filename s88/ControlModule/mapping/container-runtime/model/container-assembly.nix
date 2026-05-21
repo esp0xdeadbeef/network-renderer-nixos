@@ -1,8 +1,8 @@
-{
-  lib,
-  lookup,
-  naming,
-  interfaces,
+{ lib
+, lookup
+, naming
+, interfaces
+,
 }:
 
 let
@@ -66,9 +66,11 @@ in
       policyRoutingSources = runtimeTarget.policyRoutingSources or { };
       networkBehavior = runtimeTarget.networkBehavior or { keepInterfaceRoutesInMain = true; };
       interfaceNames = lookup.sortedAttrNames renderedInterfaces;
-      primaryHostBridgeInterfaceNames = lib.filter (
-        ifName: renderedInterfaces.${ifName}.usePrimaryHostBridge or false
-      ) interfaceNames;
+      primaryHostBridgeInterfaceNames = lib.filter
+        (
+          ifName: renderedInterfaces.${ifName}.usePrimaryHostBridge or false
+        )
+        interfaceNames;
       primaryHostBridge =
         if builtins.length primaryHostBridgeInterfaceNames == 1 then
           renderedInterfaces.${builtins.head primaryHostBridgeInterfaceNames}.renderedHostBridgeName
@@ -92,16 +94,18 @@ in
       wanInterfaceNames = map ifNameFor (lib.filter (ifName: renderedInterfaces.${ifName}.sourceKind == "wan") interfaceNames);
       lanInterfaceNames = map ifNameFor (lib.filter (ifName: renderedInterfaces.${ifName}.sourceKind != "wan") interfaceNames);
       networkManagerWanInterfaces = map ifNameFor (
-        lib.filter (
-          ifName:
-          let iface = renderedInterfaces.${ifName};
-          in
-          (iface.usePrimaryHostBridge or false)
-          && iface.sourceKind == "wan"
-          && builtins.isString (iface.assignedUplinkName or null)
-          && (iface.addresses or [ ]) == [ ]
-          && (iface.routes or [ ]) == [ ]
-        ) interfaceNames
+        lib.filter
+          (
+            ifName:
+            let iface = renderedInterfaces.${ifName};
+            in
+            (iface.usePrimaryHostBridge or false)
+            && iface.sourceKind == "wan"
+            && builtins.isString (iface.assignedUplinkName or null)
+            && (iface.addresses or [ ]) == [ ]
+            && (iface.routes or [ ]) == [ ]
+          )
+          interfaceNames
       );
       site = siteFor lookup.siteData runtimeTarget;
       inventorySite = siteFor lookup.inventorySiteData runtimeTarget;

@@ -1,6 +1,6 @@
-{
-  lib,
-  lookup,
+{ lib
+, lookup
+,
 }:
 
 let
@@ -19,16 +19,19 @@ let
 
   parsedNamingUnits = lib.genAttrs namingUnits splitQualifiedUnitId;
 
-  localNameCounts = builtins.foldl' (
-    acc: unitName:
-    let
-      local = parsedNamingUnits.${unitName}.local;
-    in
-    acc
-    // {
-      ${local} = (acc.${local} or 0) + 1;
-    }
-  ) { } namingUnits;
+  localNameCounts = builtins.foldl'
+    (
+      acc: unitName:
+        let
+          local = parsedNamingUnits.${unitName}.local;
+        in
+        acc
+        // {
+          ${local} = (acc.${local} or 0) + 1;
+        }
+    )
+    { }
+    namingUnits;
 
   emittedUnitNameForUnit =
     unitName:
@@ -52,38 +55,45 @@ let
       emittedUnitNameForUnit unitName;
 
   desiredContainerBaseNames = builtins.listToAttrs (
-    map (unitName: {
-      name = unitName;
-      value = desiredContainerBaseNameForUnit unitName;
-    }) namingUnits
+    map
+      (unitName: {
+        name = unitName;
+        value = desiredContainerBaseNameForUnit unitName;
+      })
+      namingUnits
   );
 
-  desiredContainerBaseCounts = builtins.foldl' (
-    acc: unitName:
-    let
-      baseName = desiredContainerBaseNames.${unitName};
-    in
-    acc
-    // {
-      ${baseName} = (acc.${baseName} or 0) + 1;
-    }
-  ) { } namingUnits;
+  desiredContainerBaseCounts = builtins.foldl'
+    (
+      acc: unitName:
+        let
+          baseName = desiredContainerBaseNames.${unitName};
+        in
+        acc
+        // {
+          ${baseName} = (acc.${baseName} or 0) + 1;
+        }
+    )
+    { }
+    namingUnits;
 
   candidateContainerNames = builtins.listToAttrs (
-    map (
-      unitName:
-      let
-        baseName = desiredContainerBaseNames.${unitName};
-      in
-      {
-        name = unitName;
-        value =
-          if desiredContainerBaseCounts.${baseName} == 1 then
-            baseName
-          else
-            "${baseName}-${builtins.substring 0 6 (builtins.hashString "sha256" unitName)}";
-      }
-    ) namingUnits
+    map
+      (
+        unitName:
+        let
+          baseName = desiredContainerBaseNames.${unitName};
+        in
+        {
+          name = unitName;
+          value =
+            if desiredContainerBaseCounts.${baseName} == 1 then
+              baseName
+            else
+              "${baseName}-${builtins.substring 0 6 (builtins.hashString "sha256" unitName)}";
+        }
+      )
+      namingUnits
   );
 
   candidateContainerNameValues = map (unitName: candidateContainerNames.${unitName}) namingUnits;

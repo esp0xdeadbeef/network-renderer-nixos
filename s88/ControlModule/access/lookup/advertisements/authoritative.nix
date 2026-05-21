@@ -1,10 +1,10 @@
-{
-  lib,
-  runtimeTarget,
-  currentSiteIpv6,
-  currentInventorySiteIpv6,
-  resolveAuthoritativeInterfaceName,
-  common,
+{ lib
+, runtimeTarget
+, currentSiteIpv6
+, currentInventorySiteIpv6
+, resolveAuthoritativeInterfaceName
+, common
+,
 }:
 
 let
@@ -111,52 +111,56 @@ in
 {
   haveAuthoritativeAdvertisements = authoritativeDhcp4 != [ ] || authoritativeIpv6Ra != [ ];
 
-  authoritativeDhcp4Scopes = builtins.genList (
-    idx:
-    let
-      adv = builtins.elemAt authoritativeDhcp4 idx;
-      interfaceName = advInterface adv;
-      stem = safeStem (if builtins.isString (adv.id or null) && adv.id != "" then adv.id else if interfaceName != null then interfaceName else "dhcp4-${builtins.toString (idx + 1)}");
-      router =
-        if builtins.isString (adv.router or null) && adv.router != "" then
-          adv.router
-        else if builtins.isString (adv.routerAddress or null) && adv.routerAddress != "" then
-          adv.routerAddress
-        else
-          null;
-    in
-    {
-      serviceName = "lan-${stem}";
-      fileStem = stem;
-      interfaceKey = interfaceName;
-      inherit interfaceName router;
-      subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
-      pool = poolStringFrom (adv.pool or null);
-      dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
-      domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
-      subnetId = idx + 1;
-    }
-  ) (builtins.length authoritativeDhcp4);
+  authoritativeDhcp4Scopes = builtins.genList
+    (
+      idx:
+      let
+        adv = builtins.elemAt authoritativeDhcp4 idx;
+        interfaceName = advInterface adv;
+        stem = safeStem (if builtins.isString (adv.id or null) && adv.id != "" then adv.id else if interfaceName != null then interfaceName else "dhcp4-${builtins.toString (idx + 1)}");
+        router =
+          if builtins.isString (adv.router or null) && adv.router != "" then
+            adv.router
+          else if builtins.isString (adv.routerAddress or null) && adv.routerAddress != "" then
+            adv.routerAddress
+          else
+            null;
+      in
+      {
+        serviceName = "lan-${stem}";
+        fileStem = stem;
+        interfaceKey = interfaceName;
+        inherit interfaceName router;
+        subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
+        pool = poolStringFrom (adv.pool or null);
+        dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
+        domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
+        subnetId = idx + 1;
+      }
+    )
+    (builtins.length authoritativeDhcp4);
 
-  authoritativeRadvdScopes = builtins.genList (
-    idx:
-    let
-      adv = builtins.elemAt authoritativeIpv6Ra idx;
-      interfaceName = advInterface adv;
-      stem = safeStem (if interfaceName != null then interfaceName else "radvd-${builtins.toString (idx + 1)}");
-      tenantName = if builtins.isString (adv.tenant or null) && adv.tenant != "" then adv.tenant else null;
-      delegatedPrefix = delegatedPrefixFor { inherit adv tenantName; };
-      dnssl = if adv ? dnssl then asStringList adv.dnssl else [ ];
-    in
-    {
-      serviceName = "lan-${stem}";
-      fileStem = stem;
-      interfaceKey = interfaceName;
-      inherit interfaceName;
-      prefixes = if adv ? prefixes then asStringList adv.prefixes else [ ];
-      rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
-      domain = if dnssl != [ ] then builtins.head dnssl else "lan.";
-    }
-    // lib.optionalAttrs (delegatedPrefix != null) { inherit delegatedPrefix; }
-  ) (builtins.length authoritativeIpv6Ra);
+  authoritativeRadvdScopes = builtins.genList
+    (
+      idx:
+      let
+        adv = builtins.elemAt authoritativeIpv6Ra idx;
+        interfaceName = advInterface adv;
+        stem = safeStem (if interfaceName != null then interfaceName else "radvd-${builtins.toString (idx + 1)}");
+        tenantName = if builtins.isString (adv.tenant or null) && adv.tenant != "" then adv.tenant else null;
+        delegatedPrefix = delegatedPrefixFor { inherit adv tenantName; };
+        dnssl = if adv ? dnssl then asStringList adv.dnssl else [ ];
+      in
+      {
+        serviceName = "lan-${stem}";
+        fileStem = stem;
+        interfaceKey = interfaceName;
+        inherit interfaceName;
+        prefixes = if adv ? prefixes then asStringList adv.prefixes else [ ];
+        rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
+        domain = if dnssl != [ ] then builtins.head dnssl else "lan.";
+      }
+      // lib.optionalAttrs (delegatedPrefix != null) { inherit delegatedPrefix; }
+    )
+    (builtins.length authoritativeIpv6Ra);
 }

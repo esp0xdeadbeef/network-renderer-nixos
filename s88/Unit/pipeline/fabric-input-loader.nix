@@ -1,12 +1,11 @@
-{
-  config,
-  pkgs,
-  inputs,
-  fabricInputs,
-  globalInventory,
-  hostContext ? { },
-  lib,
-  ...
+{ config
+, pkgs
+, inputs
+, fabricInputs
+, globalInventory
+, hostContext ? { }
+, lib
+, ...
 }:
 
 let

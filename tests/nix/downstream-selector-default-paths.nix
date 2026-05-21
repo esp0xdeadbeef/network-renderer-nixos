@@ -38,22 +38,26 @@ let
     networks: iif:
     let
       rules = (networks."10-${iif}" or { }).routingPolicyRules or [ ];
-      matches = builtins.filter (
-        rule:
-        (rule.Table or null) != null
-        && (rule.Table or null) != 254
-        && (rule.SuppressPrefixLength or null) == null
-      ) rules;
+      matches = builtins.filter
+        (
+          rule:
+          (rule.Table or null) != null
+          && (rule.Table or null) != 254
+          && (rule.SuppressPrefixLength or null) == null
+        )
+        rules;
     in
     if matches == [ ] then null else (builtins.head matches).Table;
 
   hasDefaultRoute =
     networks: oif: table:
     table != null
-    && builtins.any (
-      route:
-      (route.Table or null) == table && isDefault route
-    ) ((networks."10-${oif}" or { }).routes or [ ]);
+    && builtins.any
+      (
+        route:
+        (route.Table or null) == table && isDefault route
+      )
+      ((networks."10-${oif}" or { }).routes or [ ]);
 
   checkContainer =
     name: container:
@@ -66,26 +70,32 @@ let
       lines = lib.splitString "\n" (cfg.networking.nftables.ruleset or "");
       accepts = lib.filter (entry: entry != null) (lib.imap0 parseAccept lines);
       accessPolicyAccepts = lib.filter (accept: isAccess accept.iif && isPolicy accept.oif) accepts;
-      missingDefaults = lib.filter (
+      missingDefaults = lib.filter
+        (
+          accept:
+          let table = tableForIngress networks accept.iif;
+          in !(hasDefaultRoute networks accept.oif table)
+        )
+        accessPolicyAccepts;
+    in
+    map
+      (
         accept:
         let table = tableForIngress networks accept.iif;
-        in !(hasDefaultRoute networks accept.oif table)
-      ) accessPolicyAccepts;
-    in
-    map (
-      accept:
-      let table = tableForIngress networks accept.iif;
-      in
-      {
-        container = name;
-        inherit (accept) iif oif line;
-        ingressTable = table;
-      }
-    ) missingDefaults;
+        in
+        {
+          container = name;
+          inherit (accept) iif oif line;
+          ingressTable = table;
+        }
+      )
+      missingDefaults;
 
-  downstreamSelectors = lib.filterAttrs (
-    _: container: (container.specialArgs.s88RoleName or "") == "downstream-selector"
-  ) containers;
+  downstreamSelectors = lib.filterAttrs
+    (
+      _: container: (container.specialArgs.s88RoleName or "") == "downstream-selector"
+    )
+    containers;
 
   missingDefaultRoutes = lib.concatLists (lib.mapAttrsToList checkContainer downstreamSelectors);
 in

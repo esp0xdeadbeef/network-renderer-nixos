@@ -64,66 +64,82 @@ let
     networks: iif:
     let
       rules = (networks."10-${iif}" or { }).routingPolicyRules or [ ];
-      matches = builtins.filter (
-        rule:
-        (rule.Table or null) != null
-        && (rule.Table or null) != 254
-        && (rule.SuppressPrefixLength or null) == null
-      ) rules;
+      matches = builtins.filter
+        (
+          rule:
+          (rule.Table or null) != null
+          && (rule.Table or null) != 254
+          && (rule.SuppressPrefixLength or null) == null
+        )
+        rules;
     in
     if matches == [ ] then null else (builtins.head matches).Table;
 
   hasDefaultRoute =
     networks: oif: table:
     table != null
-    && builtins.any (
-      route:
-      (route.Table or null) == table && isDefault route
-    ) ((networks."10-${oif}" or { }).routes or [ ]);
+    && builtins.any
+      (
+        route:
+        (route.Table or null) == table && isDefault route
+      )
+      ((networks."10-${oif}" or { }).routes or [ ]);
 
   checkContainer =
     name: container:
     let
-      policyCpmTargets = lib.filter (
-        target:
-        (target.role or "") == "policy"
-        && ((target.logicalNode or { }).name or "") == name
-      ) (
-        lib.concatMap (
-          enterprise:
-          lib.concatMap (
-            site:
-            builtins.attrValues (
-              (((cpm.control_plane_model or { }).data or { }).${enterprise}.${site}.runtimeTargets or { })
+      policyCpmTargets = lib.filter
+        (
+          target:
+          (target.role or "") == "policy"
+          && ((target.logicalNode or { }).name or "") == name
+        )
+        (
+          lib.concatMap
+            (
+              enterprise:
+              lib.concatMap
+                (
+                  site:
+                  builtins.attrValues (
+                    (((cpm.control_plane_model or { }).data or { }).${enterprise}.${site}.runtimeTargets or { })
+                  )
+                )
+                (builtins.attrNames (((cpm.control_plane_model or { }).data or { }).${enterprise} or { }))
             )
-          ) (builtins.attrNames (((cpm.control_plane_model or { }).data or { }).${enterprise} or { }))
-        ) (builtins.attrNames (((cpm.control_plane_model or { }).data or { })))
-      );
-      cpmForwardingRules = lib.concatMap (
-        target:
-        if builtins.isList ((target.forwardingIntent or { }).rules or null) then
-          target.forwardingIntent.rules
-        else
-          [ ]
-      ) policyCpmTargets;
-      cpmHasUntypedDeny = builtins.any (
-        rule:
-        (rule.action or null) == "deny"
-        && ((rule.trafficType or "any") == "any")
-      ) cpmForwardingRules;
+            (builtins.attrNames (((cpm.control_plane_model or { }).data or { })))
+        );
+      cpmForwardingRules = lib.concatMap
+        (
+          target:
+          if builtins.isList ((target.forwardingIntent or { }).rules or null) then
+            target.forwardingIntent.rules
+          else
+            [ ]
+        )
+        policyCpmTargets;
+      cpmHasUntypedDeny = builtins.any
+        (
+          rule:
+          (rule.action or null) == "deny"
+          && ((rule.trafficType or "any") == "any")
+        )
+        cpmForwardingRules;
       cpmTypedDenyRelationIds = lib.unique (
         lib.filter (id: id != null) (
-          map (
-            rule:
-            if
-              (rule.action or null) == "deny"
-              && (rule.trafficType or "any") != "any"
-              && builtins.isString (rule.relationId or null)
-            then
-              rule.relationId
-            else
-              null
-          ) cpmForwardingRules
+          map
+            (
+              rule:
+              if
+                (rule.action or null) == "deny"
+                && (rule.trafficType or "any") != "any"
+                && builtins.isString (rule.relationId or null)
+              then
+                rule.relationId
+              else
+                null
+            )
+            cpmForwardingRules
         )
       );
       cfg = (lib.nixosSystem {
@@ -138,64 +154,84 @@ let
       drops = lib.filter (entry: entry.action == "drop" && !(entry.typed or false)) terminals;
       hasEarlierDrop =
         accept:
-        builtins.any (
-          drop: pairKey drop == pairKey accept && drop.index < accept.index
-        ) drops;
+        builtins.any
+          (
+            drop: pairKey drop == pairKey accept && drop.index < accept.index
+          )
+          drops;
       conflictingPairs = lib.filter hasEarlierDrop accepts;
-      downstreamUplinkAccepts = lib.filter (
-        accept:
-        isDownstream accept.iif
-        && isUpstream accept.oif
-        && !(lib.hasInfix "east-west" accept.line)
-        && !(lib.hasSuffix "-ew" accept.oif)
-      ) accepts;
-      missingDefaults = lib.filter (
-        accept:
-        let table = tableForIngress networks accept.iif;
-        in !(hasDefaultRoute networks accept.oif table)
-      ) downstreamUplinkAccepts;
-      typedDenyWithoutTypedRender = lib.filter (
-        relationId:
-        !(builtins.any (
-          line:
-          lib.hasInfix "drop comment \"${relationId}\"" line
-          && (lib.hasInfix "meta l4proto" line || lib.hasInfix "ip protocol" line || lib.hasInfix "ip6 nexthdr" line)
-        ) lines)
-      ) cpmTypedDenyRelationIds;
+      downstreamUplinkAccepts = lib.filter
+        (
+          accept:
+          isDownstream accept.iif
+          && isUpstream accept.oif
+          && !(lib.hasInfix "east-west" accept.line)
+          && !(lib.hasSuffix "-ew" accept.oif)
+        )
+        accepts;
+      missingDefaults = lib.filter
+        (
+          accept:
+          let table = tableForIngress networks accept.iif;
+          in !(hasDefaultRoute networks accept.oif table)
+        )
+        downstreamUplinkAccepts;
+      typedDenyWithoutTypedRender = lib.filter
+        (
+          relationId:
+            !(builtins.any
+              (
+                line:
+                lib.hasInfix "drop comment \"${relationId}\"" line
+                && (lib.hasInfix "meta l4proto" line || lib.hasInfix "ip protocol" line || lib.hasInfix "ip6 nexthdr" line)
+              )
+              lines)
+        )
+        cpmTypedDenyRelationIds;
     in
     {
       cpmParityViolations =
         (lib.optionals (!cpmHasUntypedDeny && bareDrops != [ ]) (
-          map (drop: {
-            container = name;
-            reason = "renderer emitted an untyped drop even though CPM has no trafficType=any deny rule";
-            inherit (drop) iif oif line;
-          }) bareDrops
+          map
+            (drop: {
+              container = name;
+              reason = "renderer emitted an untyped drop even though CPM has no trafficType=any deny rule";
+              inherit (drop) iif oif line;
+            })
+            bareDrops
         ))
-        ++ (map (relationId: {
-          container = name;
-          reason = "CPM typed deny relation was not rendered as a typed nft drop";
-          inherit relationId;
-        }) typedDenyWithoutTypedRender);
-      terminalConflicts = map (pair: {
-        container = name;
-        inherit (pair) iif oif line;
-      }) conflictingPairs;
-      missingDefaultRoutes = map (
-        pair:
-        let table = tableForIngress networks pair.iif;
-        in
-        {
+        ++ (map
+          (relationId: {
+            container = name;
+            reason = "CPM typed deny relation was not rendered as a typed nft drop";
+            inherit relationId;
+          })
+          typedDenyWithoutTypedRender);
+      terminalConflicts = map
+        (pair: {
           container = name;
           inherit (pair) iif oif line;
-          ingressTable = table;
-        }
-      ) missingDefaults;
+        })
+        conflictingPairs;
+      missingDefaultRoutes = map
+        (
+          pair:
+          let table = tableForIngress networks pair.iif;
+          in
+          {
+            container = name;
+            inherit (pair) iif oif line;
+            ingressTable = table;
+          }
+        )
+        missingDefaults;
     };
 
-  policyContainers = lib.filterAttrs (
-    _: container: (container.specialArgs.s88RoleName or "") == "policy"
-  ) containers;
+  policyContainers = lib.filterAttrs
+    (
+      _: container: (container.specialArgs.s88RoleName or "") == "policy"
+    )
+    containers;
 
   results = lib.mapAttrsToList checkContainer policyContainers;
   cpmParityViolations = lib.concatMap (result: result.cpmParityViolations) results;
