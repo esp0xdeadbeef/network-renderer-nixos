@@ -68,6 +68,13 @@ else
           name = ".";
           "forward-addr" = forwarders;
         };
+        remote-control = {
+          "control-enable" = true;
+          "control-interface" = [
+            "127.0.0.1"
+            "::1"
+          ];
+        };
       };
     };
 

@@ -108,6 +108,10 @@ bash "${repo_root}/tests/test-policy-source-scoped-routing-rules.sh"
 # Regression: CPM policy-only routes must not become generic main defaults.
 bash "${repo_root}/tests/test-policy-only-routes.sh"
 
+# Regression: router-originated ICMP diagnostics need main-table return routes
+# for explicit non-default policy-lane reachability, without leaking defaults.
+bash "${repo_root}/tests/test-router-diagnostic-main-routes.sh"
+
 # Regression: upstream-selector core ingress routes must not put cross-link
 # gateways into main .network routes; networkd rejects those before rules apply.
 bash "${repo_root}/tests/test-upstream-selector-core-main-routes.sh"
@@ -135,6 +139,9 @@ bash "${repo_root}/tests/test-static-host-bridge-wan.sh"
 
 # Regression: DNS runtime targets must be able to render authoritative local zones/records.
 bash "${repo_root}/tests/test-dns-local-records.sh"
+
+# Regression: Kea DHCP lease hostnames must be publishable into Unbound without /etc/hosts.
+bash "${repo_root}/tests/test-kea-unbound-lease-sync.sh"
 
 # Regression: runtime targets must be able to render modeled mDNS reflector settings.
 "${repo_root}/tests/test-mdns-service.sh"

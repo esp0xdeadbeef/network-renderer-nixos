@@ -6,9 +6,21 @@
 
 let
   cfgFile = "/run/etc/kea/${scope.fileStem}.json";
+  leaseFile = "/var/lib/kea/${scope.fileStem}.leases";
+  syncScript = "/run/kea-unbound-sync/${scope.fileStem}.sh";
 
   configJson = builtins.toJSON {
     Dhcp4 = {
+      "hooks-libraries" = [
+        {
+          library = "${pkgs.kea}/lib/kea/hooks/libdhcp_run_script.so";
+          parameters = {
+            name = syncScript;
+            sync = false;
+          };
+        }
+      ];
+
       "interfaces-config" = {
         interfaces = [ scope.interfaceName ];
       };
@@ -16,7 +28,7 @@ let
       "lease-database" = {
         type = "memfile";
         persist = true;
-        name = "/var/lib/kea/${scope.fileStem}.leases";
+        name = leaseFile;
       };
 
       subnet4 = [
@@ -49,11 +61,43 @@ let
 
   genConfig = pkgs.writeShellScript "gen-kea-${scope.fileStem}" ''
     set -euo pipefail
-    mkdir -p /run/etc/kea /var/lib/kea
+    mkdir -p /run/etc/kea /run/kea-unbound-sync /var/lib/kea
 
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
     ${configJson}
     EOF
+
+    cat > ${lib.escapeShellArg syncScript} <<'EOF'
+    #!${pkgs.runtimeShell}
+    set -eu
+
+    lease_file=${lib.escapeShellArg leaseFile}
+    domain=${lib.escapeShellArg scope.domain}
+    unbound_control=${pkgs.unbound}/bin/unbound-control
+
+    [ -x "$unbound_control" ] || exit 0
+    [ -s "$lease_file" ] || exit 0
+    "$unbound_control" -c /etc/unbound/unbound.conf status >/dev/null 2>&1 || exit 0
+
+    awk -F, 'NR > 1 && $10 == "0" && $9 != "" { print $1 "\t" $9 }' "$lease_file" |
+    while IFS="$(printf '\t')" read -r address hostname; do
+      case "$address:$hostname" in
+        *[!A-Za-z0-9:._-]*|:*) continue ;;
+      esac
+      case "$hostname" in
+        *.*) fqdn="$hostname" ;;
+        *) fqdn="$hostname.$domain" ;;
+      esac
+      case "$fqdn" in
+        *.) ;;
+        *) fqdn="$fqdn." ;;
+      esac
+
+      "$unbound_control" -c /etc/unbound/unbound.conf local_data_remove "$fqdn" >/dev/null 2>&1 || true
+      "$unbound_control" -c /etc/unbound/unbound.conf local_data "$fqdn 60 IN A $address" >/dev/null 2>&1 || true
+    done
+    EOF
+    chmod 0755 ${lib.escapeShellArg syncScript}
   '';
 
   waitIface = pkgs.writeShellScript "wait-iface-ready-${scope.fileStem}" ''
@@ -98,6 +142,7 @@ in
 {
   environment.systemPackages = [
     pkgs.kea
+    pkgs.unbound
     pkgs.iproute2
     pkgs.gnugrep
     pkgs.gawk
@@ -120,11 +165,13 @@ in
     after = [
       "systemd-networkd.service"
       "gen-kea-${scope.fileStem}.service"
+      "unbound.service"
     ];
     requires = [
       "systemd-networkd.service"
       "gen-kea-${scope.fileStem}.service"
     ];
+    wants = [ "unbound.service" ];
 
     path = [
       pkgs.coreutils
@@ -163,6 +210,32 @@ in
         "CAP_NET_ADMIN"
         "CAP_NET_RAW"
       ];
+    };
+  };
+
+  systemd.services."kea-unbound-sync-${scope.fileStem}" = {
+    description = "Publish Kea DHCPv4 lease hostnames to Unbound for ${scope.interfaceName}";
+    after = [
+      "kea-dhcp4-${scope.fileStem}.service"
+      "unbound.service"
+    ];
+    wants = [
+      "kea-dhcp4-${scope.fileStem}.service"
+      "unbound.service"
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = syncScript;
+    };
+  };
+
+  systemd.timers."kea-unbound-sync-${scope.fileStem}" = {
+    description = "Best-effort Kea DHCPv4 lease hostname sync for ${scope.interfaceName}";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "30s";
+      OnUnitActiveSec = "60s";
+      Unit = "kea-unbound-sync-${scope.fileStem}.service";
     };
   };
 }
