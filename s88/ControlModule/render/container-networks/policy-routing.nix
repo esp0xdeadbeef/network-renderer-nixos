@@ -93,6 +93,15 @@ let
     inherit lib containerModel laneAccessForRenderedName;
   };
 
+  ruleSourceScope = import ./policy-routing/rule-source-scope.nix {
+    inherit
+      isSelector
+      isPolicy
+      isDownstreamSelectorPolicyInterface
+      isPolicyUpstreamInterface
+      ;
+  };
+
   rawRoutesForPolicyTable = import ./policy-routing/raw-routes.nix {
     inherit
       lib
@@ -169,6 +178,7 @@ in
           ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
           sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
           sourceScope = sourcePrefixes.forInterface interfaceName;
+          effectiveRuleSourceScope = ruleSourceScope.forInterface interfaceName sourceScope;
           rawPolicyRoutes = preferServiceDnsRoutes (
             lib.concatMap (
               sourceIfName:
@@ -204,11 +214,11 @@ in
           rules = acc.rules // {
             ${ifName} =
               (acc.rules.${ifName} or [ ])
-              ++ policyRulesFor interfaceName tableId sourceIfNames sourceScope.staticPrefixes;
+              ++ policyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.staticPrefixes;
           };
           dynamicSourceRules =
             acc.dynamicSourceRules
-            ++ dynamicPolicyRulesFor interfaceName tableId sourceIfNames sourceScope.sourceFiles;
+            ++ dynamicPolicyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.sourceFiles;
         }
       )
       {
