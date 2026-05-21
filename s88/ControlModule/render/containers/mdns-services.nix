@@ -1,7 +1,7 @@
-{
-  lib,
-  pkgs,
-  renderedModel,
+{ lib
+, pkgs
+, renderedModel
+,
 }:
 
 let
@@ -28,39 +28,45 @@ let
   resolveInterfaceNames =
     requested:
     lib.unique (
-      lib.concatMap (
-        request:
-        let
-          matching = lib.filter (
-            iface:
-            builtins.isAttrs iface
-            && builtins.any (candidate: candidate == request) (
-              lib.filter builtins.isString [
-                (iface.containerInterfaceName or null)
-                (iface.hostInterfaceName or null)
-                (iface.interfaceName or null)
-                (iface.ifName or null)
-                (iface.name or null)
-              ]
-            )
-          ) renderedInterfaces;
-          resolved = map (
-            iface:
-            if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
-              iface.containerInterfaceName
-            else if iface ? interfaceName && builtins.isString iface.interfaceName then
-              iface.interfaceName
-            else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
-              iface.hostInterfaceName
-            else if iface ? ifName && builtins.isString iface.ifName then
-              iface.ifName
-            else
-              null
-          ) matching;
-          cleaned = lib.filter builtins.isString resolved;
-        in
-        if cleaned != [ ] then cleaned else [ request ]
-      ) requested
+      lib.concatMap
+        (
+          request:
+          let
+            matching = lib.filter
+              (
+                iface:
+                builtins.isAttrs iface
+                && builtins.any (candidate: candidate == request) (
+                  lib.filter builtins.isString [
+                    (iface.containerInterfaceName or null)
+                    (iface.hostInterfaceName or null)
+                    (iface.interfaceName or null)
+                    (iface.ifName or null)
+                    (iface.name or null)
+                  ]
+                )
+              )
+              renderedInterfaces;
+            resolved = map
+              (
+                iface:
+                if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
+                  iface.containerInterfaceName
+                else if iface ? interfaceName && builtins.isString iface.interfaceName then
+                  iface.interfaceName
+                else if iface ? hostInterfaceName && builtins.isString iface.hostInterfaceName then
+                  iface.hostInterfaceName
+                else if iface ? ifName && builtins.isString iface.ifName then
+                  iface.ifName
+                else
+                  null
+              )
+              matching;
+            cleaned = lib.filter builtins.isString resolved;
+          in
+          if cleaned != [ ] then cleaned else [ request ]
+        )
+        requested
     );
 in
 if !(builtins.isAttrs mdnsService) then

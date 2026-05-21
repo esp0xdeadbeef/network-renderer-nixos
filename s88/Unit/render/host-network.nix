@@ -1,10 +1,10 @@
-{
-  lib,
-  repoPath,
-  hostName,
-  cpm,
-  inventory ? { },
-  hostContext ? null,
+{ lib
+, repoPath
+, hostName
+, cpm
+, inventory ? { }
+, hostContext ? null
+,
 }:
 
 let
@@ -23,23 +23,27 @@ let
     if !builtins.isAttrs data then
       { }
     else
-      builtins.mapAttrs (
-        _enterprise: sites:
-        if !builtins.isAttrs sites then
-          { }
-        else
-          builtins.mapAttrs (
-            _siteName: siteObj:
-            if !builtins.isAttrs siteObj then
+      builtins.mapAttrs
+        (
+          _enterprise: sites:
+            if !builtins.isAttrs sites then
               { }
             else
-              {
-                ipv6 = siteObj.ipv6 or { };
-                routing = siteObj.routing or { };
-                transit = siteObj.transit or { };
-              }
-          ) sites
-      ) data;
+              builtins.mapAttrs
+                (
+                  _siteName: siteObj:
+                    if !builtins.isAttrs siteObj then
+                      { }
+                    else
+                      {
+                        ipv6 = siteObj.ipv6 or { };
+                        routing = siteObj.routing or { };
+                        transit = siteObj.transit or { };
+                      }
+                )
+                sites
+        )
+        data;
 
   hostPlan = trace.emit "host-network:${hostName}:host-plan" (import ./host-plan.nix {
     inherit repoPath;

@@ -30,11 +30,13 @@ rec {
 
   transitNamesForUplink =
     uplinkName:
-    lib.filter (
-      transitName:
-      let transit = transitBridges.${transitName};
-      in (transit.parentUplink or null) == uplinkName
-    ) transitNames;
+    lib.filter
+      (
+        transitName:
+        let transit = transitBridges.${transitName};
+        in (transit.parentUplink or null) == uplinkName
+      )
+      transitNames;
 
   vlanIfNameFor =
     uplinkName:

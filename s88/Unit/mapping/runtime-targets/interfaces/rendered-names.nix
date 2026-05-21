@@ -79,10 +79,12 @@ in
       interfaces = runtimeContext.emittedInterfacesForUnit { inherit cpm unitName file; };
       interfaceNames = sortedAttrNames interfaces;
       desiredRenderedIfNameMap = builtins.listToAttrs (
-        map (ifName: {
-          name = ifName;
-          value = if interfaces.${ifName} ? renderedIfName && builtins.isString interfaces.${ifName}.renderedIfName then interfaces.${ifName}.renderedIfName else ifName;
-        }) interfaceNames
+        map
+          (ifName: {
+            name = ifName;
+            value = if interfaces.${ifName} ? renderedIfName && builtins.isString interfaces.${ifName}.renderedIfName then interfaces.${ifName}.renderedIfName else ifName;
+          })
+          interfaceNames
       );
       desiredRenderedIfNames = map (ifName: desiredRenderedIfNameMap.${ifName}) interfaceNames;
       uniqueDesiredRenderedIfNames = lib.unique desiredRenderedIfNames;
@@ -100,10 +102,12 @@ in
     in
     builtins.seq _validateDesiredRenderedIfNames (
       builtins.listToAttrs (
-        map (ifName: {
-          name = ifName;
-          value = renderedNameMap.${desiredRenderedIfNameMap.${ifName}};
-        }) interfaceNames
+        map
+          (ifName: {
+            name = ifName;
+            value = renderedNameMap.${desiredRenderedIfNameMap.${ifName}};
+          })
+          interfaceNames
       )
     );
 }

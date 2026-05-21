@@ -1,11 +1,10 @@
-{
-  config,
-  lib,
-  controlPlaneOut,
-  globalInventory,
-  hostContext ? { },
-  renderedHostNetwork ? null,
-  ...
+{ config
+, lib
+, controlPlaneOut
+, globalInventory
+, hostContext ? { }
+, renderedHostNetwork ? null
+, ...
 }:
 
 let

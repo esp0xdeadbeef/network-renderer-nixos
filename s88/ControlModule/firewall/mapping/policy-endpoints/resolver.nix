@@ -1,16 +1,16 @@
-{
-  lib,
-  currentSite,
-  communicationContract,
-  tenantInterfaceByName,
-  serviceInterfacesByName,
-  servicePreferredUplinksByName,
-  servicePreferredUplinksByRelation,
-  upstreamInterfaceNames,
-  upstreamInterfacesForUplink,
-  wanEndpointNames,
-  explicitWanNames,
-  common,
+{ lib
+, currentSite
+, communicationContract
+, tenantInterfaceByName
+, serviceInterfacesByName
+, servicePreferredUplinksByName
+, servicePreferredUplinksByRelation
+, upstreamInterfaceNames
+, upstreamInterfacesForUplink
+, wanEndpointNames
+, explicitWanNames
+, common
+,
 }:
 
 let
@@ -75,15 +75,18 @@ let
     if kind == "tenant" && endpoint ? name && builtins.hasAttr endpoint.name tenantInterfaceByName then
       [ tenantInterfaceByName.${endpoint.name} ]
     else if kind == "tenant-set" && endpoint ? members && builtins.isList endpoint.members then
-      sortedStrings (
-        lib.concatMap (
-          member:
-          if builtins.isString member && builtins.hasAttr member tenantInterfaceByName then
-            [ tenantInterfaceByName.${member} ]
-          else
-            [ ]
-        ) endpoint.members
-      )
+      sortedStrings
+        (
+          lib.concatMap
+            (
+              member:
+              if builtins.isString member && builtins.hasAttr member tenantInterfaceByName then
+                [ tenantInterfaceByName.${member} ]
+              else
+                [ ]
+            )
+            endpoint.members
+        )
     else if
       kind == "external"
       && ((endpoint.name or null) == "wan" || (endpoint.name or null) == "external-wan")
@@ -92,15 +95,18 @@ let
     else if kind == "external" && (endpoint.name or null) == "upstream" then
       upstreamInterfaceNames
     else if kind == "external" && endpoint ? uplinks && builtins.isList endpoint.uplinks then
-      sortedStrings (
-        lib.concatMap (
-          uplinkName:
-          let
-            matches = resolveStringEndpoint uplinkName;
-          in
-          if matches != [ ] then matches else wanEndpointNames
-        ) endpoint.uplinks
-      )
+      sortedStrings
+        (
+          lib.concatMap
+            (
+              uplinkName:
+              let
+                matches = resolveStringEndpoint uplinkName;
+              in
+              if matches != [ ] then matches else wanEndpointNames
+            )
+            endpoint.uplinks
+        )
     else if
       kind == "service" && endpoint ? name && builtins.hasAttr endpoint.name serviceInterfacesByName
     then

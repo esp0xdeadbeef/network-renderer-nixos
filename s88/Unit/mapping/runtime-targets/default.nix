@@ -7,10 +7,10 @@ let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   normalizedRuntimeTargetForUnit =
-    {
-      cpm,
-      unitName,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , unitName
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -31,24 +31,26 @@ let
     };
 
   normalizedRuntimeTargets =
-    {
-      cpm,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       targets = runtimeContext.runtimeTargets cpm;
     in
     builtins.listToAttrs (
-      map (unitName: {
-        name = unitName;
-        value = normalizedRuntimeTargetForUnit {
-          inherit cpm unitName file;
-        };
-      }) (sortedAttrNames targets)
+      map
+        (unitName: {
+          name = unitName;
+          value = normalizedRuntimeTargetForUnit {
+            inherit cpm unitName file;
+          };
+        })
+        (sortedAttrNames targets)
     );
 in
 interfaces
-// {
+  // {
   inherit
     normalizedRuntimeTargetForUnit
     normalizedRuntimeTargets

@@ -1,11 +1,11 @@
-{
-  lib,
-  cpm,
-  inventory ? { },
-  unitsOnDeploymentHost,
-  selectedUnits,
-  selectedRoleNames,
-  file ? "s88/Unit/lookup/host-runtime.nix",
+{ lib
+, cpm
+, inventory ? { }
+, unitsOnDeploymentHost
+, selectedUnits
+, selectedRoleNames
+, file ? "s88/Unit/lookup/host-runtime.nix"
+,
 }:
 
 let
@@ -13,17 +13,19 @@ let
   roles = import ./role-profiles.nix { inherit lib; };
 
   deploymentHostUnitRoles = builtins.listToAttrs (
-    map (unitName: {
-      name = unitName;
-      value = runtimeContext.roleForUnit {
-        inherit
-          cpm
-          inventory
-          unitName
-          file
-          ;
-      };
-    }) unitsOnDeploymentHost
+    map
+      (unitName: {
+        name = unitName;
+        value = runtimeContext.roleForUnit {
+          inherit
+            cpm
+            inventory
+            unitName
+            file
+            ;
+        };
+      })
+      unitsOnDeploymentHost
   );
 
   deploymentHostRoleNames = lib.unique (
@@ -33,44 +35,52 @@ let
   );
 
   deploymentHostRoles = builtins.listToAttrs (
-    map (roleName: {
-      name = roleName;
-      value = roles.${roleName};
-    }) (lib.filter (roleName: builtins.hasAttr roleName roles) deploymentHostRoleNames)
+    map
+      (roleName: {
+        name = roleName;
+        value = roles.${roleName};
+      })
+      (lib.filter (roleName: builtins.hasAttr roleName roles) deploymentHostRoleNames)
   );
 
-  deploymentHostContainerNamingUnits = lib.filter (
-    unitName:
-    let
-      roleName = deploymentHostUnitRoles.${unitName} or null;
+  deploymentHostContainerNamingUnits = lib.filter
+    (
+      unitName:
+      let
+        roleName = deploymentHostUnitRoles.${unitName} or null;
 
-      roleConfig =
-        if roleName != null && builtins.hasAttr roleName deploymentHostRoles then
-          deploymentHostRoles.${roleName}
-        else
-          { };
+        roleConfig =
+          if roleName != null && builtins.hasAttr roleName deploymentHostRoles then
+            deploymentHostRoles.${roleName}
+          else
+            { };
 
-      containerConfig =
-        if roleConfig ? container && builtins.isAttrs roleConfig.container then
-          roleConfig.container
-        else
-          { };
-    in
-    containerConfig ? enable && (containerConfig.enable or false)
-  ) unitsOnDeploymentHost;
+        containerConfig =
+          if roleConfig ? container && builtins.isAttrs roleConfig.container then
+            roleConfig.container
+          else
+            { };
+      in
+      containerConfig ? enable && (containerConfig.enable or false)
+    )
+    unitsOnDeploymentHost;
 
   selectedRoles = builtins.listToAttrs (
-    map (roleName: {
-      name = roleName;
-      value = roles.${roleName};
-    }) (lib.filter (roleName: builtins.hasAttr roleName roles) selectedRoleNames)
+    map
+      (roleName: {
+        name = roleName;
+        value = roles.${roleName};
+      })
+      (lib.filter (roleName: builtins.hasAttr roleName roles) selectedRoleNames)
   );
 
   unitRoles = builtins.listToAttrs (
-    map (unitName: {
-      name = unitName;
-      value = deploymentHostUnitRoles.${unitName};
-    }) selectedUnits
+    map
+      (unitName: {
+        name = unitName;
+        value = deploymentHostUnitRoles.${unitName};
+      })
+      selectedUnits
   );
 in
 {

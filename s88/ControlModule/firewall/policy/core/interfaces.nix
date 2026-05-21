@@ -1,10 +1,10 @@
-{
-  lib,
-  interfaceView,
-  interfaces,
-  wanIfs,
-  lanIfs,
-  common,
+{ lib
+, interfaceView
+, interfaces
+, wanIfs
+, lanIfs
+, common
+,
 }:
 
 let
@@ -18,48 +18,54 @@ let
 
   interfaceNamesFromRuntime =
     if builtins.isAttrs interfaces then
-      map (
-        ifName:
-        let
-          iface = interfaces.${ifName};
-        in
-        if builtins.isString (iface.containerInterfaceName or null) && iface.containerInterfaceName != "" then
-          iface.containerInterfaceName
-        else if builtins.isString (iface.interfaceName or null) && iface.interfaceName != "" then
-          iface.interfaceName
-        else if builtins.isString (iface.hostInterfaceName or null) && iface.hostInterfaceName != "" then
-          iface.hostInterfaceName
-        else if builtins.isString (iface.renderedIfName or null) && iface.renderedIfName != "" then
-          iface.renderedIfName
-        else if builtins.isString (iface.ifName or null) && iface.ifName != "" then
-          iface.ifName
-        else
-          null
-      ) (lib.sort builtins.lessThan (builtins.attrNames interfaces))
+      map
+        (
+          ifName:
+          let
+            iface = interfaces.${ifName};
+          in
+          if builtins.isString (iface.containerInterfaceName or null) && iface.containerInterfaceName != "" then
+            iface.containerInterfaceName
+          else if builtins.isString (iface.interfaceName or null) && iface.interfaceName != "" then
+            iface.interfaceName
+          else if builtins.isString (iface.hostInterfaceName or null) && iface.hostInterfaceName != "" then
+            iface.hostInterfaceName
+          else if builtins.isString (iface.renderedIfName or null) && iface.renderedIfName != "" then
+            iface.renderedIfName
+          else if builtins.isString (iface.ifName or null) && iface.ifName != "" then
+            iface.ifName
+          else
+            null
+        )
+        (lib.sort builtins.lessThan (builtins.attrNames interfaces))
     else
       [ ];
 
   overlayNames = sortedStrings (
-    map (
-      entry:
-      if
-        (
-          (entry ? sourceKind && entry.sourceKind == "overlay")
-          || (entry ? backingRef && builtins.isAttrs entry.backingRef && (entry.backingRef.kind or null) == "overlay")
-          || (entry ? iface && builtins.isAttrs entry.iface && builtins.isAttrs (entry.iface.backingRef or null) && (entry.iface.backingRef.kind or null) == "overlay")
-        )
-        && builtins.isString (entry.name or null)
-      then
-        entry.name
-      else
-        null
-    ) interfaceEntries
+    map
+      (
+        entry:
+        if
+          (
+            (entry ? sourceKind && entry.sourceKind == "overlay")
+            || (entry ? backingRef && builtins.isAttrs entry.backingRef && (entry.backingRef.kind or null) == "overlay")
+            || (entry ? iface && builtins.isAttrs entry.iface && builtins.isAttrs (entry.iface.backingRef or null) && (entry.iface.backingRef.kind or null) == "overlay")
+          )
+          && builtins.isString (entry.name or null)
+        then
+          entry.name
+        else
+          null
+      )
+      interfaceEntries
   );
 
   overlayNamesFromRuntime = sortedStrings (
-    lib.filter (
-      name: builtins.isString name && (lib.hasPrefix "overlay" name || lib.hasPrefix "ovl-" name)
-    ) interfaceNamesFromRuntime
+    lib.filter
+      (
+        name: builtins.isString name && (lib.hasPrefix "overlay" name || lib.hasPrefix "ovl-" name)
+      )
+      interfaceNamesFromRuntime
   );
 
   interfaceWanNames =

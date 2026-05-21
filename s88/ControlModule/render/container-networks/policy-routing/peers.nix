@@ -9,13 +9,15 @@ in
     let
       addresses = iface.addresses or [ ];
       matches =
-        lib.filter (
-          address:
-          if family == 6 then
-            hasIpv6Address address
-          else
-            builtins.isString address && !(hasIpv6Address address)
-        ) addresses;
+        lib.filter
+          (
+            address:
+            if family == 6 then
+              hasIpv6Address address
+            else
+              builtins.isString address && !(hasIpv6Address address)
+          )
+          addresses;
     in
     if matches == [ ] then null else stripCidr (builtins.head matches);
 

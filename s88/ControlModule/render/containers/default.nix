@@ -1,15 +1,14 @@
-{
-  lib,
-  repoPath,
-  hostPlan ? null,
-  cpm ? null,
-  inventory ? { },
-  debugEnabled ? false,
-  containerModelsByHost ? null,
-  containerModels ? null,
-  deploymentContainers ? null,
-  models ? null,
-  ...
+{ lib
+, repoPath
+, hostPlan ? null
+, cpm ? null
+, inventory ? { }
+, debugEnabled ? false
+, containerModelsByHost ? null
+, containerModels ? null
+, deploymentContainers ? null
+, models ? null
+, ...
 }:
 
 let
@@ -84,24 +83,33 @@ let
 
   renderFlatContainers =
     containerModelsFlat:
-    builtins.mapAttrs (
-      containerName: model:
-      emitContainer (
-        if model ? deploymentHostName && builtins.isString model.deploymentHostName then
-          model.deploymentHostName
-        else
-          inputs.defaultDeploymentHostName
-      ) containerName model
-    ) containerModelsFlat;
+    builtins.mapAttrs
+      (
+        containerName: model:
+        emitContainer
+          (
+            if model ? deploymentHostName && builtins.isString model.deploymentHostName then
+              model.deploymentHostName
+            else
+              inputs.defaultDeploymentHostName
+          )
+          containerName
+          model
+      )
+      containerModelsFlat;
 
   renderNestedContainers =
     nestedModels:
-    lib.mapAttrs (
-      deploymentHostName: deploymentHostContainers:
-      builtins.mapAttrs (
-        containerName: model: emitContainer deploymentHostName containerName model
-      ) deploymentHostContainers
-    ) nestedModels;
+    lib.mapAttrs
+      (
+        deploymentHostName: deploymentHostContainers:
+        builtins.mapAttrs
+          (
+            containerName: model: emitContainer deploymentHostName containerName model
+          )
+          deploymentHostContainers
+      )
+      nestedModels;
 in
 if inputs.flatModels != null then
   renderFlatContainers inputs.flatModels

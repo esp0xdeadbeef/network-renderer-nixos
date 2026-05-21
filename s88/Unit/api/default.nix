@@ -1,7 +1,7 @@
-{
-  lib,
-  repoRoot ? ../../..,
-  flakeInputs ? { },
+{ lib
+, repoRoot ? ../../..
+, flakeInputs ? { }
+,
 }:
 
 let
@@ -13,11 +13,11 @@ let
   };
 
   renderHostNetworkImpl =
-    {
-      hostName,
-      hostContext ? null,
-      cpm,
-      inventory ? { },
+    { hostName
+    , hostContext ? null
+    , cpm
+    , inventory ? { }
+    ,
     }:
     import ../render/host-network.nix {
       repoPath = repoRoot;
@@ -31,13 +31,13 @@ let
     };
 
   renderDryConfigImpl =
-    {
-      cpm ? null,
-      cpmPath ? null,
-      inventory ? { },
-      inventoryPath ? null,
-      exampleDir ? null,
-      debug ? false,
+    { cpm ? null
+    , cpmPath ? null
+    , inventory ? { }
+    , inventoryPath ? null
+    , exampleDir ? null
+    , debug ? false
+    ,
     }:
     import ../render/dry-config-output.nix {
       repoRoot = builtins.toString repoRoot;

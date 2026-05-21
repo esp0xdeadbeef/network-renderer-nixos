@@ -23,27 +23,33 @@ let
     networkName:
     let
       rules = (networks.${networkName} or { }).routingPolicyRules or [ ];
-      matches = builtins.filter (
-        rule:
-        (rule.Table or null) != null
-        && (rule.Table or null) != 254
-        && (rule.SuppressPrefixLength or null) == null
-      ) rules;
+      matches = builtins.filter
+        (
+          rule:
+          (rule.Table or null) != null
+          && (rule.Table or null) != 254
+          && (rule.SuppressPrefixLength or null) == null
+        )
+        rules;
     in
     if matches == [ ] then null else (builtins.head matches).Table;
 
   hasRoute =
     destination: gateway: table:
     table != null
-    && builtins.any (
-      networkName:
-      builtins.any (
-        route:
-        (route.Table or null) == table
-        && (route.Destination or null) == destination
-        && (route.Gateway or null) == gateway
-      ) ((networks.${networkName} or { }).routes or [ ])
-    ) (builtins.attrNames networks);
+    && builtins.any
+      (
+        networkName:
+        builtins.any
+          (
+            route:
+            (route.Table or null) == table
+            && (route.Destination or null) == destination
+            && (route.Gateway or null) == gateway
+          )
+          ((networks.${networkName} or { }).routes or [ ])
+      )
+      (builtins.attrNames networks);
 
   upClientEwTable = tableForIngress "10-up-client-ew";
 

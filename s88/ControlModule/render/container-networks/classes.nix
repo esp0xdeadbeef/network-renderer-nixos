@@ -1,18 +1,21 @@
-{
-  lib,
-  common,
-  containerModel,
-  interfaces,
-  interfaceNames,
-  renderedInterfaceNames,
+{ lib
+, common
+, containerModel
+, interfaces
+, interfaceNames
+, renderedInterfaceNames
+,
 }:
 
 let
   interfaceKeyForRenderedName =
     renderedName:
-    lib.findFirst (
-      ifName: ifName == renderedName || renderedInterfaceNames.${ifName} == renderedName
-    ) null interfaceNames;
+    lib.findFirst
+      (
+        ifName: ifName == renderedName || renderedInterfaceNames.${ifName} == renderedName
+      )
+      null
+      interfaceNames;
 
   backingRefFor =
     iface:

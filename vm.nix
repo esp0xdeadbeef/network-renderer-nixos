@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  modulesPath,
-  ...
+{ lib
+, pkgs
+, modulesPath
+, ...
 }:
 
 let

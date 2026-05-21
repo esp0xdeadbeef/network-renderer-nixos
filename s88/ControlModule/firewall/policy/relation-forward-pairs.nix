@@ -1,7 +1,7 @@
-{
-  lib,
-  communicationContract ? { },
-  endpointMap ? { },
+{ lib
+, communicationContract ? { }
+, endpointMap ? { }
+,
 }:
 
 let
@@ -44,27 +44,31 @@ let
     else
       [ ];
 in
-lib.concatMap (
-  relation:
-  let
-    action = if (relation.action or "allow") == "deny" then "drop" else "accept";
-    fromInterfaces = resolveRelationEndpoint relation (relation.from or null);
-    toInterfaces = resolveRelationEndpoint relation (relation.to or null);
-    trafficType =
-      if relation ? trafficType && builtins.isString relation.trafficType then
-        relation.trafficType
-      else
-        "any";
-    comment = relationNameOf relation;
-  in
-  lib.concatMap (
-    fromIf:
-    map
-      (toIf: {
-        "in" = [ fromIf ];
-        "out" = [ toIf ];
-        inherit action trafficType comment;
-      })
-      (lib.filter (toIf: allowForwardPair relation fromIf toIf) toInterfaces)
-  ) fromInterfaces
-) relations
+lib.concatMap
+  (
+    relation:
+    let
+      action = if (relation.action or "allow") == "deny" then "drop" else "accept";
+      fromInterfaces = resolveRelationEndpoint relation (relation.from or null);
+      toInterfaces = resolveRelationEndpoint relation (relation.to or null);
+      trafficType =
+        if relation ? trafficType && builtins.isString relation.trafficType then
+          relation.trafficType
+        else
+          "any";
+      comment = relationNameOf relation;
+    in
+    lib.concatMap
+      (
+        fromIf:
+        map
+          (toIf: {
+            "in" = [ fromIf ];
+            "out" = [ toIf ];
+            inherit action trafficType comment;
+          })
+          (lib.filter (toIf: allowForwardPair relation fromIf toIf) toInterfaces)
+      )
+      fromInterfaces
+  )
+  relations

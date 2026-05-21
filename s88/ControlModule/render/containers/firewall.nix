@@ -1,9 +1,9 @@
-{
-  lib,
-  cpm ? null,
-  inventory ? { },
-  uplinks ? { },
-  renderedModel,
+{ lib
+, cpm ? null
+, inventory ? { }
+, uplinks ? { }
+, renderedModel
+,
 }:
 
 let
@@ -108,11 +108,11 @@ let
     policyRelationForwardPairs =
       if
         (forwardingIntent.normalizedExplicitForwardPairs or [ ]) != [ ]
-        && (forwardingIntent.nodeForwarding.mode or null) == "explicit-selector-forwarding"
-        && (
+          && (forwardingIntent.nodeForwarding.mode or null) == "explicit-selector-forwarding"
+          && (
           (networkBehavior.isSelector or false)
-          || (networkBehavior.isUpstreamSelector or false)
-          || (networkBehavior.isDownstreamSelector or false)
+            || (networkBehavior.isUpstreamSelector or false)
+            || (networkBehavior.isDownstreamSelector or false)
         )
       then
         [ ]
@@ -153,24 +153,26 @@ if cpm == null then
       ruleset = null;
     }
 else
-    mkFirewallArg (firewall {
-    inherit cpm inventory uplinks;
-    inherit interfaceView endpointMap;
-    communication = communication;
-    forwardingIntent = routeForwardingIntent;
-    inherit
-      unitKey
-      unitName
-      roleName
-      policyModulePath
-      assumptionFamily
-      preferSiteNode
-      strictEndpointBindings
-      ;
-    inherit
-      runtimeTarget
-      interfaces
-      wanIfs
-      lanIfs
-      ;
-  }) routeForwardingIntent
+  mkFirewallArg
+    (firewall {
+      inherit cpm inventory uplinks;
+      inherit interfaceView endpointMap;
+      communication = communication;
+      forwardingIntent = routeForwardingIntent;
+      inherit
+        unitKey
+        unitName
+        roleName
+        policyModulePath
+        assumptionFamily
+        preferSiteNode
+        strictEndpointBindings
+        ;
+      inherit
+        runtimeTarget
+        interfaces
+        wanIfs
+        lanIfs
+        ;
+    })
+    routeForwardingIntent

@@ -1,12 +1,12 @@
-{
-  lib,
-  forwardingIntent,
-  uplinks,
-  wanNames,
-  lanNames,
-  forwardEgressNames,
-  overlayIngressNames,
-  adapterNames,
+{ lib
+, forwardingIntent
+, uplinks
+, wanNames
+, lanNames
+, forwardEgressNames
+, overlayIngressNames
+, adapterNames
+,
 }:
 
 let

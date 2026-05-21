@@ -1,7 +1,7 @@
-{
-  lib,
-  repoRoot ? ../../..,
-  flakeInputs ? { },
+{ lib
+, repoRoot ? ../../..
+, flakeInputs ? { }
+,
 }:
 
 import ../../ProcessCell/api/default.nix {

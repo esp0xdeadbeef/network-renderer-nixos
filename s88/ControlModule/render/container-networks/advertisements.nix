@@ -1,7 +1,7 @@
-{
-  lib,
-  containerModel,
-  interfaceKeyForRenderedName,
+{ lib
+, containerModel
+, interfaceKeyForRenderedName
+,
 }:
 
 let
@@ -28,30 +28,35 @@ let
     if !(builtins.isString name) || name == "" then null else interfaceKeyForRenderedName name;
 in
 {
-  advertisedOnlinkRoutesByInterface = builtins.foldl' (
-    acc: adv:
-    let
-      rawInterface =
-        if builtins.isString (adv.interface or null) && adv.interface != "" then
-          adv.interface
-        else if builtins.isString (adv.bindInterface or null) && adv.bindInterface != "" then
-          adv.bindInterface
+  advertisedOnlinkRoutesByInterface = builtins.foldl'
+    (
+      acc: adv:
+        let
+          rawInterface =
+            if builtins.isString (adv.interface or null) && adv.interface != "" then
+              adv.interface
+            else if builtins.isString (adv.bindInterface or null) && adv.bindInterface != "" then
+              adv.bindInterface
+            else
+              null;
+          ifName = interfaceKeyForAdvertisedInterface rawInterface;
+          prefixes =
+            if adv ? prefixes && builtins.isList adv.prefixes then
+              lib.filter builtins.isString adv.prefixes
+            else
+              [ ];
+          routes = map
+            (prefix: {
+              dst = prefix;
+              scope = "link";
+            })
+            prefixes;
+        in
+        if ifName == null || routes == [ ] then
+          acc
         else
-          null;
-      ifName = interfaceKeyForAdvertisedInterface rawInterface;
-      prefixes =
-        if adv ? prefixes && builtins.isList adv.prefixes then
-          lib.filter builtins.isString adv.prefixes
-        else
-          [ ];
-      routes = map (prefix: {
-        dst = prefix;
-        scope = "link";
-      }) prefixes;
-    in
-    if ifName == null || routes == [ ] then
-      acc
-    else
-      acc // { ${ifName} = (acc.${ifName} or [ ]) ++ routes; }
-  ) { } ipv6RaAdvertisements;
+          acc // { ${ifName} = (acc.${ifName} or [ ]) ++ routes; }
+    )
+    { }
+    ipv6RaAdvertisements;
 }

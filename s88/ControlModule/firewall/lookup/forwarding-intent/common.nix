@@ -30,27 +30,33 @@ let
 
   valuesFromPaths =
     { roots, paths }:
-    lib.concatMap (
-      path:
-      lib.concatMap (
-        root:
-        let value = attrPathOrNull root path;
-        in if value == null then [ ] else [ value ]
-      ) roots
-    ) paths;
+    lib.concatMap
+      (
+        path:
+        lib.concatMap
+          (
+            root:
+            let value = attrPathOrNull root path;
+            in if value == null then [ ] else [ value ]
+          )
+          roots
+      )
+      paths;
 
   boolLikeFromPaths =
     { roots, paths }:
     let
-      values = lib.concatMap (
-        value:
-        if builtins.isBool value then
-          [ value ]
-        else if builtins.isAttrs value && value ? enable && builtins.isBool value.enable then
-          [ value.enable ]
-        else
-          [ ]
-      ) (valuesFromPaths { inherit roots paths; });
+      values = lib.concatMap
+        (
+          value:
+          if builtins.isBool value then
+            [ value ]
+          else if builtins.isAttrs value && value ? enable && builtins.isBool value.enable then
+            [ value.enable ]
+          else
+            [ ]
+        )
+        (valuesFromPaths { inherit roots paths; });
     in
     if values == [ ] then null else builtins.head values;
 

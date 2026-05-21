@@ -2,101 +2,105 @@
 
 let
   services = builtins.listToAttrs (
-    map (
-      route:
-      let
-        serviceName = "s88-${route.name}";
-        routeScript = pkgs.writeShellScript serviceName ''
-          set -eu
-          source_file=${lib.escapeShellArg route.sourceFile}
-          interface=${lib.escapeShellArg route.interfaceName}
-          gateway=${if route.gateway == null then "''" else lib.escapeShellArg route.gateway}
-          metric=${if route.metric == null then "''" else lib.escapeShellArg (toString route.metric)}
-          family=${if route.family == null then "''" else lib.escapeShellArg (toString route.family)}
-          table=${if route.table == null then "''" else lib.escapeShellArg (toString route.table)}
+    map
+      (
+        route:
+        let
+          serviceName = "s88-${route.name}";
+          routeScript = pkgs.writeShellScript serviceName ''
+            set -eu
+            source_file=${lib.escapeShellArg route.sourceFile}
+            interface=${lib.escapeShellArg route.interfaceName}
+            gateway=${if route.gateway == null then "''" else lib.escapeShellArg route.gateway}
+            metric=${if route.metric == null then "''" else lib.escapeShellArg (toString route.metric)}
+            family=${if route.family == null then "''" else lib.escapeShellArg (toString route.family)}
+            table=${if route.table == null then "''" else lib.escapeShellArg (toString route.table)}
 
-          [ -s "$source_file" ] || exit 0
-          prefix="$(${pkgs.coreutils}/bin/tr -d '[:space:]' < "$source_file")"
-          [ -n "$prefix" ] || exit 0
-          if [ -z "$family" ]; then
-            case "$prefix" in
-              *:*) family=6 ;;
-              *) family=4 ;;
-            esac
-          fi
-          if ! printf '%s' "$prefix" | ${pkgs.gnugrep}/bin/grep -q '/'; then
+            [ -s "$source_file" ] || exit 0
+            prefix="$(${pkgs.coreutils}/bin/tr -d '[:space:]' < "$source_file")"
+            [ -n "$prefix" ] || exit 0
+            if [ -z "$family" ]; then
+              case "$prefix" in
+                *:*) family=6 ;;
+                *) family=4 ;;
+              esac
+            fi
+            if ! printf '%s' "$prefix" | ${pkgs.gnugrep}/bin/grep -q '/'; then
+              if [ "$family" = "6" ]; then
+                prefix="$prefix/128"
+              else
+                prefix="$prefix/32"
+              fi
+            fi
+
             if [ "$family" = "6" ]; then
-              prefix="$prefix/128"
-            else
-              prefix="$prefix/32"
-            fi
-          fi
-
-          if [ "$family" = "6" ]; then
-            if [ -n "$gateway" ]; then
-              if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+              if [ -n "$gateway" ]; then
+                if [ -n "$metric" ]; then
+                  ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+                else
+                  ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" proto static onlink
+                fi
               else
-                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" proto static onlink
+                if [ -n "$metric" ]; then
+                  ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" metric "$metric" proto static
+                else
+                  ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" proto static
+                fi
               fi
             else
-              if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" metric "$metric" proto static
+              if [ -n "$gateway" ]; then
+                if [ -n "$metric" ]; then
+                  ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
+                else
+                  ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" proto static onlink
+                fi
               else
-                ${pkgs.iproute2}/bin/ip -6 route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" proto static
+                if [ -n "$metric" ]; then
+                  ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" metric "$metric" proto static
+                else
+                  ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" proto static
+                fi
               fi
             fi
-          else
-            if [ -n "$gateway" ]; then
-              if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" metric "$metric" proto static onlink
-              else
-                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" via "$gateway" dev "$interface" proto static onlink
-              fi
-            else
-              if [ -n "$metric" ]; then
-                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" metric "$metric" proto static
-              else
-                ${pkgs.iproute2}/bin/ip route replace ${lib.optionalString (route.table != null) "table \"$table\""} "$prefix" dev "$interface" proto static
-              fi
-            fi
-          fi
-        '';
-      in
-      {
-        name = serviceName;
-        value = {
-          description = "Install runtime source-file route on ${route.interfaceName}";
-          wantedBy = [ "multi-user.target" ];
-          after = [ "systemd-networkd.service" ];
-          wants = [ "systemd-networkd.service" ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            ExecStart = routeScript;
+          '';
+        in
+        {
+          name = serviceName;
+          value = {
+            description = "Install runtime source-file route on ${route.interfaceName}";
+            wantedBy = [ "multi-user.target" ];
+            after = [ "systemd-networkd.service" ];
+            wants = [ "systemd-networkd.service" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = routeScript;
+            };
           };
-        };
-      }
-    ) dynamicDelegatedRoutes
+        }
+      )
+      dynamicDelegatedRoutes
   );
 
   paths = builtins.listToAttrs (
-    map (
-      route:
-      let serviceName = "s88-${route.name}";
-      in
-      {
-        name = serviceName;
-        value = {
-          wantedBy = [ "multi-user.target" ];
-          pathConfig = {
-            PathExists = route.sourceFile;
-            PathChanged = route.sourceFile;
-            Unit = "${serviceName}.service";
+    map
+      (
+        route:
+        let serviceName = "s88-${route.name}";
+        in
+        {
+          name = serviceName;
+          value = {
+            wantedBy = [ "multi-user.target" ];
+            pathConfig = {
+              PathExists = route.sourceFile;
+              PathChanged = route.sourceFile;
+              Unit = "${serviceName}.service";
+            };
           };
-        };
-      }
-    ) dynamicDelegatedRoutes
+        }
+      )
+      dynamicDelegatedRoutes
   );
 in
 {

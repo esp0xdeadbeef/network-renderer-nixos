@@ -44,78 +44,92 @@ let
           via6 = if nextHop ? via6 then nextHop.via6 else null;
         };
       peerLinkRoutes = lib.unique (
-        lib.concatMap (
-          route:
-          if !overlayRouteLike route then
-            [ ]
-          else
-            let nextHop = resolveNextHopForRoute route;
-            in
-            (lib.optional (nextHop.via4 != null) { dst = "${nextHop.via4}/32"; scope = "link"; })
-            ++ (lib.optional (nextHop.via6 != null) { dst = "${nextHop.via6}/128"; scope = "link"; })
-        ) routes
+        lib.concatMap
+          (
+            route:
+            if !overlayRouteLike route then
+              [ ]
+            else
+              let nextHop = resolveNextHopForRoute route;
+              in
+              (lib.optional (nextHop.via4 != null) { dst = "${nextHop.via4}/32"; scope = "link"; })
+              ++ (lib.optional (nextHop.via6 != null) { dst = "${nextHop.via6}/128"; scope = "link"; })
+          )
+          routes
       );
     in
     peerLinkRoutes
-    ++ map (
-      route:
-      if !overlayRouteLike route || (route ? via4 && route.via4 != null) || (route ? via6 && route.via6 != null) then
-        route
-      else
-        let nextHop = resolveNextHopForRoute route;
-        in
-        route
-        // lib.optionalAttrs (!(route ? via4) && nextHop.via4 != null) { via4 = nextHop.via4; }
-        // lib.optionalAttrs (!(route ? via6) && nextHop.via6 != null) { via6 = nextHop.via6; }
-    ) routes;
+    ++ map
+      (
+        route:
+        if !overlayRouteLike route || (route ? via4 && route.via4 != null) || (route ? via6 && route.via6 != null) then
+          route
+        else
+          let nextHop = resolveNextHopForRoute route;
+          in
+          route
+          // lib.optionalAttrs (!(route ? via4) && nextHop.via4 != null) { via4 = nextHop.via4; }
+          // lib.optionalAttrs (!(route ? via6) && nextHop.via6 != null) { via6 = nextHop.via6; }
+      )
+      routes;
 
   enrichOverlayRoutesForContainer =
     { overlayEndpoints, containerRuntime }:
     let
-      interfaces = builtins.mapAttrs (
-        _: iface:
-        if (iface.sourceKind or null) == "overlay" then
-          iface // { routes = enrichOverlayRoutesForInterface { inherit overlayEndpoints iface; }; }
-        else
-          iface
-      ) (containerRuntime.interfaces or { });
+      interfaces = builtins.mapAttrs
+        (
+          _: iface:
+            if (iface.sourceKind or null) == "overlay" then
+              iface // { routes = enrichOverlayRoutesForInterface { inherit overlayEndpoints iface; }; }
+            else
+              iface
+        )
+        (containerRuntime.interfaces or { });
     in
     containerRuntime // { interfaces = interfaces; renderedInterfaces = interfaces; };
 
   overlayEndpointsForContainers =
     containers:
-    builtins.foldl' (
-      acc: containerRuntime:
-      builtins.foldl' (
-        inner: ifName:
-        let
-          iface = containerRuntime.interfaces.${ifName};
-          siteName = overlaySiteNameForInterface iface;
-          overlayName = overlayNameForInterface iface;
-          key = if siteName != null && overlayName != null then "${siteName}::${overlayName}" else null;
-          via4 = addresses.firstAddressMatching {
-            addresses = iface.addresses or [ ];
-            predicate = value: !(lib.hasInfix ":" value);
-          };
-          via6 = addresses.firstAddressMatching {
-            addresses = iface.addresses or [ ];
-            predicate = value: lib.hasInfix ":" value;
-          };
-        in
-        if (iface.sourceKind or null) != "overlay" || key == null then
-          inner
-        else
-          inner // { ${key} = { inherit via4 via6; }; }
-      ) acc (lookup.sortedAttrNames (containerRuntime.interfaces or { }))
-    ) { } (builtins.attrValues containers);
+    builtins.foldl'
+      (
+        acc: containerRuntime:
+        builtins.foldl'
+          (
+            inner: ifName:
+            let
+              iface = containerRuntime.interfaces.${ifName};
+              siteName = overlaySiteNameForInterface iface;
+              overlayName = overlayNameForInterface iface;
+              key = if siteName != null && overlayName != null then "${siteName}::${overlayName}" else null;
+              via4 = addresses.firstAddressMatching {
+                addresses = iface.addresses or [ ];
+                predicate = value: !(lib.hasInfix ":" value);
+              };
+              via6 = addresses.firstAddressMatching {
+                addresses = iface.addresses or [ ];
+                predicate = value: lib.hasInfix ":" value;
+              };
+            in
+            if (iface.sourceKind or null) != "overlay" || key == null then
+              inner
+            else
+              inner // { ${key} = { inherit via4 via6; }; }
+          )
+          acc
+          (lookup.sortedAttrNames (containerRuntime.interfaces or { }))
+      )
+      { }
+      (builtins.attrValues containers);
 in
 {
   enrichOverlayRoutesForContainers =
     containers:
     let overlayEndpoints = overlayEndpointsForContainers containers;
     in
-    builtins.mapAttrs (
-      _: containerRuntime:
-      enrichOverlayRoutesForContainer { inherit overlayEndpoints containerRuntime; }
-    ) containers;
+    builtins.mapAttrs
+      (
+        _: containerRuntime:
+        enrichOverlayRoutesForContainer { inherit overlayEndpoints containerRuntime; }
+      )
+      containers;
 }

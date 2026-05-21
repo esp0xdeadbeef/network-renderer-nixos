@@ -33,57 +33,67 @@ let
 
   tenantPrefixesFor =
     tenantKey:
-    lib.concatMap (
-      tenant:
-      if policyTenantKeyFor "down-${tenant.name or ""}" != tenantKey then
-        [ ]
-      else
-        (lib.optional (builtins.isString (tenant.ipv4 or null)) tenant.ipv4)
-        ++ (lib.optional (builtins.isString (tenant.ipv6 or null)) tenant.ipv6)
-    ) siteTenants;
+    lib.concatMap
+      (
+        tenant:
+        if policyTenantKeyFor "down-${tenant.name or ""}" != tenantKey then
+          [ ]
+        else
+          (lib.optional (builtins.isString (tenant.ipv4 or null)) tenant.ipv4)
+          ++ (lib.optional (builtins.isString (tenant.ipv6 or null)) tenant.ipv6)
+      )
+      siteTenants;
 
   accessTransitPrefixesFor =
     tenantKey:
-    lib.concatMap (
-      adjacency:
-      lib.concatMap (
-        endpoint:
-        let
-          unit = endpoint.unit or "";
-          local = endpoint.local or { };
-        in
-        if !(builtins.isString unit) || !(stringContains "-access-${tenantKey}" unit) then
-          [ ]
-        else
-          (lib.optional (builtins.isString (local.ipv4 or null)) "${local.ipv4}/31")
-          ++ (lib.optional (builtins.isString (local.ipv6 or null)) "${local.ipv6}/127")
-      ) (adjacency.endpoints or [ ])
-    ) transitAdjacencies;
+    lib.concatMap
+      (
+        adjacency:
+        lib.concatMap
+          (
+            endpoint:
+            let
+              unit = endpoint.unit or "";
+              local = endpoint.local or { };
+            in
+            if !(builtins.isString unit) || !(stringContains "-access-${tenantKey}" unit) then
+              [ ]
+            else
+              (lib.optional (builtins.isString (local.ipv4 or null)) "${local.ipv4}/31")
+              ++ (lib.optional (builtins.isString (local.ipv6 or null)) "${local.ipv6}/127")
+          )
+          (adjacency.endpoints or [ ])
+      )
+      transitAdjacencies;
 
   dnsAllowFromPrefixesFor =
     tenantKey:
-    lib.concatMap (
-      targetName:
-      let
-        target = runtimeTargets.${targetName};
-        services = target.services or { };
-        dns = services.dns or { };
-      in
-      if !(stringContains "-access-${tenantKey}" targetName) then
-        [ ]
-      else if builtins.isList (dns.allowFrom or null) then
-        lib.filter builtins.isString dns.allowFrom
-      else
-        [ ]
-    ) (builtins.attrNames runtimeTargets);
+    lib.concatMap
+      (
+        targetName:
+        let
+          target = runtimeTargets.${targetName};
+          services = target.services or { };
+          dns = services.dns or { };
+        in
+        if !(stringContains "-access-${tenantKey}" targetName) then
+          [ ]
+        else if builtins.isList (dns.allowFrom or null) then
+          lib.filter builtins.isString dns.allowFrom
+        else
+          [ ]
+      )
+      (builtins.attrNames runtimeTargets);
 
   dnsAllowFromTransitPrefixesFor =
     tenantKey:
-    lib.filter (
-      prefix:
-      (builtins.isString prefix)
-      && ((lib.hasSuffix "/31" prefix) || (lib.hasSuffix "/127" prefix))
-    ) (dnsAllowFromPrefixesFor tenantKey);
+    lib.filter
+      (
+        prefix:
+        (builtins.isString prefix)
+        && ((lib.hasSuffix "/31" prefix) || (lib.hasSuffix "/127" prefix))
+      )
+      (dnsAllowFromPrefixesFor tenantKey);
 in
 {
   returnDestinationsForTenant =

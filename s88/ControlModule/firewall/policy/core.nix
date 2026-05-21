@@ -1,17 +1,16 @@
-{
-  lib,
-  interfaceView ? null,
-  forwardingIntent ? null,
-  communicationContract ? { },
-  ownership ? { },
-  inventory ? { },
-  unitName ? null,
-  runtimeTarget ? { },
-  interfaces ? { },
-  wanIfs ? [ ],
-  lanIfs ? [ ],
-  uplinks ? { },
-  ...
+{ lib
+, interfaceView ? null
+, forwardingIntent ? null
+, communicationContract ? { }
+, ownership ? { }
+, inventory ? { }
+, unitName ? null
+, runtimeTarget ? { }
+, interfaces ? { }
+, wanIfs ? [ ]
+, lanIfs ? [ ]
+, uplinks ? { }
+, ...
 }:
 
 let
@@ -60,9 +59,10 @@ let
       "{ ${builtins.concatStringsSep ", " (map toString ports)} }";
   explicitTransitUnderlayNames =
     if forwardingIntent != null && builtins.isAttrs forwardingIntent then
-      lib.filter (name: builtins.elem name interfaceSet.adapterNames) (
-        (forwardingIntent.explicitTransitNames or [ ]) ++ (forwardingIntent.resolvedTransitNames or [ ])
-      )
+      lib.filter (name: builtins.elem name interfaceSet.adapterNames)
+        (
+          (forwardingIntent.explicitTransitNames or [ ]) ++ (forwardingIntent.resolvedTransitNames or [ ])
+        )
     else
       [ ];
   overlayUnderlayNames =

@@ -1,7 +1,7 @@
-{
-  lib,
-  repoRoot ? ../../..,
-  flakeInputs ? { },
+{ lib
+, repoRoot ? ../../..
+, flakeInputs ? { }
+,
 }:
 
 import ../../Area/api/default.nix {

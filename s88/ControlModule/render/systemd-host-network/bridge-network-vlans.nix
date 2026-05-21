@@ -44,54 +44,58 @@ in
   inherit bridgeNetworkVlanNames bridgeNetworkVlanIfNameFor bridgeNetworkVlanParentFor;
 
   bridgeNetworkVlanNetdevs = builtins.listToAttrs (
-    map (
-      bridgeName:
-      let
-        bridgeNetwork = bridgeNetworks.${bridgeName};
-        vlanIfName = bridgeNetworkVlanIfNameFor bridgeName;
-      in
-      {
-        name = "13-${vlanIfName}";
-        value = {
-          netdevConfig = {
-            Name = vlanIfName;
-            Kind = "vlan";
+    map
+      (
+        bridgeName:
+        let
+          bridgeNetwork = bridgeNetworks.${bridgeName};
+          vlanIfName = bridgeNetworkVlanIfNameFor bridgeName;
+        in
+        {
+          name = "13-${vlanIfName}";
+          value = {
+            netdevConfig = {
+              Name = vlanIfName;
+              Kind = "vlan";
+            };
+            vlanConfig.Id = bridgeNetwork.vlan;
           };
-          vlanConfig.Id = bridgeNetwork.vlan;
-        };
-      }
-    ) bridgeNetworkVlanNames
+        }
+      )
+      bridgeNetworkVlanNames
   );
 
   bridgeNetworkVlanAttachmentNetworks = builtins.listToAttrs (
-    map (
-      bridgeName:
-      let
-        vlanIfName = bridgeNetworkVlanIfNameFor bridgeName;
-        renderedBridgeName =
-          if builtins.hasAttr bridgeName bridges then
-            bridges.${bridgeName}.renderedName
-          else
-            throw ''
-              s88/CM/network/render/systemd-host-network.nix: bridgeNetwork '${bridgeName}' mode=vlan has no rendered bridge
-            '';
-      in
-      {
-        name = "22-${vlanIfName}";
-        value = {
-          matchConfig.Name = vlanIfName;
-          linkConfig = {
-            ActivationPolicy = "always-up";
-            RequiredForOnline = "no";
+    map
+      (
+        bridgeName:
+        let
+          vlanIfName = bridgeNetworkVlanIfNameFor bridgeName;
+          renderedBridgeName =
+            if builtins.hasAttr bridgeName bridges then
+              bridges.${bridgeName}.renderedName
+            else
+              throw ''
+                s88/CM/network/render/systemd-host-network.nix: bridgeNetwork '${bridgeName}' mode=vlan has no rendered bridge
+              '';
+        in
+        {
+          name = "22-${vlanIfName}";
+          value = {
+            matchConfig.Name = vlanIfName;
+            linkConfig = {
+              ActivationPolicy = "always-up";
+              RequiredForOnline = "no";
+            };
+            networkConfig = {
+              Bridge = renderedBridgeName;
+              ConfigureWithoutCarrier = true;
+              LinkLocalAddressing = "no";
+              IPv6AcceptRA = false;
+            };
           };
-          networkConfig = {
-            Bridge = renderedBridgeName;
-            ConfigureWithoutCarrier = true;
-            LinkLocalAddressing = "no";
-            IPv6AcceptRA = false;
-          };
-        };
-      }
-    ) bridgeNetworkVlanNames
+        }
+      )
+      bridgeNetworkVlanNames
   );
 }

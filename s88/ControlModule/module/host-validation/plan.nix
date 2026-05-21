@@ -1,6 +1,6 @@
-{
-  lib,
-  renderedHostNetwork ? null,
+{ lib
+, renderedHostNetwork ? null
+,
 }:
 
 let

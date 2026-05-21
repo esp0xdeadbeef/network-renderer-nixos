@@ -1,8 +1,8 @@
-{
-  lib,
-  lookup,
-  naming,
-  attach,
+{ lib
+, lookup
+, naming
+, attach
+,
 }:
 
 let
@@ -78,15 +78,17 @@ let
       attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
       sourceKind = sourceKindForInterface iface;
       desiredInterfaceName = effectiveInterfaceNameForInterface { inherit ifName iface attachTarget; };
-      bridgeEligibleWanIfNames = lib.filter (
-        name:
-        let
-          candidateIface = interfaces.${name};
-          candidateAttach = attachTargetForInterface { inherit unitName; ifName = name; iface = candidateIface; };
-        in
-        sourceKindForInterface candidateIface == "wan"
-        && builtins.isString (candidateAttach.renderedHostBridgeName or null)
-      ) (lookup.sortedAttrNames interfaces);
+      bridgeEligibleWanIfNames = lib.filter
+        (
+          name:
+          let
+            candidateIface = interfaces.${name};
+            candidateAttach = attachTargetForInterface { inherit unitName; ifName = name; iface = candidateIface; };
+          in
+          sourceKindForInterface candidateIface == "wan"
+          && builtins.isString (candidateAttach.renderedHostBridgeName or null)
+        )
+        (lookup.sortedAttrNames interfaces);
       primaryHostBridgeIfName = if builtins.length bridgeEligibleWanIfNames == 1 then builtins.head bridgeEligibleWanIfNames else null;
       usePrimaryHostBridge = primaryHostBridgeIfName == ifName;
       realizationPortName =

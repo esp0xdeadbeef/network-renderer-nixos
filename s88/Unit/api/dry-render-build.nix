@@ -1,16 +1,16 @@
-{
-  selectors,
-  builders,
-  renderDryConfig,
+{ selectors
+, builders
+, renderDryConfig
+,
 }:
 
 let
   buildAndRenderFromPaths =
-    {
-      intentPath,
-      inventoryPath,
-      exampleDir ? null,
-      debug ? false,
+    { intentPath
+    , inventoryPath
+    , exampleDir ? null
+    , debug ? false
+    ,
     }:
     let
       inventory = selectors.importMaybeFunction (builtins.toPath inventoryPath);

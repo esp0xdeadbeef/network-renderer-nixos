@@ -1,6 +1,6 @@
-{
-  lib,
-  hostPlan,
+{ lib
+, hostPlan
+,
 }:
 
 let

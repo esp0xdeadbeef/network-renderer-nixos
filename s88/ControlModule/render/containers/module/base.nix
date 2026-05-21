@@ -1,9 +1,9 @@
-{
-  lib,
-  pkgs,
-  containerName,
-  renderedModel,
-  alarmModel,
+{ lib
+, pkgs
+, containerName
+, renderedModel
+, alarmModel
+,
 }:
 
 let

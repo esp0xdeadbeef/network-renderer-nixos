@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  renderedHostNetwork ? null,
-  ...
+{ lib
+, pkgs
+, renderedHostNetwork ? null
+, ...
 }:
 
 let

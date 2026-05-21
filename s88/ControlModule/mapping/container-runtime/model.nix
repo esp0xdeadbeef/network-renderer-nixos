@@ -1,8 +1,8 @@
-{
-  lib,
-  lookup,
-  naming,
-  interfaces,
+{ lib
+, lookup
+, naming
+, interfaces
+,
 }:
 
 let
@@ -15,10 +15,12 @@ let
   };
 
   renderedContainersBase = builtins.listToAttrs (
-    map (unitName: {
-      name = naming.emittedUnitNameForUnit unitName;
-      value = assembly.mkContainerRuntime unitName;
-    }) lookup.enabledUnits
+    map
+      (unitName: {
+        name = naming.emittedUnitNameForUnit unitName;
+        value = assembly.mkContainerRuntime unitName;
+      })
+      lookup.enabledUnits
   );
 
   renderedContainers = overlay.enrichOverlayRoutesForContainers renderedContainersBase;

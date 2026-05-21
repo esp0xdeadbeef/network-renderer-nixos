@@ -8,25 +8,29 @@ let
     let
       realizationNodes = realizationNodesFor inventory;
     in
-    lib.concatMap (
-      nodeName:
-      let
-        node = realizationNodes.${nodeName};
-        ports = if node ? ports && builtins.isAttrs node.ports then node.ports else { };
-      in
-      lib.concatMap (
-        portName:
+    lib.concatMap
+      (
+        nodeName:
         let
-          port = ports.${portName};
-          portIfName = if port ? interface && builtins.isAttrs port.interface then port.interface.name or null else null;
-          portLogicalIf = port.logicalInterface or null;
+          node = realizationNodes.${nodeName};
+          ports = if node ? ports && builtins.isAttrs node.ports then node.ports else { };
         in
-        if portName == ifName || portIfName == ifName || portLogicalIf == ifName then
-          [ { inherit nodeName node portName port; } ]
-        else
-          [ ]
-      ) (sortedAttrNames ports)
-    ) nodeNames;
+        lib.concatMap
+          (
+            portName:
+            let
+              port = ports.${portName};
+              portIfName = if port ? interface && builtins.isAttrs port.interface then port.interface.name or null else null;
+              portLogicalIf = port.logicalInterface or null;
+            in
+            if portName == ifName || portIfName == ifName || portLogicalIf == ifName then
+              [{ inherit nodeName node portName port; }]
+            else
+              [ ]
+          )
+          (sortedAttrNames ports)
+      )
+      nodeNames;
 in
 {
   resolvePortForRuntimeInterface =

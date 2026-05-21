@@ -1,13 +1,13 @@
-{
-  lib,
-  interfaces,
-  interfaceNames,
-  renderedInterfaceNames,
-  addressForFamily,
-  ipv4PeerFor31,
-  ipv6PeerFor127,
-  policyRoutingSources ? { },
-  forwardingRules ? [ ],
+{ lib
+, interfaces
+, interfaceNames
+, renderedInterfaceNames
+, addressForFamily
+, ipv4PeerFor31
+, ipv6PeerFor127
+, policyRoutingSources ? { }
+, forwardingRules ? [ ]
+,
 }:
 
 let
@@ -42,10 +42,10 @@ let
     fromName: toName:
     builtins.any
       (rule:
-        builtins.isAttrs rule
-        && (rule.action or null) == "accept"
-        && (rule.fromInterface or null) == fromName
-        && (rule.toInterface or null) == toName)
+      builtins.isAttrs rule
+      && (rule.action or null) == "accept"
+      && (rule.fromInterface or null) == fromName
+      && (rule.toInterface or null) == toName)
       forwardingRules;
 in
 {

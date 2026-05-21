@@ -1,7 +1,7 @@
-{
-  lib,
-  pkgs,
-  scope,
+{ lib
+, pkgs
+, scope
+,
 }:
 
 let

@@ -1,6 +1,6 @@
-{
-  lib,
-  containerModel,
+{ lib
+, containerModel
+,
 }:
 
 let

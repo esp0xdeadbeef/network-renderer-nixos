@@ -1,10 +1,10 @@
-{
-  lib,
-  repoPath,
-  hostName,
-  cpm,
-  inventory ? { },
-  hostContext ? null,
+{ lib
+, repoPath
+, hostName
+, cpm
+, inventory ? { }
+, hostContext ? null
+,
 }:
 
 let

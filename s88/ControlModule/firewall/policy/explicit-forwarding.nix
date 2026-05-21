@@ -58,12 +58,12 @@ let
     in
     map
       (matchExpr:
-        let matchPart = if matchExpr == "" then "" else " ${matchExpr}";
-        in
-        if matchExpr == "__s88_dynamic_source_forward__" then
-          ""
-        else
-          "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])}${matchPart} ${action}${commentExpr}")
+      let matchPart = if matchExpr == "" then "" else " ${matchExpr}";
+      in
+      if matchExpr == "__s88_dynamic_source_forward__" then
+        ""
+      else
+        "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])}${matchPart} ${action}${commentExpr}")
       trafficMatches;
 in
 lib.filter (rule: rule != "") (lib.concatMap renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs))

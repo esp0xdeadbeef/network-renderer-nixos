@@ -5,11 +5,13 @@
     { cpm, inventory ? { }, deploymentHostName, role, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let targets = base.runtimeTargets cpm;
     in
-    lib.filter (
-      unitName:
-      base.roleForUnit { inherit cpm inventory unitName file; } == role
-      && deployment.deploymentHostForUnit { inherit cpm inventory unitName file; } == deploymentHostName
-    ) (base.sortedAttrNames targets);
+    lib.filter
+      (
+        unitName:
+        base.roleForUnit { inherit cpm inventory unitName file; } == role
+        && deployment.deploymentHostForUnit { inherit cpm inventory unitName file; } == deploymentHostName
+      )
+      (base.sortedAttrNames targets);
 
   selectedRoleNamesForUnits =
     { cpm, inventory ? { }, selectedUnits, file ? "s88/Unit/lookup/runtime-context.nix" }:

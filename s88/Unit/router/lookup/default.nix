@@ -1,10 +1,10 @@
-{
-  outPath,
-  lib,
-  config,
-  selector ? null,
-  hostContext ? { },
-  globalInventory ? { },
+{ outPath
+, lib
+, config
+, selector ? null
+, hostContext ? { }
+, globalInventory ? { }
+,
 }:
 
 let

@@ -1,6 +1,6 @@
-{
-  lib,
-  catalog,
+{ lib
+, catalog
+,
 }:
 
 let
@@ -29,10 +29,12 @@ let
 
   udpPortsForRelation =
     relation:
-    lib.concatMap (
-      match:
-      if builtins.isAttrs match && (match.proto or null) == "udp" then match.dports or [ ] else [ ]
-    ) (trafficTypeMatches relation.trafficType);
+    lib.concatMap
+      (
+        match:
+        if builtins.isAttrs match && (match.proto or null) == "udp" then match.dports or [ ] else [ ]
+      )
+      (trafficTypeMatches relation.trafficType);
 in
 {
   udpPorts =

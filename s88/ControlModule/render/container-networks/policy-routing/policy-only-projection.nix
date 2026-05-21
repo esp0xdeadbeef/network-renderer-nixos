@@ -1,6 +1,6 @@
-{
-  renderedInterfaceNames,
-  policyRoutingSources ? { },
+{ renderedInterfaceNames
+, policyRoutingSources ? { }
+,
 }:
 
 {

@@ -44,9 +44,11 @@
     attrs: names: fallback:
     let
       values = lib.filter builtins.isBool (
-        map (
-          name: if builtins.isAttrs attrs && builtins.hasAttr name attrs then attrs.${name} else null
-        ) names
+        map
+          (
+            name: if builtins.isAttrs attrs && builtins.hasAttr name attrs then attrs.${name} else null
+          )
+          names
       );
     in
     if values == [ ] then fallback else builtins.head values;
@@ -55,9 +57,11 @@
     attrs: names: fallback:
     let
       values = lib.filter builtins.isString (
-        map (
-          name: if builtins.isAttrs attrs && builtins.hasAttr name attrs then attrs.${name} else null
-        ) names
+        map
+          (
+            name: if builtins.isAttrs attrs && builtins.hasAttr name attrs then attrs.${name} else null
+          )
+          names
       );
     in
     if values == [ ] then fallback else builtins.head values;
@@ -65,20 +69,22 @@
   stringListField =
     attrs: names: fallback:
     let
-      values = lib.concatMap (
-        name:
-        if builtins.isAttrs attrs && builtins.hasAttr name attrs then
-          (
-            if builtins.isString attrs.${name} then
-              [ attrs.${name} ]
-            else if builtins.isList attrs.${name} then
-              lib.filter builtins.isString attrs.${name}
-            else
-              [ ]
-          )
-        else
-          [ ]
-      ) names;
+      values = lib.concatMap
+        (
+          name:
+          if builtins.isAttrs attrs && builtins.hasAttr name attrs then
+            (
+              if builtins.isString attrs.${name} then
+                [ attrs.${name} ]
+              else if builtins.isList attrs.${name} then
+                lib.filter builtins.isString attrs.${name}
+              else
+                [ ]
+            )
+          else
+            [ ]
+        )
+        names;
     in
     if values == [ ] then fallback else lib.unique values;
 

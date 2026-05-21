@@ -1,7 +1,7 @@
-{
-  lib,
-  attachTargetsRuntime,
-  deploymentHost ? { },
+{ lib
+, attachTargetsRuntime
+, deploymentHost ? { }
+,
 }:
 
 let
@@ -24,41 +24,45 @@ let
   bridgeNameMap = hostNaming.ensureUnique bridgeNamesRaw;
 
   bridges = builtins.listToAttrs (
-    map (bridgeName: {
-      name = bridgeName;
-      value = {
-        originalName = bridgeName;
-        renderedName = bridgeNameMap.${bridgeName};
-        explicitDeploymentBridge = builtins.hasAttr bridgeName (
-          if deploymentHost ? bridgeNetworks && builtins.isAttrs deploymentHost.bridgeNetworks then
-            deploymentHost.bridgeNetworks
-          else
-            { }
-        );
-      };
-    }) bridgeNamesRaw
+    map
+      (bridgeName: {
+        name = bridgeName;
+        value = {
+          originalName = bridgeName;
+          renderedName = bridgeNameMap.${bridgeName};
+          explicitDeploymentBridge = builtins.hasAttr bridgeName (
+            if deploymentHost ? bridgeNetworks && builtins.isAttrs deploymentHost.bridgeNetworks then
+              deploymentHost.bridgeNetworks
+            else
+              { }
+          );
+        };
+      })
+      bridgeNamesRaw
   );
 
-  attachTargetsBase = map (
-    target:
-    let
-      iface = target.interface or { };
-      hostBridgeName = target.hostBridgeName;
-    in
-    target
-    // {
-      baseRenderedHostBridgeName =
-        if builtins.hasAttr hostBridgeName bridgeNameMap then
-          bridgeNameMap.${hostBridgeName}
-        else
-          hostNaming.shorten hostBridgeName;
-      renderedIfName = iface.renderedIfName or null;
-      addresses = iface.addresses or [ ];
-      routes = iface.routes or [ ];
-      connectivity = target.connectivity or (iface.connectivity or { });
-      interface = iface;
-    }
-  ) attachTargetsRuntime;
+  attachTargetsBase = map
+    (
+      target:
+      let
+        iface = target.interface or { };
+        hostBridgeName = target.hostBridgeName;
+      in
+      target
+      // {
+        baseRenderedHostBridgeName =
+          if builtins.hasAttr hostBridgeName bridgeNameMap then
+            bridgeNameMap.${hostBridgeName}
+          else
+            hostNaming.shorten hostBridgeName;
+        renderedIfName = iface.renderedIfName or null;
+        addresses = iface.addresses or [ ];
+        routes = iface.routes or [ ];
+        connectivity = target.connectivity or (iface.connectivity or { });
+        interface = iface;
+      }
+    )
+    attachTargetsRuntime;
 in
 {
   inherit

@@ -23,36 +23,40 @@ let
     let
       realizationNodes = realizationNodesFor inventory;
     in
-    lib.concatMap (
-      nodeName:
-      let
-        node = realizationNodes.${nodeName};
-        ports =
-          if node ? ports && builtins.isAttrs node.ports then
-            node.ports
-          else
-            throw ''
-              ${file}: realization node '${nodeName}' is missing ports
+    lib.concatMap
+      (
+        nodeName:
+        let
+          node = realizationNodes.${nodeName};
+          ports =
+            if node ? ports && builtins.isAttrs node.ports then
+              node.ports
+            else
+              throw ''
+                ${file}: realization node '${nodeName}' is missing ports
 
-              node:
-              ${builtins.toJSON node}
-            '';
-      in
-      map
-        (portName: {
-          inherit nodeName node portName;
-          port = ports.${portName};
-        })
-        (
-          lib.filter (
-            portName:
-            portMatchesLinkRefs {
-              port = ports.${portName};
-              inherit linkRefs;
-            }
-          ) (sortedAttrNames ports)
-        )
-    ) nodeNames;
+                node:
+                ${builtins.toJSON node}
+              '';
+        in
+        map
+          (portName: {
+            inherit nodeName node portName;
+            port = ports.${portName};
+          })
+          (
+            lib.filter
+              (
+                portName:
+                portMatchesLinkRefs {
+                  port = ports.${portName};
+                  inherit linkRefs;
+                }
+              )
+              (sortedAttrNames ports)
+          )
+      )
+      nodeNames;
 in
 {
   linkPortMatchesForRuntimeInterface =

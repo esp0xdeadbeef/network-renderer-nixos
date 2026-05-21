@@ -1,9 +1,9 @@
-{
-  lib,
-  repoPath,
-  selectors,
-  buildHostFromPaths,
-  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
+{ lib
+, repoPath
+, selectors
+, buildHostFromPaths
+, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
+,
 }:
 
 let
@@ -19,9 +19,8 @@ let
 in
 {
   build =
-    {
-      file ? "s88/Unit/api/host/default.nix",
-      ...
+    { file ? "s88/Unit/api/host/default.nix"
+    , ...
     }@args:
     let
       resolved = boxInputs.resolve (args // { inherit file; });

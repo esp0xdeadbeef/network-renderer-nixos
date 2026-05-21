@@ -1,8 +1,8 @@
-{
-  lib,
-  containerModel,
-  uplinks,
-  wanUplinkName,
+{ lib
+, containerModel
+, uplinks
+, wanUplinkName
+,
 }:
 
 let
@@ -13,12 +13,14 @@ let
       null;
 
   matchingUplinks =
-    lib.filterAttrs (
-      _: uplink:
-      builtins.isAttrs uplink
-      && builtins.isString (uplink.bridge or null)
-      && uplink.bridge == hostBridge
-    ) uplinks;
+    lib.filterAttrs
+      (
+        _: uplink:
+          builtins.isAttrs uplink
+          && builtins.isString (uplink.bridge or null)
+          && uplink.bridge == hostBridge
+      )
+      uplinks;
 
   selectedUplink =
     if

@@ -8,16 +8,20 @@ let
     let
       cpmData = controlPlaneData cpm;
     in
-    lib.concatMap (
-      rootName:
-      let
-        siteTree = siteTreeFromRoot cpmData.${rootName};
-      in
-      map (siteName: {
-        inherit rootName siteName;
-        site = siteTree.${siteName};
-      }) (sortedAttrNames siteTree)
-    ) (sortedAttrNames cpmData);
+    lib.concatMap
+      (
+        rootName:
+        let
+          siteTree = siteTreeFromRoot cpmData.${rootName};
+        in
+        map
+          (siteName: {
+            inherit rootName siteName;
+            site = siteTree.${siteName};
+          })
+          (sortedAttrNames siteTree)
+      )
+      (sortedAttrNames cpmData);
 
   runtimeTargetAttrNamesForEntry =
     entry:
@@ -34,29 +38,35 @@ let
 
   runtimeTargetEntries =
     cpm:
-    lib.concatMap (
-      entry:
-      map (
-        unitName:
-        entry
-        // {
-          inherit unitName;
-          runtimeTarget = entry.site.runtimeTargets.${unitName};
-          instanceId = runtimeTargetInstanceId {
-            inherit (entry) rootName siteName;
-            inherit unitName;
-          };
-        }
-      ) (runtimeTargetAttrNamesForEntry entry)
-    ) (siteEntries cpm);
+    lib.concatMap
+      (
+        entry:
+        map
+          (
+            unitName:
+            entry
+            // {
+              inherit unitName;
+              runtimeTarget = entry.site.runtimeTargets.${unitName};
+              instanceId = runtimeTargetInstanceId {
+                inherit (entry) rootName siteName;
+                inherit unitName;
+              };
+            }
+          )
+          (runtimeTargetAttrNamesForEntry entry)
+      )
+      (siteEntries cpm);
 
   runtimeTargetEntriesById =
     cpm:
     builtins.listToAttrs (
-      map (entry: {
-        name = entry.instanceId;
-        value = entry;
-      }) (runtimeTargetEntries cpm)
+      map
+        (entry: {
+          name = entry.instanceId;
+          value = entry;
+        })
+        (runtimeTargetEntries cpm)
     );
 
   runtimeTargetEntryForUnit =

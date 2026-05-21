@@ -1,9 +1,9 @@
-{
-  lib,
-  repoPath,
-  selectors,
-  buildHostFromPaths,
-  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
+{ lib
+, repoPath
+, selectors
+, buildHostFromPaths
+, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
+,
 }:
 
 let
@@ -24,28 +24,33 @@ let
     let
       disabledNames = sortedAttrNames disabled;
 
-      _validateDisabledValues = builtins.foldl' (
-        acc: name:
-        let
-          value = disabled.${name};
-        in
-        if builtins.isBool value then
-          acc
-        else
-          throw ''
-            s88/Unit/api/containers/default.nix: disabled entry '${name}' must be a boolean
+      _validateDisabledValues = builtins.foldl'
+        (
+          acc: name:
+            let
+              value = disabled.${name};
+            in
+            if builtins.isBool value then
+              acc
+            else
+              throw ''
+                s88/Unit/api/containers/default.nix: disabled entry '${name}' must be a boolean
 
-            value:
-            ${builtins.toJSON value}
-          ''
-      ) true disabledNames;
+                value:
+                ${builtins.toJSON value}
+              ''
+        )
+        true
+        disabledNames;
     in
     builtins.seq _validateDisabledValues (
       builtins.listToAttrs (
-        map (name: {
-          inherit name;
-          value = false;
-        }) (lib.filter (name: disabled.${name}) disabledNames)
+        map
+          (name: {
+            inherit name;
+            value = false;
+          })
+          (lib.filter (name: disabled.${name}) disabledNames)
       )
     );
 
@@ -53,11 +58,10 @@ let
 in
 {
   buildForBox =
-    {
-      defaults ? { },
-      disabled ? { },
-      file ? "s88/Unit/api/containers/default.nix",
-      ...
+    { defaults ? { }
+    , disabled ? { }
+    , file ? "s88/Unit/api/containers/default.nix"
+    , ...
     }@args:
     let
       resolved = boxInputs.resolve (args // { inherit file; });

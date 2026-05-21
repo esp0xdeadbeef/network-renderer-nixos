@@ -15,9 +15,11 @@ in
     let
       values =
         if builtins.isList addresses then
-          lib.filter (
-            value: builtins.isString value && predicate value && (stripPrefixLength value) != null
-          ) addresses
+          lib.filter
+            (
+              value: builtins.isString value && predicate value && (stripPrefixLength value) != null
+            )
+            addresses
         else
           [ ];
     in

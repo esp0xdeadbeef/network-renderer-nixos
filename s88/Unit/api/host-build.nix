@@ -1,10 +1,10 @@
-{
-  lib,
-  repoPath,
-  selectors,
-  builders,
-  renderHostNetwork,
-  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
+{ lib
+, repoPath
+, selectors
+, builders
+, renderHostNetwork
+, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
+,
 }:
 
 let
@@ -20,51 +20,24 @@ let
 
   inherit (import ../../ControlModule/api/container-defaults.nix { inherit lib; }) mergeContainerDefaults;
 
-  flattenRuntimeTargets = controlPlaneOut:
-    let
-      controlPlaneData = ((controlPlaneOut.control_plane_model or { }).data or { });
-    in
-    builtins.listToAttrs (
-      builtins.concatLists (
-        builtins.map
-          (enterpriseName:
-            let enterprise = controlPlaneData.${enterpriseName};
-            in
-            builtins.concatLists (
-              builtins.map
-                (siteName:
-                  let
-                    site = enterprise.${siteName};
-                    runtimeTargets = site.runtimeTargets or { };
-                  in
-                  builtins.map
-                    (targetName: {
-                      name = "${enterpriseName}.${siteName}.${targetName}";
-                      value = runtimeTargets.${targetName};
-                    })
-                    (builtins.attrNames runtimeTargets))
-                (builtins.attrNames enterprise)
-            ))
-          (builtins.attrNames controlPlaneData)
-      )
-    );
+  flattenRuntimeTargets = import ./host-build/runtime-targets.nix { };
 
   buildHost =
-    {
-      selector ? null,
-      hostname ? null,
-      intent ? null,
-      inventory ? null,
-      intentPath ? null,
-      inventoryPath ? null,
-      controlPlaneOut ? null,
-      compilerOut ? null,
-      forwardingOut ? null,
-      system ? currentSystem,
-      containerDefaults ? { },
-      disabled ? { },
-      containerSelection ? disabledSelectionFrom disabled,
-      file ? "s88/Unit/api/host-build.nix",
+    { selector ? null
+    , hostname ? null
+    , intent ? null
+    , inventory ? null
+    , intentPath ? null
+    , inventoryPath ? null
+    , controlPlaneOut ? null
+    , compilerOut ? null
+    , forwardingOut ? null
+    , system ? currentSystem
+    , containerDefaults ? { }
+    , disabled ? { }
+    , containerSelection ? disabledSelectionFrom disabled
+    , file ? "s88/Unit/api/host-build.nix"
+    ,
     }:
     let
       resolved = buildInputs.resolveBuildInputs {
@@ -173,16 +146,16 @@ let
     };
 
   buildHostFromPaths =
-    {
-      intentPath,
-      inventoryPath,
-      selector ? null,
-      hostname ? null,
-      system ? currentSystem,
-      containerDefaults ? { },
-      disabled ? { },
-      containerSelection ? disabledSelectionFrom disabled,
-      file ? "s88/Unit/api/host-build.nix",
+    { intentPath
+    , inventoryPath
+    , selector ? null
+    , hostname ? null
+    , system ? currentSystem
+    , containerDefaults ? { }
+    , disabled ? { }
+    , containerSelection ? disabledSelectionFrom disabled
+    , file ? "s88/Unit/api/host-build.nix"
+    ,
     }:
     buildHost {
       inherit
@@ -199,16 +172,16 @@ let
     };
 
   buildHostFromControlPlane =
-    {
-      controlPlaneOut,
-      inventory,
-      selector ? null,
-      hostname ? null,
-      system ? currentSystem,
-      containerDefaults ? { },
-      disabled ? { },
-      containerSelection ? disabledSelectionFrom disabled,
-      file ? "s88/Unit/api/host-build.nix",
+    { controlPlaneOut
+    , inventory
+    , selector ? null
+    , hostname ? null
+    , system ? currentSystem
+    , containerDefaults ? { }
+    , disabled ? { }
+    , containerSelection ? disabledSelectionFrom disabled
+    , file ? "s88/Unit/api/host-build.nix"
+    ,
     }:
     buildHost {
       inherit
@@ -226,13 +199,13 @@ let
     };
 
   buildHostFromOutPath =
-    {
-      outPath,
-      selector ? null,
-      hostname ? null,
-      fabricRoot ? null,
-      system ? currentSystem,
-      file ? "s88/Unit/api/host-build.nix",
+    { outPath
+    , selector ? null
+    , hostname ? null
+    , fabricRoot ? null
+    , system ? currentSystem
+    , file ? "s88/Unit/api/host-build.nix"
+    ,
     }:
     let
       paths = selectors.pathsFromOutPath {

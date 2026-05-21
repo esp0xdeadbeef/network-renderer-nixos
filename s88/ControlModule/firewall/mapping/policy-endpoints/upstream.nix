@@ -1,18 +1,18 @@
-{
-  lib,
-  interfaceView,
-  currentSite,
-  currentNodeName,
-  interfaceEntries,
-  transitAdjacencies,
-  adjacencyUnits,
-  adjacencyLinkName,
-  adjacencyLaneUplinkMatches,
-  interfaceLaneUplinkMatches,
-  interfaceNameForLink,
-  interfaceNameForLinkMatching,
-  sourceKindOf,
-  common,
+{ lib
+, interfaceView
+, currentSite
+, currentNodeName
+, interfaceEntries
+, transitAdjacencies
+, adjacencyUnits
+, adjacencyLinkName
+, adjacencyLaneUplinkMatches
+, interfaceLaneUplinkMatches
+, interfaceNameForLink
+, interfaceNameForLinkMatching
+, sourceKindOf
+, common
+,
 }:
 
 let
@@ -36,15 +36,17 @@ let
 
   upstreamMatches =
     if currentNodeName != null && upstreamSelectorNodeName != null then
-      lib.filter (
-        adjacency:
-        let
-          units = adjacencyUnits adjacency;
-        in
-        builtins.length units == 2
-        && builtins.elem currentNodeName units
-        && builtins.elem upstreamSelectorNodeName units
-      ) transitAdjacencies
+      lib.filter
+        (
+          adjacency:
+          let
+            units = adjacencyUnits adjacency;
+          in
+          builtins.length units == 2
+          && builtins.elem currentNodeName units
+          && builtins.elem upstreamSelectorNodeName units
+        )
+        transitAdjacencies
     else
       [ ];
 
@@ -63,22 +65,57 @@ let
   upstreamInterfacesForUplink =
     uplinkName:
     let
-      matches = lib.filter (
-        adjacency: adjacencyLaneUplinkMatches uplinkName adjacency
-      ) upstreamMatches;
+      matches = lib.filter
+        (
+          adjacency: adjacencyLaneUplinkMatches uplinkName adjacency
+        )
+        upstreamMatches;
       linkNames = lib.filter (ln: ln != null) (map adjacencyLinkName matches);
+      laneTaggedInterfaces = lib.filter (name: name != null) (
+        map
+          (
+            entry:
+            let
+              linkName =
+                if builtins.isAttrs (entry.backingRef or null) && builtins.isString (entry.backingRef.name or null) then
+                  entry.backingRef.name
+                else if
+                  entry ? iface
+                  && builtins.isAttrs entry.iface
+                  && entry.iface ? backingRef
+                  && builtins.isAttrs entry.iface.backingRef
+                  && builtins.isString (entry.iface.backingRef.name or null)
+                then
+                  entry.iface.backingRef.name
+                else if builtins.isString (entry.name or null) then
+                  entry.name
+                else
+                  null;
+            in
+            if linkName == null || !(interfaceLaneUplinkMatches uplinkName entry) then
+              null
+            else
+              let
+                matched = interfaceNameForLinkMatching linkName (interfaceLaneUplinkMatches uplinkName);
+              in
+              if matched != null then matched else interfaceNameForLink linkName
+          )
+          interfaceEntries
+      );
+      adjacencyInterfaces =
+        lib.filter (n: n != null) (
+          map
+            (
+              linkName:
+              let
+                matched = interfaceNameForLinkMatching linkName (interfaceLaneUplinkMatches uplinkName);
+              in
+              if matched != null then matched else interfaceNameForLink linkName
+            )
+            linkNames
+        );
     in
-    sortedStrings (
-      lib.filter (n: n != null) (
-        map (
-          linkName:
-          let
-            matched = interfaceNameForLinkMatching linkName (interfaceLaneUplinkMatches uplinkName);
-          in
-          if matched != null then matched else interfaceNameForLink linkName
-        ) linkNames
-      )
-    );
+    sortedStrings (laneTaggedInterfaces ++ adjacencyInterfaces);
 
   routesOf =
     entry:
@@ -98,11 +135,13 @@ let
 
   exitUpstreamInterfaceNames = sortedStrings (
     map (entry: entry.name) (
-      lib.filter (
-        entry:
-        builtins.elem (entry.name or null) upstreamInterfaceNames
-        && builtins.any routeIsDefault (routesOf entry)
-      ) interfaceEntries
+      lib.filter
+        (
+          entry:
+          builtins.elem (entry.name or null) upstreamInterfaceNames
+          && builtins.any routeIsDefault (routesOf entry)
+        )
+        interfaceEntries
     )
   );
 in
@@ -136,13 +175,15 @@ rec {
 
   localAdapterNames = sortedStrings (
     map (entry: entry.name) (
-      lib.filter (
-        entry:
-        let
-          sourceKind = sourceKindOf entry;
-        in
-        sourceKind != "wan" && sourceKind != "p2p"
-      ) interfaceEntries
+      lib.filter
+        (
+          entry:
+          let
+            sourceKind = sourceKindOf entry;
+          in
+          sourceKind != "wan" && sourceKind != "p2p"
+        )
+        interfaceEntries
     )
   );
 }

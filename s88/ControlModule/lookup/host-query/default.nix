@@ -5,14 +5,14 @@ let
   inventoryLookup = import ./inventory.nix { inherit lib; };
 
   query =
-    {
-      selector ? null,
-      hostname ? null,
-      intent ? null,
-      inventory ? null,
-      intentPath ? null,
-      inventoryPath ? null,
-      file ? "s88/ControlModule/lookup/host-query.nix",
+    { selector ? null
+    , hostname ? null
+    , intent ? null
+    , inventory ? null
+    , intentPath ? null
+    , inventoryPath ? null
+    , file ? "s88/ControlModule/lookup/host-query.nix"
+    ,
     }:
     let
       effectiveSelector =
@@ -50,11 +50,11 @@ let
     };
 
   queryFromOutPath =
-    {
-      outPath,
-      hostname,
-      fabricRoot ? null,
-      file ? "s88/ControlModule/lookup/host-query.nix",
+    { outPath
+    , hostname
+    , fabricRoot ? null
+    , file ? "s88/ControlModule/lookup/host-query.nix"
+    ,
     }:
     let
       paths = pathLookup.pathsFromOutPath {
@@ -68,7 +68,7 @@ let
 in
 pathLookup
 // inventoryLookup
-// {
+  // {
   inherit
     query
     queryFromOutPath

@@ -1,11 +1,11 @@
-{
-  repoRoot,
-  cpm ? null,
-  cpmPath ? null,
-  inventory ? { },
-  inventoryPath ? null,
-  exampleDir ? null,
-  debug ? false,
+{ repoRoot
+, cpm ? null
+, cpmPath ? null
+, inventory ? { }
+, inventoryPath ? null
+, exampleDir ? null
+, debug ? false
+,
 }:
 
 let
@@ -61,27 +61,31 @@ let
 
   deploymentHostNames = lib.sort builtins.lessThan (
     lib.unique (
-      map (
-        unitName:
-        runtimeContext.deploymentHostForUnit {
-          cpm = controlPlane;
-          inventory = resolvedInventory;
-          inherit unitName;
-          file = "s88/Unit/render/dry-config-output.nix";
-        }
-      ) unitNames
+      map
+        (
+          unitName:
+          runtimeContext.deploymentHostForUnit {
+            cpm = controlPlane;
+            inventory = resolvedInventory;
+            inherit unitName;
+            file = "s88/Unit/render/dry-config-output.nix";
+          }
+        )
+        unitNames
     )
   );
 
   hostRenderings = builtins.listToAttrs (
-    map (hostName: {
-      name = hostName;
-      value = renderer.renderHostNetwork {
-        inherit hostName;
-        cpm = controlPlane;
-        inventory = resolvedInventory;
-      };
-    }) deploymentHostNames
+    map
+      (hostName: {
+        name = hostName;
+        value = renderer.renderHostNetwork {
+          inherit hostName;
+          cpm = controlPlane;
+          inventory = resolvedInventory;
+        };
+      })
+      deploymentHostNames
   );
 
   output = import ../../ControlModule/render/dry-config-model.nix {

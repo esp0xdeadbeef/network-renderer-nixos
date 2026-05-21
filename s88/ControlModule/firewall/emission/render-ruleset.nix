@@ -1,20 +1,20 @@
 { lib }:
 
-{
-  tableName ? "router",
-  inputPolicy ? "accept",
-  outputPolicy ? "accept",
-  forwardPolicy ? "drop",
-  forwardPairs ? [ ],
-  forwardRules ? [ ],
-  inputRules ? [ ],
-  outputRules ? [ ],
-  natInterfaces ? [ ],
-  nat6Interfaces ? [ ],
-  nat6SourcePrefixes ? [ ],
-  natPreroutingRules4 ? [ ],
-  natPreroutingRules6 ? [ ],
-  clampMssInterfaces ? [ ],
+{ tableName ? "router"
+, inputPolicy ? "accept"
+, outputPolicy ? "accept"
+, forwardPolicy ? "drop"
+, forwardPairs ? [ ]
+, forwardRules ? [ ]
+, inputRules ? [ ]
+, outputRules ? [ ]
+, natInterfaces ? [ ]
+, nat6Interfaces ? [ ]
+, nat6SourcePrefixes ? [ ]
+, natPreroutingRules4 ? [ ]
+, natPreroutingRules6 ? [ ]
+, clampMssInterfaces ? [ ]
+,
 }:
 
 let
@@ -164,7 +164,7 @@ in
   ''}
     }
 ''
-+ lib.optionalString (clampIfs != [ ]) ''
+  + lib.optionalString (clampIfs != [ ]) ''
 
   table inet mangle {
     chain forward {

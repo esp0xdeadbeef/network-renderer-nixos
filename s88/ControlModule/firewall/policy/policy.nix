@@ -1,9 +1,8 @@
-{
-  lib,
-  communicationContract ? { },
-  endpointMap ? { },
-  forwardingIntent ? null,
-  ...
+{ lib
+, communicationContract ? { }
+, endpointMap ? { }
+, forwardingIntent ? null
+, ...
 }:
 
 let
@@ -29,19 +28,22 @@ let
 
   trafficTypeDefinitions =
     if communicationContract ? trafficTypes && builtins.isList communicationContract.trafficTypes then
-      builtins.listToAttrs (
-        map
-          (trafficType: {
-            name = trafficType.name;
-            value = trafficType;
-          })
-          (
-            lib.filter (
-              trafficType:
-              builtins.isAttrs trafficType && trafficType ? name && builtins.isString trafficType.name
-            ) communicationContract.trafficTypes
-          )
-      )
+      builtins.listToAttrs
+        (
+          map
+            (trafficType: {
+              name = trafficType.name;
+              value = trafficType;
+            })
+            (
+              lib.filter
+                (
+                  trafficType:
+                  builtins.isAttrs trafficType && trafficType ? name && builtins.isString trafficType.name
+                )
+                communicationContract.trafficTypes
+            )
+        )
     else
       { };
 
@@ -108,27 +110,29 @@ let
 
   relations =
     if communicationContract ? relations && builtins.isList communicationContract.relations then
-      lib.sort (
-        left: right:
-        let
-          priorityOf =
-            relation:
-            if relation ? priority && builtins.isInt relation.priority then
-              relation.priority
-            else if
-              builtins.isAttrs (relation.source or null)
-              && relation.source ? priority
-              && builtins.isInt relation.source.priority
-            then
-              relation.source.priority
-            else
-              1000;
+      lib.sort
+        (
+          left: right:
+            let
+              priorityOf =
+                relation:
+                if relation ? priority && builtins.isInt relation.priority then
+                  relation.priority
+                else if
+                  builtins.isAttrs (relation.source or null)
+                  && relation.source ? priority
+                  && builtins.isInt relation.source.priority
+                then
+                  relation.source.priority
+                else
+                  1000;
 
-          leftPriority = priorityOf left;
-          rightPriority = priorityOf right;
-        in
-        leftPriority < rightPriority
-      ) (lib.filter builtins.isAttrs communicationContract.relations)
+              leftPriority = priorityOf left;
+              rightPriority = priorityOf right;
+            in
+            leftPriority < rightPriority
+        )
+        (lib.filter builtins.isAttrs communicationContract.relations)
     else
       [ ];
 
@@ -147,56 +151,64 @@ let
     else
       builtins.toJSON relation;
 
-  relationRenderings = map (
-    relation:
-    let
-      action = if (relation.action or "allow") == "deny" then "drop" else "accept";
+  relationRenderings = map
+    (
+      relation:
+      let
+        action = if (relation.action or "allow") == "deny" then "drop" else "accept";
 
-      fromInterfaces = resolveRelationEndpoint relation (relation.from or null);
-      toInterfaces = resolveRelationEndpoint relation (relation.to or null);
+        fromInterfaces = resolveRelationEndpoint relation (relation.from or null);
+        toInterfaces = resolveRelationEndpoint relation (relation.to or null);
 
-      trafficMatches = renderTrafficType (
-        if relation ? trafficType && builtins.isString relation.trafficType then
-          relation.trafficType
-        else
-          null
-      );
-
-      commentValue = relationNameOf relation;
-
-      commentExpr =
-        if builtins.isString commentValue && commentValue != "" then
-          " comment \"${escapeComment commentValue}\""
-        else
-          "";
-
-      rules = lib.concatMap (
-        fromIf:
-        lib.concatMap (
-          toIf:
-          if allowForwardPair relation fromIf toIf then
-            map (
-              matchExpr:
-              let
-                matchPart = if matchExpr == "" then "" else " ${matchExpr}";
-              in
-              "iifname \"${fromIf}\" oifname \"${toIf}\"${matchPart} ${action}${commentExpr}"
-            ) trafficMatches
+        trafficMatches = renderTrafficType (
+          if relation ? trafficType && builtins.isString relation.trafficType then
+            relation.trafficType
           else
-            [ ]
-        ) toInterfaces
-      ) fromInterfaces;
-    in
-    {
-      name = relationNameOf relation;
-      inherit
-        relation
-        fromInterfaces
-        toInterfaces
-        rules
-        ;
-    }
-  ) relations;
+            null
+        );
+
+        commentValue = relationNameOf relation;
+
+        commentExpr =
+          if builtins.isString commentValue && commentValue != "" then
+            " comment \"${escapeComment commentValue}\""
+          else
+            "";
+
+        rules = lib.concatMap
+          (
+            fromIf:
+            lib.concatMap
+              (
+                toIf:
+                if allowForwardPair relation fromIf toIf then
+                  map
+                    (
+                      matchExpr:
+                      let
+                        matchPart = if matchExpr == "" then "" else " ${matchExpr}";
+                      in
+                      "iifname \"${fromIf}\" oifname \"${toIf}\"${matchPart} ${action}${commentExpr}"
+                    )
+                    trafficMatches
+                else
+                  [ ]
+              )
+              toInterfaces
+          )
+          fromInterfaces;
+      in
+      {
+        name = relationNameOf relation;
+        inherit
+          relation
+          fromInterfaces
+          toInterfaces
+          rules
+          ;
+      }
+    )
+    relations;
 
   renderedRules = lib.unique (lib.concatMap (rendering: rendering.rules) relationRenderings);
 

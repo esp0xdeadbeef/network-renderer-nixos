@@ -199,8 +199,8 @@ nix_eval_json_or_fail \
             hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.48" siteaCoreNebulaTable;
           sitea_upstream_wrong_lane_absent =
             !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" 2001);
-          sitea_mgmt_wan_dns_v4 =
-            hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.50" siteaCoreATable;
+          sitea_mgmt_wan_dns_v4_absent =
+            !(hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.50" siteaCoreATable);
           sitea_mgmt_wan_p2p_v4 =
             hasPolicyRoute siteaUpstreamNetworks "10.10.0.8/31" "10.10.0.48" siteaCoreNebulaTable;
           sitea_mgmt_wan_dns_v6 =

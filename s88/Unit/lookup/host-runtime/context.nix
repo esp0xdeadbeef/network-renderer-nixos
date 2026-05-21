@@ -1,10 +1,10 @@
-{
-  lib,
-  hostName,
-  cpm ? null,
-  inventory ? { },
-  hostContext ? null,
-  file ? "s88/Unit/lookup/host-runtime.nix",
+{ lib
+, hostName
+, cpm ? null
+, inventory ? { }
+, hostContext ? null
+, file ? "s88/Unit/lookup/host-runtime.nix"
+,
 }:
 
 let

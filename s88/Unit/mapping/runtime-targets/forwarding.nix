@@ -39,10 +39,10 @@ let
       { };
 
   forwardingSiteForUnit =
-    {
-      cpm,
-      unitName,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , unitName
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -77,10 +77,10 @@ let
     if builtins.isAttrs candidate then candidate else { };
 
   forwardingNodeInterfacesForUnit =
-    {
-      cpm,
-      unitName,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , unitName
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -111,12 +111,12 @@ let
     if node ? interfaces && builtins.isAttrs node.interfaces then node.interfaces else { };
 
   semanticInterfaceForUnit =
-    {
-      cpm,
-      unitName,
-      ifName,
-      iface,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , unitName
+    , ifName
+    , iface
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       nodeInterfaces = forwardingNodeInterfacesForUnit {

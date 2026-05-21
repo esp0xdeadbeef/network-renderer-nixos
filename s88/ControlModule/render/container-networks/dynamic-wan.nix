@@ -1,8 +1,8 @@
-{
-  lib,
-  uplinks,
-  wanUplinkName,
-  common,
+{ lib
+, uplinks
+, wanUplinkName
+, common
+,
 }:
 
 let

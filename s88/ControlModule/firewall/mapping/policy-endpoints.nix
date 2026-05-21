@@ -1,16 +1,15 @@
-{
-  lib,
-  interfaceView ? { },
-  currentSite ? { },
-  communicationContract ? { },
-  ownership ? { },
-  runtimeTarget ? { },
-  roleName ? null,
-  preferSiteNode ? false,
-  strictEndpointBindings ? false,
-  unitName ? null,
-  containerName ? null,
-  ...
+{ lib
+, interfaceView ? { }
+, currentSite ? { }
+, communicationContract ? { }
+, ownership ? { }
+, runtimeTarget ? { }
+, roleName ? null
+, preferSiteNode ? false
+, strictEndpointBindings ? false
+, unitName ? null
+, containerName ? null
+, ...
 }:
 
 let
@@ -122,7 +121,10 @@ in
     relation: fromIf: toIf:
     let
       endpointIsService = endpoint: builtins.isAttrs endpoint && (endpoint.kind or null) == "service";
+      endpointIsExternal = endpoint: builtins.isAttrs endpoint && (endpoint.kind or null) == "external";
       serviceRelation = endpointIsService (relation.from or null) || endpointIsService (relation.to or null);
+      externalServiceIngress =
+        endpointIsExternal (relation.from or null) && endpointIsService (relation.to or null);
       serviceUsesUpstreamLane =
         (
           endpointIsService (relation.from or null)
@@ -133,7 +135,9 @@ in
           && builtins.elem toIf upstream.upstreamInterfaceNames
         );
     in
-    if serviceRelation && serviceUsesUpstreamLane then
+    if externalServiceIngress then
+      true
+    else if serviceRelation && serviceUsesUpstreamLane then
       common.samePolicyTenantLane fromIf toIf
     else
       serviceRelation || common.samePolicyTenantLane fromIf toIf;

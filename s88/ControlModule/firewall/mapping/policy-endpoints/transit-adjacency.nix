@@ -1,7 +1,7 @@
-{
-  lib,
-  currentSite,
-  common,
+{ lib
+, currentSite
+, common
+,
 }:
 
 let
@@ -72,13 +72,15 @@ let
 
   adjacenciesForPair =
     { a, b }:
-    lib.filter (
-      adjacency:
-      let
-        units = adjacencyUnits adjacency;
-      in
-      builtins.length units == 2 && builtins.elem a units && builtins.elem b units
-    ) transitAdjacencies;
+    lib.filter
+      (
+        adjacency:
+        let
+          units = adjacencyUnits adjacency;
+        in
+        builtins.length units == 2 && builtins.elem a units && builtins.elem b units
+      )
+      transitAdjacencies;
 
   adjacencyForPair =
     { a, b, linkNameMatches ? null, adjacencyMatches ? null }:
@@ -89,13 +91,15 @@ let
         if linkNameMatches == null then
           [ ]
         else
-          lib.filter (
-            adjacency:
-            let
-              ln = adjacencyLinkName adjacency;
-            in
-            ln != null && linkNameMatches ln
-          ) matches;
+          lib.filter
+            (
+              adjacency:
+              let
+                ln = adjacencyLinkName adjacency;
+              in
+              ln != null && linkNameMatches ln
+            )
+            matches;
       matchesByAdjacency =
         if adjacencyMatches == null then
           [ ]

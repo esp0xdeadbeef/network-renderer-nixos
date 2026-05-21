@@ -1,19 +1,19 @@
-{
-  lib,
-  repoPath,
-  selectors,
-  buildHostFromPaths,
-  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
+{ lib
+, repoPath
+, selectors
+, buildHostFromPaths
+, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
+,
 }:
 
 let
   resolvePaths =
-    {
-      outPath ? null,
-      fabricRoot ? null,
-      intentPath ? null,
-      inventoryPath ? null,
-      file ? "s88/Unit/api/box-build-inputs.nix",
+    { outPath ? null
+    , fabricRoot ? null
+    , intentPath ? null
+    , inventoryPath ? null
+    , file ? "s88/Unit/api/box-build-inputs.nix"
+    ,
     }:
     if intentPath != null && inventoryPath != null then
       {
@@ -53,18 +53,17 @@ let
       '';
 
   resolve =
-    {
-      outPath ? null,
-      enterpriseName ? null,
-      siteName ? null,
-      boxName ? null,
-      selector ? null,
-      fabricRoot ? null,
-      intentPath ? null,
-      inventoryPath ? null,
-      system ? currentSystem,
-      file ? "s88/Unit/api/box-build-inputs.nix",
-      ...
+    { outPath ? null
+    , enterpriseName ? null
+    , siteName ? null
+    , boxName ? null
+    , selector ? null
+    , fabricRoot ? null
+    , intentPath ? null
+    , inventoryPath ? null
+    , system ? currentSystem
+    , file ? "s88/Unit/api/box-build-inputs.nix"
+    , ...
     }:
     let
       selectorValue =

@@ -35,9 +35,9 @@ let
     outPath: builtins.toPath "${repoRootFromOutPath outPath}/library/100-fabric-routing";
 
   pathsFromOutPath =
-    {
-      outPath,
-      fabricRoot ? null,
+    { outPath
+    , fabricRoot ? null
+    ,
     }:
     let
       resolvedFabricRoot = if fabricRoot != null then fabricRoot else fabricRootFromOutPath outPath;
@@ -79,9 +79,9 @@ let
     };
 
   loadInputs =
-    {
-      intentPath,
-      inventoryPath,
+    { intentPath
+    , inventoryPath
+    ,
     }:
     {
       fabricInputs = importMaybeFunction intentPath;
@@ -89,9 +89,9 @@ let
     };
 
   loadInputsFromOutPath =
-    {
-      outPath,
-      fabricRoot ? null,
+    { outPath
+    , fabricRoot ? null
+    ,
     }:
     let
       paths = pathsFromOutPath {
