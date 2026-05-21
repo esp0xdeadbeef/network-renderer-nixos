@@ -37,6 +37,7 @@ nix_eval_true_or_fail \
               };
               interfaces = { };
               site.tenantPrefixOwners = {
+                "4|10.20.70.0/24".owner = "router-access-hostile";
                 "6|source:/run/secrets/access-node-ipv6-prefix-router-access-hostile".owner =
                   "router-access-hostile";
               };

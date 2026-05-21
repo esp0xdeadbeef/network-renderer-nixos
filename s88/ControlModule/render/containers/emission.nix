@@ -11,7 +11,8 @@
 }:
 
 let
-  uniqueStrings = values: lib.unique (lib.filter builtins.isString values);
+  uniqueStrings =
+    values: lib.unique (lib.filter (value: builtins.isString value && value != "") values);
 
   routeSourceFile =
     route:
