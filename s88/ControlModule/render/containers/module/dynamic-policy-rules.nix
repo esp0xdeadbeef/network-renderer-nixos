@@ -16,7 +16,7 @@ let
         table=${lib.escapeShellArg (toString rule.table)}
         priority=${lib.escapeShellArg (toString rule.priority)}
         suppress=${
-          if rule.suppressPrefixLength == null then
+          if (rule.suppressPrefixLength or null) == null then
             "''"
           else
             lib.escapeShellArg (toString rule.suppressPrefixLength)
