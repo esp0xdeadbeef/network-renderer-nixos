@@ -58,7 +58,7 @@ in
         lib.filter (name: hasAcceptForwardingRule targetName (renderedNameFor name)) interfaceNames;
     in
     if unitSources != null then
-      unitSources
+      lib.unique (unitSources ++ acceptedForwardTargets)
     else
       lib.unique (selfSources ++ acceptedForwardTargets);
 }
