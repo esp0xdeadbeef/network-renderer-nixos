@@ -42,6 +42,7 @@ nix_eval_true_or_fail \
             };
           };
         service = kea.systemd.services."kea-dhcp4-client";
+        genService = kea.systemd.services."gen-kea-client";
         syncService = kea.systemd.services."kea-unbound-sync-client";
         syncTimer = kea.systemd.timers."kea-unbound-sync-client";
         dnsRemoteControl = dns.services.unbound.settings.remote-control;
@@ -51,6 +52,7 @@ nix_eval_true_or_fail \
           && builtins.elem "127.0.0.1" dnsRemoteControl."control-interface"
           && builtins.elem "unbound.service" service.after
           && builtins.elem "unbound.service" service.wants
+          && genService.serviceConfig.Type == "oneshot"
           && syncService.serviceConfig.Type == "oneshot"
           && syncService.serviceConfig.ExecStart == "/run/kea-unbound-sync/client.sh"
           && builtins.elem "unbound.service" syncService.after
@@ -62,26 +64,76 @@ nix_eval_true_or_fail \
         else true
     '
 
+gen_script="$(
+  env REPO_ROOT="${repo_root}" nix eval --raw \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+        kea =
+          import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
+            inherit lib pkgs;
+            scope = {
+              fileStem = "client";
+              interfaceName = "tenant-client";
+              subnetId = 20;
+              subnet = "10.20.20.0/24";
+              pool = "10.20.20.100 - 10.20.20.199";
+              router = "10.20.20.1";
+              dnsServers = [ "10.20.20.1" ];
+              domain = "lan.";
+            };
+          };
+      in
+        builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart
+    '
+)"
+gen_drv="$(
+  env REPO_ROOT="${repo_root}" nix eval --raw \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+        kea =
+          import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
+            inherit lib pkgs;
+            scope = {
+              fileStem = "client";
+              interfaceName = "tenant-client";
+              subnetId = 20;
+              subnet = "10.20.20.0/24";
+              pool = "10.20.20.100 - 10.20.20.199";
+              router = "10.20.20.1";
+              dnsServers = [ "10.20.20.1" ];
+              domain = "lan.";
+            };
+          };
+      in
+        kea.systemd.services."gen-kea-client".serviceConfig.ExecStart.drvPath
+    '
+)"
+
+nix-store -r "$gen_drv" >/dev/null
+[[ -x "$gen_script" ]] || fail "FAIL kea-unbound-lease-sync: generated config script is not executable: ${gen_script}"
+if grep -F '"hooks-libraries"' "$gen_script" >/dev/null; then
+  fail "FAIL kea-unbound-lease-sync: generated Kea config must not use libdhcp_run_script hook"
+fi
+
 kea_out="$(nix eval --raw nixpkgs#kea.outPath)"
 unbound_out="$(nix eval --raw nixpkgs#unbound.outPath)"
-hook="${kea_out}/lib/kea/hooks/libdhcp_run_script.so"
 unbound_control="${unbound_out}/bin/unbound-control"
 
-[[ -f "$hook" ]] || fail "FAIL kea-unbound-lease-sync: missing Kea hook ${hook}"
 [[ -x "$unbound_control" ]] || fail "FAIL kea-unbound-lease-sync: missing unbound-control ${unbound_control}"
 
-cat >"${tmp}/kea.json" <<EOF
+cat >"${tmp}/good-no-hook.json" <<EOF
 {
   "Dhcp4": {
-    "hooks-libraries": [
-      {
-        "library": "${hook}",
-        "parameters": {
-          "name": "/bin/true",
-          "sync": false
-        }
-      }
-    ],
     "interfaces-config": {
       "interfaces": []
     },
@@ -94,6 +146,6 @@ cat >"${tmp}/kea.json" <<EOF
 }
 EOF
 
-"${kea_out}/bin/kea-dhcp4" -t "${tmp}/kea.json" >/dev/null
+"${kea_out}/bin/kea-dhcp4" -t "${tmp}/good-no-hook.json" >/dev/null
 
 echo "PASS kea-unbound-lease-sync"
