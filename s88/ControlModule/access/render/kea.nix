@@ -9,18 +9,11 @@ let
   leaseFile = "/var/lib/kea/${scope.fileStem}.leases";
   syncScript = "/run/kea-unbound-sync/${scope.fileStem}.sh";
 
+  # Do not use Kea libdhcp_run_script for this runtime script. Kea restricts
+  # that hook to its own packaged script directory, so a /run script makes DHCP
+  # fail to start. The timer below keeps hostname sync best-effort.
   configJson = builtins.toJSON {
     Dhcp4 = {
-      "hooks-libraries" = [
-        {
-          library = "${pkgs.kea}/lib/kea/hooks/libdhcp_run_script.so";
-          parameters = {
-            name = syncScript;
-            sync = false;
-          };
-        }
-      ];
-
       "interfaces-config" = {
         interfaces = [ scope.interfaceName ];
       };
