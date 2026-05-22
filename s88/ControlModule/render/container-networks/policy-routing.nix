@@ -97,6 +97,27 @@ let
     inherit lib containerModel laneAccessForRenderedName;
   };
 
+  forwardingSourceFilesFor =
+    interfaceName:
+    lib.unique (
+      lib.concatMap (
+        rule:
+        if
+          builtins.isAttrs rule
+          && (rule.action or null) == "accept"
+          && (rule.fromInterface or null) == interfaceName
+          && builtins.isInt (rule.family or null)
+          && builtins.isList (rule.sourceFiles or null)
+        then
+          map (sourceFile: {
+            family = rule.family;
+            inherit sourceFile;
+          }) (lib.filter (sourceFile: builtins.isString sourceFile && sourceFile != "") rule.sourceFiles)
+        else
+          [ ]
+      ) forwardingRulesResolved
+    );
+
   ruleSourceScope = import ./policy-routing/rule-source-scope.nix {
     inherit
       isSelector
@@ -183,7 +204,15 @@ in
           ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
           sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
           sourceScope = sourcePrefixes.forInterface interfaceName;
-          effectiveRuleSourceScope = ruleSourceScope.forInterface interfaceName sourceScope;
+          forwardingSourceFiles = forwardingSourceFilesFor interfaceName;
+          effectiveRuleSourceScope =
+            let
+              scoped = ruleSourceScope.forInterface interfaceName sourceScope;
+            in
+            scoped
+            // {
+              sourceFiles = lib.unique (scoped.sourceFiles ++ forwardingSourceFiles);
+            };
           rawPolicyRoutes = preferServiceDnsRoutes (
             lib.concatMap (
               sourceIfName:

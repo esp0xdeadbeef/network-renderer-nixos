@@ -24,6 +24,14 @@ REPO_ROOT="${repo_root}" nix eval \
               family = 6;
               relationId = "runtime-routed-prefix-public-egress";
             }
+            {
+              action = "accept";
+              fromInterface = "policy-dmz-wan";
+              toInterface = "core";
+              sourceFiles = [ "/run/secrets/access-node-ipv6-prefix-hostile" ];
+              family = 6;
+              relationId = "runtime-routed-prefix-public-egress";
+            }
           ];
         };
       };
@@ -32,6 +40,7 @@ REPO_ROOT="${repo_root}" nix eval \
           inherit lib runtimeTarget;
           interfaces = {
             core-nebula.containerInterfaceName = "core-nebula";
+            policy-dmz-wan.containerInterfaceName = "policy-dmz-wan";
             core.containerInterfaceName = "core";
           };
         };
@@ -61,7 +70,8 @@ REPO_ROOT="${repo_root}" nix eval \
         };
       policyRouteRender =
         import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
-          inherit lib forwardingIntent;
+          inherit lib;
+          forwardingIntent = runtimeTarget.forwardingIntent;
           uplinks = { };
           wanUplinkName = null;
           containerModel = {
@@ -82,6 +92,7 @@ REPO_ROOT="${repo_root}" nix eval \
               };
               policy-wan = {
                 containerInterfaceName = "policy-wan";
+                interfaceClass.exitFacing = true;
                 sourceKind = "wan";
                 addresses = [ "fd42:dead:cafe:1900::2/127" ];
                 routes = [
@@ -89,6 +100,25 @@ REPO_ROOT="${repo_root}" nix eval \
                     family = 6;
                     dst = "::/0";
                     via6 = "fd42:dead:cafe:1900::3";
+                  }
+                ];
+              };
+              policy-dmz-wan = {
+                containerInterfaceName = "policy-dmz-wan";
+                interfaceClass.exitFacing = true;
+                sourceKind = "wan";
+                addresses = [ "fd42:dead:cafe:1000::11/127" ];
+                backingRef.lane = {
+                  access = "router-access-dmz";
+                  uplink = "wan";
+                };
+                routes = [
+                  {
+                    family = 6;
+                    dst = "::/0";
+                    via6 = "fd42:dead:cafe:1000::4";
+                    policyOnly = true;
+                    reason = "policy-derived-default";
                   }
                 ];
               };
@@ -181,16 +211,24 @@ REPO_ROOT="${repo_root}" nix eval \
         };
       ok =
         firewallRules == [ ]
-      && render.dynamicSourceForwardRules == [
-        {
-          action = "accept";
-          comment = "runtime-routed-prefix-public-egress";
-          family = 6;
-          inIf = "core-nebula";
-          outIf = "core";
-          sourceFile = "/run/secrets/access-node-ipv6-prefix-hostile";
-        }
-      ]
+      && builtins.any
+        (rule:
+          rule.action == "accept"
+          && rule.comment == "runtime-routed-prefix-public-egress"
+          && rule.family == 6
+          && rule.inIf == "core-nebula"
+          && rule.outIf == "core"
+          && rule.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile")
+        render.dynamicSourceForwardRules
+      && builtins.any
+        (rule:
+          rule.action == "accept"
+          && rule.comment == "runtime-routed-prefix-public-egress"
+          && rule.family == 6
+          && rule.inIf == "policy-dmz-wan"
+          && rule.outIf == "core"
+          && rule.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile")
+        render.dynamicSourceForwardRules
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
       && builtins.any
@@ -207,6 +245,12 @@ REPO_ROOT="${repo_root}" nix eval \
           && route.gateway == "fd42:dead:cafe:1000::a"
           && route.table == 2002)
         policyRouteRender.dynamicDelegatedRoutes
+      && builtins.any
+        (rule:
+          rule.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && rule.interfaceName == "policy-dmz-wan"
+          && rule.table != 254)
+        policyRouteRender.dynamicPolicySourceRules
       && !(builtins.any
         (route:
           route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
@@ -226,6 +270,7 @@ REPO_ROOT="${repo_root}" nix eval \
       if ok then true else throw ("dynamic-source-forwarding failed: " + builtins.toJSON {
         inherit firewallRules;
         dynamicSourceForwardRules = render.dynamicSourceForwardRules;
+        dynamicPolicySourceRules = policyRouteRender.dynamicPolicySourceRules;
         dynamicDelegatedRoutes = policyRouteRender.dynamicDelegatedRoutes;
         downstreamDynamicDelegatedRoutes = downstreamReturnRender.dynamicDelegatedRoutes;
         overlayDynamicDelegatedRoutes = overlayRouteRender.dynamicDelegatedRoutes;
