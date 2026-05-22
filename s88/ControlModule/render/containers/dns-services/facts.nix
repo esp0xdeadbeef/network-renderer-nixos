@@ -101,7 +101,10 @@ else
       lib.filter
         (record: builtins.isAttrs record && builtins.isString (record.name or null) && record.name != "")
         (if builtins.isList (dnsService.localRecords or null) then dnsService.localRecords else [ ]);
-    outgoingInterfaces = lib.unique (stringList (dnsService.outgoingInterfaces or [ ]));
+    dnsRoles = if builtins.isAttrs (dnsService.roles or null) then dnsService.roles else { };
+    recursionRole = if builtins.isAttrs (dnsRoles.recursion or null) then dnsRoles.recursion else { };
+    roleOutgoingInterfaces = stringList (recursionRole.outgoingInterfaces or [ ]);
+    outgoingInterfaces = lib.unique (if roleOutgoingInterfaces != [ ] then roleOutgoingInterfaces else stringList (dnsService.outgoingInterfaces or [ ]));
     dnsEgressSources = if outgoingInterfaces != [ ] then outgoingInterfaces else listenAddresses;
     dnsEgressSources4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) dnsEgressSources;
     dnsEgressSources6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) dnsEgressSources;
