@@ -22,9 +22,11 @@ let
         (maybePair roles.resolvedLanNames roles.resolvedWanNames "core-lan-to-wan")
       ];
 
+  coreLocalForwardNames = lib.subtractLists roles.overlayInterfaceNames roles.resolvedLanNames;
+
   overlayCoreForwardPairs = lib.filter (pair: pair != null) [
-    (maybePair roles.resolvedLanNames roles.overlayInterfaceNames "core-lan-to-overlay")
-    (maybePair roles.overlayInterfaceNames roles.resolvedLanNames "core-overlay-to-lan")
+    (maybePair coreLocalForwardNames roles.overlayInterfaceNames "core-lan-to-overlay")
+    (maybePair roles.overlayInterfaceNames coreLocalForwardNames "core-overlay-to-lan")
   ];
 
   hasExplicitSelectorForwarding =
@@ -76,7 +78,10 @@ in
   authoritativeAccessForwarding =
     normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
   authoritativeCoreForwarding =
-    normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
+    normalizedExplicitForwardPairs != [ ]
+    || overlayCoreForwardPairs != [ ]
+    || nodeForwardingEnabled == false
+    || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
   authoritativeCoreNat =
     roles.explicitNatInterfaces != [ ] || natEnabled == false || (natEnabled == true && roles.explicitExitEligibleNames != [ ]);
   authoritativeDownstreamSelectorForwarding =

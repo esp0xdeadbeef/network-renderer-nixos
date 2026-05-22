@@ -33,6 +33,7 @@ bash "${repo_root}/tests/test-loud-test-failures.sh"
 # network-labs example dry outputs must satisfy the contract implied by each
 # example name, not merely render without warnings.
 "${repo_root}/tests/cases/network-labs-example-output-contracts.sh"
+bash "${repo_root}/tests/test-network-labs-router-safe-defaults.sh"
 
 # Renderer-level validation (no VM boot): VLAN trunk lanes should synthesize VLAN netdevs.
 "${repo_root}/tests/cases/vlan-trunk-lanes.sh"
