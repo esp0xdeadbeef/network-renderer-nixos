@@ -185,6 +185,12 @@ REPO_ROOT="${repo_root}" nix eval \
                 fromInterface = "core-nebula";
                 toInterface = "policy-dmz-wan";
               }
+              {
+                action = "accept";
+                family = 6;
+                fromInterface = "core-nebula";
+                toInterface = "core";
+              }
             ];
           };
           interfaces = {
@@ -301,6 +307,8 @@ REPO_ROOT="${repo_root}" nix eval \
           && (route.Table or null) == table
           && (route.Metric or null) == metric
         ) routes;
+      lacksRoute = routes: destination: gateway: table:
+        !(hasRoute routes destination gateway table);
     in
     routesAllHaveTable 2000 selectorPolicyBranch
     && routesAllHaveTable 2001 selectorPolicyHostile
@@ -326,7 +334,8 @@ REPO_ROOT="${repo_root}" nix eval \
     && hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.18" hostileWanTable
     && hasRoute serviceIngressPolicyRoutes "0.0.0.0/0" "10.80.0.15" serviceIngressPolicyTable
     && hasRouteMetric serviceIngressPolicyRoutes "0.0.0.0/0" "10.80.0.15" serviceIngressPolicyTable 50
-    && hasRoute serviceIngressWanRoutes "0.0.0.0/0" "10.80.0.4" serviceIngressPolicyTable
+    && lacksRoute serviceIngressWanRoutes "0.0.0.0/0" "10.80.0.4" serviceIngressPolicyTable
+    && hasRoute serviceIngressWanRoutes "::/0" "fd42:dead:cafe:1000::4" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "10.20.70.0/24" "10.80.0.10" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "10.80.0.10/31" "10.80.0.10" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::a" serviceIngressPolicyTable
