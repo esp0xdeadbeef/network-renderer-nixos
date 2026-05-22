@@ -15,6 +15,7 @@
   policyOnlyProjection,
   routeHelpers,
   hasAcceptForwardingRule,
+  hasAcceptForwardingRuleForRoute,
   isExternalValidationDelegatedPrefixRoute,
 }:
 let
@@ -70,11 +71,7 @@ let
     else
       [ ];
   explicitForwardTargetDefaultRoutes =
-    if
-      targetIfName != null
-      && sourceIfName != targetIfName
-      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
-    then
+    if targetIfName != null && sourceIfName != targetIfName then
       map
         (
           route:
@@ -84,9 +81,12 @@ let
           }
         )
         (
-          lib.filter (route: builtins.isAttrs route && (isDefaultRoute route || isPolicyOnlyRoute route)) (
-            interfaces.${sourceIfName}.routes or [ ]
-          )
+          lib.filter (
+            route:
+            builtins.isAttrs route
+            && (isDefaultRoute route || isPolicyOnlyRoute route)
+            && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
+          ) (interfaces.${sourceIfName}.routes or [ ])
         )
     else
       [ ];
@@ -95,9 +95,12 @@ let
       lib.concatMap (
         name:
         if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name} then
-          lib.filter (route: builtins.isAttrs route && isDefaultRoute route) (
-            interfaces.${name}.routes or [ ]
-          )
+          lib.filter (
+            route:
+            builtins.isAttrs route
+            && isDefaultRoute route
+            && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${name} route
+          ) (interfaces.${name}.routes or [ ])
         else
           [ ]
       ) interfaceNames

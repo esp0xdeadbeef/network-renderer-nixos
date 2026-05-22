@@ -32,7 +32,11 @@ let
   forwardingRuleSet = import ./policy-routing/forwarding-rules.nix {
     inherit lib containerModel forwardingIntent;
   };
-  inherit (forwardingRuleSet) forwardingRulesResolved hasAcceptForwardingRule;
+  inherit (forwardingRuleSet)
+    forwardingRulesResolved
+    hasAcceptForwardingRule
+    hasAcceptForwardingRuleForRoute
+    ;
 
   routeSources = import ./policy-routing/source-interfaces.nix {
     inherit
@@ -126,6 +130,7 @@ let
       policyOnlyProjection
       routeHelpers
       hasAcceptForwardingRule
+      hasAcceptForwardingRuleForRoute
       ;
     inherit isExternalValidationDelegatedPrefixRoute;
   };
