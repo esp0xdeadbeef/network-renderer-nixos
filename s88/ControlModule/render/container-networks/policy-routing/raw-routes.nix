@@ -149,7 +149,9 @@ let
       (lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ]))
       ++ upstreamPolicyCoreConnectedRoutes
     else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
-      (returnRoutes.forUpstreamCore interfaceName sourceIfName) ++ explicitNonDefaultRoutes
+      (returnRoutes.forUpstreamCore interfaceName sourceIfName)
+      ++ explicitNonDefaultRoutes
+      ++ explicitForwardTargetDefaultRoutes
     else
       (interfaces.${sourceIfName}.routes or [ ])
       ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName)
