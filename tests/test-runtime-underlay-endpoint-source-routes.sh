@@ -94,7 +94,7 @@ INVENTORY_PATH="${lab_root}/inventory.nix" \
         ruleset = cfg.networking.nftables.ruleset;
       in
         flake.inputs.nixpkgs.lib.hasInfix
-          "iifname \"core-nebula\" oifname \"core-a\" meta l4proto udp udp dport { 4243 } accept comment \"allow-nebula-runtime-underlay-to-uplinks\""
+          "iifname \"core-nebula\" oifname \"core-a\" meta l4proto udp udp dport { 443 } accept comment \"allow-nebula-runtime-underlay-to-uplinks\""
           ruleset
     '
 
