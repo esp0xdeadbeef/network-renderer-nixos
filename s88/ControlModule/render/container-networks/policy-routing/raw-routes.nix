@@ -26,6 +26,23 @@ let
     isPolicyOnlyRoute
     isServiceDnsReachabilityRoute
     ;
+
+  interfaceLaneAccess =
+    interfaceName:
+    let
+      key = lib.findFirst (name: renderedInterfaceNames.${name} == interfaceName) null interfaceNames;
+    in
+    if key == null then null else ((interfaces.${key}.backingRef or { }).lane or { }).access or null;
+
+  routeLaneAccess = route: ((route.lane or { }).access or null);
+
+  routeMatchesInterfaceLane =
+    interfaceName: route:
+    let
+      targetAccess = interfaceLaneAccess interfaceName;
+      routeAccess = routeLaneAccess route;
+    in
+    targetAccess == null || routeAccess == null || routeAccess == targetAccess;
 in
 tableId: interfaceName: sourceIfName:
 let
@@ -85,6 +102,7 @@ let
             route:
             builtins.isAttrs route
             && (isDefaultRoute route || isPolicyOnlyRoute route)
+            && routeMatchesInterfaceLane interfaceName route
             && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
           ) (interfaces.${sourceIfName}.routes or [ ])
         )
