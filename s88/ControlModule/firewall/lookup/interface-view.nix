@@ -89,8 +89,13 @@ let
     )
     (asStringList lanIfs);
 
+  isOverlayEntry =
+    entry:
+    (entry.sourceKind or null) == "overlay"
+    || (builtins.isAttrs (entry.iface.backingRef or null) && (entry.iface.backingRef.kind or null) == "overlay");
+
   discoveredLanNames = map (entry: entry.name) (
-    lib.filter (entry: !(builtins.elem entry.name resolvedWanNames)) interfaceEntries
+    lib.filter (entry: !(builtins.elem entry.name resolvedWanNames) && !(isOverlayEntry entry)) interfaceEntries
   );
 
   resolvedLanNames = lib.unique (explicitLanNames ++ discoveredLanNames);

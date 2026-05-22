@@ -129,9 +129,6 @@ let
 
   fallbackWanNames = sortedStrings (wanIfs ++ map (entry: entry.name) (lib.filter (entry: entry.sourceKind == "wan") entries));
   fallbackP2pNames = sortedStrings (map (entry: entry.name) (lib.filter (entry: entry.sourceKind == "p2p") entries));
-  fallbackLocalAdapterNames = sortedStrings (lanIfs ++ map (entry: entry.name) (lib.filter (entry: entry.sourceKind != "wan" && entry.sourceKind != "p2p") entries));
-  fallbackLanNames = sortedStrings (lanIfs ++ map (entry: entry.name) (lib.filter (entry: !(builtins.elem entry.name fallbackWanNames)) entries));
-
   overlayInterfaceNames = sortedStrings (
     map (entry: entry.name) (
       lib.filter
@@ -142,6 +139,24 @@ let
         )
         entries
     )
+  );
+
+  isOverlayEntry =
+    entry:
+    (entry.sourceKind or null) == "overlay"
+    || (entry ? backingRef && builtins.isAttrs entry.backingRef && (entry.backingRef.kind or null) == "overlay");
+
+  fallbackLocalAdapterNames = sortedStrings (
+    lanIfs
+    ++ map
+      (entry: entry.name)
+      (lib.filter (entry: entry.sourceKind != "wan" && entry.sourceKind != "p2p" && !(isOverlayEntry entry)) entries)
+  );
+  fallbackLanNames = sortedStrings (
+    lanIfs
+    ++ map
+      (entry: entry.name)
+      (lib.filter (entry: !(builtins.elem entry.name fallbackWanNames) && !(isOverlayEntry entry)) entries)
   );
 in
 {

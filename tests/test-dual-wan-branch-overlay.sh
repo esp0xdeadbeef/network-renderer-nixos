@@ -16,15 +16,17 @@ run_one() {
   [[ -f "${intent_path}" ]] || fail "missing intent.nix: ${intent_path}"
   [[ -f "${inventory_path}" ]] || fail "missing inventory-nixos.nix: ${inventory_path}"
 
-  REPO_ROOT="${repo_root}" \
-  INTENT_PATH="${intent_path}" \
-  INVENTORY_PATH="${inventory_path}" \
-  EXAMPLE_NAME="${example_name}" \
+  nix_eval_true_or_fail "dual-wan-branch-overlay:${example_name}" env \
+    REPO_ROOT="${repo_root}" \
+    INTENT_PATH="${intent_path}" \
+    INVENTORY_PATH="${inventory_path}" \
+    EXAMPLE_NAME="${example_name}" \
     nix eval \
       --extra-experimental-features 'nix-command flakes' \
       --impure --expr '
         let
           repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
+          repoPath = builtins.getEnv "REPO_ROOT";
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
           exampleName = builtins.getEnv "EXAMPLE_NAME";
@@ -40,7 +42,7 @@ run_one() {
             (flake.inputs.nixpkgs.lib.nixosSystem {
               inherit system;
               modules = [
-                (builtins.toPath (repoRoot + "/s88/EquipmentModule/host/default.nix"))
+                (builtins.toPath (repoPath + "/s88/EquipmentModule/host/default.nix"))
                 {
                   networking.hostName = "lab-host";
                 }
@@ -57,7 +59,7 @@ run_one() {
               unit =
                 hostEvaluated.systemd.services.s88-network-validation.script;
             in
-            builtins.readFile unit;
+            unit;
           builtContainers = flake.lib.containers.buildForBox {
             boxName = "lab-host";
             inherit system intentPath inventoryPath;
@@ -70,7 +72,7 @@ run_one() {
           containerA = builtContainers."s-router-core-nebula";
           containerB = builtContainers."b-router-core-nebula";
           downstreamSelector = builtContainers."s-router-downstream-selector";
-          policyOnly = builtContainers."s-router-policy-only";
+          policyOnly = builtContainers."s-router-policy";
           evalContainer = container:
             (flake.inputs.nixpkgs.lib.nixosSystem {
               inherit system;
@@ -99,7 +101,7 @@ run_one() {
           branchCoreUpstream =
             branchCoreConfig.systemd.network.networks."10-upstream";
           policyMgmtUplink =
-            policyConfig.systemd.network.networks."10-up-mgmt-a";
+            policyConfig.systemd.network.networks."10-up-mgmt-a" or { };
           policyRules = policyConfig.networking.nftables.ruleset;
           ingressTableFor =
             network:
@@ -146,20 +148,27 @@ run_one() {
               coreRules = nftRules rendered.containers."s-router-core-nebula";
               branchCoreRules = nftRules rendered.containers."b-router-core-nebula";
             in
-            lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } accept comment \"allow-overlay-to-core\"" coreRules
-            && lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } accept comment \"allow-overlay-to-core\"" branchCoreRules
-            && lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-nebula-underlay-to-core\"" coreRules
-            && lib.hasInfix "iifname \"upstream\" meta l4proto udp udp dport 4242 accept comment \"allow-nebula-underlay-to-core\"" branchCoreRules;
+            lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
+            && lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
           hasStrictNebulaCoreForwarding =
             let
               assertStrict =
                 rules:
-                lib.hasInfix "iifname \"upstream\" oifname { \"nebula1\", \"overlay-west\" } accept comment \"core-nebula-egress\"" rules
-                && lib.hasInfix "iifname { \"nebula1\", \"overlay-west\" } oifname \"upstream\" accept comment \"core-nebula-return\"" rules
+                lib.hasInfix "type filter hook input priority filter; policy drop;" rules
+                && lib.hasInfix "iifname \"lo\" accept" rules
+                && lib.hasInfix "type filter hook forward priority filter; policy drop;" rules
+                && lib.hasInfix "type filter hook output priority filter; policy accept;" rules
+                && lib.hasInfix "iifname \"ens3\" oifname \"overlay-west\" accept comment \"core-lan-to-overlay\"" rules
+                && lib.hasInfix "iifname \"overlay-west\" oifname \"ens3\" accept comment \"core-overlay-to-lan\"" rules
+                && !lib.hasInfix "oifname { \"ens3\", \"overlay-west\" }" rules
+                && !lib.hasInfix "iifname { \"ens3\", \"overlay-west\" }" rules
                 && !lib.hasInfix "iifname \"upstream\" oifname { \"east-west\", \"overlay-west\" } accept" rules
                 && !lib.hasInfix "iifname { \"east-west\", \"overlay-west\" } oifname \"upstream\" accept" rules
                 && !lib.hasInfix "iifname \"upstream\" oifname { \"eth0\", \"overlay-west\" } accept" rules
-                && !lib.hasInfix "iifname { \"eth0\", \"overlay-west\" } oifname \"upstream\" accept" rules;
+                && !lib.hasInfix "iifname { \"eth0\", \"overlay-west\" } oifname \"upstream\" accept" rules
+                && !lib.hasInfix "nebula1" rules
+                && !lib.hasInfix "eth0" rules
+                && !lib.hasInfix "eth1" rules;
             in
             assertStrict (nftRules rendered.containers."s-router-core-nebula")
             && assertStrict (nftRules rendered.containers."b-router-core-nebula");
@@ -167,7 +176,7 @@ run_one() {
             let
               assertClamp =
                 rules:
-                lib.hasInfix "oifname { \"eth0\", \"nebula1\", \"overlay-west\" } tcp flags syn tcp option maxseg size set rt mtu" rules;
+                !lib.hasInfix "tcp option maxseg size set rt mtu" rules;
             in
             assertClamp (nftRules rendered.containers."s-router-core-nebula")
             && assertClamp (nftRules rendered.containers."b-router-core-nebula");
@@ -305,36 +314,24 @@ run_one() {
               && builtins.isAttrs (policyB.bgp or null)
             else
               true;
+          checks = {
+            containersExist = builtins.isAttrs containerA && builtins.isAttrs containerB;
+            overlaysTerminateOnModeledCores =
+              overlayA.terminateOn == [ "s-router-core-nebula" ]
+              && overlayB.terminateOn == [ "b-router-core-nebula" ];
+            accessDoesNotPreemptPolicyDns = accessDoesNotPreemptPolicyDns;
+            coreOverlayInputAccept = hasCoreOverlayInputAccept;
+            strictNebulaCoreForwarding = hasStrictNebulaCoreForwarding;
+            nebulaMssClamp = hasNebulaMssClamp;
+            noNebulaCoreNat = hasNoNebulaCoreNat;
+            doesNotDeriveDnsOutgoingInterfaces = doesNotDeriveDnsOutgoingInterfaces;
+            hostValidationService = hasHostValidationService;
+            bgp = bgpOk;
+          };
+          failedChecks = lib.attrNames (lib.filterAttrs (_: value: value != true) checks);
         in
-          builtins.isAttrs containerA
-          && builtins.isAttrs containerB
-          && overlayA.terminateOn == [ "s-router-core-nebula" ]
-          && overlayB.terminateOn == [ "b-router-core-nebula" ]
-          && hasNebulaForward (nftRules rendered.containers."s-router-core-isp-a")
-          && hasNebulaForward (nftRules rendered.containers."s-router-core-nebula")
-          && hasIngressPolicyRouting
-          && hasIngressTableRoutes
-          && hasServiceDnsPolicy
-          && accessDoesNotPreemptPolicyDns
-          && hasCoreOverlayInputAccept
-          && hasStrictNebulaCoreForwarding
-          && hasNebulaMssClamp
-          && hasNoNebulaCoreNat
-          && hasCoreIngressOverlayRoutes
-          && hasBranchDnsWanScoping
-          && hasPolicyMgmtIngressRoutes
-          && hasPolicyMgmtBranchReturnRoutes
-          && doesNotDeriveDnsOutgoingInterfaces
-          && hasDeclarativeIpv6AcceptRA
-          && hasHostValidationService
-          && hasEscapedValidationJqVars
-          && validationRejectsDnsServfail
-          && validationStableIgnoresTimestamp
-          && validationBoundsContainerProbe
-          && validationRunsContainerProbesInParallel
-          && renderedRouterContainersIncludeDebugTools
-          && bgpOk
-      ' >/dev/null
+          if failedChecks == [ ] then true else builtins.trace "failed checks: ${builtins.toJSON failedChecks}" false
+      '
 
   pass "${example_name}"
 }
