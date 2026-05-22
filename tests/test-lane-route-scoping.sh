@@ -192,6 +192,8 @@ REPO_ROOT="${repo_root}" nix eval \
               containerInterfaceName = "core-nebula";
               addresses = [ "10.80.0.11/31" "fd42:dead:cafe:1000::b/127" ];
               routes = [
+                (default4 "10.80.0.4")
+                (default6 "fd42:dead:cafe:1000::4")
                 {
                   dst = "10.90.10.1";
                   via4 = "10.80.0.14";
@@ -224,6 +226,10 @@ REPO_ROOT="${repo_root}" nix eval \
                 }
               ];
             };
+            core = {
+              containerInterfaceName = "core";
+              addresses = [ "10.80.0.5/31" "fd42:dead:cafe:1000::5/127" ];
+            };
           };
         };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
@@ -254,6 +260,8 @@ REPO_ROOT="${repo_root}" nix eval \
         upstreamSelectorServiceIngressRender.networks."10-policy-dmz-wan".routes or [ ];
       serviceIngressCoreRoutes =
         upstreamSelectorServiceIngressRender.networks."10-core-nebula".routes or [ ];
+      serviceIngressWanRoutes =
+        upstreamSelectorServiceIngressRender.networks."10-core".routes or [ ];
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -285,6 +293,14 @@ REPO_ROOT="${repo_root}" nix eval \
           && (route.Gateway or null) == gateway
           && (route.Table or null) == table
         ) routes;
+      hasRouteMetric = routes: destination: gateway: table: metric:
+        builtins.any (
+          route:
+          (route.Destination or null) == destination
+          && (route.Gateway or null) == gateway
+          && (route.Table or null) == table
+          && (route.Metric or null) == metric
+        ) routes;
     in
     routesAllHaveTable 2000 selectorPolicyBranch
     && routesAllHaveTable 2001 selectorPolicyHostile
@@ -309,6 +325,8 @@ REPO_ROOT="${repo_root}" nix eval \
     && !(hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.16" hostileWanTable)
     && hasRoute splitNebulaRoutes "10.70.10.0/24" "10.50.0.18" hostileWanTable
     && hasRoute serviceIngressPolicyRoutes "0.0.0.0/0" "10.80.0.15" serviceIngressPolicyTable
+    && hasRouteMetric serviceIngressPolicyRoutes "0.0.0.0/0" "10.80.0.15" serviceIngressPolicyTable 50
+    && hasRoute serviceIngressWanRoutes "0.0.0.0/0" "10.80.0.4" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "10.20.70.0/24" "10.80.0.10" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "10.80.0.10/31" "10.80.0.10" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::a" serviceIngressPolicyTable
