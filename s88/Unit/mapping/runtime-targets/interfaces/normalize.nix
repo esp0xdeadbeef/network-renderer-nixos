@@ -1,35 +1,86 @@
-{ lib
-, runtimeContext
-, forwarding
-, common
-, renderedNames
-, hostBridge
-, classification
-,
+{
+  lib,
+  runtimeContext,
+  forwarding,
+  common,
+  renderedNames,
+  hostBridge,
+  classification,
 }:
 
 let
   inherit (common) sortedAttrNames stringList normalizeRoutes;
+
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
+  nixosMaterializationFor =
+    iface:
+    let
+      direct = attrsOrEmpty (iface.materialization or null);
+      connectivity = attrsOrEmpty (iface.connectivity or null);
+      connectivityMaterialization = attrsOrEmpty (connectivity.materialization or null);
+    in
+    attrsOrEmpty (direct.nixos or connectivityMaterialization.nixos or null);
+
+  nixosOwnsInterface =
+    iface:
+    let
+      materialization = nixosMaterializationFor iface;
+    in
+    (materialization.ownsInterface or false) == true
+    || (materialization.owner or null) == "network-renderer-nixos";
+
+  isProviderOwnedOverlayInterface =
+    iface:
+    let
+      backingRef = attrsOrEmpty (iface.backingRef or null);
+      connectivity = attrsOrEmpty (iface.connectivity or null);
+      connectivityBackingRef = attrsOrEmpty (connectivity.backingRef or null);
+    in
+    (iface.sourceKind or null) == "overlay"
+    || (connectivity.sourceKind or null) == "overlay"
+    || (backingRef.kind or null) == "overlay"
+    || (connectivityBackingRef.kind or null) == "overlay";
+
+  shouldEmitInterface = iface: !(isProviderOwnedOverlayInterface iface) || nixosOwnsInterface iface;
 in
 rec {
   emittedInterfacesForUnit =
-    { cpm, unitName, file ? "s88/Unit/mapping/runtime-targets.nix" }:
+    {
+      cpm,
+      unitName,
+      file ? "s88/Unit/mapping/runtime-targets.nix",
+    }:
     runtimeContext.emittedInterfacesForUnit { inherit cpm unitName file; };
 
   emittedLoopbackForUnit =
-    { cpm, unitName, file ? "s88/Unit/mapping/runtime-targets.nix" }:
+    {
+      cpm,
+      unitName,
+      file ? "s88/Unit/mapping/runtime-targets.nix",
+    }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit { inherit cpm unitName file; };
       effectiveRuntimeRealization =
-        if runtimeTarget ? effectiveRuntimeRealization && builtins.isAttrs runtimeTarget.effectiveRuntimeRealization then
+        if
+          runtimeTarget ? effectiveRuntimeRealization
+          && builtins.isAttrs runtimeTarget.effectiveRuntimeRealization
+        then
           runtimeTarget.effectiveRuntimeRealization
         else
           { };
     in
-      effectiveRuntimeRealization.loopback or { };
+    effectiveRuntimeRealization.loopback or { };
 
   normalizedInterfaceForUnit =
-    { cpm, unitName, ifName, iface, renderedIfName, file ? "s88/Unit/mapping/runtime-targets.nix" }:
+    {
+      cpm,
+      unitName,
+      ifName,
+      iface,
+      renderedIfName,
+      file ? "s88/Unit/mapping/runtime-targets.nix",
+    }:
     let
       backingRef =
         if iface ? backingRef && builtins.isAttrs iface.backingRef then
@@ -41,7 +92,15 @@ rec {
             interface:
             ${builtins.toJSON iface}
           '';
-      semanticInterface = forwarding.semanticInterfaceForUnit { inherit cpm unitName ifName iface file; };
+      semanticInterface = forwarding.semanticInterfaceForUnit {
+        inherit
+          cpm
+          unitName
+          ifName
+          iface
+          file
+          ;
+      };
       sourceKind =
         if semanticInterface ? kind && builtins.isString semanticInterface.kind then
           semanticInterface.kind
@@ -70,29 +129,53 @@ rec {
     in
     iface
     // {
-      inherit renderedIfName connectivity sourceKind backingRef semanticInterface interfaceClass;
+      inherit
+        renderedIfName
+        connectivity
+        sourceKind
+        backingRef
+        semanticInterface
+        interfaceClass
+        ;
       addresses = (stringList (iface.addr4 or null)) ++ (stringList (iface.addr6 or null));
       routes = normalizeRoutes (iface.routes or { });
-      hostBridge = hostBridge.hostBridgeIdentityForInterface { inherit unitName ifName iface file; };
+      hostBridge = hostBridge.hostBridgeIdentityForInterface {
+        inherit
+          unitName
+          ifName
+          iface
+          file
+          ;
+      };
       semantic = semanticInterface;
     };
 
   normalizedInterfacesForUnit =
-    { cpm, unitName, file ? "s88/Unit/mapping/runtime-targets.nix" }:
+    {
+      cpm,
+      unitName,
+      file ? "s88/Unit/mapping/runtime-targets.nix",
+    }:
     let
-      interfaces = emittedInterfacesForUnit { inherit cpm unitName file; };
-      renderedInterfaceNameMap = renderedNames.renderedInterfaceNamesForUnit { inherit cpm unitName file; };
+      interfacesAll = emittedInterfacesForUnit { inherit cpm unitName file; };
+      interfaces = lib.filterAttrs (_ifName: iface: shouldEmitInterface iface) interfacesAll;
+      renderedInterfaceNameMap = renderedNames.renderedInterfaceNamesForUnit {
+        inherit cpm unitName file;
+      };
     in
     builtins.listToAttrs (
-      map
-        (ifName: {
-          name = ifName;
-          value = normalizedInterfaceForUnit {
-            inherit cpm unitName ifName file;
-            iface = interfaces.${ifName};
-            renderedIfName = renderedInterfaceNameMap.${ifName};
-          };
-        })
-        (sortedAttrNames interfaces)
+      map (ifName: {
+        name = ifName;
+        value = normalizedInterfaceForUnit {
+          inherit
+            cpm
+            unitName
+            ifName
+            file
+            ;
+          iface = interfaces.${ifName};
+          renderedIfName = renderedInterfaceNameMap.${ifName};
+        };
+      }) (sortedAttrNames interfaces)
     );
 }

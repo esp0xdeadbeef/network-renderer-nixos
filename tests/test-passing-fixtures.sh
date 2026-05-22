@@ -6,6 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 "${repo_root}/tests/test-nix-file-loc.sh"
 "${repo_root}/tests/test-overlay-materialization-contract.sh"
+"${repo_root}/tests/test-provider-overlay-interface-not-materialized.sh"
 "${repo_root}/tests/test-ipv6-pd-downstream-delegation-example-required.sh"
 
 # ControlModules are called by Unit/Equipment/Site with narrow inputs.
