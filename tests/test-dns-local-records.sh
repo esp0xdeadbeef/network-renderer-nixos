@@ -62,10 +62,26 @@ REPO_ROOT="${repo_root}" nix eval \
                 };
             };
         };
+      renderedWithRoleOutgoing =
+        import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
+          inherit lib pkgs;
+          renderedModel =
+            renderedModel
+            // {
+              runtimeTarget.services.dns =
+                renderedModel.runtimeTarget.services.dns
+                // {
+                  roles.recursion.outgoingInterfaces = [ "10.99.0.3" ];
+                  outgoingInterfaces = [ "10.99.0.2" ];
+                };
+            };
+        };
       server = rendered.services.unbound.settings.server;
       explicitServer = renderedWithExplicitOutgoing.services.unbound.settings.server;
+      roleServer = renderedWithRoleOutgoing.services.unbound.settings.server;
       unboundService = rendered.systemd.services.unbound;
       nftScript = renderedWithExplicitOutgoing.systemd.services.nft-allow-dns-service.script;
+      roleNftScript = renderedWithRoleOutgoing.systemd.services.nft-allow-dns-service.script;
       localZones = server."local-zone" or [ ];
       localData = server."local-data" or [ ];
       ok =
@@ -76,6 +92,9 @@ REPO_ROOT="${repo_root}" nix eval \
         && builtins.elem "\"tv-01.home-users. IN A 10.20.0.20\"" localData
         && !(server ? "outgoing-interface")
         && (explicitServer."outgoing-interface" or [ ]) == [ "10.99.0.2" ]
+        && (roleServer."outgoing-interface" or [ ]) == [ "10.99.0.3" ]
+        && lib.hasInfix "ip saddr 10.99.0.3 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" roleNftScript
+        && !(lib.hasInfix "ip saddr 10.99.0.2 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" roleNftScript)
         && lib.hasInfix "ip saddr 10.99.0.2 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" nftScript
         && !(lib.hasInfix "ip saddr 10.53.0.1 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" nftScript)
         && lib.hasInfix "deny-public-dns-output-leak" nftScript
