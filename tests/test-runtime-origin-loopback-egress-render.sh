@@ -34,6 +34,18 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         coreNebulaRoutes = coreNebula.systemd.network.networks."10-upstream".routes or [ ];
         upstreamRules = upstream.systemd.network.networks."10-core-nebula".routingPolicyRules or [ ];
         upstreamRoutes = upstream.systemd.network.networks."10-core-a".routes or [ ];
+        coreNebulaTable =
+          let
+            matches =
+              builtins.filter
+                  (rule:
+                  (rule.IncomingInterface or null) == "core-nebula"
+                  && (rule.From or null) == "10.19.0.8/32"
+                  && builtins.isInt (rule.Table or null)
+                  && !(rule ? SuppressPrefixLength))
+                upstreamRules;
+          in
+          if matches == [ ] then null else (builtins.head matches).Table;
         hasPreferredRoute =
           builtins.any
             (route:
@@ -72,14 +84,25 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             (route:
               (route.Destination or null) == "0.0.0.0/0"
               && (route.Gateway or null) == "10.10.0.12"
-              && builtins.isInt (route.Table or null))
+              && (route.Table or null) == coreNebulaTable
+              && (route.Metric or null) == 50)
             upstreamRoutes;
+        wrongDefaultRoutes =
+          builtins.filter
+            (route:
+              (route.Table or null) == coreNebulaTable
+              && (route.Destination or null) == "0.0.0.0/0"
+              && (route.Metric or 1024) <= 50
+              && (route.Gateway or null) != "10.10.0.12")
+            ((upstream.systemd.network.networks."10-core-nebula".routes or [ ])
+             ++ (upstream.systemd.network.networks."10-pol-hostile-ew".routes or [ ]));
       in
         hasPreferredRoute
         && hasPreferredRoute6
         && hasRuntimeSourceRule
         && hasRuntimeSourceRule6
         && hasCoreADefault
+        && wrongDefaultRoutes == [ ]
         && !hasBroadCoreNebulaRule
     '
 
