@@ -82,7 +82,7 @@ let
     then
       lib.filter
         (route: builtins.isAttrs route && (isDefaultRoute route || isPolicyOnlyRoute route))
-        (interfaces.${targetIfName}.routes or [ ])
+        (interfaces.${sourceIfName}.routes or [ ])
     else
       [ ];
   policyDownstreamDefaultRoutes =
