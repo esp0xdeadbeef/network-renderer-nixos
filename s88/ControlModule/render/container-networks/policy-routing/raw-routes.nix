@@ -42,7 +42,7 @@ let
       targetAccess = interfaceLaneAccess interfaceName;
       routeAccess = routeLaneAccess route;
     in
-    targetAccess == null || routeAccess == null || routeAccess == targetAccess;
+    targetAccess == null || routeAccess == targetAccess;
 in
 tableId: interfaceName: sourceIfName:
 let
