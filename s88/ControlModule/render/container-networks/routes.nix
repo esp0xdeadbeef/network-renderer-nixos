@@ -1,7 +1,7 @@
-{ lib
-, containerModel
-, common
-,
+{
+  lib,
+  containerModel,
+  common,
 }:
 
 let
@@ -9,7 +9,10 @@ let
     route:
     if builtins.isString (route.sourceFile or null) && route.sourceFile != "" then
       route.sourceFile
-    else if builtins.isAttrs (route.delegatedPrefix or null) && builtins.isString (route.delegatedPrefix.sourceFile or null) then
+    else if
+      builtins.isAttrs (route.delegatedPrefix or null)
+      && builtins.isString (route.delegatedPrefix.sourceFile or null)
+    then
       route.delegatedPrefix.sourceFile
     else
       null;
@@ -17,8 +20,7 @@ in
 {
   inherit delegatedPrefixSourceForRoute;
 
-  isExternalValidationDelegatedPrefixRoute =
-    route: delegatedPrefixSourceForRoute route != null;
+  isExternalValidationDelegatedPrefixRoute = route: delegatedPrefixSourceForRoute route != null;
 
   mkRoute =
     route:
@@ -60,7 +62,17 @@ in
         // lib.optionalAttrs (route ? table && builtins.isInt route.table) { Table = route.table; }
         // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) { Metric = route.metric; }
         // lib.optionalAttrs ((route.policyOnly or false) == true) { _s88PolicyOnly = true; }
-        // lib.optionalAttrs (builtins.isString (route.sourceFile or null) && route.sourceFile != "") { inherit (route) sourceFile; }
-        // lib.optionalAttrs (builtins.isAttrs (route.delegatedPrefix or null)) { inherit (route) delegatedPrefix; }
+        //
+          lib.optionalAttrs
+            (builtins.isAttrs (route.intent or null) && builtins.isString (route.intent.kind or null))
+            {
+              _s88IntentKind = route.intent.kind;
+            }
+        // lib.optionalAttrs (builtins.isString (route.sourceFile or null) && route.sourceFile != "") {
+          inherit (route) sourceFile;
+        }
+        // lib.optionalAttrs (builtins.isAttrs (route.delegatedPrefix or null)) {
+          inherit (route) delegatedPrefix;
+        }
         // lib.optionalAttrs (route ? family) { inherit (route) family; };
 }
