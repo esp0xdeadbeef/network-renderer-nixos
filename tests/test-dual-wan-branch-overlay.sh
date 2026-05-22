@@ -143,23 +143,28 @@ run_one() {
           accessDoesNotPreemptPolicyDns =
             !lib.hasInfix "deny-direct-dns-egress" accessAdminRules
             && !lib.hasInfix "deny-direct-dns-egress" accessMgmtRules;
-          hasCoreOverlayInputAccept =
+          noCoreOverlayInputAccept =
             let
               coreRules = nftRules rendered.containers."s-router-core-nebula";
               branchCoreRules = nftRules rendered.containers."b-router-core-nebula";
             in
-            lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
-            && lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
-          hasStrictNebulaCoreForwarding =
+            !lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" coreRules
+            && !lib.hasInfix "iifname \"overlay-west\" accept comment \"allow-overlay-to-core\"" branchCoreRules;
+          noNixosOwnedOverlayInterface =
             let
+              siteCoreNetworks = siteCoreConfig.systemd.network.networks;
+              branchCoreNetworks = branchCoreConfig.systemd.network.networks;
+              siteCoreExtraVeths = builtins.attrNames (containerA.extraVeths or { });
+              branchCoreExtraVeths = builtins.attrNames (containerB.extraVeths or { });
+              hasOverlayName = name: lib.hasInfix "overlay" name || lib.hasInfix "ovly" name;
               assertStrict =
                 rules:
                 lib.hasInfix "type filter hook input priority filter; policy drop;" rules
                 && lib.hasInfix "iifname \"lo\" accept" rules
                 && lib.hasInfix "type filter hook forward priority filter; policy drop;" rules
                 && lib.hasInfix "type filter hook output priority filter; policy accept;" rules
-                && lib.hasInfix "iifname \"ens3\" oifname \"overlay-west\" accept comment \"core-lan-to-overlay\"" rules
-                && lib.hasInfix "iifname \"overlay-west\" oifname \"ens3\" accept comment \"core-overlay-to-lan\"" rules
+                && !lib.hasInfix "iifname \"ens3\" oifname \"overlay-west\" accept comment \"core-lan-to-overlay\"" rules
+                && !lib.hasInfix "iifname \"overlay-west\" oifname \"ens3\" accept comment \"core-overlay-to-lan\"" rules
                 && !lib.hasInfix "oifname { \"ens3\", \"overlay-west\" }" rules
                 && !lib.hasInfix "iifname { \"ens3\", \"overlay-west\" }" rules
                 && !lib.hasInfix "iifname \"upstream\" oifname { \"east-west\", \"overlay-west\" } accept" rules
@@ -170,6 +175,11 @@ run_one() {
                 && !lib.hasInfix "eth0" rules
                 && !lib.hasInfix "eth1" rules;
             in
+            !(siteCoreNetworks ? "10-overlay-west")
+            && !(branchCoreNetworks ? "10-overlay-west")
+            && !(builtins.any hasOverlayName siteCoreExtraVeths)
+            && !(builtins.any hasOverlayName branchCoreExtraVeths)
+            &&
             assertStrict (nftRules rendered.containers."s-router-core-nebula")
             && assertStrict (nftRules rendered.containers."b-router-core-nebula");
           hasNebulaMssClamp =
@@ -320,8 +330,8 @@ run_one() {
               overlayA.terminateOn == [ "s-router-core-nebula" ]
               && overlayB.terminateOn == [ "b-router-core-nebula" ];
             accessDoesNotPreemptPolicyDns = accessDoesNotPreemptPolicyDns;
-            coreOverlayInputAccept = hasCoreOverlayInputAccept;
-            strictNebulaCoreForwarding = hasStrictNebulaCoreForwarding;
+            noCoreOverlayInputAccept = noCoreOverlayInputAccept;
+            noNixosOwnedOverlayInterface = noNixosOwnedOverlayInterface;
             nebulaMssClamp = hasNebulaMssClamp;
             noNebulaCoreNat = hasNoNebulaCoreNat;
             doesNotDeriveDnsOutgoingInterfaces = doesNotDeriveDnsOutgoingInterfaces;
