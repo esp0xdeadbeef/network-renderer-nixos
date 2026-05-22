@@ -29,6 +29,12 @@ REPO_ROOT="${repo_root}" nix eval \
               fromInterface = "policy-dmz-wan";
               toInterface = "core";
               sourceFiles = [ "/run/secrets/access-node-ipv6-prefix-hostile" ];
+              sourcePrefixes = [
+                {
+                  family = 4;
+                  prefix = "10.20.70.0/24";
+                }
+              ];
               family = 6;
               relationId = "runtime-routed-prefix-public-egress";
             }
@@ -63,7 +69,7 @@ REPO_ROOT="${repo_root}" nix eval \
               };
               core = {
                 containerInterfaceName = "core";
-                addresses = [ "fd42:dead:cafe:1000::5/127" ];
+                addresses = [ "10.80.0.5/31" "fd42:dead:cafe:1000::5/127" ];
               };
             };
           };
@@ -107,7 +113,7 @@ REPO_ROOT="${repo_root}" nix eval \
                 containerInterfaceName = "policy-dmz-wan";
                 interfaceClass.exitFacing = true;
                 sourceKind = "wan";
-                addresses = [ "fd42:dead:cafe:1000::11/127" ];
+                addresses = [ "10.80.0.17/31" "fd42:dead:cafe:1000::11/127" ];
                 backingRef.lane = {
                   access = "router-access-dmz";
                   uplink = "wan";
@@ -145,6 +151,10 @@ REPO_ROOT="${repo_root}" nix eval \
           dynamicSourceForwardRules = render.dynamicSourceForwardRules;
         };
       service = dynamicForwarding.config.systemd.services."s88-dynamic-forward-0" or null;
+      policyRouteRules =
+        lib.concatMap
+          (network: network.routingPolicyRules or [ ])
+          (builtins.attrValues policyRouteRender.networks);
       overlayRouteRender =
         import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
           inherit lib;
@@ -210,8 +220,7 @@ REPO_ROOT="${repo_root}" nix eval \
           };
         };
       ok =
-        firewallRules == [ ]
-      && builtins.any
+        builtins.any
         (rule:
           rule.action == "accept"
           && rule.comment == "runtime-routed-prefix-public-egress"
@@ -229,6 +238,9 @@ REPO_ROOT="${repo_root}" nix eval \
           && rule.outIf == "core"
           && rule.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile")
         render.dynamicSourceForwardRules
+      && builtins.elem
+        "iifname \"policy-dmz-wan\" oifname \"core\" ip saddr 10.20.70.0/24 accept comment \"runtime-routed-prefix-public-egress\""
+        firewallRules
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
       && builtins.any
@@ -251,6 +263,12 @@ REPO_ROOT="${repo_root}" nix eval \
           && rule.interfaceName == "policy-dmz-wan"
           && rule.table != 254)
         policyRouteRender.dynamicPolicySourceRules
+      && builtins.any
+          (rule:
+          (rule.From or null) == "10.20.70.0/24"
+          && (rule.IncomingInterface or null) == "policy-dmz-wan"
+          && (rule.Table or null) == 2002)
+        policyRouteRules
       && !(builtins.any
         (route:
           route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
@@ -271,6 +289,7 @@ REPO_ROOT="${repo_root}" nix eval \
         inherit firewallRules;
         dynamicSourceForwardRules = render.dynamicSourceForwardRules;
         dynamicPolicySourceRules = policyRouteRender.dynamicPolicySourceRules;
+        inherit policyRouteRules;
         dynamicDelegatedRoutes = policyRouteRender.dynamicDelegatedRoutes;
         downstreamDynamicDelegatedRoutes = downstreamReturnRender.dynamicDelegatedRoutes;
         overlayDynamicDelegatedRoutes = overlayRouteRender.dynamicDelegatedRoutes;

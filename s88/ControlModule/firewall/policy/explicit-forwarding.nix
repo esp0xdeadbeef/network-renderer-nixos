@@ -1,4 +1,9 @@
-{ lib, escapeComment, renderTrafficType ? (_: [ "" ]), forwardingIntent ? null }:
+{
+  lib,
+  escapeComment,
+  renderTrafficType ? (_: [ "" ]),
+  forwardingIntent ? null,
+}:
 
 let
   asList =
@@ -28,6 +33,29 @@ let
     else
       "{ ${builtins.concatStringsSep ", " (map (name: "\"${name}\"") names)} }";
 
+  sourcePrefixMatch =
+    value:
+    let
+      prefix = if builtins.isString value then value else value.prefix or "";
+      family =
+        if builtins.isAttrs value && (value.family or null) == 6 then
+          6
+        else if builtins.isString prefix && lib.hasInfix ":" prefix then
+          6
+        else
+          4;
+    in
+    if !(builtins.isString prefix) || prefix == "" then
+      null
+    else if family == 6 then
+      "ip6 saddr ${prefix}"
+    else
+      "ip saddr ${prefix}";
+
+  sourcePrefixMatches =
+    pair:
+    lib.filter (value: value != null) (map sourcePrefixMatch (asList (pair.sourcePrefixes or [ ])));
+
   explicitForwardPairs =
     if forwardingIntent != null && builtins.isAttrs forwardingIntent then
       forwardingIntent.normalizedExplicitForwardPairs or [ ]
@@ -38,11 +66,7 @@ let
     pair:
     let
       rawAction = if pair ? action && builtins.isString pair.action then pair.action else "accept";
-      action =
-        if rawAction == "deny" then
-          "drop"
-        else
-          rawAction;
+      action = if rawAction == "deny" then "drop" else rawAction;
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
           " comment \"${escapeComment pair.comment}\""
@@ -50,20 +74,31 @@ let
           "";
       trafficMatches =
         if pair ? sourceFiles && builtins.isList pair.sourceFiles && pair.sourceFiles != [ ] then
-          [ "__s88_dynamic_source_forward__" ]
+          [ "__s88_dynamic_source_forward__" ] ++ sourcePrefixMatches pair
+        else if
+          pair ? sourcePrefixes && builtins.isList pair.sourcePrefixes && pair.sourcePrefixes != [ ]
+        then
+          sourcePrefixMatches pair
         else if pair ? trafficType && builtins.isString pair.trafficType then
           renderTrafficType pair.trafficType
         else
           [ "" ];
     in
-    map
-      (matchExpr:
-      let matchPart = if matchExpr == "" then "" else " ${matchExpr}";
+    map (
+      matchExpr:
+      let
+        matchPart = if matchExpr == "" then "" else " ${matchExpr}";
       in
       if matchExpr == "__s88_dynamic_source_forward__" then
         ""
       else
-        "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${renderInterfaceExpr (pair."out" or [ ])}${matchPart} ${action}${commentExpr}")
-      trafficMatches;
+        "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${
+          renderInterfaceExpr (pair."out" or [ ])
+        }${matchPart} ${action}${commentExpr}"
+    ) trafficMatches;
 in
-lib.filter (rule: rule != "") (lib.concatMap renderExplicitForwardPair (lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs))
+lib.filter (rule: rule != "") (
+  lib.concatMap renderExplicitForwardPair (
+    lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs
+  )
+)

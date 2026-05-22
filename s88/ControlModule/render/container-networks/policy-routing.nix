@@ -97,26 +97,63 @@ let
     inherit lib containerModel laneAccessForRenderedName;
   };
 
-  forwardingSourceFilesFor =
+  sourcePrefixFromRule =
+    rule: value:
+    let
+      prefix = if builtins.isString value then value else value.prefix or "";
+      family =
+        if builtins.isAttrs value && (value.family or null) == 6 then
+          6
+        else if builtins.isAttrs value && (value.family or null) == 4 then
+          4
+        else if builtins.isString prefix && lib.hasInfix ":" prefix then
+          6
+        else if builtins.isInt (rule.family or null) then
+          rule.family
+        else
+          4;
+    in
+    if !(builtins.isString prefix) || prefix == "" then null else { inherit family prefix; };
+
+  forwardingSourceScopeFor =
     interfaceName:
-    lib.unique (
-      lib.concatMap (
-        rule:
+    builtins.foldl'
+      (
+        acc: rule:
         if
           builtins.isAttrs rule
           && (rule.action or null) == "accept"
           && (rule.fromInterface or null) == interfaceName
-          && builtins.isInt (rule.family or null)
-          && builtins.isList (rule.sourceFiles or null)
         then
-          map (sourceFile: {
-            family = rule.family;
-            inherit sourceFile;
-          }) (lib.filter (sourceFile: builtins.isString sourceFile && sourceFile != "") rule.sourceFiles)
+          {
+            sourceFiles =
+              acc.sourceFiles
+              ++ (
+                if builtins.isInt (rule.family or null) && builtins.isList (rule.sourceFiles or null) then
+                  map (sourceFile: {
+                    family = rule.family;
+                    inherit sourceFile;
+                  }) (lib.filter (sourceFile: builtins.isString sourceFile && sourceFile != "") rule.sourceFiles)
+                else
+                  [ ]
+              );
+            staticPrefixes =
+              acc.staticPrefixes
+              ++ (
+                if builtins.isList (rule.sourcePrefixes or null) then
+                  lib.filter (prefix: prefix != null) (map (sourcePrefixFromRule rule) rule.sourcePrefixes)
+                else
+                  [ ]
+              );
+          }
         else
-          [ ]
-      ) forwardingRulesResolved
-    );
+          acc
+      )
+      {
+        sourceFiles = [ ];
+        staticPrefixes = [ ];
+      }
+      forwardingRulesResolved;
 
   ruleSourceScope = import ./policy-routing/rule-source-scope.nix {
     inherit
@@ -204,14 +241,15 @@ in
           ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
           sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
           sourceScope = sourcePrefixes.forInterface interfaceName;
-          forwardingSourceFiles = forwardingSourceFilesFor interfaceName;
+          forwardingSourceScope = forwardingSourceScopeFor interfaceName;
           effectiveRuleSourceScope =
             let
               scoped = ruleSourceScope.forInterface interfaceName sourceScope;
             in
             scoped
             // {
-              sourceFiles = lib.unique (scoped.sourceFiles ++ forwardingSourceFiles);
+              staticPrefixes = lib.unique (scoped.staticPrefixes ++ forwardingSourceScope.staticPrefixes);
+              sourceFiles = lib.unique (scoped.sourceFiles ++ forwardingSourceScope.sourceFiles);
             };
           rawPolicyRoutes = preferServiceDnsRoutes (
             lib.concatMap (

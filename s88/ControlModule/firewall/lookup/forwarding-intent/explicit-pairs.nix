@@ -1,14 +1,15 @@
-{ lib, common, resolveInterfaceTokens, runtimeTarget, nodeForwarding }:
+{
+  lib,
+  common,
+  resolveInterfaceTokens,
+  runtimeTarget,
+  nodeForwarding,
+}:
 
 let
   inherit (common) asList valuesFromPaths attrOr;
 
-  normalizeAction =
-    raw:
-    if raw == "deny" then
-      "drop"
-    else
-      raw;
+  normalizeAction = raw: if raw == "deny" then "drop" else raw;
 
   normalizeForwardPair =
     pair:
@@ -16,17 +17,27 @@ let
       null
     else
       let
-        inIfs = resolveInterfaceTokens ((attrOr pair "in" [ ]) ++ (attrOr pair "iifname" [ ]) ++ (attrOr pair "from" [ ]));
-        outIfs = resolveInterfaceTokens ((attrOr pair "out" [ ]) ++ (attrOr pair "oifname" [ ]) ++ (attrOr pair "to" [ ]));
-        action = normalizeAction (if pair ? action && builtins.isString pair.action then pair.action else "accept");
+        inIfs = resolveInterfaceTokens (
+          (attrOr pair "in" [ ]) ++ (attrOr pair "iifname" [ ]) ++ (attrOr pair "from" [ ])
+        );
+        outIfs = resolveInterfaceTokens (
+          (attrOr pair "out" [ ]) ++ (attrOr pair "oifname" [ ]) ++ (attrOr pair "to" [ ])
+        );
+        action = normalizeAction (
+          if pair ? action && builtins.isString pair.action then pair.action else "accept"
+        );
       in
-      if inIfs == [ ] || outIfs == [ ] then null else {
-        "in" = inIfs;
-        "out" = outIfs;
-        inherit action;
-      } // lib.optionalAttrs (pair ? comment && builtins.isString pair.comment && pair.comment != "") {
-        comment = pair.comment;
-      };
+      if inIfs == [ ] || outIfs == [ ] then
+        null
+      else
+        {
+          "in" = inIfs;
+          "out" = outIfs;
+          inherit action;
+        }
+        // lib.optionalAttrs (pair ? comment && builtins.isString pair.comment && pair.comment != "") {
+          comment = pair.comment;
+        };
 
   normalizeForwardRule =
     rule:
@@ -36,7 +47,9 @@ let
       let
         inIfs = resolveInterfaceTokens (attrOr rule "fromInterface" [ ]);
         outIfs = resolveInterfaceTokens (attrOr rule "toInterface" [ ]);
-        action = normalizeAction (if rule ? action && builtins.isString rule.action then rule.action else "accept");
+        action = normalizeAction (
+          if rule ? action && builtins.isString rule.action then rule.action else "accept"
+        );
         comment =
           if builtins.isString (rule.relationId or null) then
             rule.relationId
@@ -58,6 +71,13 @@ let
         }
         // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
           sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
+        }
+        // lib.optionalAttrs (builtins.isList (rule.sourcePrefixes or null)) {
+          sourcePrefixes = lib.filter (
+            value:
+            (builtins.isString value && value != "")
+            || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
+          ) rule.sourcePrefixes;
         }
         // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
           family = rule.family;
@@ -85,12 +105,25 @@ let
   fromPairs = lib.filter (pair: pair != null) (
     map normalizeForwardPair (
       lib.concatMap asList (valuesFromPaths {
-        roots = [ runtimeTarget nodeForwarding ];
+        roots = [
+          runtimeTarget
+          nodeForwarding
+        ];
         paths = [
           [ "forwardPairs" ]
-          [ "firewall" "forwardPairs" ]
-          [ "forwarding" "forwardPairs" ]
-          [ "forwarding" "firewall" "forwardPairs" ]
+          [
+            "firewall"
+            "forwardPairs"
+          ]
+          [
+            "forwarding"
+            "forwardPairs"
+          ]
+          [
+            "forwarding"
+            "firewall"
+            "forwardPairs"
+          ]
         ];
       })
     )
