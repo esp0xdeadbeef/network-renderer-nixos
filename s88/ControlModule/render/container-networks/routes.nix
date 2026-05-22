@@ -59,6 +59,9 @@ in
           GatewayOnLink = true;
         }
         // lib.optionalAttrs (destination != null) { Destination = destination; }
+        // lib.optionalAttrs (builtins.isString (route.preferredSource or null) && route.preferredSource != "") {
+          PreferredSource = route.preferredSource;
+        }
         // lib.optionalAttrs (route ? table && builtins.isInt route.table) { Table = route.table; }
         // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) { Metric = route.metric; }
         // lib.optionalAttrs ((route.policyOnly or false) == true) { _s88PolicyOnly = true; }
