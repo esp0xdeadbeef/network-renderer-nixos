@@ -96,6 +96,7 @@ let
   interfaceUnits = import ./container-networks/interface-units.nix {
     inherit
       lib
+      containerModel
       interfaces
       networkManagerInterfaces
       common
