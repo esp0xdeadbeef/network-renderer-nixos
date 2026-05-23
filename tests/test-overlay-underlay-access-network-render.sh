@@ -32,10 +32,7 @@ nix_eval_true_or_fail \
             ];
             backingRef = {
               name = "p2p-access-client-core-nebula";
-              lane = {
-                class = "overlay-underlay";
-                trafficType = "nebula";
-              };
+              lane = "default";
             };
             routes = [ ];
           };
@@ -55,10 +52,16 @@ nix_eval_true_or_fail \
                 {
                   dst = "0.0.0.0/0";
                   via4 = "10.50.0.2";
+                  proto = "default";
+                  reason = "default-reachability";
+                  intent.kind = "default-reachability";
                 }
                 {
                   dst = "::/0";
                   via6 = "fd42:dead:feed:1000::2";
+                  proto = "default";
+                  reason = "default-reachability";
+                  intent.kind = "default-reachability";
                 }
               ];
             };
@@ -90,6 +93,16 @@ nix_eval_true_or_fail \
               && (route.Gateway or null) == gateway
               && !(route ? Table))
             routes;
+        hasRendererMetadata =
+          routes:
+          builtins.any
+            (route:
+              route ? proto
+              || route ? reason
+              || route ? intent
+              || route ? lane
+              || route ? policyOnly)
+            routes;
       in
         accessNetworks ? "10-underlay-core-nebula"
         && !(accessNetworks ? "10-overlay-west")
@@ -107,6 +120,7 @@ nix_eval_true_or_fail \
           (coreUnderlay.routes or [ ])
           "::/0"
           "fd42:dead:feed:1000::2"
+        && !hasRendererMetadata (coreUnderlay.routes or [ ])
         && (builtins.filter
           (route: isDefault4 route || isDefault6 route)
           (coreUpstream.routes or [ ])) == [ ]

@@ -106,6 +106,11 @@ let
       "sourceFile"
       "delegatedPrefix"
       "family"
+      "proto"
+      "intent"
+      "reason"
+      "lane"
+      "policyOnly"
     ];
   tenantPrefixOwners =
     if builtins.isAttrs (((containerModel.site or { }).tenantPrefixOwners or null)) then
@@ -131,7 +136,8 @@ let
   routeReturnsToInterfaceLane =
     iface: route:
     let
-      laneAccess = (((iface.backingRef or { }).lane or { }).access);
+      lane = (iface.backingRef or { }).lane or { };
+      laneAccess = if builtins.isAttrs lane then lane.access or null else null;
       owner = prefixOwnerForRoute route;
     in
     builtins.isString laneAccess && laneAccess != "" && owner == laneAccess;
