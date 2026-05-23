@@ -63,7 +63,30 @@ let
     name: fallback: attrs:
     if builtins.isAttrs attrs && builtins.hasAttr name attrs then attrs.${name} else fallback;
 
-  renderPairRule =
+  sourcePrefixMatch =
+    value:
+    let
+      prefix = if builtins.isString value then value else value.prefix or "";
+      family =
+        if builtins.isAttrs value && (value.family or null) == 6 then
+          6
+        else if builtins.isString prefix && lib.hasInfix ":" prefix then
+          6
+        else
+          4;
+    in
+    if !(builtins.isString prefix) || prefix == "" then
+      null
+    else if family == 6 then
+      "ip6 saddr ${prefix}"
+    else
+      "ip saddr ${prefix}";
+
+  sourcePrefixMatches =
+    pair:
+    lib.filter (value: value != null) (map sourcePrefixMatch (asList (pair.sourcePrefixes or [ ])));
+
+  renderPairRules =
     pair:
     let
       inIfs =
@@ -88,16 +111,26 @@ let
       matchExpr =
         if pair ? match && builtins.isString pair.match && pair.match != "" then " ${pair.match}" else "";
 
+      sourceMatches = sourcePrefixMatches pair;
+
+      matchExprs =
+        if sourceMatches != [ ] then
+          map (sourceMatch: "${matchExpr} ${sourceMatch}") sourceMatches
+        else
+          [ matchExpr ];
+
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
           " comment \"${escapeComment pair.comment}\""
         else
           "";
     in
-    "iifname ${renderIfExpr inIfs} oifname ${renderIfExpr outIfs}${matchExpr} ${action}${commentExpr}";
+    map
+      (matchPart: "iifname ${renderIfExpr inIfs} oifname ${renderIfExpr outIfs}${matchPart} ${action}${commentExpr}")
+      matchExprs;
 
   renderedForwardRules = lib.unique (
-    (map renderPairRule forwardPairs)
+    (lib.concatMap renderPairRules forwardPairs)
     ++ (lib.filter (rule: builtins.isString rule && rule != "") forwardRules)
   );
 

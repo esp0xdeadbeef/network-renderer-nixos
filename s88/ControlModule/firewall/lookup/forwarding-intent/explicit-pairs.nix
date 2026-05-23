@@ -90,6 +90,7 @@ let
     map normalizeForwardRule (
       if
         builtins.elem (nodeForwarding.mode or null) [
+          "explicit-access-forwarding"
           "explicit-selector-forwarding"
           "explicit-policy-forwarding"
         ]
