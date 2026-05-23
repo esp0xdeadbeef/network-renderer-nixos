@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 nix_eval_true_or_fail \
-  sigma-router-diagnostic-main-routes \
+  example-router-diagnostic-main-routes \
   env REPO_ROOT="${repo_root}" \
     nix eval \
       --extra-experimental-features 'nix-command flakes' \
@@ -16,14 +16,14 @@ nix_eval_true_or_fail \
           host = flake.lib.renderer.buildHostFromPaths {
             selector = "s-router-test";
             system = "x86_64-linux";
-            intentPath = labs + "/labs/lab-s-sigma/s-router-test-three-site/intent.nix";
-            inventoryPath = labs + "/labs/lab-s-sigma/s-router-test-three-site/inventory.nix";
+            intentPath = labs + "/examples/s-router-overlay-dns-lane-policy/intent.nix";
+            inventoryPath = labs + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
           };
           hetzContainers = flake.lib.containers.buildForBox {
             boxName = "s-router-hetzner-anywhere";
             system = "x86_64-linux";
-            intentPath = labs + "/labs/lab-s-sigma/s-router-test-three-site/intent.nix";
-            inventoryPath = labs + "/labs/lab-s-sigma/s-router-test-three-site/inventory.nix";
+            intentPath = labs + "/examples/s-router-overlay-dns-lane-policy/intent.nix";
+            inventoryPath = labs + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
           };
           cfgFor = name:
             (flake.inputs.nixpkgs.lib.nixosSystem {
@@ -71,23 +71,21 @@ nix_eval_true_or_fail \
                 ((route.Destination or null) == "0.0.0.0/0" || (route.Destination or null) == "::/0")
                 && !(route ? Table))
               routes;
-          downstream = routesFor "nixos-router-downstream";
-          policy = routesFor "nixos-router-policy";
-          upstream = routesFor "nixos-router-upstream";
-          hetzUpstream = hetzRoutesFor "hetz-router-upstream";
+          downstream = routesFor "s-router-downstream-selector";
+          policy = routesFor "s-router-policy-only";
+          upstream = routesFor "s-router-upstream-selector";
+          branchUpstream = routesFor "b-router-upstream-selector";
           checks = {
             downstreamHostileReturn =
-              hasMainRoute downstream "10-access-hostile" "10.20.70.0/24" "10.10.0.6";
+              hasMainRoute downstream "10-access-client" "10.20.20.0/24" "10.10.0.2";
             policyHostileReturn =
-              hasMainRoute policy "10-downstr-hostile" "10.20.70.0/24" "10.10.0.24";
+              hasMainRoute policy "10-downstr-client" "10.20.20.0/24" "10.10.0.20";
             upstreamHostileReturn =
-              hasMainRoute upstream "10-pol-hostile-ew" "10.20.70.0/24" "10.10.0.38";
+              hasMainRoute upstream "10-pol-cli-ew" "10.20.20.0/24" "10.10.0.36";
             downstreamNoSitecViaAdminMain =
-              noMainRoute downstream "10-policy-admin" "10.90.10.0/24" "10.10.0.19";
-            hetzSitecOverlayReturn =
-              hasMainRoute hetzUpstream "10-pol-dmz-ew" "10.90.10.0/24" "10.80.0.14";
-            hetzNoSitecViaWanMain =
-              noMainRoute hetzUpstream "10-policy-dmz-wan" "10.90.10.0/24" "10.80.0.16";
+              noMainRoute downstream "10-policy-client" "10.70.10.0/24" "10.10.0.21";
+            branchHostileOverlayReturn =
+              hasMainRoute branchUpstream "10-pol-hostile-ew" "10.70.10.0/24" "10.50.0.16";
             downstreamNoMainDefault = noMainDefault downstream;
             policyNoMainDefault = noMainDefault policy;
             upstreamNoMainDefault = noMainDefault upstream;
@@ -96,7 +94,7 @@ nix_eval_true_or_fail \
         if builtins.all (name: checks.${name}) (builtins.attrNames checks) then
           true
         else
-          throw ("sigma-router-diagnostic-main-routes failed: " + builtins.toJSON checks)
+          throw ("example-router-diagnostic-main-routes failed: " + builtins.toJSON checks)
       '
 
-echo "PASS sigma-router-diagnostic-main-routes"
+echo "PASS example-router-diagnostic-main-routes"
