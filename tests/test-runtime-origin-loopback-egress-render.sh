@@ -31,9 +31,13 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
           }).config;
         coreNebula = evalContainer "s-router-core-nebula";
         upstream = evalContainer "s-router-upstream-selector";
+        policy = evalContainer "s-router-policy-only";
         coreNebulaRoutes = coreNebula.systemd.network.networks."10-upstream".routes or [ ];
         upstreamRules = upstream.systemd.network.networks."10-core-nebula".routingPolicyRules or [ ];
         upstreamRoutes = upstream.systemd.network.networks."10-core-a".routes or [ ];
+        policyDownstreamClientRules = policy.systemd.network.networks."10-downstr-client".routingPolicyRules or [ ];
+        policyUpClientARoutes = policy.systemd.network.networks."10-up-client-a".routes or [ ];
+        policyUpClientBRoutes = policy.systemd.network.networks."10-up-client-b".routes or [ ];
         syntheticAccessForwarding =
           import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/firewall/lookup/forwarding-intent.nix") {
             lib = nixpkgsLib;
@@ -109,6 +113,39 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               && (rule.From or null) == "fd42:dead:beef:1900:0000:0000:0000:0008/128"
               && builtins.isInt (rule.Table or null))
             upstreamRules;
+        policyDownstreamClientTable =
+          let
+            matches =
+              builtins.filter
+                (rule:
+                  (rule.IncomingInterface or null) == "downstr-client"
+                  && (rule.From or null) == "10.19.0.8/32"
+                  && builtins.isInt (rule.Table or null)
+                  && !(rule ? SuppressPrefixLength))
+                policyDownstreamClientRules;
+          in
+          if matches == [ ] then null else (builtins.head matches).Table;
+        hasPolicyRuntimeSourceRule =
+          policyDownstreamClientTable != null;
+        hasPolicyRuntimeSourceRule6 =
+          builtins.any
+            (rule:
+              (rule.IncomingInterface or null) == "downstr-client"
+              && (
+                (rule.From or null) == "fd42:dead:beef:1900::8/128"
+                || (rule.From or null) == "fd42:dead:beef:1900:0:0:0:8/128"
+                || (rule.From or null) == "fd42:dead:beef:1900:0000:0000:0000:0008/128"
+              )
+              && builtins.isInt (rule.Table or null)
+              && !(rule ? SuppressPrefixLength))
+            policyDownstreamClientRules;
+        hasPolicyClientDefault =
+          builtins.any
+            (route:
+              (route.Table or null) == policyDownstreamClientTable
+              && (route.Destination or null) == "0.0.0.0/0"
+              && (route.Metric or null) == 50)
+            (policyUpClientARoutes ++ policyUpClientBRoutes);
         hasBroadCoreNebulaRule =
           builtins.any
             (rule:
@@ -146,6 +183,9 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         && hasPreferredRoute6
         && hasRuntimeSourceRule
         && hasRuntimeSourceRule6
+        && hasPolicyRuntimeSourceRule
+        && hasPolicyRuntimeSourceRule6
+        && hasPolicyClientDefault
         && hasAccessRuntimeOriginAllow4
         && hasAccessRuntimeOriginAllow6
         && hasCoreADefault

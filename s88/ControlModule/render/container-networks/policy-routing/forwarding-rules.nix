@@ -22,10 +22,22 @@ let
       else
         lib.concatMap (
           fromInterface:
-          map (toInterface: {
-            action = "accept";
-            inherit fromInterface toInterface;
-          }) (pair."out" or [ ])
+          map (
+            toInterface:
+            {
+              action = "accept";
+              inherit fromInterface toInterface;
+            }
+            // lib.optionalAttrs (builtins.isList (pair.sourcePrefixes or null)) {
+              inherit (pair) sourcePrefixes;
+            }
+            // lib.optionalAttrs (builtins.isList (pair.sourceFiles or null)) {
+              inherit (pair) sourceFiles;
+            }
+            // lib.optionalAttrs (builtins.isInt (pair.family or null)) {
+              inherit (pair) family;
+            }
+          ) (pair."out" or [ ])
         ) (pair."in" or [ ])
     ) pairs;
 
