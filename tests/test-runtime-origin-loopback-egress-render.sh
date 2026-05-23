@@ -34,6 +34,43 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         coreNebulaRoutes = coreNebula.systemd.network.networks."10-upstream".routes or [ ];
         upstreamRules = upstream.systemd.network.networks."10-core-nebula".routingPolicyRules or [ ];
         upstreamRoutes = upstream.systemd.network.networks."10-core-a".routes or [ ];
+        syntheticAccessForwarding =
+          import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/firewall/lookup/forwarding-intent.nix") {
+            lib = nixpkgsLib;
+            runtimeTarget.forwardingIntent = {
+              mode = "explicit-access-forwarding";
+              rules = [
+                {
+                  action = "accept";
+                  fromInterface = "core-nebula";
+                  toInterface = "transit";
+                  relationId = "runtime-origin-egress";
+                  sourcePrefixes = [
+                    {
+                      family = 4;
+                      prefix = "10.19.0.8/32";
+                    }
+                    {
+                      family = 6;
+                      prefix = "fd42:dead:beef:1900::8/128";
+                    }
+                  ];
+                }
+              ];
+            };
+            interfaces = {
+              core-nebula.containerInterfaceName = "core-nebula";
+              transit.containerInterfaceName = "transit";
+            };
+          };
+        syntheticAccessRules =
+          import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/firewall/emission/default.nix") {
+            lib = nixpkgsLib;
+          } {
+            tableName = "router";
+            forwardPolicy = "drop";
+            forwardPairs = syntheticAccessForwarding.accessForwardPairs;
+          };
         coreNebulaTable =
           let
             matches =
@@ -79,6 +116,14 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               && builtins.isInt (rule.Table or null)
               && !(rule ? From))
             upstreamRules;
+        hasAccessRuntimeOriginAllow4 =
+          nixpkgsLib.hasInfix
+            "iifname \"core-nebula\" oifname \"transit\" ip saddr 10.19.0.8/32 accept comment \"runtime-origin-egress\""
+            syntheticAccessRules;
+        hasAccessRuntimeOriginAllow6 =
+          nixpkgsLib.hasInfix
+            "iifname \"core-nebula\" oifname \"transit\" ip6 saddr fd42:dead:beef:1900::8/128 accept comment \"runtime-origin-egress\""
+            syntheticAccessRules;
         hasCoreADefault =
           builtins.any
             (route:
@@ -101,6 +146,8 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         && hasPreferredRoute6
         && hasRuntimeSourceRule
         && hasRuntimeSourceRule6
+        && hasAccessRuntimeOriginAllow4
+        && hasAccessRuntimeOriginAllow6
         && hasCoreADefault
         && wrongDefaultRoutes == [ ]
         && !hasBroadCoreNebulaRule
