@@ -37,9 +37,9 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         hetznerRules = (evalContainer builtC."c-router-upstream-selector").networking.nftables.ruleset;
       in
         has "iifname \"core-isp\" oifname \"policy-branch\" accept" branchRules
-        && has "iifname \"core-nebula\" oifname \"pol-branch-ew\" accept" branchRules
+        && has "iifname \"core-nebula\" oifname \"pol-branch-ew\" ip saddr" branchRules
         && has "iifname \"core\" oifname \"policy-wan\" accept" hetznerRules
-        && has "iifname \"core-nebula\" oifname \"pol-client-ew\" accept" hetznerRules
+        && has "iifname \"core-nebula\" oifname \"pol-client-ew\" ip saddr" hetznerRules
         && !(has "iifname \"core-isp\" oifname \"pol-branch-ew\" accept" branchRules)
         && !(has "iifname \"core-nebula\" oifname \"policy-branch\" accept" branchRules)
         && !(has "iifname \"core\" oifname \"pol-client-ew\" accept" hetznerRules)
