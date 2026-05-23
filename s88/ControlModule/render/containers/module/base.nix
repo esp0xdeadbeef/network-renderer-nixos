@@ -37,6 +37,9 @@ in
     networking.useHostResolvConf = lib.mkForce false;
     services.resolved.enable = lib.mkForce false;
     networking.firewall.enable = lib.mkForce false;
+    nix.extraOptions = ''
+      experimental-features = nix-command flakes
+    '';
     environment.systemPackages = debugTools;
     system.stateVersion = "25.11";
   };
