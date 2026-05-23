@@ -36,6 +36,30 @@ let
     map (entry: entry.name) (lib.filter (entry: sourceKindOf entry == "p2p") interfaceEntries)
   );
 
+  entryByName = builtins.listToAttrs (map (entry: { name = entry.name; value = entry; }) interfaceEntries);
+
+  interfaceClassFor =
+    name:
+    let
+      entry = entryByName.${name} or { };
+      iface = entry.iface or { };
+      ifaceClass = iface.interfaceClass or { };
+    in
+    if builtins.isAttrs ifaceClass then ifaceClass else { };
+
+  isCoreFacing =
+    name:
+    let ifaceClass = interfaceClassFor name;
+    in (ifaceClass.coreFacing or false) || (ifaceClass.coreTransit or false);
+
+  isCoreScopedSourceForward =
+    pair:
+    pair ? sourcePrefixes
+    && builtins.isList pair.sourcePrefixes
+    && pair.sourcePrefixes != [ ]
+    && builtins.all isCoreFacing (pair."in" or [ ])
+    && builtins.all isCoreFacing (pair."out" or [ ]);
+
   useExplicitForwarding =
     forwardingIntent != null
     && builtins.isAttrs forwardingIntent
@@ -130,6 +154,7 @@ let
             renderTrafficType
             forwardingIntent
             ;
+          shouldRenderPair = pair: !(isCoreScopedSourceForward pair);
         }
     else
       [ ];

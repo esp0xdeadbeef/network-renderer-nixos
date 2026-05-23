@@ -3,6 +3,7 @@
   escapeComment,
   renderTrafficType ? (_: [ "" ]),
   forwardingIntent ? null,
+  shouldRenderPair ? (_: true),
 }:
 
 let
@@ -99,6 +100,6 @@ let
 in
 lib.filter (rule: rule != "") (
   lib.concatMap renderExplicitForwardPair (
-    lib.filter (pair: builtins.isAttrs pair) explicitForwardPairs
+    lib.filter (pair: builtins.isAttrs pair && shouldRenderPair pair) explicitForwardPairs
   )
 )
