@@ -16,8 +16,13 @@ let
           rule.family
         else
           4;
+      origin = if builtins.isAttrs value && builtins.isAttrs (value.origin or null) then value.origin else null;
     in
-    if !(builtins.isString prefix) || prefix == "" then null else { inherit family prefix; };
+    if !(builtins.isString prefix) || prefix == "" then
+      null
+    else
+      { inherit family prefix; }
+      // lib.optionalAttrs (origin != null) { inherit origin; };
 in
 {
   forInterface =
