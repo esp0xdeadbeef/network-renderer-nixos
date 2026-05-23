@@ -87,6 +87,8 @@ let
   overlayUnderlayNames =
     if explicitTransitUnderlayNames != [ ] then
       common.sortedStrings explicitTransitUnderlayNames
+    else if interfaceSet.overlayIngressNames == [ ] then
+      interfaceSet.lanNames
     else
       common.sortedStrings (
         lib.subtractLists interfaceSet.overlayIngressNames interfaceSet.forwardEgressNames
@@ -103,8 +105,7 @@ let
   ++
     lib.optional
       (
-        interfaceSet.overlayIngressNames != [ ]
-        && overlayUnderlayNames != [ ]
+        overlayUnderlayNames != [ ]
         && underlayInput.udpPorts != [ ]
       )
       ''
