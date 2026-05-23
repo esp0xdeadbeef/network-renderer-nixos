@@ -39,6 +39,30 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         policyDownstreamClientRoutes = policy.systemd.network.networks."10-downstr-client".routes or [ ];
         policyUpClientARoutes = policy.systemd.network.networks."10-up-client-a".routes or [ ];
         policyUpClientBRoutes = policy.systemd.network.networks."10-up-client-b".routes or [ ];
+        policyNetworks = policy.systemd.network.networks;
+        runtimeOriginHasAccessOrigin =
+          let
+            targets =
+              nixpkgsLib.concatLists (
+                nixpkgsLib.mapAttrsToList
+                  (_enterpriseName: enterprise:
+                    nixpkgsLib.concatLists (
+                      nixpkgsLib.mapAttrsToList
+                        (_siteName: site: builtins.attrValues (site.runtimeTargets or { }))
+                        enterprise
+                    ))
+                  built.controlPlaneOut.control_plane_model.data
+              );
+          in
+          builtins.any
+            (target:
+              builtins.any
+                (prefix:
+                  builtins.isAttrs (prefix.origin or null)
+                  && builtins.isList (prefix.origin.accesses or null)
+                  && prefix.origin.accesses != [ ])
+                ((target.runtimeOriginEgress or { }).sourcePrefixes or [ ]))
+            targets;
         syntheticAccessForwarding =
           import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/firewall/lookup/forwarding-intent.nix") {
             lib = nixpkgsLib;
@@ -155,6 +179,22 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               && (route.GatewayOnLink or false)
               && !(route ? Table))
             policyDownstreamClientRoutes;
+        wrongPolicyRuntimeSourceMainRoutes =
+          nixpkgsLib.concatLists (
+            nixpkgsLib.mapAttrsToList
+              (networkName: network:
+                if networkName == "10-downstr-client" then
+                  [ ]
+                else
+                  map
+                    (route: { inherit networkName route; })
+                    (builtins.filter
+                      (route:
+                        (route.Destination or null) == "10.19.0.8/32"
+                        && !(route ? Table))
+                      (network.routes or [ ])))
+              policyNetworks
+          );
         hasBroadCoreNebulaRule =
           builtins.any
             (rule:
@@ -196,6 +236,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         && hasPolicyRuntimeSourceRule6
         && hasPolicyClientDefault
         && hasPolicyRuntimeSourceMainRoute
+        && (!runtimeOriginHasAccessOrigin || wrongPolicyRuntimeSourceMainRoutes == [ ])
         && hasAccessRuntimeOriginAllow4
         && hasAccessRuntimeOriginAllow6
         && hasCoreADefault

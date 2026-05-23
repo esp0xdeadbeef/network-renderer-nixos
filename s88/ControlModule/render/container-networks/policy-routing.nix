@@ -23,12 +23,10 @@
   mkRoute,
   isExternalValidationDelegatedPrefixRoute,
 }:
-
 let
   peers = import ./policy-routing/peers.nix {
     inherit lib common;
   };
-
   forwardingRuleSet = import ./policy-routing/forwarding-rules.nix {
     inherit lib containerModel forwardingIntent;
   };
@@ -37,7 +35,6 @@ let
     hasAcceptForwardingRule
     hasAcceptForwardingRuleForRoute
     ;
-
   routeSources = import ./policy-routing/source-interfaces.nix {
     inherit
       lib
@@ -49,43 +46,17 @@ let
     policyRoutingSources = containerModel.policyRoutingSources or { };
     forwardingRules = forwardingRulesResolved;
   };
-
-  isHostPrefix =
-    source:
-    let
-      prefix = source.prefix or "";
-    in
-    builtins.isString prefix
-    && (
-      ((source.family or 4) == 4 && lib.hasSuffix "/32" prefix)
-      || ((source.family or 4) == 6 && lib.hasSuffix "/128" prefix)
-    );
-
-  sourceReachabilityRouteFor =
-    ifName: source:
-    let
-      iface = interfaces.${ifName};
-      family = source.family or 4;
-      gateway = if family == 6 then peers.ipv6PeerFor127 (peers.addressForFamily 6 iface) else peers.ipv4PeerFor31 (peers.addressForFamily 4 iface);
-    in
-    if gateway == null || !(isHostPrefix source) then
-      null
-    else
-      {
-        dst = source.prefix;
-        intent.kind = "runtime-origin-source-reachability";
-      }
-      // (
-        if family == 6 then
-          { via6 = gateway; }
-        else
-          { via4 = gateway; }
-      );
-
+  sourceReachabilityRoutes = import ./policy-routing/source-reachability-routes.nix {
+    inherit
+      lib
+      interfaces
+      laneAccessForRenderedName
+      peers
+      ;
+  };
   siteDestinations = import ./policy-routing/site-destinations.nix {
     inherit lib containerModel common;
   };
-
   returnRoutes = import ./policy-routing/return-routes.nix {
     inherit
       lib
@@ -98,7 +69,6 @@ let
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
     inherit (siteDestinations) returnDestinationsForTenant;
   };
-
   routeHelpers = import ./policy-routing/route-helpers.nix {
     inherit
       lib
@@ -107,8 +77,10 @@ let
       peers
       ;
   };
-  inherit (routeHelpers) routeOutputInterface isServiceDnsReachabilityRoute;
-
+  inherit (routeHelpers) routeOutputInterface;
+  serviceDnsRoutes = import ./policy-routing/service-dns-routes.nix {
+    inherit lib routeHelpers;
+  };
   explicitReturnRoutes = import ./policy-routing/explicit-return-routes.nix {
     inherit
       lib
@@ -119,20 +91,16 @@ let
       ;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
   };
-
   policyOnlyProjection = import ./policy-routing/policy-only-projection.nix {
     inherit renderedInterfaceNames;
     policyRoutingSources = containerModel.policyRoutingSources or { };
   };
-
   sourcePrefixes = import ./policy-routing/source-prefixes.nix {
     inherit lib containerModel laneAccessForRenderedName;
   };
-
   forwardingSourceScope = import ./policy-routing/forwarding-source-scope.nix {
     inherit lib forwardingRulesResolved;
   };
-
   ruleSourceScope = import ./policy-routing/rule-source-scope.nix {
     inherit
       isSelector
@@ -141,7 +109,6 @@ let
       isPolicyUpstreamInterface
       ;
   };
-
   rawRoutesForPolicyTable = import ./policy-routing/raw-routes.nix {
     inherit
       lib
@@ -170,19 +137,9 @@ let
       ;
     inherit isExternalValidationDelegatedPrefixRoute;
   };
-
-  routeDestinationKey = route: "${toString (route.table or "main")}|${route.dst or ""}";
-
-  preferServiceDnsRoutes =
-    routes:
-    lib.concatMap (
-      group:
-      let
-        serviceRoutes = lib.filter isServiceDnsReachabilityRoute group;
-      in
-      if serviceRoutes == [ ] then group else serviceRoutes
-    ) (builtins.attrValues (builtins.groupBy routeDestinationKey routes));
-
+  routesByOutputInterface = import ./policy-routing/routes-by-output-interface.nix {
+    inherit mkRoute routeOutputInterface;
+  };
   policyRulesFor = import ./policy-routing/rules.nix {
     inherit
       lib
@@ -192,7 +149,6 @@ let
       isUpstreamSelectorPolicyInterface
       ;
   };
-
   dynamicPolicyRulesFor = import ./policy-routing/dynamic-rules.nix {
     inherit
       lib
@@ -229,31 +185,33 @@ in
               staticPrefixes = lib.unique (scoped.staticPrefixes ++ forwardingScope.staticPrefixes);
               sourceFiles = lib.unique (scoped.sourceFiles ++ forwardingScope.sourceFiles);
             };
-          rawPolicyRoutes = preferServiceDnsRoutes (
-            lib.concatMap (
-              sourceIfName:
-              map (route: route // { _s88PolicySourceIfName = sourceIfName; }) (
-                rawRoutesForPolicyTable tableId interfaceName sourceIfName
-              )
-            ) sourceIfNames
-          );
-          routesByInterface = builtins.foldl' (
-            routesAcc: rawRoute:
-            let
-              sourceIfName = rawRoute._s88PolicySourceIfName;
-              outputIfName = routeOutputInterface sourceIfName rawRoute;
-              renderedRoute = mkRoute (builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]);
-            in
-            if renderedRoute == null then
-              routesAcc
-            else
-              routesAcc
-              // {
-                ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
-              }
-          ) { } rawPolicyRoutes;
+          routesByInterface = routesByOutputInterface {
+            inherit
+              interfaceName
+              rawRoutesForPolicyTable
+              sourceIfNames
+              tableId
+              ;
+          };
+          routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
+          rulesForThisInterface =
+            policyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.staticPrefixes;
+          hasMainLookupRuleForSource =
+            source:
+            builtins.any (
+              rule:
+              (rule.From or null) == (source.prefix or null)
+              && (rule.Table or null) == 254
+              && (rule.SuppressPrefixLength or null) == 0
+            ) rulesForThisInterface;
           mainSourceRoutes = lib.filter (route: route != null) (
-            map (sourceReachabilityRouteFor ifName) effectiveRuleSourceScope.staticPrefixes
+            map (sourceReachabilityRoutes.routeFor ifName) (
+              lib.filter (
+                source:
+                hasMainLookupRuleForSource source
+                && sourceReachabilityRoutes.matchesInterfaceOrigin interfaceName source
+              ) effectiveRuleSourceScope.staticPrefixes
+            )
           );
         in
         {
@@ -261,16 +219,17 @@ in
             routesAcc: outputIfName:
             routesAcc
             // {
-              ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ (routesByInterface.${outputIfName} or [ ]);
+              ${outputIfName} =
+                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfacePreferred.${outputIfName} or [ ]);
             }
-          ) acc.routes (builtins.attrNames routesByInterface);
+          ) acc.routes (builtins.attrNames routesByInterfacePreferred);
           mainRoutes = acc.mainRoutes // {
             ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
           };
           rules = acc.rules // {
             ${ifName} =
               (acc.rules.${ifName} or [ ])
-              ++ policyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.staticPrefixes;
+              ++ rulesForThisInterface;
           };
           dynamicSourceRules =
             acc.dynamicSourceRules
