@@ -189,6 +189,7 @@ let
             ))
             ++ policyMainRoutes
             ++ diagnosticMainRoutes
+            ++ (lib.filter (route: route != null) (map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])))
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
         in
         if builtins.elem interfaceName networkManagerInterfaces then

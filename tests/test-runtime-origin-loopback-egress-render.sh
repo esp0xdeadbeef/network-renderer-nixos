@@ -36,6 +36,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         upstreamRules = upstream.systemd.network.networks."10-core-nebula".routingPolicyRules or [ ];
         upstreamRoutes = upstream.systemd.network.networks."10-core-a".routes or [ ];
         policyDownstreamClientRules = policy.systemd.network.networks."10-downstr-client".routingPolicyRules or [ ];
+        policyDownstreamClientRoutes = policy.systemd.network.networks."10-downstr-client".routes or [ ];
         policyUpClientARoutes = policy.systemd.network.networks."10-up-client-a".routes or [ ];
         policyUpClientBRoutes = policy.systemd.network.networks."10-up-client-b".routes or [ ];
         syntheticAccessForwarding =
@@ -146,6 +147,14 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               && (route.Destination or null) == "0.0.0.0/0"
               && (route.Metric or null) == 50)
             (policyUpClientARoutes ++ policyUpClientBRoutes);
+        hasPolicyRuntimeSourceMainRoute =
+          builtins.any
+            (route:
+              (route.Destination or null) == "10.19.0.8/32"
+              && (route.Gateway or null) == "10.10.0.20"
+              && (route.GatewayOnLink or false)
+              && !(route ? Table))
+            policyDownstreamClientRoutes;
         hasBroadCoreNebulaRule =
           builtins.any
             (rule:
@@ -186,6 +195,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         && hasPolicyRuntimeSourceRule
         && hasPolicyRuntimeSourceRule6
         && hasPolicyClientDefault
+        && hasPolicyRuntimeSourceMainRoute
         && hasAccessRuntimeOriginAllow4
         && hasAccessRuntimeOriginAllow6
         && hasCoreADefault
