@@ -51,7 +51,12 @@ wait_for_one() {
   fi
 }
 
-mapfile -d '' test_files < <(find "${repo_root}/tests" -maxdepth 1 -type f -name 'test-*.sh' -print0 | sort -z)
+mapfile -d '' test_files < <(
+  {
+    find "${repo_root}/tests" -maxdepth 1 -type f -name 'test-*.sh' ! -name 'test-passing-fixtures.sh' -print0
+    find "${repo_root}/tests/cases" -maxdepth 1 -type f -name '*.sh' -print0
+  } | sort -z
+)
 printf 'running %s tests with TEST_JOBS=%s\n' "${#test_files[@]}" "${jobs}"
 
 for test_file in "${test_files[@]}"; do
@@ -61,8 +66,10 @@ for test_file in "${test_files[@]}"; do
   (
     timeout "${test_timeout_seconds}" bash -c '
       source "$1"
-      source "$2"
-    ' bash "${repo_root}/tests/lib/test-common.sh" "${test_file}"
+      test_file="$2"
+      set --
+      source "${test_file}"
+    ' "${test_file}" "${repo_root}/tests/lib/test-common.sh" "${test_file}"
   ) >"${log_file}" 2>&1 &
   pid_to_name[$!]="${name}"
   pid_to_log[$!]="${log_file}"

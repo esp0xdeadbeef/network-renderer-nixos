@@ -83,7 +83,7 @@ Main consumers use:
 Run the repo-local tests before claiming conformance:
 
 ```bash
-bash tests/test-passing-fixtures.sh
+bash tests/test.sh
 ```
 
 Use focused tests for touched behavior where available.

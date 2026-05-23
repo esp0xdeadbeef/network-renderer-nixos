@@ -40,33 +40,35 @@ trap 'rm -rf "${tmp_dir}"' EXIT
     > ./90-dry-config.json
 
   _jq -e '
-    .render.nodes["enterpriseA::site-a::enterpriseA-site-a-s-router-core-nebula"].interfaces["overlay-east-west"].routes
+    .debug.controlPlane.control_plane_model.data.enterpriseA."site-a".overlayReachability."east-west".routes4
     | map(.dst)
     | index("10.60.10.0/24") != null
   ' ./90-dry-config.json >/dev/null
 
   _jq -e '
-    .render.nodes["enterpriseA::site-a::enterpriseA-site-a-s-router-core-nebula"].interfaces["overlay-east-west"].routes
+    .debug.controlPlane.control_plane_model.data.enterpriseA."site-a".overlayReachability."east-west".routes6
     | map(.dst)
     | index("fd42:dead:feed:10::/64") != null
   ' ./90-dry-config.json >/dev/null
 
   _jq -e '
-    .render.nodes["enterpriseB::site-b::enterpriseB-site-b-b-router-core-nebula"].interfaces["overlay-east-west"].routes
+    .debug.controlPlane.control_plane_model.data.enterpriseB."site-b".overlayReachability."east-west".routes4
     | map(.dst)
     | index("10.20.20.0/24") != null
   ' ./90-dry-config.json >/dev/null
 
   _jq -e '
-    .render.nodes["enterpriseB::site-b::enterpriseB-site-b-b-router-core-nebula"].interfaces["overlay-east-west"].routes
+    .debug.controlPlane.control_plane_model.data.enterpriseB."site-b".overlayReachability."east-west".routes6
     | map(.dst)
     | index("fd42:dead:beef:20::/64") != null
   ' ./90-dry-config.json >/dev/null
 
   _jq -e '
-    .render.nodes["enterpriseA::site-a::enterpriseA-site-a-s-router-core-nebula"].interfaces["overlay-east-west"].renderedHostBridgeName
-    ==
-    .render.nodes["enterpriseB::site-b::enterpriseB-site-b-b-router-core-nebula"].interfaces["overlay-east-west"].renderedHostBridgeName
+    [
+      .render.nodes["enterpriseA::site-a::enterpriseA-site-a-s-router-core-nebula"].interfaces["overlay-east-west"]?,
+      .render.nodes["enterpriseB::site-b::enterpriseB-site-b-b-router-core-nebula"].interfaces["overlay-east-west"]?
+    ]
+    | all(. == null)
   ' ./90-dry-config.json >/dev/null
 )
 
