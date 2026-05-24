@@ -12,7 +12,14 @@
 }:
 
 let
-  inherit (common) policyTenantKeyFor;
+  inherit (common) downstreamPairKeyFor policyTenantKeyFor;
+
+  tenantKeyForInterface =
+    name:
+    let
+      policyKey = policyTenantKeyFor name;
+    in
+    if policyKey != null then policyKey else downstreamPairKeyFor name;
 
   routesForTenantViaInterface =
     tenantKey: sourceIfName:
@@ -52,7 +59,7 @@ let
     sourceIfName:
     let
       sourceRenderedName = renderedInterfaceNames.${sourceIfName};
-      tenantKey = policyTenantKeyFor sourceRenderedName;
+      tenantKey = tenantKeyForInterface sourceRenderedName;
     in
     routesForTenantViaInterface tenantKey sourceIfName;
 in
@@ -61,7 +68,7 @@ in
 
   forTenantOfInterfaceViaInterface =
     tenantInterfaceName: sourceIfName:
-    routesForTenantViaInterface (policyTenantKeyFor tenantInterfaceName) sourceIfName;
+    routesForTenantViaInterface (tenantKeyForInterface tenantInterfaceName) sourceIfName;
 
   forUpstreamCore =
     targetName: sourceIfName:

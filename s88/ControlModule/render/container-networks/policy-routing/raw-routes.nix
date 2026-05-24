@@ -154,7 +154,7 @@ let
       && isDownstreamSelectorPolicyInterface interfaceName
       && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
     then
-      returnRoutes.forTenantOfInterfaceViaInterface interfaceName sourceIfName
+      returnRoutes.forTenantOfInterfaceViaInterface renderedInterfaceNames.${sourceIfName} sourceIfName
     else
       [ ];
   policyUpstreamReturnRoutes =
