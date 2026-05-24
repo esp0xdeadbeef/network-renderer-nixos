@@ -30,22 +30,10 @@ let
     isServiceDnsReachabilityRoute
     ;
 
-  interfaceLaneAccess =
-    interfaceName:
-    let
-      key = lib.findFirst (name: renderedInterfaceNames.${name} == interfaceName) null interfaceNames;
-    in
-    if key == null then null else ((interfaces.${key}.backingRef or { }).lane or { }).access or null;
-
-  routeLaneAccess = route: ((route.lane or { }).access or null);
-
-  routeMatchesInterfaceLane =
-    interfaceName: route:
-    let
-      targetAccess = interfaceLaneAccess interfaceName;
-      routeAccess = routeLaneAccess route;
-    in
-    targetAccess == null || routeAccess == targetAccess;
+  laneMatch = import ./raw-routes/lane-match.nix {
+    inherit lib interfaces interfaceNames renderedInterfaceNames;
+  };
+  inherit (laneMatch) routeMatchesInterfaceLane;
 in
 tableId: interfaceName: sourceIfName:
 let
