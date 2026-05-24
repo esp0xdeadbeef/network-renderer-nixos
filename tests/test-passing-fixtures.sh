@@ -109,6 +109,7 @@ bash "${repo_root}/tests/test-policy-source-scoped-routing-rules.sh"
 bash "${repo_root}/tests/test-downstream-selector-local-forward-policy-sources.sh"
 bash "${repo_root}/tests/test-runtime-origin-preferred-source-routes.sh"
 bash "${repo_root}/tests/test-runtime-origin-loopback-egress-render.sh"
+bash "${repo_root}/tests/test-upstream-runtime-origin-source-lane-rules.sh"
 bash "${repo_root}/tests/test-overlay-underlay-access-network-render.sh"
 
 # Regression: CPM policy-only routes must not become generic main defaults.
