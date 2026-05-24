@@ -129,6 +129,7 @@ let
         connectivity = iface.connectivity or { };
         interfaceClass = iface.interfaceClass or { };
         backingRef = iface.backingRef or { };
+        dynamicAddressing = iface.dynamicAddressing or { };
         hostBridge = iface.hostBridge or null;
         identity = attachTarget.identity or { };
         upstream =

@@ -21,6 +21,30 @@ nix_eval_true_or_fail \
             uplinks = { };
             wanUplinkName = null;
           };
+        normalizeInterfaces =
+          let
+            mapping = import (repoRoot + "/s88/ControlModule/mapping/container-runtime/interfaces.nix") {
+              inherit lib;
+              lookup = {
+                bridgeNameMap = { };
+                localAttachTargets = [
+                  {
+                    unitName = "core-nebula";
+                    ifName = "tenant-client";
+                    renderedHostBridgeName = "client";
+                    identity.portName = "tenant-client";
+                  }
+                ];
+                sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+              };
+            };
+          in
+          interfaces:
+            mapping.normalizedInterfacesForUnit {
+              unitName = "core-nebula";
+              containerName = "core-nebula";
+              inherit interfaces;
+            };
 
         accessRender = render {
           interfaces.underlay-core-nebula = {
@@ -90,11 +114,45 @@ nix_eval_true_or_fail \
             };
           };
         };
+        normalizedCoreRender = render {
+          interfaces = normalizeInterfaces {
+            tenant-client = {
+              sourceKind = "tenant";
+              renderedIfName = "client";
+              tenant = "client";
+              logical = true;
+              addresses = [ ];
+              dynamicAddressing = {
+                ipv4 = {
+                  enable = true;
+                  method = "dhcp";
+                  dhcp = true;
+                };
+                ipv6 = {
+                  enable = true;
+                  method = "slaac";
+                  acceptRA = true;
+                  dhcp = false;
+                };
+              };
+              backingRef = {
+                kind = "attachment";
+                name = "client";
+              };
+              routes = {
+                ipv4 = [ ];
+                ipv6 = [ ];
+              };
+            };
+          };
+        };
 
         accessNetworks = accessRender.networks;
         coreNetworks = coreRender.networks;
+        normalizedCoreNetworks = normalizedCoreRender.networks;
         accessUnderlay = accessNetworks."10-underlay-core-nebula";
         coreTenantClient = coreNetworks."10-client";
+        normalizedCoreTenantClient = normalizedCoreNetworks."10-client";
         coreUpstream = coreNetworks."10-upstream";
 
         isDefault4 = route: (route.Destination or null) == "0.0.0.0/0";
@@ -121,6 +179,9 @@ nix_eval_true_or_fail \
         && (coreTenantClient.networkConfig.DHCP or null) == "ipv4"
         && (coreTenantClient.networkConfig.IPv6AcceptRA or false) == true
         && (coreTenantClient.networkConfig.LinkLocalAddressing or null) == "ipv6"
+        && (normalizedCoreTenantClient.networkConfig.DHCP or null) == "ipv4"
+        && (normalizedCoreTenantClient.networkConfig.IPv6AcceptRA or false) == true
+        && (normalizedCoreTenantClient.networkConfig.LinkLocalAddressing or null) == "ipv6"
         && (builtins.filter
           (route: isDefault4 route || isDefault6 route)
           (coreTenantClient.routes or [ ])) == [ ]
