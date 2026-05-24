@@ -39,29 +39,57 @@ let
       builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route)
     ) routes;
 
+  namesFor =
+    name:
+    lib.unique (
+      [ name ] ++ lib.optionals (builtins.hasAttr name renderedInterfaceNames) [ (renderedNameFor name) ]
+    );
+
+  interfaceKeysForRenderedName =
+    renderedName: lib.filter (name: renderedNameFor name == renderedName) interfaceNames;
+
+  interfaceKeyFor =
+    name:
+    if builtins.hasAttr name renderedInterfaceNames then
+      name
+    else
+      let
+        matches = interfaceKeysForRenderedName name;
+      in
+      if matches == [ ] then name else builtins.head matches;
+
+  normalizeInterfaceKeys = names: lib.unique (map interfaceKeyFor names);
+
   hasAcceptForwardingRule =
-    fromName: toName:
+    fromNames: toNames:
     builtins.any (
       rule:
       builtins.isAttrs rule
       && (rule.action or null) == "accept"
-      && (rule.fromInterface or null) == fromName
-      && (rule.toInterface or null) == toName
+      && builtins.elem (rule.fromInterface or null) fromNames
+      && builtins.elem (rule.toInterface or null) toNames
     ) forwardingRules;
 
   acceptedForwardSourcesFor =
     targetName:
-    lib.filter (name: hasAcceptForwardingRule (renderedNameFor name) targetName) interfaceNames;
+    let
+      targetNames = lib.unique ([ targetName ] ++ interfaceKeysForRenderedName targetName);
+    in
+    lib.filter (name: hasAcceptForwardingRule (namesFor name) targetNames) interfaceNames;
 
   acceptedForwardTargetsFor =
     targetName:
-    lib.filter (name: hasAcceptForwardingRule targetName (renderedNameFor name)) interfaceNames;
+    let
+      sourceNames = lib.unique ([ targetName ] ++ interfaceKeysForRenderedName targetName);
+    in
+    lib.filter (name: hasAcceptForwardingRule sourceNames (namesFor name)) interfaceNames;
 in
 {
   forTarget =
     targetName:
     let
-      unitSources = policyRoutingSources.${targetName} or null;
+      unitSourcesRaw = policyRoutingSources.${targetName} or null;
+      unitSources = if unitSourcesRaw == null then null else normalizeInterfaceKeys unitSourcesRaw;
       selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
       acceptedForwardSources = acceptedForwardSourcesFor targetName;
       acceptedForwardTargets = acceptedForwardTargetsFor targetName;
@@ -74,7 +102,8 @@ in
   forTargetRules =
     targetName:
     let
-      unitSources = policyRoutingSources.${targetName} or null;
+      unitSourcesRaw = policyRoutingSources.${targetName} or null;
+      unitSources = if unitSourcesRaw == null then null else normalizeInterfaceKeys unitSourcesRaw;
       selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
       acceptedForwardSources = acceptedForwardSourcesFor targetName;
     in
