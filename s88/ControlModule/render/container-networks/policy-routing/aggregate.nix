@@ -42,7 +42,14 @@ builtins.foldl'
       ruleSourceScopeForIngress =
         sourceIfName:
         let
-          pairScope = forwardingSourceScope.forPair renderedInterfaceNames.${sourceIfName} interfaceName;
+          pairScope =
+            if isDownstreamSelectorPolicyInterface interfaceName then
+              {
+                staticPrefixes = [ ];
+                sourceFiles = [ ];
+              }
+            else
+              forwardingSourceScope.forPair renderedInterfaceNames.${sourceIfName} interfaceName;
         in
         scopedRuleSource
         // {
