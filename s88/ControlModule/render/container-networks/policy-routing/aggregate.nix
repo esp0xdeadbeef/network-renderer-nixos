@@ -3,6 +3,7 @@
   interfaceNames,
   renderedInterfaceNames,
   isPolicy,
+  isDownstreamSelectorPolicyInterface,
   isPolicyUpstreamInterface,
   isPolicyDownstreamInterface,
   sourceReachabilityRoutes,
@@ -32,7 +33,14 @@ builtins.foldl'
       ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
       sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
       sourceScope = sourcePrefixes.forInterface interfaceName;
-      forwardingRuleScope = forwardingSourceScope.forTargetInterface interfaceName;
+      forwardingRuleScope =
+        if isDownstreamSelectorPolicyInterface interfaceName then
+          {
+            staticPrefixes = [ ];
+            sourceFiles = [ ];
+          }
+        else
+          forwardingSourceScope.forTargetInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
       scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
       effectiveRuleSourceScope = scopedRuleSource // {
@@ -60,6 +68,29 @@ builtins.foldl'
       routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
       rulesForThisInterface =
         policyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.staticPrefixes;
+      forwardingIngressRules =
+        let
+          tableRuleFor = prefix: {
+            Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
+            From = prefix.prefix;
+            IncomingInterface = interfaceName;
+            Priority = tableId;
+            Table = tableId;
+          };
+          mainFallbackRuleFor = prefix: {
+            Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
+            From = prefix.prefix;
+            IncomingInterface = interfaceName;
+            Priority = 10000 + tableId;
+            SuppressPrefixLength = 0;
+            Table = 254;
+          };
+        in
+        builtins.concatMap (prefix: [
+          (tableRuleFor prefix)
+          (mainFallbackRuleFor prefix)
+        ]) forwardingMainScope.staticPrefixes;
+      allRulesForThisInterface = lib.unique (rulesForThisInterface ++ forwardingIngressRules);
       hasMainLookupRuleForSource =
         source:
         builtins.any (
@@ -67,7 +98,7 @@ builtins.foldl'
           (rule.From or null) == (source.prefix or null)
           && (rule.Table or null) == 254
           && (rule.SuppressPrefixLength or null) == 0
-        ) rulesForThisInterface;
+        ) allRulesForThisInterface;
       mainSourceRoutes = lib.filter (route: route != null) (
         map (sourceReachabilityRoutes.routeFor ifName) (
           lib.filter (
@@ -91,7 +122,7 @@ builtins.foldl'
         ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
       };
       rules = acc.rules // {
-        ${ifName} = (acc.rules.${ifName} or [ ]) ++ rulesForThisInterface;
+        ${ifName} = (acc.rules.${ifName} or [ ]) ++ allRulesForThisInterface;
       };
       dynamicSourceRules =
         acc.dynamicSourceRules
