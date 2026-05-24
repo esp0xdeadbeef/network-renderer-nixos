@@ -14,10 +14,8 @@
 let
   inherit (common) policyTenantKeyFor;
 
-in
-{
-  forUpstreamCore =
-    targetName: sourceIfName:
+  routesForTenantInterface =
+    sourceIfName:
     let
       sourceIface = interfaces.${sourceIfName} or { };
       sourceRenderedName = renderedInterfaceNames.${sourceIfName};
@@ -25,7 +23,7 @@ in
       peer4 = ipv4PeerFor31 (addressForFamily 4 sourceIface);
       peer6 = ipv6PeerFor127 (addressForFamily 6 sourceIface);
     in
-    if !(isUpstreamSelector && isUpstreamSelectorCoreInterface targetName) || tenantKey == null then
+    if tenantKey == null then
       [ ]
     else
       lib.filter (route: route != null) (
@@ -51,4 +49,14 @@ in
           )
           (returnDestinationsForTenant tenantKey)
       );
+in
+{
+  forTenantInterface = routesForTenantInterface;
+
+  forUpstreamCore =
+    targetName: sourceIfName:
+    if !(isUpstreamSelector && isUpstreamSelectorCoreInterface targetName) then
+      [ ]
+    else
+      routesForTenantInterface sourceIfName;
 }

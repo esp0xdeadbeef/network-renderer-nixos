@@ -38,6 +38,12 @@ nix_eval_true_or_fail \
           ];
           containerModel = {
             networkBehavior.isPolicy = true;
+            site.tenants = [
+              {
+                name = "client";
+                ipv4 = "10.20.20.0/24";
+              }
+            ];
             site.tenantPrefixOwners."4|10.20.20.0/24".owner = "router-access-client";
             interfaces = {
               downstr-client = {
@@ -111,11 +117,23 @@ nix_eval_true_or_fail \
         policyUpstream = policyRender.networks."10-up-client-b";
         policyDownstream = policyRender.networks."10-downstr-client";
         selectorPolicy = downstreamRender.networks."10-policy-client";
+        upstreamReturnRoutes = policyRender.networks."10-downstr-client".routes or [ ];
+        hasUpstreamReturnTenantRoute =
+          builtins.any
+            (route:
+              (route.Destination or null) == "10.20.20.0/24"
+              && (route.Gateway or null) == "10.10.0.20"
+              && builtins.isInt (route.Table or null))
+            upstreamReturnRoutes;
       in
         if !(hasUnscopedTableRule policyUpstream "up-client-b") then
           throw "policy upstream return interface lacks an unscoped iif table rule for WAN replies"
         else if hasScopedTableRule policyUpstream "up-client-b" "10.20.20.0/24" then
           throw "policy upstream return interface must not be tenant-source scoped"
+        else if !(hasUpstreamReturnTenantRoute) then
+          throw ("policy upstream return table lacks accepted downstream tenant route: " + builtins.toJSON {
+            inherit upstreamReturnRoutes;
+          })
         else if !(hasScopedTableRule policyDownstream "downstr-client" "10.20.20.0/24") then
           throw "policy downstream ingress interface lost tenant-source scoping"
         else if !(hasUnscopedTableRule selectorPolicy "policy-client") then

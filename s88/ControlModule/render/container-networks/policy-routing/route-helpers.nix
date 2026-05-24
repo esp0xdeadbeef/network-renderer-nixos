@@ -20,6 +20,37 @@ let
       address = peers.addressForFamily family iface;
     in
     if family == 6 then peers.ipv6PeerFor127 address else peers.ipv4PeerFor31 address;
+
+  addressNetworkPrefix =
+    address:
+    if !(builtins.isString address) || !(lib.hasInfix "/" address) then
+      null
+    else
+      let
+        parts = lib.splitString "/" address;
+        ip = builtins.head parts;
+        prefixLength = builtins.elemAt parts 1;
+      in
+      if lib.hasInfix ":" ip then
+        if prefixLength == "64" then
+          let
+            head = builtins.head (lib.splitString "::" ip);
+          in
+          "${head}::/64"
+        else
+          null
+      else
+        let
+          octets = lib.splitString "." ip;
+        in
+        if prefixLength == "24" && builtins.length octets == 4 then
+          "${builtins.elemAt octets 0}.${builtins.elemAt octets 1}.${builtins.elemAt octets 2}.0/24"
+        else if prefixLength == "16" && builtins.length octets == 4 then
+          "${builtins.elemAt octets 0}.${builtins.elemAt octets 1}.0.0/16"
+        else if prefixLength == "8" && builtins.length octets == 4 then
+          "${builtins.elemAt octets 0}.0.0.0/8"
+        else
+          null;
 in
 {
   routeOutputInterface =
@@ -87,4 +118,15 @@ in
       dst = "${peer6}/127";
       scope = "link";
     });
+
+  connectedScopeRoutesForInterface =
+    ifName:
+    lib.filter (route: route.dst != null) (
+      map
+        (address: {
+          dst = addressNetworkPrefix address;
+          scope = "link";
+        })
+        (interfaces.${ifName}.addresses or [ ])
+    );
 }

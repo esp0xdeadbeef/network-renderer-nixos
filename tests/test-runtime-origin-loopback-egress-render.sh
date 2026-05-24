@@ -148,7 +148,11 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
           builtins.any
             (rule:
               (rule.IncomingInterface or null) == "core-nebula"
-              && (rule.From or null) == "fd42:dead:beef:1900:0000:0000:0000:0008/128"
+              && (
+                (rule.From or null) == "fd42:dead:beef:1900::8/128"
+                || (rule.From or null) == "fd42:dead:beef:1900:0:0:0:8/128"
+                || (rule.From or null) == "fd42:dead:beef:1900:0000:0000:0000:0008/128"
+              )
               && builtins.isInt (rule.Table or null))
             upstreamRules;
         policyDownstreamClientTable =
