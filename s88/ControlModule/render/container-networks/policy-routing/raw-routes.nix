@@ -5,6 +5,7 @@
 , isSelector
 , isUpstreamSelector
 , isPolicy
+, isDownstreamSelectorAccessInterface
 , isDownstreamSelectorPolicyInterface
 , isUpstreamSelectorCoreInterface
 , isUpstreamSelectorPolicyInterface
@@ -157,6 +158,17 @@ let
       returnRoutes.forTenantOfInterfaceViaInterface renderedInterfaceNames.${sourceIfName} sourceIfName
     else
       [ ];
+  downstreamSelectorAccessTableTenantReturnRoutes =
+    if
+      isSelector
+      && isDownstreamSelectorAccessInterface interfaceName
+      && isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName}
+      && targetIfName != null
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+    then
+      returnRoutes.forTenantOfInterfaceViaInterface interfaceName targetIfName
+    else
+      [ ];
   policyUpstreamReturnRoutes =
     if isPolicy && isPolicyUpstreamInterface interfaceName then
       returnRoutes.forTenantInterface sourceIfName
@@ -195,7 +207,8 @@ let
       ++ policyDownstreamDefaultRoutes
       ++ policyUpstreamReturnRoutes
       ++ downstreamSelectorReturnConnectedRoutes
-      ++ downstreamSelectorTenantReturnRoutes;
+      ++ downstreamSelectorTenantReturnRoutes
+      ++ downstreamSelectorAccessTableTenantReturnRoutes;
   sourceRoutesWithConnectedReturns = sourceRoutes ++ explicitForwardReturnConnectedRoutes;
   staticPolicyRoutes = lib.filter
     (

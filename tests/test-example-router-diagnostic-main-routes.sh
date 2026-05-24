@@ -57,6 +57,14 @@ nix_eval_true_or_fail \
                 && (route.Gateway or null) == gateway
                 && !(route ? Table))
               routes;
+          hasTableRoute = routes: networkName: destination: gateway: table:
+            builtins.any
+              (route:
+                (route.networkName or null) == networkName
+                && (route.Destination or null) == destination
+                && (route.Gateway or null) == gateway
+                && (route.Table or null) == table)
+              routes;
           noMainRoute = routes: networkName: destination: gateway:
             !builtins.any
               (route:
@@ -78,6 +86,10 @@ nix_eval_true_or_fail \
           checks = {
             downstreamHostileReturn =
               hasMainRoute downstream "10-access-client" "10.20.20.0/24" "10.10.0.2";
+            downstreamPolicyIngressAccessTableReturn =
+              hasTableRoute downstream "10-access-client" "10.20.20.0/24" "10.10.0.2" 2001;
+            downstreamPolicyIngressAccessTableReturn6 =
+              hasTableRoute downstream "10-access-client" "fd42:dead:beef:20::/64" "fd42:dead:beef:1000:0:0:0:2" 2001;
             policyHostileReturn =
               hasMainRoute policy "10-downstr-client" "10.20.20.0/24" "10.10.0.20";
             upstreamHostileReturn =

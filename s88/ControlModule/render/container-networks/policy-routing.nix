@@ -120,6 +120,7 @@ let
       isSelector
       isUpstreamSelector
       isPolicy
+      isDownstreamSelectorAccessInterface
       isDownstreamSelectorPolicyInterface
       ;
     inherit
