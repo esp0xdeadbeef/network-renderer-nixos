@@ -31,6 +31,8 @@ nix_eval_true_or_fail \
           builtins.any (rule: !(rule ? From)) (tableRulesFor network interface);
         hasScopedTableRule = network: interface: prefix:
           builtins.any (rule: (rule.From or null) == prefix) (tableRulesFor network interface);
+        hasDestinationScopedTableRule = network: interface: prefix:
+          builtins.any (rule: (rule.To or null) == prefix) (tableRulesFor network interface);
         policyRender = render {
           forwardingIntent.rules = [
             { action = "accept"; fromInterface = "downstr-client"; toInterface = "up-client-b"; }
@@ -114,9 +116,47 @@ nix_eval_true_or_fail \
             };
           };
         };
+        accessRender = render {
+          forwardingIntent.rules = [
+            { action = "accept"; fromInterface = "tenant-client"; toInterface = "transit"; }
+            { action = "accept"; fromInterface = "transit"; toInterface = "tenant-client"; }
+          ];
+          containerModel = {
+            site.tenantPrefixOwners."4|10.20.20.0/24".owner = "router-access-client";
+            interfaces = {
+              tenant-client = {
+                containerInterfaceName = "tenant-client";
+                addresses = [ "10.20.20.1/24" ];
+                backingRef.lane.access = "router-access-client";
+                routes = [
+                  {
+                    dst = "10.20.20.0/24";
+                    proto = "connected";
+                  }
+                ];
+              };
+              transit = {
+                containerInterfaceName = "transit";
+                addresses = [ "10.10.0.4/31" ];
+                backingRef.lane.access = "router-access-client";
+                routes = [
+                  {
+                    dst = "0.0.0.0/0";
+                    via4 = "10.10.0.5";
+                    policyOnly = true;
+                    reason = "policy-derived-default";
+                    lane.access = "router-access-client";
+                    lane.uplink = "isp-b";
+                  }
+                ];
+              };
+            };
+          };
+        };
         policyUpstream = policyRender.networks."10-up-client-b";
         policyDownstream = policyRender.networks."10-downstr-client";
         selectorPolicy = downstreamRender.networks."10-policy-client";
+        accessTransit = accessRender.networks."10-transit";
         upstreamReturnRoutes = policyRender.networks."10-downstr-client".routes or [ ];
         hasUpstreamReturnTenantRoute =
           builtins.any
@@ -126,8 +166,10 @@ nix_eval_true_or_fail \
               && builtins.isInt (route.Table or null))
             upstreamReturnRoutes;
       in
-        if !(hasUnscopedTableRule policyUpstream "up-client-b") then
-          throw "policy upstream return interface lacks an unscoped iif table rule for WAN replies"
+        if !(hasDestinationScopedTableRule policyDownstream "up-client-b" "10.20.20.0/24") then
+          throw "policy upstream return path must use a destination-scoped rule into the downstream tenant table"
+        else if !(hasUnscopedTableRule policyUpstream "up-client-b") then
+          throw "policy upstream source-side interface lacks an unscoped iif table rule for policy selection"
         else if hasScopedTableRule policyUpstream "up-client-b" "10.20.20.0/24" then
           throw "policy upstream return interface must not be tenant-source scoped"
         else if !(hasUpstreamReturnTenantRoute) then
@@ -137,9 +179,11 @@ nix_eval_true_or_fail \
         else if !(hasScopedTableRule policyDownstream "downstr-client" "10.20.20.0/24") then
           throw "policy downstream ingress interface lost tenant-source scoping"
         else if !(hasUnscopedTableRule selectorPolicy "policy-client") then
-          throw "downstream selector policy return interface lacks an unscoped iif table rule"
+          throw "downstream selector policy source-side interface lacks an unscoped iif table rule"
         else if hasScopedTableRule selectorPolicy "policy-client" "10.20.20.0/24" then
           throw "downstream selector policy return interface must not be tenant-source scoped"
+        else if !(hasDestinationScopedTableRule accessTransit "transit" "10.20.20.0/24") then
+          throw "access router return path must use a destination-scoped rule into the tenant table"
         else true
     '
 

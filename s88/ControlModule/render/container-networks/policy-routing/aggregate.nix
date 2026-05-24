@@ -1,22 +1,22 @@
-{
-  lib,
-  interfaceNames,
-  renderedInterfaceNames,
-  isPolicy,
-  isDownstreamSelectorPolicyInterface,
-  isPolicyUpstreamInterface,
-  isPolicyDownstreamInterface,
-  sourceReachabilityRoutes,
-  sourcePrefixes,
-  forwardingSourceScope,
-  ruleSourceScope,
-  routesByOutputInterface,
-  rawRoutesForPolicyTable,
-  serviceDnsRoutes,
-  policyRulesFor,
-  dynamicPolicyRulesFor,
-  forTarget,
-  forTargetRules,
+{ lib
+, interfaceNames
+, renderedInterfaceNames
+, isPolicy
+, isDownstreamSelectorPolicyInterface
+, isPolicyUpstreamInterface
+, isPolicyDownstreamInterface
+, sourceReachabilityRoutes
+, sourcePrefixes
+, forwardingSourceScope
+, ruleSourceScope
+, routesByOutputInterface
+, rawRoutesForPolicyTable
+, serviceDnsRoutes
+, policyRulesFor
+, dynamicPolicyRulesFor
+, forTarget
+, forTargetRules
+,
 }:
 builtins.foldl'
   (
@@ -28,9 +28,11 @@ builtins.foldl'
       tableId = 2000 + index;
       routeSourceIfNames = forTarget interfaceName;
       baseSourceIfNames = forTargetRules interfaceName;
-      policyIngressLocalSourceIfNames = lib.optionals (
-        isPolicy && isPolicyUpstreamInterface interfaceName
-      ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
+      policyIngressLocalSourceIfNames = lib.optionals
+        (
+          isPolicy && isPolicyUpstreamInterface interfaceName
+        )
+        (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
       sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
       sourceScope = sourcePrefixes.forInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
@@ -71,10 +73,29 @@ builtins.foldl'
         sourceIfNames = routeSourceIfNames;
       };
       routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
-      rulesForThisInterface = lib.concatMap (
+      destinationScopeForIngress =
         sourceIfName:
-        policyRulesFor interfaceName tableId [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).staticPrefixes
-      ) sourceIfNames;
+        let
+          routesForTargetOutput = routesByInterface.${ifName} or [ ];
+          routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
+        in
+        lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
+          (ruleSourceScopeForIngress sourceIfName).staticPrefixes
+        );
+      rulesForThisInterface = lib.concatMap
+        (
+          sourceIfName:
+          let
+            destinationScope = if sourceIfName == ifName then [ ] else destinationScopeForIngress sourceIfName;
+            sourceScopeForRule =
+              if destinationScope != [ ] then
+                [ ]
+              else
+                (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
+          in
+          policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule destinationScope
+        )
+        sourceIfNames;
       forwardingIngressRules =
         let
           tableRuleFor = prefix: {
@@ -93,38 +114,47 @@ builtins.foldl'
             Table = 254;
           };
         in
-        builtins.concatMap (prefix: [
-          (tableRuleFor prefix)
-          (mainFallbackRuleFor prefix)
-        ]) forwardingMainScope.staticPrefixes;
+        builtins.concatMap
+          (prefix: [
+            (tableRuleFor prefix)
+            (mainFallbackRuleFor prefix)
+          ])
+          forwardingMainScope.staticPrefixes;
       allRulesForThisInterface = lib.unique (rulesForThisInterface ++ forwardingIngressRules);
       hasMainLookupRuleForSource =
         source:
-        builtins.any (
-          rule:
-          (rule.From or null) == (source.prefix or null)
-          && (rule.Table or null) == 254
-          && (rule.SuppressPrefixLength or null) == 0
-        ) allRulesForThisInterface;
+        builtins.any
+          (
+            rule:
+            (rule.From or null) == (source.prefix or null)
+            && (rule.Table or null) == 254
+            && (rule.SuppressPrefixLength or null) == 0
+          )
+          allRulesForThisInterface;
       mainSourceRoutes = lib.filter (route: route != null) (
         map (sourceReachabilityRoutes.routeFor ifName) (
-          lib.filter (
-            source:
-            hasMainLookupRuleForSource source
-            && sourceReachabilityRoutes.matchesInterfaceOrigin interfaceName source
-          ) effectiveMainSourceScope.staticPrefixes
+          lib.filter
+            (
+              source:
+              hasMainLookupRuleForSource source
+              && sourceReachabilityRoutes.matchesInterfaceOrigin interfaceName source
+            )
+            effectiveMainSourceScope.staticPrefixes
         )
       );
     in
     {
-      routes = builtins.foldl' (
-        routesAcc: outputIfName:
-        routesAcc
-        // {
-          ${outputIfName} =
-            (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfacePreferred.${outputIfName} or [ ]);
-        }
-      ) acc.routes (builtins.attrNames routesByInterfacePreferred);
+      routes = builtins.foldl'
+        (
+          routesAcc: outputIfName:
+            routesAcc
+            // {
+              ${outputIfName} =
+                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfacePreferred.${outputIfName} or [ ]);
+            }
+        )
+        acc.routes
+        (builtins.attrNames routesByInterfacePreferred);
       mainRoutes = acc.mainRoutes // {
         ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
       };
@@ -133,16 +163,18 @@ builtins.foldl'
       };
       dynamicSourceRules =
         acc.dynamicSourceRules
-        ++ lib.concatMap (
-          sourceIfName:
-          dynamicPolicyRulesFor interfaceName tableId [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).sourceFiles
-        ) sourceIfNames;
+        ++ lib.concatMap
+          (
+            sourceIfName:
+            dynamicPolicyRulesFor interfaceName tableId [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).sourceFiles
+          )
+          sourceIfNames;
     }
   )
-  {
-    routes = { };
-    mainRoutes = { };
-    rules = { };
-    dynamicSourceRules = [ ];
-  }
+{
+  routes = { };
+  mainRoutes = { };
+  rules = { };
+  dynamicSourceRules = [ ];
+}
   (lib.imap0 (index: ifName: { inherit index ifName; }) interfaceNames)
