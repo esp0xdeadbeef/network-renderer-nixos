@@ -14,34 +14,6 @@
 let
   inherit (common) policyTenantKeyFor;
 
-  isDefaultDestination =
-    dst:
-    dst == "0.0.0.0/0"
-    || dst == "::/0"
-    || dst == "0000:0000:0000:0000:0000:0000:0000:0000/0";
-
-  explicitDestinationsForTenant =
-    tenantKey:
-    lib.concatMap
-      (
-        ifName:
-        let
-          renderedName = renderedInterfaceNames.${ifName};
-        in
-        if policyTenantKeyFor renderedName != tenantKey then
-          [ ]
-        else
-          lib.concatMap
-            (
-              route:
-              let
-                dst = route.dst or null;
-              in
-              if builtins.isString dst && !(isDefaultDestination dst) then [ dst ] else [ ]
-            )
-            (interfaces.${ifName}.routes or [ ])
-      )
-      (builtins.attrNames interfaces);
 in
 {
   forUpstreamCore =
@@ -77,6 +49,6 @@ in
                 via4 = gateway;
               }
           )
-          ((returnDestinationsForTenant tenantKey) ++ (explicitDestinationsForTenant tenantKey))
+          (returnDestinationsForTenant tenantKey)
       );
 }

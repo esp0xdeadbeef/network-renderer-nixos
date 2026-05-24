@@ -16,6 +16,19 @@ let
     || (route.dst or null) == "::/0"
     || (route.dst or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
 
+  isServiceDnsReachabilityRoute =
+    route:
+    builtins.isAttrs route
+    && (((route.intent or { }).kind or null) == "service-dns-reachability");
+  isServiceEndpointReachabilityRoute =
+    route:
+    builtins.isAttrs route
+    && (((route.intent or { }).kind or null) == "service-endpoint-reachability");
+  isPolicyTableComplementRoute =
+    route:
+    builtins.isAttrs route
+    && (((route.intent or { }).source or null) == "policy-default-lane");
+
   explicitDestinationsForPolicyTenant =
     tenantKey:
     lib.concatMap
@@ -30,7 +43,14 @@ let
           lib.concatMap
             (
               route:
-              if builtins.isAttrs route && builtins.isString (route.dst or null) && !(isDefaultRoute route) then
+              if
+                builtins.isAttrs route
+                && builtins.isString (route.dst or null)
+                && !(isDefaultRoute route)
+                && !(isServiceDnsReachabilityRoute route)
+                && !(isServiceEndpointReachabilityRoute route)
+                && !(isPolicyTableComplementRoute route)
+              then
                 [ route.dst ]
               else
                 [ ]
