@@ -172,7 +172,8 @@ in
           ifName = entry.ifName;
           interfaceName = renderedInterfaceNames.${ifName};
           tableId = 2000 + index;
-          baseSourceIfNames = routeSources.forTarget interfaceName;
+          routeSourceIfNames = routeSources.forTarget interfaceName;
+          baseSourceIfNames = routeSources.forTargetRules interfaceName;
           policyIngressLocalSourceIfNames = lib.optionals (
             isPolicy && isPolicyUpstreamInterface interfaceName
           ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
@@ -192,13 +193,14 @@ in
             inherit
               interfaceName
               rawRoutesForPolicyTable
-              sourceIfNames
               tableId
               ;
+            sourceIfNames = routeSourceIfNames;
           };
           routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
           rulesForThisInterface =
-            policyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.staticPrefixes;
+            policyRulesFor interfaceName tableId sourceIfNames
+              effectiveRuleSourceScope.staticPrefixes;
           hasMainLookupRuleForSource =
             source:
             builtins.any (
@@ -230,9 +232,7 @@ in
             ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
           };
           rules = acc.rules // {
-            ${ifName} =
-              (acc.rules.${ifName} or [ ])
-              ++ rulesForThisInterface;
+            ${ifName} = (acc.rules.${ifName} or [ ]) ++ rulesForThisInterface;
           };
           dynamicSourceRules =
             acc.dynamicSourceRules

@@ -21,6 +21,17 @@ nix_eval_true_or_fail \
             wanUplinkName = null;
             forwardingIntent.rules = [
               { action = "accept"; fromInterface = "access-client"; toInterface = "policy-client"; }
+              {
+                action = "accept";
+                fromInterface = "access-client";
+                toInterface = "policy-client";
+                sourcePrefixes = [
+                  {
+                    family = 4;
+                    prefix = "10.19.0.8/32";
+                  }
+                ];
+              }
               { action = "accept"; fromInterface = "access-dmz"; toInterface = "policy-dmz"; }
               { action = "accept"; fromInterface = "policy-client"; toInterface = "access-client"; }
               { action = "accept"; fromInterface = "policy-dmz"; toInterface = "access-dmz"; }
@@ -85,6 +96,7 @@ nix_eval_true_or_fail \
           };
         networks = render.networks;
         rules = networks."10-access-client".routingPolicyRules or [ ];
+        policyRules = networks."10-policy-client".routingPolicyRules or [ ];
         tableRules =
           builtins.filter
             (rule:
@@ -102,10 +114,25 @@ nix_eval_true_or_fail \
               && (route.Gateway or null) == "10.80.0.2"
               && (route.Table or null) == table)
             accessDmzRoutes;
+        hasRuntimeOriginPolicyRule =
+          builtins.any
+            (rule:
+              (rule.IncomingInterface or null) == "access-client"
+              && builtins.isInt (rule.Table or null)
+              && (rule.Table or null) != 254
+              && (rule.Priority or 99999) < 10000)
+            policyRules;
       in
-        if hasDmzRouteInClientTable then true else throw ("downstream selector local forward table lost explicit accepted target: " + builtins.toJSON {
-          inherit table rules accessDmzRoutes;
-        })
+        if !(hasDmzRouteInClientTable) then
+          throw ("downstream selector local forward table lost explicit accepted target: " + builtins.toJSON {
+            inherit table rules accessDmzRoutes;
+          })
+        else if !(hasRuntimeOriginPolicyRule) then
+          throw ("downstream selector policy table did not select explicit runtime-origin source ingress: " + builtins.toJSON {
+            inherit policyRules;
+          })
+        else
+          true
     '
 
 echo "PASS downstream-selector-local-forward-policy-sources"

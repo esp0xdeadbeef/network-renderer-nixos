@@ -1,13 +1,13 @@
-{ lib
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-, addressForFamily
-, ipv4PeerFor31
-, ipv6PeerFor127
-, policyRoutingSources ? { }
-, forwardingRules ? [ ]
-,
+{
+  lib,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
+  addressForFamily,
+  ipv4PeerFor31,
+  ipv6PeerFor127,
+  policyRoutingSources ? { },
+  forwardingRules ? [ ],
 }:
 
 let
@@ -34,19 +34,28 @@ let
       targetPeer4 = interfacePeerForFamily 4 targetIface;
       targetPeer6 = interfacePeerForFamily 6 targetIface;
     in
-    builtins.any
-      (route: builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route))
-      routes;
+    builtins.any (
+      route:
+      builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route)
+    ) routes;
 
   hasAcceptForwardingRule =
     fromName: toName:
-    builtins.any
-      (rule:
+    builtins.any (
+      rule:
       builtins.isAttrs rule
       && (rule.action or null) == "accept"
       && (rule.fromInterface or null) == fromName
-      && (rule.toInterface or null) == toName)
-      forwardingRules;
+      && (rule.toInterface or null) == toName
+    ) forwardingRules;
+
+  acceptedForwardSourcesFor =
+    targetName:
+    lib.filter (name: hasAcceptForwardingRule (renderedNameFor name) targetName) interfaceNames;
+
+  acceptedForwardTargetsFor =
+    targetName:
+    lib.filter (name: hasAcceptForwardingRule targetName (renderedNameFor name)) interfaceNames;
 in
 {
   forTarget =
@@ -54,11 +63,23 @@ in
     let
       unitSources = policyRoutingSources.${targetName} or null;
       selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
-      acceptedForwardTargets =
-        lib.filter (name: hasAcceptForwardingRule targetName (renderedNameFor name)) interfaceNames;
+      acceptedForwardSources = acceptedForwardSourcesFor targetName;
+      acceptedForwardTargets = acceptedForwardTargetsFor targetName;
     in
     if unitSources != null then
-      lib.unique (unitSources ++ acceptedForwardTargets)
+      lib.unique (unitSources ++ acceptedForwardSources ++ acceptedForwardTargets)
     else
-      lib.unique (selfSources ++ acceptedForwardTargets);
+      lib.unique (selfSources ++ acceptedForwardSources ++ acceptedForwardTargets);
+
+  forTargetRules =
+    targetName:
+    let
+      unitSources = policyRoutingSources.${targetName} or null;
+      selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
+      acceptedForwardSources = acceptedForwardSourcesFor targetName;
+    in
+    if unitSources != null then
+      lib.unique (unitSources ++ acceptedForwardSources)
+    else
+      lib.unique (selfSources ++ acceptedForwardSources);
 }
