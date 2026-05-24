@@ -40,25 +40,38 @@ nix_eval_true_or_fail \
 
         coreRender = render {
           interfaces = {
-            underlay-access-client = {
-              sourceKind = "p2p";
-              containerInterfaceName = "underlay-access-client";
-              addresses = [
-                "10.50.0.3/31"
-                "fd42:dead:feed:1000::3/127"
-              ];
-              backingRef.name = "p2p-access-client-core-nebula";
+            tenant-client = {
+              sourceKind = "tenant";
+              containerInterfaceName = "client";
+              tenant = "client";
+              logical = true;
+              addresses = [ ];
+              dynamicAddressing = {
+                ipv4 = {
+                  enable = true;
+                  method = "dhcp";
+                  dhcp = true;
+                };
+                ipv6 = {
+                  enable = true;
+                  method = "slaac";
+                  acceptRA = true;
+                  dhcp = false;
+                };
+              };
+              backingRef = {
+                kind = "attachment";
+                name = "client";
+              };
               routes = [
                 {
                   dst = "0.0.0.0/0";
-                  via4 = "10.50.0.2";
                   proto = "default";
                   reason = "default-reachability";
                   intent.kind = "default-reachability";
                 }
                 {
                   dst = "::/0";
-                  via6 = "fd42:dead:feed:1000::2";
                   proto = "default";
                   reason = "default-reachability";
                   intent.kind = "default-reachability";
@@ -81,18 +94,11 @@ nix_eval_true_or_fail \
         accessNetworks = accessRender.networks;
         coreNetworks = coreRender.networks;
         accessUnderlay = accessNetworks."10-underlay-core-nebula";
-        coreUnderlay = coreNetworks."10-underlay-access-client";
+        coreTenantClient = coreNetworks."10-client";
         coreUpstream = coreNetworks."10-upstream";
 
         isDefault4 = route: (route.Destination or null) == "0.0.0.0/0";
         isDefault6 = route: (route.Destination or null) == "::/0";
-        hasRoute = routes: destination: gateway:
-          builtins.any
-            (route:
-              (route.Destination or null) == destination
-              && (route.Gateway or null) == gateway
-              && !(route ? Table))
-            routes;
         hasRendererMetadata =
           routes:
           builtins.any
@@ -110,17 +116,15 @@ nix_eval_true_or_fail \
         && (builtins.filter
           (route: isDefault4 route || isDefault6 route)
           (accessUnderlay.routes or [ ])) == [ ]
-        && coreNetworks ? "10-underlay-access-client"
+        && coreNetworks ? "10-client"
         && coreNetworks ? "10-upstream"
-        && hasRoute
-          (coreUnderlay.routes or [ ])
-          "0.0.0.0/0"
-          "10.50.0.2"
-        && hasRoute
-          (coreUnderlay.routes or [ ])
-          "::/0"
-          "fd42:dead:feed:1000::2"
-        && !hasRendererMetadata (coreUnderlay.routes or [ ])
+        && (coreTenantClient.networkConfig.DHCP or null) == "ipv4"
+        && (coreTenantClient.networkConfig.IPv6AcceptRA or false) == true
+        && (coreTenantClient.networkConfig.LinkLocalAddressing or null) == "ipv6"
+        && (builtins.filter
+          (route: isDefault4 route || isDefault6 route)
+          (coreTenantClient.routes or [ ])) == [ ]
+        && !hasRendererMetadata (coreTenantClient.routes or [ ])
         && (builtins.filter
           (route: isDefault4 route || isDefault6 route)
           (coreUpstream.routes or [ ])) == [ ]
