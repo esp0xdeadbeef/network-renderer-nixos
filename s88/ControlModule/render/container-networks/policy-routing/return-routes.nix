@@ -14,12 +14,10 @@
 let
   inherit (common) policyTenantKeyFor;
 
-  routesForTenantInterface =
-    sourceIfName:
+  routesForTenantViaInterface =
+    tenantKey: sourceIfName:
     let
       sourceIface = interfaces.${sourceIfName} or { };
-      sourceRenderedName = renderedInterfaceNames.${sourceIfName};
-      tenantKey = policyTenantKeyFor sourceRenderedName;
       peer4 = ipv4PeerFor31 (addressForFamily 4 sourceIface);
       peer6 = ipv6PeerFor127 (addressForFamily 6 sourceIface);
     in
@@ -49,9 +47,21 @@ let
           )
           (returnDestinationsForTenant tenantKey)
       );
+
+  routesForTenantInterface =
+    sourceIfName:
+    let
+      sourceRenderedName = renderedInterfaceNames.${sourceIfName};
+      tenantKey = policyTenantKeyFor sourceRenderedName;
+    in
+    routesForTenantViaInterface tenantKey sourceIfName;
 in
 {
   forTenantInterface = routesForTenantInterface;
+
+  forTenantOfInterfaceViaInterface =
+    tenantInterfaceName: sourceIfName:
+    routesForTenantViaInterface (policyTenantKeyFor tenantInterfaceName) sourceIfName;
 
   forUpstreamCore =
     targetName: sourceIfName:
