@@ -239,21 +239,43 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               && (route.Gateway or null) != "10.10.0.12")
             ((upstream.systemd.network.networks."10-core-nebula".routes or [ ])
              ++ (upstream.systemd.network.networks."10-pol-hostile-ew".routes or [ ]));
+        result = {
+          inherit
+            hasPreferredRoute
+            hasPreferredRoute6
+            hasRuntimeSourceRule
+            hasRuntimeSourceRule6
+            hasPolicyRuntimeSourceRule
+            hasPolicyRuntimeSourceRule6
+            hasPolicyClientDefault
+            hasPolicyRuntimeSourceMainRoute
+            runtimeOriginHasAccessOrigin
+            wrongPolicyRuntimeSourceMainRoutes
+            hasAccessRuntimeOriginAllow4
+            hasAccessRuntimeOriginAllow6
+            hasCoreADefault
+            wrongDefaultRoutes
+            hasBroadCoreNebulaRule
+            ;
+        };
       in
-        hasPreferredRoute
-        && hasPreferredRoute6
-        && hasRuntimeSourceRule
-        && hasRuntimeSourceRule6
-        && hasPolicyRuntimeSourceRule
-        && hasPolicyRuntimeSourceRule6
-        && hasPolicyClientDefault
-        && hasPolicyRuntimeSourceMainRoute
-        && (!runtimeOriginHasAccessOrigin || wrongPolicyRuntimeSourceMainRoutes == [ ])
-        && hasAccessRuntimeOriginAllow4
-        && hasAccessRuntimeOriginAllow6
-        && hasCoreADefault
-        && wrongDefaultRoutes == [ ]
-        && !hasBroadCoreNebulaRule
+        if
+          result.hasPreferredRoute
+          && result.hasPreferredRoute6
+          && result.hasRuntimeSourceRule
+          && result.hasRuntimeSourceRule6
+          && result.hasPolicyRuntimeSourceRule
+          && result.hasPolicyRuntimeSourceRule6
+          && result.hasPolicyClientDefault
+          && result.hasPolicyRuntimeSourceMainRoute
+          && (!result.runtimeOriginHasAccessOrigin || result.wrongPolicyRuntimeSourceMainRoutes == [ ])
+          && result.hasAccessRuntimeOriginAllow4
+          && result.hasAccessRuntimeOriginAllow6
+          && result.hasCoreADefault
+          && result.wrongDefaultRoutes == [ ]
+          && !result.hasBroadCoreNebulaRule
+        then true
+        else throw ("runtime-origin-loopback-egress-render failed: " + builtins.toJSON result)
     '
 
 echo "PASS runtime-origin-loopback-egress-render"

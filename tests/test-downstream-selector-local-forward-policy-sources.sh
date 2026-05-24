@@ -97,6 +97,8 @@ nix_eval_true_or_fail \
         networks = render.networks;
         rules = networks."10-access-client".routingPolicyRules or [ ];
         policyRules = networks."10-policy-client".routingPolicyRules or [ ];
+        allRules = rules ++ policyRules;
+        policyClientRoutes = networks."10-policy-client".routes or [ ];
         tableRules =
           builtins.filter
             (rule:
@@ -114,15 +116,33 @@ nix_eval_true_or_fail \
               && (route.Gateway or null) == "10.80.0.2"
               && (route.Table or null) == table)
             accessDmzRoutes;
+        policyClientDefaultTables =
+          map
+            (route: route.Table)
+            (builtins.filter
+              (route:
+                (route.Destination or null) == "0.0.0.0/0"
+                && builtins.isInt (route.Table or null))
+              policyClientRoutes);
+        policyClientDefaultTable =
+          if policyClientDefaultTables == [ ] then null else builtins.head policyClientDefaultTables;
         hasRuntimeOriginPolicyRule =
           builtins.any
             (rule:
               (rule.IncomingInterface or null) == "access-client"
               && (rule.From or null) == "10.19.0.8/32"
+              && (rule.Table or null) == policyClientDefaultTable
+              && (rule.Priority or 99999) < 10000)
+            allRules;
+        wrongRuntimeOriginPolicyRules =
+          builtins.filter
+            (rule:
+              (rule.IncomingInterface or null) == "access-client"
+              && (rule.From or null) == "10.19.0.8/32"
               && builtins.isInt (rule.Table or null)
               && (rule.Table or null) != 254
-              && (rule.Priority or 99999) < 10000)
-            policyRules;
+              && (rule.Table or null) != policyClientDefaultTable)
+            allRules;
       in
         if !(hasDmzRouteInClientTable) then
           throw ("downstream selector local forward table lost explicit accepted target: " + builtins.toJSON {
@@ -130,7 +150,11 @@ nix_eval_true_or_fail \
           })
         else if !(hasRuntimeOriginPolicyRule) then
           throw ("downstream selector policy table did not select explicit runtime-origin source ingress: " + builtins.toJSON {
-            inherit policyRules;
+            inherit allRules policyClientDefaultTable policyClientRoutes;
+          })
+        else if wrongRuntimeOriginPolicyRules != [ ] then
+          throw ("downstream selector emitted runtime-origin source ingress against the wrong table: " + builtins.toJSON {
+            inherit wrongRuntimeOriginPolicyRules policyClientDefaultTable;
           })
         else
           true
