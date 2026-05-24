@@ -77,7 +77,7 @@ nix_eval_true_or_fail \
               && builtins.isInt (rule.Table or null)
               && (rule.Table or null) != 254)
             rules;
-        broadTableRules = builtins.filter (rule: !(rule ? From)) tableRules;
+        broadTableRules = builtins.filter (rule: !(rule ? From) && !(rule ? To)) tableRules;
         hasFrom = prefix:
           builtins.any
             (rule:

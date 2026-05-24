@@ -99,7 +99,8 @@ nix_eval_true_or_fail \
             (rule:
               (rule.IncomingInterface or null) == "core-nebula"
               && builtins.isInt (rule.Table or null)
-              && !(rule ? From))
+              && !(rule ? From)
+              && !(rule ? To))
             coreNebulaRules;
       in
         hasPreferredRoute

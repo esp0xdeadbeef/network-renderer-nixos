@@ -1,13 +1,13 @@
-{
-  lib,
-  interfaces,
-  interfaceNames,
-  renderedInterfaceNames,
-  addressForFamily,
-  ipv4PeerFor31,
-  ipv6PeerFor127,
-  policyRoutingSources ? { },
-  forwardingRules ? [ ],
+{ lib
+, interfaces
+, interfaceNames
+, renderedInterfaceNames
+, addressForFamily
+, ipv4PeerFor31
+, ipv6PeerFor127
+, policyRoutingSources ? { }
+, forwardingRules ? [ ]
+,
 }:
 
 let
@@ -34,10 +34,12 @@ let
       targetPeer4 = interfacePeerForFamily 4 targetIface;
       targetPeer6 = interfacePeerForFamily 6 targetIface;
     in
-    builtins.any (
-      route:
-      builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route)
-    ) routes;
+    builtins.any
+      (
+        route:
+        builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route)
+      )
+      routes;
 
   namesFor =
     name:
@@ -62,13 +64,15 @@ let
 
   hasAcceptForwardingRule =
     fromNames: toNames:
-    builtins.any (
-      rule:
-      builtins.isAttrs rule
-      && (rule.action or null) == "accept"
-      && builtins.elem (rule.fromInterface or null) fromNames
-      && builtins.elem (rule.toInterface or null) toNames
-    ) forwardingRules;
+    builtins.any
+      (
+        rule:
+        builtins.isAttrs rule
+        && (rule.action or null) == "accept"
+        && builtins.elem (rule.fromInterface or null) fromNames
+        && builtins.elem (rule.toInterface or null) toNames
+      )
+      forwardingRules;
 
   acceptedForwardSourcesFor =
     targetName:
@@ -107,8 +111,10 @@ in
       selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
       acceptedForwardSources = acceptedForwardSourcesFor targetName;
     in
-    if unitSources != null then
-      lib.unique (unitSources ++ acceptedForwardSources)
+    if acceptedForwardSources != [ ] then
+      lib.unique (selfSources ++ acceptedForwardSources)
+    else if unitSources != null then
+      lib.unique unitSources
     else
-      lib.unique (selfSources ++ acceptedForwardSources);
+      selfSources;
 }
