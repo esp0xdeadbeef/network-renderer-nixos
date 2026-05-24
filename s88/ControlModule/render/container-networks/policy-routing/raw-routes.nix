@@ -143,7 +143,7 @@ let
     if
       isSelector
       && isDownstreamSelectorPolicyInterface interfaceName
-      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
     then
       connectedP2pScopeRoutesForInterface sourceIfName
     else
@@ -152,7 +152,7 @@ let
     if
       isSelector
       && isDownstreamSelectorPolicyInterface interfaceName
-      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
     then
       returnRoutes.forTenantOfInterfaceViaInterface renderedInterfaceNames.${sourceIfName} sourceIfName
     else
