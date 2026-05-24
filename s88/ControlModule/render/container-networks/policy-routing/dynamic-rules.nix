@@ -1,5 +1,6 @@
 {
   lib,
+  renderedInterfaceNames,
   isSelector,
   isUpstreamSelector,
   isDownstreamSelectorPolicyInterface,
@@ -8,37 +9,28 @@
 
 interfaceName: tableId: sourceIfNames: sourceFiles:
 let
-  tableRule = {
-    interfaceName = interfaceName;
-    priority = tableId;
-    table = tableId;
-  };
-  mainFallbackRule = {
-    interfaceName = interfaceName;
-    priority = 10000 + tableId;
-    table = 254;
-    suppressPrefixLength = 0;
-  };
-  mainFirstRule = mainFallbackRule // {
-    priority = tableId;
-  };
-  tableSecondRule = tableRule // {
-    priority = 10000 + tableId;
-  };
-  rulesForMode =
-    if
-      (isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName)
-      || (isSelector && isDownstreamSelectorPolicyInterface interfaceName)
-    then
-      [
-        tableRule
-        mainFallbackRule
-      ]
-    else
-      [
-        mainFirstRule
-        tableSecondRule
-      ];
+  ingressInterfaces =
+    lib.unique (
+      map (name: renderedInterfaceNames.${name} or name) (
+        if sourceIfNames == [ ] then [ ] else sourceIfNames
+      )
+    );
+  rulesForIngress =
+    incomingInterface:
+    [
+      {
+        interfaceName = incomingInterface;
+        priority = tableId;
+        table = tableId;
+      }
+      {
+        interfaceName = incomingInterface;
+        priority = 10000 + tableId;
+        table = 254;
+        suppressPrefixLength = 0;
+      }
+    ];
+  rulesForMode = lib.concatMap rulesForIngress ingressInterfaces;
 in
 if sourceIfNames == [ ] || sourceFiles == [ ] then
   [ ]

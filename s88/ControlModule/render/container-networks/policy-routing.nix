@@ -144,6 +144,7 @@ let
   policyRulesFor = import ./policy-routing/rules.nix {
     inherit
       lib
+      renderedInterfaceNames
       isSelector
       isUpstreamSelector
       isDownstreamSelectorPolicyInterface
@@ -153,6 +154,7 @@ let
   dynamicPolicyRulesFor = import ./policy-routing/dynamic-rules.nix {
     inherit
       lib
+      renderedInterfaceNames
       isSelector
       isUpstreamSelector
       isDownstreamSelectorPolicyInterface

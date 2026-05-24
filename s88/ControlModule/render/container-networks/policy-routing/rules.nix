@@ -1,5 +1,6 @@
 {
   lib,
+  renderedInterfaceNames,
   isSelector,
   isUpstreamSelector,
   isDownstreamSelectorPolicyInterface,
@@ -8,24 +9,24 @@
 
 interfaceName: tableId: sourceIfNames: sourcePrefixes:
 let
-  tableRule = {
+  ingressInterfaces =
+    lib.unique (
+      map (name: renderedInterfaceNames.${name} or name) (
+        if sourceIfNames == [ ] then [ ] else sourceIfNames
+      )
+    );
+  tableRuleFor = incomingInterface: {
     Family = "both";
-    IncomingInterface = interfaceName;
+    IncomingInterface = incomingInterface;
     Priority = tableId;
     Table = tableId;
   };
-  mainFallbackRule = {
+  mainFallbackRuleFor = incomingInterface: {
     Family = "both";
-    IncomingInterface = interfaceName;
+    IncomingInterface = incomingInterface;
     Priority = 10000 + tableId;
     Table = 254;
     SuppressPrefixLength = 0;
-  };
-  mainFirstRule = mainFallbackRule // {
-    Priority = tableId;
-  };
-  tableSecondRule = tableRule // {
-    Priority = 10000 + tableId;
   };
   scoped = sourcePrefixes != [ ];
   scopeRule =
@@ -35,35 +36,21 @@ let
       Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
       From = prefix.prefix;
     };
-  rulesForMode =
-    if
-      (isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName)
-      || (isSelector && isDownstreamSelectorPolicyInterface interfaceName)
-    then
-      [
-        tableRule
-        mainFallbackRule
-      ]
-    else
-      [
-        mainFirstRule
-        tableSecondRule
-      ];
+  rulesForIngress =
+    incomingInterface:
+    let
+      tableRule = tableRuleFor incomingInterface;
+      mainFallbackRule = mainFallbackRuleFor incomingInterface;
+    in
+    [
+      tableRule
+      mainFallbackRule
+    ];
+  unscopedRules = lib.concatMap rulesForIngress ingressInterfaces;
 in
 if sourceIfNames == [ ] then
   [ ]
 else if scoped then
-  lib.concatMap (prefix: map (scopeRule prefix) rulesForMode) sourcePrefixes
-else if
-  (isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName)
-  || (isSelector && isDownstreamSelectorPolicyInterface interfaceName)
-then
-  [
-    tableRule
-    mainFallbackRule
-  ]
+  lib.concatMap (prefix: map (scopeRule prefix) unscopedRules) sourcePrefixes
 else
-  [
-    mainFirstRule
-    tableSecondRule
-  ]
+  unscopedRules
