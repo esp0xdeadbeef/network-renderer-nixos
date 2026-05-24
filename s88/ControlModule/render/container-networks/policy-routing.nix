@@ -179,16 +179,25 @@ in
           ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
           sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
           sourceScope = sourcePrefixes.forInterface interfaceName;
-          forwardingScope = forwardingSourceScope.forInterface interfaceName;
+          forwardingRuleScope = forwardingSourceScope.forTargetInterface interfaceName;
+          forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
           effectiveRuleSourceScope =
             let
               scoped = ruleSourceScope.forInterface interfaceName sourceScope;
             in
             scoped
             // {
-              staticPrefixes = lib.unique (scoped.staticPrefixes ++ forwardingScope.staticPrefixes);
-              sourceFiles = lib.unique (scoped.sourceFiles ++ forwardingScope.sourceFiles);
+              staticPrefixes = lib.unique (
+                scoped.staticPrefixes ++ forwardingRuleScope.staticPrefixes ++ forwardingMainScope.staticPrefixes
+              );
+              sourceFiles = lib.unique (
+                scoped.sourceFiles ++ forwardingRuleScope.sourceFiles ++ forwardingMainScope.sourceFiles
+              );
             };
+          effectiveMainSourceScope = sourceScope // {
+            staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
+            sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
+          };
           routesByInterface = routesByOutputInterface {
             inherit
               interfaceName
@@ -215,7 +224,7 @@ in
                 source:
                 hasMainLookupRuleForSource source
                 && sourceReachabilityRoutes.matchesInterfaceOrigin interfaceName source
-              ) effectiveRuleSourceScope.staticPrefixes
+              ) effectiveMainSourceScope.staticPrefixes
             )
           );
         in

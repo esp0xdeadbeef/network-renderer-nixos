@@ -118,6 +118,7 @@ nix_eval_true_or_fail \
           builtins.any
             (rule:
               (rule.IncomingInterface or null) == "access-client"
+              && (rule.From or null) == "10.19.0.8/32"
               && builtins.isInt (rule.Table or null)
               && (rule.Table or null) != 254
               && (rule.Priority or 99999) < 10000)

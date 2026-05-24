@@ -16,24 +16,23 @@ let
           rule.family
         else
           4;
-      origin = if builtins.isAttrs value && builtins.isAttrs (value.origin or null) then value.origin else null;
+      origin =
+        if builtins.isAttrs value && builtins.isAttrs (value.origin or null) then value.origin else null;
     in
     if !(builtins.isString prefix) || prefix == "" then
       null
     else
-      { inherit family prefix; }
-      // lib.optionalAttrs (origin != null) { inherit origin; };
-in
-{
-  forInterface =
-    interfaceName:
+      { inherit family prefix; } // lib.optionalAttrs (origin != null) { inherit origin; };
+
+  forInterfaceField =
+    field: interfaceName:
     builtins.foldl'
       (
         acc: rule:
         if
           builtins.isAttrs rule
           && (rule.action or null) == "accept"
-          && (rule.fromInterface or null) == interfaceName
+          && (rule.${field} or null) == interfaceName
         then
           {
             sourceFiles =
@@ -64,4 +63,8 @@ in
         staticPrefixes = [ ];
       }
       forwardingRulesResolved;
+in
+{
+  forSourceInterface = forInterfaceField "fromInterface";
+  forTargetInterface = forInterfaceField "toInterface";
 }

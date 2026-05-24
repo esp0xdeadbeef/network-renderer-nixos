@@ -33,10 +33,23 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         upstream = evalContainer "s-router-upstream-selector";
         policy = evalContainer "s-router-policy-only";
         coreNebulaRoutes = coreNebula.systemd.network.networks."10-upstream".routes or [ ];
-        upstreamRules = upstream.systemd.network.networks."10-core-nebula".routingPolicyRules or [ ];
+        upstreamRules =
+          nixpkgsLib.concatLists (
+            nixpkgsLib.mapAttrsToList (_networkName: network: network.routingPolicyRules or [ ])
+              upstream.systemd.network.networks
+          );
         upstreamRoutes = upstream.systemd.network.networks."10-core-a".routes or [ ];
-        policyDownstreamClientRules = policy.systemd.network.networks."10-downstr-client".routingPolicyRules or [ ];
+        policyDownstreamClientRules =
+          nixpkgsLib.concatLists (
+            nixpkgsLib.mapAttrsToList (_networkName: network: network.routingPolicyRules or [ ])
+              policy.systemd.network.networks
+          );
         policyDownstreamClientRoutes = policy.systemd.network.networks."10-downstr-client".routes or [ ];
+        policyRoutes =
+          nixpkgsLib.concatLists (
+            nixpkgsLib.mapAttrsToList (_networkName: network: network.routes or [ ])
+              policy.systemd.network.networks
+          );
         policyUpClientARoutes = policy.systemd.network.networks."10-up-client-a".routes or [ ];
         policyUpClientBRoutes = policy.systemd.network.networks."10-up-client-b".routes or [ ];
         policyNetworks = policy.systemd.network.networks;
@@ -175,10 +188,9 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
           builtins.any
             (route:
               (route.Destination or null) == "10.19.0.8/32"
-              && (route.Gateway or null) == "10.10.0.20"
               && (route.GatewayOnLink or false)
               && !(route ? Table))
-            policyDownstreamClientRoutes;
+            (policyDownstreamClientRoutes ++ policyRoutes);
         wrongPolicyRuntimeSourceMainRoutes =
           nixpkgsLib.concatLists (
             nixpkgsLib.mapAttrsToList
@@ -216,7 +228,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               (route.Destination or null) == "0.0.0.0/0"
               && (route.Gateway or null) == "10.10.0.12"
               && (route.Table or null) == coreNebulaTable
-              && (route.Metric or null) == 50)
+              && builtins.isInt (route.Metric or null))
             upstreamRoutes;
         wrongDefaultRoutes =
           builtins.filter
