@@ -113,18 +113,14 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             forwardPolicy = "drop";
             forwardPairs = syntheticAccessForwarding.accessForwardPairs;
           };
-        coreNebulaTable =
-          let
-            matches =
-              builtins.filter
-                  (rule:
-                  (rule.IncomingInterface or null) == "core-nebula"
-                  && (rule.From or null) == "10.19.0.8/32"
-                  && builtins.isInt (rule.Table or null)
-                  && !(rule ? SuppressPrefixLength))
-                upstreamRules;
-          in
-          if matches == [ ] then null else (builtins.head matches).Table;
+        sourceScopedRule = incomingInterface: prefix:
+          builtins.filter
+            (rule:
+              (rule.IncomingInterface or null) == incomingInterface
+              && (rule.From or null) == prefix
+              && builtins.isInt (rule.Table or null)
+              && !(rule ? SuppressPrefixLength))
+            upstreamRules;
         hasPreferredRoute =
           builtins.any
             (route:
@@ -137,23 +133,31 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               (route.Destination or null) == "::/0"
               && (route.PreferredSource or null) == "fd42:dead:beef:1900:0:0:0:8")
             coreNebulaRoutes;
-        hasRuntimeSourceRule =
-          builtins.any
-            (rule:
-              (rule.IncomingInterface or null) == "core-nebula"
-              && (rule.From or null) == "10.19.0.8/32"
-              && builtins.isInt (rule.Table or null))
-            upstreamRules;
+        polClientATable =
+          let matches = sourceScopedRule "pol-client-a" "10.19.0.8/32";
+          in if matches == [ ] then null else (builtins.head matches).Table;
+        polClientBTable =
+          let matches = sourceScopedRule "pol-client-b" "10.19.0.8/32";
+          in if matches == [ ] then null else (builtins.head matches).Table;
+        hasRuntimeSourceRule = polClientATable != null && polClientBTable != null;
         hasRuntimeSourceRule6 =
           builtins.any
+            (prefix:
+              (sourceScopedRule "pol-client-a" prefix) != [ ]
+              && (sourceScopedRule "pol-client-b" prefix) != [ ])
+            [
+              "fd42:dead:beef:1900::8/128"
+              "fd42:dead:beef:1900:0:0:0:8/128"
+              "fd42:dead:beef:1900:0000:0000:0000:0008/128"
+            ];
+        hasCrossLaneRuntimeSourceRule =
+          builtins.any
             (rule:
-              (rule.IncomingInterface or null) == "core-nebula"
+              (rule.From or null) == "10.19.0.8/32"
               && (
-                (rule.From or null) == "fd42:dead:beef:1900::8/128"
-                || (rule.From or null) == "fd42:dead:beef:1900:0:0:0:8/128"
-                || (rule.From or null) == "fd42:dead:beef:1900:0000:0000:0000:0008/128"
-              )
-              && builtins.isInt (rule.Table or null))
+                ((rule.IncomingInterface or null) == "pol-client-a" && (rule.Table or null) == polClientBTable)
+                || ((rule.IncomingInterface or null) == "pol-client-b" && (rule.Table or null) == polClientATable)
+              ))
             upstreamRules;
         policyDownstreamClientTable =
           let
@@ -211,13 +215,6 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
                       (network.routes or [ ])))
               policyNetworks
           );
-        hasBroadCoreNebulaRule =
-          builtins.any
-            (rule:
-              (rule.IncomingInterface or null) == "core-nebula"
-              && builtins.isInt (rule.Table or null)
-              && !(rule ? From))
-            upstreamRules;
         hasAccessRuntimeOriginAllow4 =
           nixpkgsLib.hasInfix
             "iifname \"core-nebula\" oifname \"transit\" ip saddr 10.19.0.8/32 accept comment \"runtime-origin-egress\""
@@ -231,16 +228,16 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             (route:
               (route.Destination or null) == "0.0.0.0/0"
               && (route.Gateway or null) == "10.10.0.12"
-              && (route.Table or null) == coreNebulaTable
+              && (route.Table or null) == polClientATable
               && builtins.isInt (route.Metric or null))
             upstreamRoutes;
         wrongDefaultRoutes =
           builtins.filter
             (route:
-              (route.Table or null) == coreNebulaTable
+              builtins.elem (route.Table or null) [ polClientATable polClientBTable ]
               && (route.Destination or null) == "0.0.0.0/0"
               && (route.Metric or 1024) <= 50
-              && (route.Gateway or null) != "10.10.0.12")
+              && !builtins.elem (route.Gateway or null) [ "10.10.0.12" "10.10.0.14" ])
             ((upstream.systemd.network.networks."10-core-nebula".routes or [ ])
              ++ (upstream.systemd.network.networks."10-pol-hostile-ew".routes or [ ]));
         result = {
@@ -259,7 +256,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             hasAccessRuntimeOriginAllow6
             hasCoreADefault
             wrongDefaultRoutes
-            hasBroadCoreNebulaRule
+            hasCrossLaneRuntimeSourceRule
             ;
         };
       in
@@ -277,7 +274,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
           && result.hasAccessRuntimeOriginAllow6
           && result.hasCoreADefault
           && result.wrongDefaultRoutes == [ ]
-          && !result.hasBroadCoreNebulaRule
+          && !result.hasCrossLaneRuntimeSourceRule
         then true
         else throw ("runtime-origin-loopback-egress-render failed: " + builtins.toJSON result)
     '

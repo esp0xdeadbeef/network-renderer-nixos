@@ -33,30 +33,28 @@ builtins.foldl'
       ) (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
       sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
       sourceScope = sourcePrefixes.forInterface interfaceName;
-      forwardingRuleScope =
-        if isDownstreamSelectorPolicyInterface interfaceName then
-          {
-            staticPrefixes = [ ];
-            sourceFiles = [ ];
-          }
-        else
-          forwardingSourceScope.forTargetInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
       scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
-      effectiveRuleSourceScope = scopedRuleSource // {
-        staticPrefixes = lib.unique (
-          scopedRuleSource.staticPrefixes
-          ++ forwardingRuleScope.staticPrefixes
-          ++ forwardingMainScope.staticPrefixes
-        );
-        sourceFiles = lib.unique (
-          scopedRuleSource.sourceFiles ++ forwardingRuleScope.sourceFiles ++ forwardingMainScope.sourceFiles
-        );
-      };
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
       };
+      ruleSourceScopeForIngress =
+        sourceIfName:
+        let
+          pairScope = forwardingSourceScope.forPair renderedInterfaceNames.${sourceIfName} interfaceName;
+        in
+        scopedRuleSource
+        // {
+          staticPrefixes = lib.unique (
+            scopedRuleSource.staticPrefixes
+            ++ forwardingMainScope.staticPrefixes
+            ++ pairScope.staticPrefixes
+          );
+          sourceFiles = lib.unique (
+            scopedRuleSource.sourceFiles ++ forwardingMainScope.sourceFiles ++ pairScope.sourceFiles
+          );
+        };
       routesByInterface = routesByOutputInterface {
         inherit
           interfaceName
@@ -66,8 +64,10 @@ builtins.foldl'
         sourceIfNames = routeSourceIfNames;
       };
       routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
-      rulesForThisInterface =
-        policyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.staticPrefixes;
+      rulesForThisInterface = lib.concatMap (
+        sourceIfName:
+        policyRulesFor interfaceName tableId [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).staticPrefixes
+      ) sourceIfNames;
       forwardingIngressRules =
         let
           tableRuleFor = prefix: {
@@ -126,7 +126,10 @@ builtins.foldl'
       };
       dynamicSourceRules =
         acc.dynamicSourceRules
-        ++ dynamicPolicyRulesFor interfaceName tableId sourceIfNames effectiveRuleSourceScope.sourceFiles;
+        ++ lib.concatMap (
+          sourceIfName:
+          dynamicPolicyRulesFor interfaceName tableId [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).sourceFiles
+        ) sourceIfNames;
     }
   )
   {

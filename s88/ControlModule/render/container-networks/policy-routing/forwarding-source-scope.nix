@@ -63,8 +63,50 @@ let
         staticPrefixes = [ ];
       }
       forwardingRulesResolved;
+
+  forPair =
+    fromInterface: toInterface:
+    builtins.foldl'
+      (
+        acc: rule:
+        if
+          builtins.isAttrs rule
+          && (rule.action or null) == "accept"
+          && (rule.fromInterface or null) == fromInterface
+          && (rule.toInterface or null) == toInterface
+        then
+          {
+            sourceFiles =
+              acc.sourceFiles
+              ++ (
+                if builtins.isInt (rule.family or null) && builtins.isList (rule.sourceFiles or null) then
+                  map (sourceFile: {
+                    family = rule.family;
+                    inherit sourceFile;
+                  }) (lib.filter (sourceFile: builtins.isString sourceFile && sourceFile != "") rule.sourceFiles)
+                else
+                  [ ]
+              );
+            staticPrefixes =
+              acc.staticPrefixes
+              ++ (
+                if builtins.isList (rule.sourcePrefixes or null) then
+                  lib.filter (prefix: prefix != null) (map (sourcePrefixFromRule rule) rule.sourcePrefixes)
+                else
+                  [ ]
+              );
+          }
+        else
+          acc
+      )
+      {
+        sourceFiles = [ ];
+        staticPrefixes = [ ];
+      }
+      forwardingRulesResolved;
 in
 {
   forSourceInterface = forInterfaceField "fromInterface";
   forTargetInterface = forInterfaceField "toInterface";
+  inherit forPair;
 }
