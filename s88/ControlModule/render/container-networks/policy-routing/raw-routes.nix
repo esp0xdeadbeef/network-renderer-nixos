@@ -14,6 +14,7 @@
   explicitReturnRoutes,
   policyOnlyProjection,
   routeHelpers,
+  routeOutputInterface,
   hasAcceptForwardingRule,
   hasAcceptForwardingRuleForRoute,
   isExternalValidationDelegatedPrefixRoute,
@@ -63,13 +64,20 @@ let
     builtins.isAttrs route
     && !(isDefaultRoute route)
     && !(isPolicyOnlyRoute route)
+    && !(isServiceDnsReachabilityRoute route)
     && !(builtins.elem (route.dst or null) targetServiceDnsDestinations)
   ) (interfaces.${sourceIfName}.routes or [ ]);
+  explicitAcceptedNonDefaultRoutes = lib.filter (
+    route: hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
+  ) explicitNonDefaultRoutes;
   upstreamCoreReturnRoutes =
     if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
       lib.concatMap (
         name:
-        if isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name} then
+        if
+          isUpstreamSelectorPolicyInterface renderedInterfaceNames.${name}
+          && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name}
+        then
           (returnRoutes.forUpstreamCore interfaceName name) ++ (explicitReturnRoutes.forPolicyInterface name)
         else
           [ ]
@@ -150,7 +158,7 @@ let
       ++ upstreamPolicyCoreConnectedRoutes
     else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
       (returnRoutes.forUpstreamCore interfaceName sourceIfName)
-      ++ explicitNonDefaultRoutes
+      ++ explicitAcceptedNonDefaultRoutes
       ++ explicitForwardTargetDefaultRoutes
     else
       (interfaces.${sourceIfName}.routes or [ ])
@@ -161,9 +169,27 @@ let
   staticPolicyRoutes = lib.filter (
     route: !(isExternalValidationDelegatedPrefixRoute route)
   ) sourceRoutes;
+  explicitAcceptedOutputRoutes = lib.filter (
+    route:
+    let
+      outputIfName = routeOutputInterface sourceIfName route;
+      outputRenderedName = if outputIfName == null then null else renderedInterfaceNames.${outputIfName};
+      targetUplink = if targetIfName == null then null else (((interfaces.${targetIfName}.backingRef or { }).lane or { }).uplink or null);
+      outputUplink = if outputIfName == null then null else (((interfaces.${outputIfName}.backingRef or { }).lane or { }).uplink or null);
+    in
+    !(
+      isUpstreamSelector
+      && isUpstreamSelectorCoreInterface interfaceName
+      && targetUplink == "east-west"
+      && outputUplink != "east-west"
+      && outputRenderedName != null
+      && isUpstreamSelectorPolicyInterface outputRenderedName
+      && !(hasAcceptForwardingRule interfaceName outputRenderedName)
+    )
+  ) staticPolicyRoutes;
   scopedSourceRoutes =
     if sourceIfName == targetIfName then
-      staticPolicyRoutes
+      explicitAcceptedOutputRoutes
     else if
       isPolicy
       && isPolicyDownstreamInterface interfaceName
@@ -172,19 +198,19 @@ let
         interfaces.${sourceIfName}.routes or [ ]
       )
     then
-      staticPolicyRoutes
+      explicitAcceptedOutputRoutes
     else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
-      staticPolicyRoutes
+      explicitAcceptedOutputRoutes
     else if
       policyOnlyProjection.mayProject interfaceName sourceIfName
       && isUpstreamSelector
       && isUpstreamSelectorPolicyInterface interfaceName
     then
-      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) staticPolicyRoutes
+      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
     else if policyOnlyProjection.mayProject interfaceName sourceIfName then
-      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) staticPolicyRoutes
+      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
     else
-      lib.filter (route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)) staticPolicyRoutes;
+      lib.filter (route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)) explicitAcceptedOutputRoutes;
 in
 lib.filter builtins.isAttrs (
   map (

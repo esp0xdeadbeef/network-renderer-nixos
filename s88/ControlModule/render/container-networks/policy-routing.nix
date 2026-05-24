@@ -132,6 +132,7 @@ let
       explicitReturnRoutes
       policyOnlyProjection
       routeHelpers
+      routeOutputInterface
       hasAcceptForwardingRule
       hasAcceptForwardingRuleForRoute
       ;

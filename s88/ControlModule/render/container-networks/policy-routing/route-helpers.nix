@@ -52,7 +52,9 @@ in
     route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
   isServiceDnsReachabilityRoute =
-    route: builtins.isAttrs route && (route.intent.kind or null) == "service-dns-reachability";
+    route:
+    builtins.isAttrs route
+    && (((route.intent or { }).kind or null) == "service-dns-reachability");
 
   connectedP2pRoutesForInterface =
     ifName:
