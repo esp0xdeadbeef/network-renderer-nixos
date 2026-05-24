@@ -89,6 +89,12 @@ nix_eval_true_or_fail \
               isDownstreamSelector = true;
             };
             site.tenantPrefixOwners."4|10.20.20.0/24".owner = "router-access-client";
+            site.tenants = [
+              {
+                name = "client";
+                ipv4 = "10.20.20.0/24";
+              }
+            ];
             interfaces = {
               access-client = {
                 containerInterfaceName = "access-client";
@@ -156,8 +162,10 @@ nix_eval_true_or_fail \
         policyUpstream = policyRender.networks."10-up-client-b";
         policyDownstream = policyRender.networks."10-downstr-client";
         selectorPolicy = downstreamRender.networks."10-policy-client";
+        selectorAccess = downstreamRender.networks."10-access-client";
         accessTransit = accessRender.networks."10-transit";
         upstreamReturnRoutes = policyRender.networks."10-downstr-client".routes or [ ];
+        selectorReturnRoutes = selectorAccess.routes or [ ];
         hasUpstreamReturnTenantRoute =
           builtins.any
             (route:
@@ -165,6 +173,13 @@ nix_eval_true_or_fail \
               && (route.Gateway or null) == "10.10.0.20"
               && builtins.isInt (route.Table or null))
             upstreamReturnRoutes;
+        hasSelectorReturnTenantRoute =
+          builtins.any
+            (route:
+              (route.Destination or null) == "10.20.20.0/24"
+              && (route.Gateway or null) == "10.10.0.2"
+              && builtins.isInt (route.Table or null))
+            selectorReturnRoutes;
       in
         if !(hasDestinationScopedTableRule policyDownstream "up-client-b" "10.20.20.0/24") then
           throw "policy upstream return path must use a destination-scoped rule into the downstream tenant table"
@@ -182,6 +197,10 @@ nix_eval_true_or_fail \
           throw "downstream selector policy source-side interface lacks an unscoped iif table rule"
         else if hasScopedTableRule selectorPolicy "policy-client" "10.20.20.0/24" then
           throw "downstream selector policy return interface must not be tenant-source scoped"
+        else if !(hasSelectorReturnTenantRoute) then
+          throw ("downstream selector return table lacks local access tenant route: " + builtins.toJSON {
+            inherit selectorReturnRoutes;
+          })
         else if !(hasDestinationScopedTableRule accessTransit "transit" "10.20.20.0/24") then
           throw "access router return path must use a destination-scoped rule into the tenant table"
         else true

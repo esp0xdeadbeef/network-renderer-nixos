@@ -148,6 +148,15 @@ let
       connectedP2pScopeRoutesForInterface sourceIfName
     else
       [ ];
+  downstreamSelectorTenantReturnRoutes =
+    if
+      isSelector
+      && isDownstreamSelectorPolicyInterface interfaceName
+      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+    then
+      returnRoutes.forTenantOfInterfaceViaInterface interfaceName sourceIfName
+    else
+      [ ];
   policyUpstreamReturnRoutes =
     if isPolicy && isPolicyUpstreamInterface interfaceName then
       returnRoutes.forTenantInterface sourceIfName
@@ -185,7 +194,8 @@ let
       ++ explicitForwardTargetDefaultRoutes
       ++ policyDownstreamDefaultRoutes
       ++ policyUpstreamReturnRoutes
-      ++ downstreamSelectorReturnConnectedRoutes;
+      ++ downstreamSelectorReturnConnectedRoutes
+      ++ downstreamSelectorTenantReturnRoutes;
   sourceRoutesWithConnectedReturns = sourceRoutes ++ explicitForwardReturnConnectedRoutes;
   staticPolicyRoutes = lib.filter
     (
