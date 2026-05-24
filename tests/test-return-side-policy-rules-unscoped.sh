@@ -178,7 +178,7 @@ nix_eval_true_or_fail \
             (route:
               (route.Destination or null) == "10.20.20.0/24"
               && (route.Gateway or null) == "10.10.0.2"
-              && builtins.isInt (route.Table or null))
+              && (route.Table or null) == 2001)
             selectorReturnRoutes;
       in
         if !(hasDestinationScopedTableRule policyDownstream "up-client-b" "10.20.20.0/24") then
