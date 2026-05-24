@@ -47,7 +47,7 @@ nix_eval_true_or_fail \
                 access-dmz = [ "access-dmz" "policy-dmz" ];
               };
               interfaces = {
-                access-client = {
+                p2p-access-client = {
                   containerInterfaceName = "access-client";
                   interfaceClass.edgeFacing = true;
                   addresses = [ "10.80.0.1/31" ];
@@ -58,7 +58,7 @@ nix_eval_true_or_fail \
                     }
                   ];
                 };
-                access-dmz = {
+                p2p-access-dmz = {
                   containerInterfaceName = "access-dmz";
                   interfaceClass.edgeFacing = true;
                   addresses = [ "10.80.0.3/31" ];
@@ -69,7 +69,7 @@ nix_eval_true_or_fail \
                     }
                   ];
                 };
-                policy-client = {
+                p2p-policy-client = {
                   containerInterfaceName = "policy-client";
                   interfaceClass.fabricFacing = true;
                   addresses = [ "10.80.0.7/31" ];
@@ -80,7 +80,7 @@ nix_eval_true_or_fail \
                     }
                   ];
                 };
-                policy-dmz = {
+                p2p-policy-dmz = {
                   containerInterfaceName = "policy-dmz";
                   interfaceClass.fabricFacing = true;
                   addresses = [ "10.80.0.9/31" ];
