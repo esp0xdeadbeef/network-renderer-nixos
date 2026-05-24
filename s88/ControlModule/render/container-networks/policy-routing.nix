@@ -1,27 +1,27 @@
-{
-  lib,
-  containerModel,
-  common,
-  forwardingIntent ? null,
-  firewallRuleset ? null,
-  interfaces,
-  interfaceNames,
-  renderedInterfaceNames,
-  laneAccessForRenderedName,
-  upstreamLanesMatch,
-  isSelector,
-  isUpstreamSelector,
-  isPolicy,
-  isDownstreamSelectorAccessInterface,
-  isDownstreamSelectorPolicyInterface,
-  isUpstreamSelectorCoreInterface,
-  isUpstreamSelectorPolicyInterface,
-  isPolicyDownstreamInterface,
-  isPolicyUpstreamInterface,
-  isOverlayInterface,
-  isCoreTransitInterface,
-  mkRoute,
-  isExternalValidationDelegatedPrefixRoute,
+{ lib
+, containerModel
+, common
+, forwardingIntent ? null
+, firewallRuleset ? null
+, interfaces
+, interfaceNames
+, renderedInterfaceNames
+, laneAccessForRenderedName
+, upstreamLanesMatch
+, isSelector
+, isUpstreamSelector
+, isPolicy
+, isDownstreamSelectorAccessInterface
+, isDownstreamSelectorPolicyInterface
+, isUpstreamSelectorCoreInterface
+, isUpstreamSelectorPolicyInterface
+, isPolicyDownstreamInterface
+, isPolicyUpstreamInterface
+, isOverlayInterface
+, isCoreTransitInterface
+, mkRoute
+, isExternalValidationDelegatedPrefixRoute
+,
 }:
 let
   peers = import ./policy-routing/peers.nix {
@@ -126,6 +126,7 @@ let
       isUpstreamSelectorCoreInterface
       isUpstreamSelectorPolicyInterface
       isPolicyDownstreamInterface
+      isPolicyUpstreamInterface
       ;
     inherit
       returnRoutes
