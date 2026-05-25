@@ -14,7 +14,29 @@ let
     dnsEgressSources6
     deniedResolverCidrs4
     deniedResolverCidrs6
+    publicResolverForwardIngressNames
     ;
+
+  publicResolverForwardDropRules =
+    ifName:
+    (lib.concatMap
+      (
+        cidr:
+        [
+          "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-forward-leak\""
+          "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-forward-leak\""
+        ]
+      )
+      deniedResolverCidrs4)
+    ++ (lib.concatMap
+      (
+        cidr:
+        [
+          "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip6 daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-forward-leak\""
+          "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip6 daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-forward-leak\""
+        ]
+      )
+      deniedResolverCidrs6);
 
   nftRules =
     (map
@@ -45,11 +67,12 @@ let
       (
         ifName:
         [
-          "${pkgs.nftables}/bin/nft add rule inet router forward iifname ${nftString ifName} udp dport 53 drop comment \"deny-direct-dns-egress\""
-          "${pkgs.nftables}/bin/nft add rule inet router forward iifname ${nftString ifName} tcp dport 53 drop comment \"deny-direct-dns-egress\""
+          "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} udp dport 53 drop comment \"deny-direct-dns-egress\""
+          "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} tcp dport 53 drop comment \"deny-direct-dns-egress\""
         ]
       )
-      ingressInterfaceNames);
+      ingressInterfaceNames)
+    ++ (lib.concatMap publicResolverForwardDropRules publicResolverForwardIngressNames);
 
   dnsOutputRules =
     (lib.concatMap

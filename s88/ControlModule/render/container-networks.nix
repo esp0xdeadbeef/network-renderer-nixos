@@ -141,6 +141,7 @@ in
     hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
   );
   inherit (interfaceUnits) dynamicDelegatedRoutes;
+  inherit (interfaceUnits) staticProviderRoutes;
   inherit dynamicSourceForwardRules;
   dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
 }

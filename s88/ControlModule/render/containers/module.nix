@@ -46,6 +46,11 @@ let
     dynamicDelegatedRoutes = containerNetworkRender.dynamicDelegatedRoutes or [ ];
   };
 
+  staticProviderRoutes = import ./module/static-provider-routes.nix {
+    inherit lib pkgs;
+    staticProviderRoutes = containerNetworkRender.staticProviderRoutes or [ ];
+  };
+
   dynamicForwarding = import ./module/dynamic-forwarding.nix {
     inherit lib pkgs;
     dynamicSourceForwardRules = containerNetworkRender.dynamicSourceForwardRules or [ ];
@@ -85,6 +90,7 @@ in
     }
     networkManager.config
     delegatedRoutes.config
+    staticProviderRoutes.config
     dynamicForwarding.config
     dynamicPolicyRules.config
     (lib.optionalAttrs ((containerNetworkRender.ipv6AcceptRAInterfaces or [ ]) != [ ]) {

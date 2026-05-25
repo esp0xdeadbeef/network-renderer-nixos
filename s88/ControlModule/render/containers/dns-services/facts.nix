@@ -93,6 +93,32 @@ else
     deniedResolverCidrs = stringList (dnsService.deniedResolverCidrs or [ ]);
     deniedResolverCidrs4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) deniedResolverCidrs;
     deniedResolverCidrs6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) deniedResolverCidrs;
+    publicResolverForwardIngressNames =
+      if ((dnsService.killSwitch or { }).blockPublicResolvers or false) then
+        lib.unique
+          (
+            lib.filter (name: name != "") (
+              map
+                (
+                  ifName:
+                  let
+                    iface = interfaces.${ifName} or { };
+                    sourceKind = iface.sourceKind or "";
+                    renderedName =
+                      if iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != "" then
+                        iface.renderedIfName
+                      else if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
+                        iface.interfaceName
+                      else
+                        ifName;
+                  in
+                  if sourceKind == "wan" || sourceKind == "overlay" then "" else renderedName
+                )
+                (builtins.attrNames interfaces)
+            )
+          )
+      else
+        [ ];
     localZones =
       lib.filter
         (zone: builtins.isAttrs zone && builtins.isString (zone.name or null) && zone.name != "")
