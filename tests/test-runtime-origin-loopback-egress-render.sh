@@ -187,10 +187,11 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             policyDownstreamClientRules;
         hasPolicyClientDefault =
           builtins.any
-            (route:
-              (route.Table or null) == policyDownstreamClientTable
-              && (route.Destination or null) == "0.0.0.0/0"
-              && (route.Metric or null) == 50)
+              (route:
+                (route.Table or null) == policyDownstreamClientTable
+                && (route.Destination or null) == "0.0.0.0/0"
+              && builtins.isInt (route.Metric or null)
+              && (route.Metric or 9999) < 2000)
             (policyUpClientARoutes ++ policyUpClientBRoutes);
         hasPolicyRuntimeSourceMainRoute =
           builtins.any

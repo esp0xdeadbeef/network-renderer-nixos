@@ -38,7 +38,7 @@ nix_eval_true_or_fail \
             };
             containerModel = {
               networkBehavior.isPolicy = true;
-              policyRoutingSources.downstream-dmz = [ "downstream-dmz" "up-client-wan" "up-dmz-wan" ];
+              policyRoutingSources.downstream-dmz = [ "downstream-dmz" "up-client-wan" "up-dmz-ew" "up-dmz-wan" ];
               interfaces = {
                 downstream-dmz = {
                   containerInterfaceName = "downstream-dmz";
@@ -57,6 +57,18 @@ nix_eval_true_or_fail \
                     }
                   ];
                 };
+                up-dmz-ew = {
+                  containerInterfaceName = "up-dmz-ew";
+                  addresses = [ "10.80.0.14/31" ];
+                  interfaceClass.fabricFacing = true;
+                  routes = [
+                    {
+                      dst = "0.0.0.0/0";
+                      via4 = "10.80.0.15";
+                      metric = 2000;
+                    }
+                  ];
+                };
                 up-dmz-wan = {
                   containerInterfaceName = "up-dmz-wan";
                   addresses = [ "10.80.0.16/31" ];
@@ -65,6 +77,7 @@ nix_eval_true_or_fail \
                     {
                       dst = "0.0.0.0/0";
                       via4 = "10.80.0.17";
+                      metric = 1000;
                     }
                   ];
                 };
@@ -82,6 +95,7 @@ nix_eval_true_or_fail \
             rules;
         table = if tableRules == [ ] then null else (builtins.head tableRules).Table;
         wanRoutes = networks."10-up-dmz-wan".routes or [ ];
+        eastWestRoutes = networks."10-up-dmz-ew".routes or [ ];
         clientWanRoutes = networks."10-up-client-wan".routes or [ ];
         hasDmzWanDefault =
           table != null
@@ -89,8 +103,18 @@ nix_eval_true_or_fail \
             (route:
               (route.Destination or null) == "0.0.0.0/0"
               && (route.Gateway or null) == "10.80.0.17"
-              && (route.Table or null) == table)
+              && (route.Table or null) == table
+              && (route.Metric or null) == 1000)
             wanRoutes;
+        eastWestDefaultIsAbsentOrWorse =
+          table != null
+          && !builtins.any
+            (route:
+              (route.Destination or null) == "0.0.0.0/0"
+              && (route.Gateway or null) == "10.80.0.15"
+              && (route.Table or null) == table
+              && ((route.Metric or 0) < 1000))
+            eastWestRoutes;
         hasClientWanDefault =
           table != null
           && builtins.any
@@ -100,7 +124,7 @@ nix_eval_true_or_fail \
               && (route.Table or null) == table)
             clientWanRoutes;
       in
-        hasDmzWanDefault && !hasClientWanDefault
+        hasDmzWanDefault && eastWestDefaultIsAbsentOrWorse && !hasClientWanDefault
     '
 
 echo "PASS policy-downstream-default-route-lane-selection"

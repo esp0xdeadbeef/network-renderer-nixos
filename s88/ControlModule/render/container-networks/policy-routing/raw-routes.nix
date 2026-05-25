@@ -104,7 +104,7 @@ let
           route:
           route
           // lib.optionalAttrs (isDefaultRoute route) {
-            metric = 50;
+            metric = route.metric or 50;
           }
         )
         (
