@@ -224,6 +224,40 @@ let
       ;
     inherit delegatedPrefixSourceForRoute isExternalValidationDelegatedPrefixRoute;
   };
+
+  staticProviderRoutes =
+    lib.concatLists (
+      map
+        (
+          ifName:
+          let
+            iface = interfaces.${ifName};
+            interfaceName = renderedInterfaceNames.${ifName};
+            isProviderCreated = (iface.sourceKind or null) == "overlay";
+          in
+          if !isProviderCreated then
+            [ ]
+          else
+            lib.imap0
+              (
+                index: route:
+                if !builtins.isAttrs route || !(builtins.isString (route.Destination or null)) then
+                  null
+                else
+                  {
+                    name = "provider-route-${interfaceName}-${builtins.toString index}";
+                    inherit interfaceName;
+                    destination = route.Destination;
+                    gateway = route.Gateway or null;
+                    scope = route.Scope or null;
+                    table = route.Table or null;
+                    metric = route.Metric or null;
+                  }
+              )
+              (policyRoutingByInterface.routes.${ifName} or [ ])
+        )
+        interfaceNames
+    );
 in
 {
   inherit interfaceUnits;
@@ -239,4 +273,5 @@ in
   );
 
   inherit dynamicDelegatedRoutes;
+  staticProviderRoutes = lib.filter (route: route != null) staticProviderRoutes;
 }

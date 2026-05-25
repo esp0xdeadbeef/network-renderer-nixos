@@ -88,6 +88,7 @@ nix_eval_json_or_fail \
             inventoryPath = builtins.getEnv "MUTATED_INVENTORY_PATH";
           };
         hostileAccess = configFor branch "b-router-access-hostile";
+        coreNebula = configFor branch "b-router-core-nebula";
         mutatedHostileAccess = configFor mutatedBranch "b-router-access-hostile";
         sitecDns = configFor siteC "c-router-access-dmz";
         hostileUnbound = hostileAccess.services.unbound.settings;
@@ -99,6 +100,7 @@ nix_eval_json_or_fail \
         mutatedHostileForwardZone = builtins.head mutatedHostileUnbound.forward-zone;
         sitecForwardZone = builtins.head sitecUnbound.forward-zone;
         hostileNftScript = hostileAccess.systemd.services.nft-allow-dns-service.script;
+        coreNebulaNftScript = coreNebula.systemd.services.nft-allow-dns-service.script;
         sitecNftScript = sitecDns.systemd.services.nft-allow-dns-service.script;
         hostileRules = hostileAccess.networking.nftables.ruleset;
         sitecRules = sitecDns.networking.nftables.ruleset;
@@ -139,6 +141,10 @@ nix_eval_json_or_fail \
             || has "type filter hook forward priority filter; policy drop;" hostileRules;
           hostile_forward_chain_defaults_drop =
             has "type filter hook forward priority filter; policy drop;" hostileRules;
+          core_nebula_blocks_public_dns_forward_leak_v4 =
+            has "insert rule inet router forward iifname \"upstream\" ip daddr 1.1.1.1/32 udp dport 53 drop comment \"deny-public-dns-forward-leak\"" coreNebulaNftScript;
+          core_nebula_blocks_public_dns_forward_leak_v6 =
+            has "insert rule inet router forward iifname \"upstream\" ip6 daddr 2606:4700:4700::1111/128 udp dport 53 drop comment \"deny-public-dns-forward-leak\"" coreNebulaNftScript;
           sitec_dns_listens_on_service_v4 =
             hasMember "10.90.10.1" sitecServer.interface;
           sitec_dns_listens_on_service_v6 =

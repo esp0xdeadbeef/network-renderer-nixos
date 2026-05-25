@@ -46,6 +46,7 @@ REPO_ROOT="${repo_root}" nix eval \
           wanUplinkName = null;
         };
       overlayRoutes = render.networks."10-overlay-east-west".routes or [ ];
+      overlayProviderRoutes = render.staticProviderRoutes or [ ];
       hasPolicyOnlyTableRoute =
         builtins.any
           (route:
@@ -60,6 +61,14 @@ REPO_ROOT="${repo_root}" nix eval \
             && (route.Scope or null) == "link"
             && !(route ? Table))
           overlayRoutes;
+      hasProviderRouteServiceInput =
+        builtins.any
+          (route:
+            (route.destination or null) == "::/0"
+            && (route.interfaceName or null) == "overlay-east-west"
+            && (route.table or null) != null
+            && (route.scope or null) == "link")
+          overlayProviderRoutes;
       upstreamSelectorRender =
         import (repoRoot + "/s88/ControlModule/render/container-networks.nix") {
           inherit lib;
@@ -447,6 +456,7 @@ REPO_ROOT="${repo_root}" nix eval \
         inherit
           hasPolicyOnlyTableRoute
           hasPolicyOnlyMainRoute
+          hasProviderRouteServiceInput
           branchHasWanDefault
           branchLeaksOverlayDefault
           siteCOverlayIngressDefault
@@ -458,7 +468,7 @@ REPO_ROOT="${repo_root}" nix eval \
           ;
       };
     in
-      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault && downstreamPolicyStreamTableFirst && downstreamPolicyStreamReturnRoute then
+      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && hasProviderRouteServiceInput && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault && downstreamPolicyStreamTableFirst && downstreamPolicyStreamReturnRoute then
         true
       else
         throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, including site-c core-nebula overlay ingress defaults and downstream-selector policy ingress return tables, not as main defaults or unrelated ingress-table defaults. checks=${builtins.toJSON checks}"
