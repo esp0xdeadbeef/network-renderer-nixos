@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_root="$(flake_input_path network-labs)/labs/lab-s-sigma/s-router-test-three-site"
+example_root="$(flake_input_path network-labs)/examples/tri-site-s-router-overlay-egress"
 intent_path="${example_root}/intent.nix"
 inventory_path="${example_root}/inventory.nix"
 
@@ -37,7 +37,7 @@ nix_eval_json_or_fail \
           };
           cfg = (lib.nixosSystem {
             inherit system;
-            modules = [ built.renderedHost.containers."nixos-router-core-nebula".config ];
+            modules = [ built.renderedHost.containers."home-example-router-core-nebula".config ];
           }).config;
           networks = cfg.systemd.network.networks;
           allRoutes =
@@ -63,7 +63,7 @@ nix_eval_json_or_fail \
                   cfg.systemd.services)
             );
           hasRuntimeSourceFileRoute = table:
-            lib.hasInfix "source_file=/run/secrets/access-node-ipv6-prefix-esp-nixos-router-access-hostile" routeServiceScripts
+            lib.hasInfix "source_file=/run/secrets/access-node-ipv6-prefix-esp-home-example-router-access-hostile" routeServiceScripts
             && lib.hasInfix "interface=upstream" routeServiceScripts
             && lib.hasInfix "gateway=fd42:dead:beef:1000:0:0:0:11" routeServiceScripts
             && lib.hasInfix ("table=" + toString table) routeServiceScripts
