@@ -75,8 +75,8 @@ let
     in
     if sourceKind == "wan" || sourceKind == "overlay" then
       false
-    else if sourceKind == "tenant" && directEgressBlockedTenants != null then
-      builtins.isString tenant && builtins.elem tenant directEgressBlockedTenants
+    else if directEgressBlockedTenants != null then
+      sourceKind == "tenant" && builtins.isString tenant && builtins.elem tenant directEgressBlockedTenants
     else
       true;
 in
