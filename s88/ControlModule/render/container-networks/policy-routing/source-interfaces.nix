@@ -69,10 +69,29 @@ let
         rule:
         builtins.isAttrs rule
         && (rule.action or null) == "accept"
+        && routeSelectableForwardingRule rule
         && builtins.elem (rule.fromInterface or null) fromNames
         && builtins.elem (rule.toInterface or null) toNames
       )
       forwardingRules;
+
+  hasSourceScope =
+    rule:
+    builtins.isList (rule.sourcePrefixes or null) && rule.sourcePrefixes != [ ]
+    || builtins.isList (rule.sourceFiles or null) && rule.sourceFiles != [ ];
+
+  hasLayer4Scope =
+    rule:
+    (builtins.isString (rule.trafficType or null) && rule.trafficType != "")
+    || (builtins.isList (rule.match or null) && rule.match != [ ]);
+
+  routeSelectableForwardingRule =
+    rule:
+    # Linux RPDB rules can select on ingress and source scope here, but not on
+    # trafficType/L4 ports. A trafficType-only allow still belongs in firewall
+    # materialization; it must not create an unscoped routing rule that steals
+    # all traffic from the same ingress interface.
+    !(hasLayer4Scope rule) || hasSourceScope rule;
 
   acceptedForwardSourcesFor =
     targetName:
