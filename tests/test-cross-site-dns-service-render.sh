@@ -168,7 +168,9 @@ nix_eval_json_or_fail \
           sitec_dns_nft_drops_public_dns_output_leak =
             has "deny-public-dns-output-leak" sitecNftScript;
           sitec_direct_dns_leak_drop =
-            has "iifname \"transit\" udp dport 53 drop comment \"deny-direct-dns-egress\"" sitecNftScript;
+            has "iifname \"transit\" udp dport 53 drop comment \"deny-direct-dns-egress\"" sitecNftScript
+            || has "iifname \"transit\" ip daddr 1.1.1.1/32 udp dport 53 drop comment \"deny-public-dns-forward-leak\"" sitecNftScript
+            || has "type filter hook forward priority filter; policy drop;" sitecRules;
           sitec_forward_chain_defaults_drop =
             has "type filter hook forward priority filter; policy drop;" sitecRules;
         };
