@@ -150,6 +150,18 @@ let
     && routeReturnsToInterfaceLane iface route
     && routeGatewayExplicitlyMatchesInterface iface route;
 
+  nixosOwnsInterface =
+    iface:
+    let
+      materialization = ((iface.materialization or { }).nixos or { });
+    in
+    (materialization.ownsInterface or false) == true
+    || (materialization.owner or null) == "network-renderer-nixos";
+
+  isProviderCreatedInterface =
+    iface:
+    (iface.sourceKind or null) == "overlay" && !nixosOwnsInterface iface;
+
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
       lib.imap0 (
@@ -192,7 +204,7 @@ let
             ++ (lib.filter (route: route != null) (map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])))
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
         in
-        if builtins.elem interfaceName networkManagerInterfaces then
+        if builtins.elem interfaceName networkManagerInterfaces || isProviderCreatedInterface iface then
           null
         else
           {

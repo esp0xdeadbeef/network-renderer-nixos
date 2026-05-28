@@ -10,7 +10,90 @@
 let
   common = import ./container-networks/common.nix { inherit lib; };
 
-  interfaces = containerModel.interfaces or { };
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+  listOrEmpty = value: if builtins.isList value then value else [ ];
+
+  baseInterfaces = containerModel.interfaces or { };
+  runtimeInterfaces = attrsOrEmpty (
+    (attrsOrEmpty ((attrsOrEmpty (containerModel.runtimeTarget or null)).effectiveRuntimeRealization or null)).interfaces or null
+  );
+
+  isProviderOwnedOverlayInterface =
+    iface:
+    let
+      backingRef = attrsOrEmpty (iface.backingRef or null);
+      connectivity = attrsOrEmpty (iface.connectivity or null);
+      connectivityBackingRef = attrsOrEmpty (connectivity.backingRef or null);
+      materialization = attrsOrEmpty ((attrsOrEmpty (iface.materialization or null)).nixos or null);
+    in
+    (
+      (iface.sourceKind or null) == "overlay"
+      || (connectivity.sourceKind or null) == "overlay"
+      || (backingRef.kind or null) == "overlay"
+      || (connectivityBackingRef.kind or null) == "overlay"
+    )
+    && (materialization.ownsInterface or false) != true
+    && (materialization.owner or null) != "network-renderer-nixos";
+
+  addressListForInterface =
+    iface:
+    lib.unique (
+      listOrEmpty (iface.addresses or null)
+      ++ lib.optional (builtins.isString (iface.addr4 or null) && iface.addr4 != "") iface.addr4
+      ++ lib.optional (builtins.isString (iface.addr6 or null) && iface.addr6 != "") iface.addr6
+    );
+
+  routeListForInterface =
+    iface:
+    let
+      routes = iface.routes or [ ];
+    in
+    if builtins.isList routes then
+      routes
+    else if builtins.isAttrs routes then
+      listOrEmpty (routes.ipv4 or null) ++ listOrEmpty (routes.ipv6 or null)
+    else
+      [ ];
+
+  providerInterfaceFor =
+    ifName: iface:
+    let
+      runtimeIfName =
+        if builtins.isString (iface.runtimeIfName or null) && iface.runtimeIfName != "" then
+          iface.runtimeIfName
+        else if builtins.isString (iface.renderedIfName or null) && iface.renderedIfName != "" then
+          iface.renderedIfName
+        else
+          ifName;
+      backingRef = attrsOrEmpty (iface.backingRef or null);
+    in
+    iface
+    // {
+      ifName = ifName;
+      sourceKind = iface.sourceKind or "overlay";
+      renderedIfName = runtimeIfName;
+      containerInterfaceName = runtimeIfName;
+      addresses = addressListForInterface iface;
+      routes = routeListForInterface iface;
+      backingRef = backingRef;
+      connectivity = (attrsOrEmpty (iface.connectivity or null)) // {
+        sourceKind = iface.sourceKind or "overlay";
+        backingRef = backingRef;
+      };
+      providerCreated = true;
+      materialization = (attrsOrEmpty (iface.materialization or null)) // {
+        nixos = (attrsOrEmpty ((attrsOrEmpty (iface.materialization or null)).nixos or null)) // {
+          ownsInterface = false;
+        };
+      };
+    };
+
+  providerInterfaces =
+    builtins.mapAttrs providerInterfaceFor (
+      lib.filterAttrs (ifName: iface: !(builtins.hasAttr ifName baseInterfaces) && isProviderOwnedOverlayInterface iface) runtimeInterfaces
+    );
+
+  interfaces = baseInterfaces // providerInterfaces;
   interfaceView = import ./container-networks/interface-view.nix {
     inherit lib interfaces common;
   };

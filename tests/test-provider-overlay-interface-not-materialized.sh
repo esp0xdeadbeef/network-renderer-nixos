@@ -26,14 +26,19 @@ nix_eval_true_or_fail "provider-overlay-interface-not-materialized" env \
           selector = "s-router-test";
           inherit system intentPath inventoryPath;
         };
-        runtimeTarget = built.runtimeTargets."esp0xdeadbeef.site-a.esp0xdeadbeef-site-a-s-router-core-nebula";
-        rendered = built.renderedHost.containers."s-router-core-nebula";
+        runtimeTarget = built.runtimeTargets."espbranch.site-b.espbranch-site-b-b-router-core-nebula";
+        rendered = built.renderedHost.containers."b-router-core-nebula";
         evaluated =
           (flake.inputs.nixpkgs.lib.nixosSystem {
             inherit system;
             modules = [ rendered.config ];
           }).config;
         networks = evaluated.systemd.network.networks;
+        providerRouteServices =
+          lib.filterAttrs
+            (name: _value: lib.hasPrefix "s88-provider-route" name)
+            (evaluated.systemd.services or { });
+        nftRules = evaluated.networking.nftables.ruleset or "";
         extraVethNames = builtins.attrNames (rendered.extraVeths or { });
         interfaceNames = builtins.attrNames (runtimeTarget.interfaces or { });
         hasOverlayName = name: lib.hasInfix "overlay" name || lib.hasInfix "ovly" name;
@@ -42,6 +47,9 @@ nix_eval_true_or_fail "provider-overlay-interface-not-materialized" env \
         && !(builtins.any hasOverlayName extraVethNames)
         && !(networks ? "10-overlay-west")
         && !(networks ? "10-overlay-east-west")
+        && (builtins.length (builtins.attrNames providerRouteServices)) >= 2
+        && lib.hasInfix "core-lan-to-overlay" nftRules
+        && lib.hasInfix "core-overlay-to-lan" nftRules
     '
 
 echo "PASS provider-overlay-interface-not-materialized"

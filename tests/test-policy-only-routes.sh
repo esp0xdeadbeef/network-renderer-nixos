@@ -47,6 +47,7 @@ REPO_ROOT="${repo_root}" nix eval \
         };
       overlayRoutes = render.networks."10-overlay-east-west".routes or [ ];
       overlayProviderRoutes = render.staticProviderRoutes or [ ];
+      overlayNetworkOmitted = !(render.networks ? "10-overlay-east-west");
       hasPolicyOnlyTableRoute =
         builtins.any
           (route:
@@ -457,6 +458,7 @@ REPO_ROOT="${repo_root}" nix eval \
           hasPolicyOnlyTableRoute
           hasPolicyOnlyMainRoute
           hasProviderRouteServiceInput
+          overlayNetworkOmitted
           branchHasWanDefault
           branchLeaksOverlayDefault
           siteCOverlayIngressDefault
@@ -468,10 +470,10 @@ REPO_ROOT="${repo_root}" nix eval \
           ;
       };
     in
-      if hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && hasProviderRouteServiceInput && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault && downstreamPolicyStreamTableFirst && downstreamPolicyStreamReturnRoute then
+      if overlayNetworkOmitted && !hasPolicyOnlyTableRoute && !hasPolicyOnlyMainRoute && hasProviderRouteServiceInput && branchHasWanDefault && !branchLeaksOverlayDefault && siteCOverlayIngressDefault && !siteCOverlayMainDefault && branchHostileIpv4Default && !branchHostileIpv4MainDefault && downstreamPolicyStreamTableFirst && downstreamPolicyStreamReturnRoute then
         true
       else
-        throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables, including site-c core-nebula overlay ingress defaults and downstream-selector policy ingress return tables, not as main defaults or unrelated ingress-table defaults. checks=${builtins.toJSON checks}"
+        throw "policy-only-routes failed: renderer must render CPM policyOnly routes only inside their intended policy tables. Provider-created overlay policy routes must become provider route service inputs without creating an overlay networkd unit; site-c core-nebula overlay ingress defaults and downstream-selector policy ingress return tables must stay scoped and not become main defaults or unrelated ingress-table defaults. checks=${builtins.toJSON checks}"
   ' >/dev/null
 
 echo "PASS policy-only-routes"
