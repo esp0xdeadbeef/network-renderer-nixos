@@ -57,6 +57,25 @@ let
     pair:
     lib.filter (value: value != null) (map sourcePrefixMatch (asList (pair.sourcePrefixes or [ ])));
 
+  combineMatches = left: right:
+    if left == [ ] then
+      right
+    else if right == [ ] then
+      left
+    else
+      lib.concatMap
+        (leftMatch:
+          map
+            (rightMatch:
+              if leftMatch == "" then
+                rightMatch
+              else if rightMatch == "" then
+                leftMatch
+              else
+                "${leftMatch} ${rightMatch}")
+            right)
+        left;
+
   explicitForwardPairs =
     if forwardingIntent != null && builtins.isAttrs forwardingIntent then
       forwardingIntent.normalizedExplicitForwardPairs or [ ]
@@ -75,11 +94,16 @@ let
           "";
       trafficMatches =
         if pair ? sourceFiles && builtins.isList pair.sourceFiles && pair.sourceFiles != [ ] then
-          [ "__s88_dynamic_source_forward__" ] ++ sourcePrefixMatches pair
+          [ "__s88_dynamic_source_forward__" ]
+          ++ combineMatches
+            (sourcePrefixMatches pair)
+            (if pair ? trafficType && builtins.isString pair.trafficType then renderTrafficType pair.trafficType else [ "" ])
         else if
           pair ? sourcePrefixes && builtins.isList pair.sourcePrefixes && pair.sourcePrefixes != [ ]
         then
-          sourcePrefixMatches pair
+          combineMatches
+            (sourcePrefixMatches pair)
+            (if pair ? trafficType && builtins.isString pair.trafficType then renderTrafficType pair.trafficType else [ "" ])
         else if pair ? trafficType && builtins.isString pair.trafficType then
           renderTrafficType pair.trafficType
         else

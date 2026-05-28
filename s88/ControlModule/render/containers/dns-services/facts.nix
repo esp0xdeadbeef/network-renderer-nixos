@@ -18,6 +18,15 @@ let
   stringList = value:
     if builtins.isList value then lib.filter builtins.isString value else [ ];
 
+  asList =
+    value:
+    if value == null then
+      [ ]
+    else if builtins.isList value then
+      value
+    else
+      [ value ];
+
   listenAddresses = lib.unique (
     [
       "127.0.0.1"
@@ -57,6 +66,55 @@ let
         && builtins.isList (pair."in" or null))
       (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
 
+  explicitDnsServiceEgressPairs =
+    lib.filter
+      (pair:
+        builtins.isAttrs pair
+        && (pair.action or "accept") == "accept"
+        && (pair.trafficType or null) == "dns"
+        && builtins.isList (pair."in" or null)
+        && builtins.isList (pair."out" or null)
+        && builtins.isList (pair.sourcePrefixes or null)
+        && pair.sourcePrefixes != [ ])
+      (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+
+  sourcePrefixRecord = value:
+    let
+      prefix =
+        if builtins.isString value then
+          value
+        else if builtins.isAttrs value && builtins.isString (value.prefix or null) then
+          value.prefix
+        else
+          "";
+      family =
+        if builtins.isAttrs value && (value.family or null) == 6 then
+          6
+        else if builtins.isString prefix && lib.hasInfix ":" prefix then
+          6
+        else
+          4;
+    in
+    if prefix == "" then null else { inherit prefix family; };
+
+  dnsServiceForwardEgressRules =
+    lib.concatMap
+      (pair:
+        lib.concatMap
+          (source:
+            lib.concatMap
+              (inIf:
+                map
+                  (outIf: {
+                    inherit source;
+                    inInterface = inIf;
+                    outInterface = outIf;
+                  })
+                  (stringList (pair."out" or [ ])))
+              (stringList (pair."in" or [ ])))
+          (lib.filter (value: value != null) (map sourcePrefixRecord (asList (pair.sourcePrefixes or [ ])))))
+      explicitDnsServiceEgressPairs;
+
   hasExplicitDnsAllowFrom =
     ifName:
     builtins.any (pair: builtins.elem ifName (pair."in" or [ ])) explicitDnsForwardPairs;
@@ -84,7 +142,7 @@ if !(builtins.isAttrs dnsService) then
   null
 else
   rec {
-    inherit dnsService listenAddresses allowFrom forwarders interfaces;
+    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules;
     listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
     listen6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) listenAddresses;
     forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;

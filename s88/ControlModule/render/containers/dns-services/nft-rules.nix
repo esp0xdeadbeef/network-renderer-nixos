@@ -15,6 +15,7 @@ let
     deniedResolverCidrs4
     deniedResolverCidrs6
     publicResolverForwardIngressNames
+    dnsServiceForwardEgressRules
     ;
 
   publicResolverForwardDropRules =
@@ -37,6 +38,26 @@ let
         ]
       )
       deniedResolverCidrs6);
+
+  dnsServiceForwardEgressRule =
+    proto: rule:
+    let
+      source = rule.source;
+      sourceExpr =
+        if (source.family or 4) == 6 then
+          "ip6 saddr ${source.prefix}"
+        else
+          "ip saddr ${source.prefix}";
+    in
+    "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString rule.inInterface} oifname ${nftString rule.outInterface} ${sourceExpr} ${proto} dport 53 accept comment \"allow-dns-service-forward-egress\"";
+
+  dnsServiceForwardEgressNftRules =
+    lib.concatMap
+      (rule: [
+        (dnsServiceForwardEgressRule "udp" rule)
+        (dnsServiceForwardEgressRule "tcp" rule)
+      ])
+      dnsServiceForwardEgressRules;
 
   nftRules =
     (map
@@ -72,7 +93,8 @@ let
         ]
       )
       ingressInterfaceNames)
-    ++ (lib.concatMap publicResolverForwardDropRules publicResolverForwardIngressNames);
+    ++ (lib.concatMap publicResolverForwardDropRules publicResolverForwardIngressNames)
+    ++ dnsServiceForwardEgressNftRules;
 
   dnsOutputRules =
     (lib.concatMap
