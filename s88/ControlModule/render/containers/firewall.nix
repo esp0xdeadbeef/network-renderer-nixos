@@ -9,6 +9,52 @@
 let
   firewall = import ../../firewall/default.nix { inherit lib; };
 
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
+  isProviderOwnedOverlayInterface =
+    iface:
+    let
+      backingRef = attrsOrEmpty (iface.backingRef or null);
+      connectivity = attrsOrEmpty (iface.connectivity or null);
+      connectivityBackingRef = attrsOrEmpty (connectivity.backingRef or null);
+      materialization = attrsOrEmpty ((attrsOrEmpty (iface.materialization or null)).nixos or null);
+    in
+    (
+      (iface.sourceKind or null) == "overlay"
+      || (connectivity.sourceKind or null) == "overlay"
+      || (backingRef.kind or null) == "overlay"
+      || (connectivityBackingRef.kind or null) == "overlay"
+    )
+    && (materialization.ownsInterface or false) != true
+    && (materialization.owner or null) != "network-renderer-nixos";
+
+  providerInterfaceFor =
+    ifName: iface:
+    let
+      runtimeIfName =
+        if builtins.isString (iface.runtimeIfName or null) && iface.runtimeIfName != "" then
+          iface.runtimeIfName
+        else if builtins.isString (iface.renderedIfName or null) && iface.renderedIfName != "" then
+          iface.renderedIfName
+        else
+          ifName;
+      backingRef = attrsOrEmpty (iface.backingRef or null);
+    in
+    iface
+    // {
+      ifName = ifName;
+      sourceKind = iface.sourceKind or "overlay";
+      runtimeIfName = runtimeIfName;
+      renderedIfName = runtimeIfName;
+      containerInterfaceName = runtimeIfName;
+      backingRef = backingRef;
+      connectivity = (attrsOrEmpty (iface.connectivity or null)) // {
+        sourceKind = iface.sourceKind or "overlay";
+        backingRef = backingRef;
+      };
+      providerCreated = true;
+    };
+
   runtimeInterfaces =
     if
       renderedModel ? runtimeTarget
@@ -26,10 +72,20 @@ let
       { };
 
   interfaces =
-    if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces && renderedModel.interfaces != { } then
-      renderedModel.interfaces
-    else
-      runtimeInterfaces;
+    let
+      renderedInterfaces =
+        if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces && renderedModel.interfaces != { } then
+          renderedModel.interfaces
+        else
+          runtimeInterfaces;
+      providerInterfaces =
+        builtins.mapAttrs providerInterfaceFor (
+          lib.filterAttrs
+            (ifName: iface: !(builtins.hasAttr ifName renderedInterfaces) && isProviderOwnedOverlayInterface iface)
+            runtimeInterfaces
+        );
+    in
+    renderedInterfaces // providerInterfaces;
 
   wanIfs =
     if renderedModel ? wanInterfaceNames && builtins.isList renderedModel.wanInterfaceNames then
