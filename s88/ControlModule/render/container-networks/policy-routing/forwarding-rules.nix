@@ -37,6 +37,12 @@ let
             // lib.optionalAttrs (builtins.isInt (pair.family or null)) {
               inherit (pair) family;
             }
+            // lib.optionalAttrs (builtins.isString (pair.trafficType or null) && pair.trafficType != "") {
+              inherit (pair) trafficType;
+            }
+            // lib.optionalAttrs (builtins.isList (pair.match or null) && pair.match != [ ]) {
+              inherit (pair) match;
+            }
           ) (pair."out" or [ ])
         ) (pair."in" or [ ])
     ) pairs;
