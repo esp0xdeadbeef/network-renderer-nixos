@@ -103,6 +103,7 @@ bash "${repo_root}/tests/test-hostile-dns-east-west.sh"
 # Regression: policy ingress lanes must render DNS-service reachability routes.
 bash "${repo_root}/tests/test-dns-service-policy-routes.sh"
 bash "${repo_root}/tests/test-dns-service-access-policy-exceptions.sh"
+bash "${repo_root}/tests/test-dns-service-forward-egress-exception-order.sh"
 bash "${repo_root}/tests/test-policy-service-ingress-routes.sh"
 bash "${repo_root}/tests/test-policy-downstream-default-route-lane-selection.sh"
 bash "${repo_root}/tests/test-policy-source-scoped-routing-rules.sh"

@@ -91,6 +91,7 @@ let
       if
         builtins.elem (nodeForwarding.mode or null) [
           "explicit-access-forwarding"
+          "explicit-core-forwarding"
           "explicit-selector-forwarding"
           "explicit-policy-forwarding"
         ]
