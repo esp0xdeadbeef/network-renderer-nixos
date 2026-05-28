@@ -72,10 +72,28 @@ render_example() {
 assert_safe_defaults() {
   local label="$1"
   local dry_json="$2"
+  local cpm_json="$3"
   local result_json
   result_json="$(mktemp)"
 
-  _jq --arg label "${label}" '
+  _jq --arg label "${label}" --slurpfile cpm "${cpm_json}" '
+    def explicit_overlay_interfaces($hostName; $containerName):
+      [
+        $cpm[0].control_plane_model.data
+        | to_entries[]
+        | .value
+        | to_entries[]
+        | (.value.runtimeTargets // {})
+        | to_entries[]
+        | select((.value.placement.host // "") == $hostName)
+        | select((.value.logicalNode.name // "") == $containerName)
+        | (.value.effectiveRuntimeRealization.interfaces // {})
+        | to_entries[]
+        | select((.value.sourceKind // "") == "overlay")
+        | (.value.renderedIfName // .value.containerInterfaceName // .value.name // .key)
+        | select(type == "string" and length > 0)
+      ]
+      | unique;
     def containers:
       (.render.containers // {})
       | to_entries[] as $host
@@ -86,12 +104,21 @@ assert_safe_defaults() {
           host: $host.key,
           name: .key,
           role: (.value.specialArgs.s88RoleName // ""),
-          rules: (.value.firewall.ruleset // "")
+          rules: (.value.firewall.ruleset // ""),
+          explicitOverlayInterfaces: explicit_overlay_interfaces($host.key; .key)
         };
     def has($s): .rules | contains($s);
     def is_router: (.rules | length) > 0;
     def is_overlay_core:
       .role == "core" and (.rules | contains("allow-overlay-to-core"));
+    def quoted_interface_names:
+      [ .rules | scan("(?:iifname|oifname) \"([^\"]+)\"") | .[0] ] | unique;
+    def unexpected_provider_interfaces:
+      .explicitOverlayInterfaces as $explicitOverlayInterfaces
+      |
+      quoted_interface_names
+      | map(select(test("^(nebula|wg|wireguard|openvpn|tun|tap)[A-Za-z0-9_.:-]*$")))
+      | map(select(. as $ifName | ($explicitOverlayInterfaces | index($ifName)) == null));
     def base_safe:
       has("chain input")
       and has("type filter hook input priority filter; policy drop;")
@@ -107,16 +134,17 @@ assert_safe_defaults() {
         has("allow-overlay-to-core")
         and (.rules | contains("masquerade") | not)
         and (.rules | contains("tcp option maxseg size set rt mtu") | not)
-        and (.rules | contains("nebula1") | not)
         and (.rules | contains("eth0") | not)
         and (.rules | contains("eth1") | not)
+        and (unexpected_provider_interfaces | length == 0)
       );
     [
       containers
       | select(is_router)
       | . + {
           base_safe: base_safe,
-          overlay_safe: overlay_safe
+          overlay_safe: overlay_safe,
+          unexpected_provider_interfaces: unexpected_provider_interfaces
         }
       | select((.base_safe and .overlay_safe) | not)
     ] as $failed
@@ -128,11 +156,12 @@ assert_safe_defaults() {
           name,
           role,
           base_safe,
-          overlay_safe
+          overlay_safe,
+          unexpected_provider_interfaces
         })),
         checks: {
           all_router_rulesets_fail_closed: ($failed | map(select(.base_safe == false)) | length == 0),
-          overlay_cores_do_not_inherit_wan_or_provider_names: ($failed | map(select(.overlay_safe == false)) | length == 0)
+          overlay_cores_do_not_inherit_wan_or_unknown_provider_names: ($failed | map(select(.overlay_safe == false)) | length == 0)
         }
       }
   ' "${dry_json}" > "${result_json}"
@@ -147,11 +176,11 @@ run_label() {
   local label="$1"
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-safe-defaults.${label}.XXXXXX")"
-  trap 'rm -rf "${tmp_dir}"' EXIT
+  trap '[[ -n "${tmp_dir:-}" ]] && rm -rf "${tmp_dir}"' EXIT
 
   log "Checking router safe defaults for network-labs/examples/${label}"
   render_example "${label}" "${tmp_dir}"
-  assert_safe_defaults "${label}" "${tmp_dir}/dry.json"
+  assert_safe_defaults "${label}" "${tmp_dir}/dry.json" "${tmp_dir}/cpm.json"
   pass "network-labs-router-safe-defaults:${label}"
 }
 
