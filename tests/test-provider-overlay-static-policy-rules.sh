@@ -38,22 +38,31 @@ nix_eval_json_or_fail \
           lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-policy-rule-nebula1-" name) cfg.systemd.paths;
         providerRoutePaths =
           lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-route-nebula1-" name) cfg.systemd.paths;
+        providerInterfaceWatchers =
+          lib.filterAttrs (name: _: name == "s88-provider-interface-nebula1") cfg.systemd.services;
+        readExecScript = service: builtins.readFile (lib.removeSuffix " " service.serviceConfig.ExecStart);
         serviceScripts =
           lib.mapAttrsToList
-            (_: service: builtins.readFile service.serviceConfig.ExecStart)
+            (_: service: readExecScript service)
             providerPolicyRuleServices;
         dynamicScripts =
           lib.mapAttrsToList
-            (_: service: builtins.readFile service.serviceConfig.ExecStart)
+            (_: service: readExecScript service)
             (lib.filterAttrs (name: _: lib.hasPrefix "s88-dynamic-policy-rule-" name) cfg.systemd.services);
         scripts = builtins.concatStringsSep "\n" serviceScripts;
         dynamic = builtins.concatStringsSep "\n" dynamicScripts;
         has = lib.hasInfix;
         providerServices = (builtins.attrValues providerPolicyRuleServices) ++ (builtins.attrValues providerRouteServices);
+        watcherServices = builtins.attrValues providerInterfaceWatchers;
+        watcherScripts =
+          lib.mapAttrsToList
+            (_: service: readExecScript service)
+            providerInterfaceWatchers;
+        watcherScript = builtins.concatStringsSep "\n" watcherScripts;
         providerPaths = (lib.mapAttrsToList (name: value: { inherit name value; }) providerPolicyRulePaths)
           ++ (lib.mapAttrsToList (name: value: { inherit name value; }) providerRoutePaths);
         checks = {
-          provider_units_wait_for_runtime_interface =
+          provider_path_units_wait_for_runtime_interface =
             (builtins.length providerPaths) >= 4
             && builtins.all
               (entry:
@@ -61,6 +70,14 @@ nix_eval_json_or_fail \
                 && (entry.value.pathConfig.Unit or null) == "${entry.name}.service")
               providerPaths
             && builtins.all (service: (service.wantedBy or []) == []) providerServices;
+          provider_interface_watcher_starts_route_and_rule_units =
+            (builtins.length watcherServices) == 1
+            && builtins.all (service: (service.wantedBy or []) == [ "multi-user.target" ]) watcherServices
+            && builtins.all (service: (service.serviceConfig.Type or null) == "simple") watcherServices
+            && has "while ! ip link show dev 'nebula1'" watcherScript
+            && has "systemctl start" watcherScript
+            && has "s88-provider-route-nebula1-" watcherScript
+            && has "s88-provider-policy-rule-nebula1-" watcherScript;
           installs_hostile_v4_source_rule =
             has "rule add from '10.70.10.0/24' iif 'upstream' table '2000' priority '2000'" scripts;
           installs_hostile_ula_source_rule =
