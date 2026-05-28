@@ -49,6 +49,7 @@ let
   staticProviderRoutes = import ./module/static-provider-routes.nix {
     inherit lib pkgs;
     staticProviderRoutes = containerNetworkRender.staticProviderRoutes or [ ];
+    staticProviderPolicyRules = containerNetworkRender.staticProviderPolicyRules or [ ];
   };
 
   dynamicForwarding = import ./module/dynamic-forwarding.nix {
