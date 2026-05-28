@@ -20,27 +20,15 @@ nix_eval_json_or_fail \
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
         system = "x86_64-linux";
-        lab = flake.inputs.network-labs + "/labs/lab-s-sigma/s-router-test-three-site";
-        inventoryPath = builtins.toFile "s-router-nixos-inventory.nix" (
-          "import " + toString lab + "/getResolvedInventory.nix { renderer = \"nixos\"; }"
-        );
+        example = flake.inputs.network-labs + "/examples/s-router-overlay-dns-lane-policy";
         builtHost = flake.lib.renderer.buildHostFromPaths {
-          intentPath = lab + "/intent.nix";
-          inherit inventoryPath;
+          intentPath = example + "/intent.nix";
+          inventoryPath = example + "/inventory-nixos.nix";
           selector = "s-router-test";
-          file = "nixos/virtual-machine/nixos-shell-vm/s-router-test/default.nix";
-          containerDefaults = {
-            autoStart = true;
-            additionalCapabilities = [
-              "CAP_NET_ADMIN"
-              "CAP_NET_RAW"
-            ];
-          };
-          disabled = { };
         };
         cfg = (flake.inputs.nixpkgs.lib.nixosSystem {
           inherit system;
-          modules = [ builtHost.renderedHost.containers.nixos-router-core-nebula.config ];
+          modules = [ builtHost.renderedHost.containers.b-router-core-nebula.config ];
         }).config;
         script = cfg.systemd.services.nft-allow-dns-service.script;
         has = lib.hasInfix;
