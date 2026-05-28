@@ -243,6 +243,7 @@ REPO_ROOT="${repo_root}" nix eval \
         firewallRules
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
+      && lib.hasInfix "index($0, \"comment \\\"\" comment \"\\\"\") { print $NF }" service.script
       && builtins.any
         (route:
           route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
