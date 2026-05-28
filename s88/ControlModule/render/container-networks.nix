@@ -225,6 +225,7 @@ in
   );
   inherit (interfaceUnits) dynamicDelegatedRoutes;
   inherit (interfaceUnits) staticProviderRoutes;
+  inherit (interfaceUnits) staticProviderPolicyRules;
   inherit dynamicSourceForwardRules;
   dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
 }

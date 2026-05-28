@@ -270,6 +270,36 @@ let
         )
         interfaceNames
     );
+
+  staticProviderPolicyRules =
+    lib.concatLists (
+      map
+        (
+          ifName:
+          let
+            iface = interfaces.${ifName};
+            interfaceName = renderedInterfaceNames.${ifName};
+            isProviderCreated = (iface.sourceKind or null) == "overlay";
+          in
+          if !isProviderCreated then
+            [ ]
+          else
+            lib.imap0
+              (
+                index: rule:
+                if !builtins.isAttrs rule then
+                  null
+                else
+                  rule
+                  // {
+                    name = "provider-policy-rule-${interfaceName}-${builtins.toString index}";
+                    outputInterfaceName = interfaceName;
+                  }
+              )
+              (policyRoutingByInterface.rules.${ifName} or [ ])
+        )
+        interfaceNames
+    );
 in
 {
   inherit interfaceUnits;
@@ -286,4 +316,5 @@ in
 
   inherit dynamicDelegatedRoutes;
   staticProviderRoutes = lib.filter (route: route != null) staticProviderRoutes;
+  staticProviderPolicyRules = lib.filter (rule: rule != null) staticProviderPolicyRules;
 }
