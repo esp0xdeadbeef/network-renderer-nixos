@@ -7,6 +7,11 @@
 
 let
   providerInterfacePath = interfaceName: "/sys/class/net/${interfaceName}";
+  providerInterfaces =
+    lib.unique (
+      (map (route: route.interfaceName) staticProviderRoutes)
+      ++ (map (rule: rule.outputInterfaceName) staticProviderPolicyRules)
+    );
 
   routeCommand =
     route:
@@ -182,10 +187,55 @@ let
       }
     ) staticProviderPolicyRules
   );
+
+  providerInterfaceWatchers = builtins.listToAttrs (
+    map (
+      interfaceName:
+      let
+        serviceName = "s88-provider-interface-${interfaceName}";
+        routeUnitNames =
+          map (route: "s88-${route.name}.service") (
+            lib.filter (route: route.interfaceName == interfaceName) staticProviderRoutes
+          );
+        ruleUnitNames =
+          map (rule: "s88-${rule.name}.service") (
+            lib.filter (rule: rule.outputInterfaceName == interfaceName) staticProviderPolicyRules
+          );
+        unitNames = routeUnitNames ++ ruleUnitNames;
+        startUnits = lib.concatMapStringsSep " " lib.escapeShellArg unitNames;
+      in
+      {
+        name = serviceName;
+        value = {
+          description = "Start provider-created interface route/rule units for ${interfaceName}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          path = with pkgs; [
+            coreutils
+            iproute2
+            systemd
+          ];
+          serviceConfig = {
+            Type = "simple";
+            Restart = "on-failure";
+            RestartSec = "2s";
+          };
+          script = ''
+            set -eu
+            while ! ip link show dev ${lib.escapeShellArg interfaceName} >/dev/null 2>&1; do
+              sleep 1
+            done
+            systemctl start ${startUnits}
+          '';
+        };
+      }
+    ) providerInterfaces
+  );
 in
 {
   config = lib.optionalAttrs (staticProviderRoutes != [ ] || staticProviderPolicyRules != [ ]) {
-    systemd.services = routeServices // ruleServices;
+    systemd.services = routeServices // ruleServices // providerInterfaceWatchers;
     systemd.paths = routePathUnits // rulePathUnits;
   };
 }
