@@ -19,22 +19,22 @@ nix_eval_true_or_fail \
             inherit lib;
             uplinks = { };
             wanUplinkName = null;
-            forwardingIntent.rules = [
+            forwardingIntent.normalizedExplicitForwardPairs = [
               {
                 action = "accept";
-                fromInterface = "pol-client-b";
-                toInterface = "core-a";
+                "in" = [ "pol-client-b" ];
+                "out" = [ "core-a" ];
                 trafficType = "nebula";
               }
               {
                 action = "accept";
-                fromInterface = "pol-client-b";
-                toInterface = "core-b";
+                "in" = [ "pol-client-b" ];
+                "out" = [ "core-b" ];
               }
               {
                 action = "accept";
-                fromInterface = "core-b";
-                toInterface = "pol-client-b";
+                "in" = [ "core-b" ];
+                "out" = [ "pol-client-b" ];
               }
             ];
             containerModel = {
