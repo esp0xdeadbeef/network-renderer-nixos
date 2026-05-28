@@ -1,7 +1,15 @@
-{ lib, pkgs, staticProviderRoutes, staticProviderPolicyRules ? [ ] }:
+{
+  lib,
+  pkgs,
+  staticProviderRoutes,
+  staticProviderPolicyRules ? [ ],
+}:
 
 let
-  routeCommand = route:
+  providerInterfacePath = interfaceName: "/sys/class/net/${interfaceName}";
+
+  routeCommand =
+    route:
     let
       destination = lib.escapeShellArg route.destination;
       interfaceName = lib.escapeShellArg route.interfaceName;
@@ -25,9 +33,15 @@ let
           " scope ${lib.escapeShellArg route.scope}"
         else
           "";
-      binary = if lib.hasInfix ":" route.destination then "${pkgs.iproute2}/bin/ip -6" else "${pkgs.iproute2}/bin/ip";
+      binary =
+        if lib.hasInfix ":" route.destination then
+          "${pkgs.iproute2}/bin/ip -6"
+        else
+          "${pkgs.iproute2}/bin/ip";
     in
-    "${binary} route replace ${tableArg}${destination}${gatewayArg} dev ${interfaceName}${scopeArg}${metricArg} proto static${lib.optionalString (gatewayArg != "") " onlink"}";
+    "${binary} route replace ${tableArg}${destination}${gatewayArg} dev ${interfaceName}${scopeArg}${metricArg} proto static${
+      lib.optionalString (gatewayArg != "") " onlink"
+    }";
 
   familyCommandsForRule =
     rule:
@@ -44,7 +58,8 @@ let
         { binary = "${pkgs.iproute2}/bin/ip -6"; }
       ];
 
-  ruleCommand = rule: familyCommand:
+  ruleCommand =
+    rule: familyCommand:
     let
       fromArg =
         if builtins.isString (rule.From or null) && rule.From != "" then
@@ -77,67 +92,100 @@ let
     '';
 
   routeServices = builtins.listToAttrs (
-    map
-      (
-        route:
-        let
-          serviceName = "s88-${route.name}";
-          routeScript = pkgs.writeShellScript serviceName ''
-            set -eu
-            ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg route.interfaceName} >/dev/null 2>&1
-            ${routeCommand route}
-          '';
-        in
-        {
-          name = serviceName;
-          value = {
-            description = "Install explicit route on provider-created interface ${route.interfaceName}";
-            wantedBy = [ "multi-user.target" ];
-            after = [ "network-online.target" ];
-            wants = [ "network-online.target" ];
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
-              ExecStart = routeScript;
-            };
+    map (
+      route:
+      let
+        serviceName = "s88-${route.name}";
+        routeScript = pkgs.writeShellScript serviceName ''
+          set -eu
+          ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg route.interfaceName} >/dev/null 2>&1
+          ${routeCommand route}
+        '';
+      in
+      {
+        name = serviceName;
+        value = {
+          description = "Install explicit route on provider-created interface ${route.interfaceName}";
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = routeScript;
           };
-        }
-      )
-      staticProviderRoutes
+        };
+      }
+    ) staticProviderRoutes
+  );
+
+  routePathUnits = builtins.listToAttrs (
+    map (
+      route:
+      let
+        serviceName = "s88-${route.name}";
+      in
+      {
+        name = serviceName;
+        value = {
+          wantedBy = [ "multi-user.target" ];
+          pathConfig = {
+            PathExists = providerInterfacePath route.interfaceName;
+            Unit = "${serviceName}.service";
+          };
+        };
+      }
+    ) staticProviderRoutes
   );
 
   ruleServices = builtins.listToAttrs (
-    map
-      (
-        rule:
-        let
-          serviceName = "s88-${rule.name}";
-          ruleScript = pkgs.writeShellScript serviceName ''
-            set -eu
-            ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg rule.outputInterfaceName} >/dev/null 2>&1
-            ${lib.concatMapStrings (familyCommand: ruleCommand rule familyCommand) (familyCommandsForRule rule)}
-          '';
-        in
-        {
-          name = serviceName;
-          value = {
-            description = "Install explicit policy rule for provider-created interface ${rule.outputInterfaceName}";
-            wantedBy = [ "multi-user.target" ];
-            after = [ "network-online.target" ];
-            wants = [ "network-online.target" ];
-            serviceConfig = {
-              Type = "oneshot";
-              RemainAfterExit = true;
-              ExecStart = ruleScript;
-            };
+    map (
+      rule:
+      let
+        serviceName = "s88-${rule.name}";
+        ruleScript = pkgs.writeShellScript serviceName ''
+          set -eu
+          ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg rule.outputInterfaceName} >/dev/null 2>&1
+          ${lib.concatMapStrings (familyCommand: ruleCommand rule familyCommand) (familyCommandsForRule rule)}
+        '';
+      in
+      {
+        name = serviceName;
+        value = {
+          description = "Install explicit policy rule for provider-created interface ${rule.outputInterfaceName}";
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = ruleScript;
           };
-        }
-      )
-      staticProviderPolicyRules
+        };
+      }
+    ) staticProviderPolicyRules
+  );
+
+  rulePathUnits = builtins.listToAttrs (
+    map (
+      rule:
+      let
+        serviceName = "s88-${rule.name}";
+      in
+      {
+        name = serviceName;
+        value = {
+          wantedBy = [ "multi-user.target" ];
+          pathConfig = {
+            PathExists = providerInterfacePath rule.outputInterfaceName;
+            Unit = "${serviceName}.service";
+          };
+        };
+      }
+    ) staticProviderPolicyRules
   );
 in
 {
   config = lib.optionalAttrs (staticProviderRoutes != [ ] || staticProviderPolicyRules != [ ]) {
     systemd.services = routeServices // ruleServices;
+    systemd.paths = routePathUnits // rulePathUnits;
   };
 }

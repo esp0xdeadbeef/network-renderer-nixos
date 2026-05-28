@@ -30,10 +30,18 @@ nix_eval_json_or_fail \
           inherit system;
           modules = [ builtHost.renderedHost.containers.b-router-core-nebula.config ];
         }).config;
+        providerPolicyRuleServices =
+          lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-policy-rule-nebula1-" name) cfg.systemd.services;
+        providerRouteServices =
+          lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-route-nebula1-" name) cfg.systemd.services;
+        providerPolicyRulePaths =
+          lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-policy-rule-nebula1-" name) cfg.systemd.paths;
+        providerRoutePaths =
+          lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-route-nebula1-" name) cfg.systemd.paths;
         serviceScripts =
           lib.mapAttrsToList
             (_: service: builtins.readFile service.serviceConfig.ExecStart)
-            (lib.filterAttrs (name: _: lib.hasPrefix "s88-provider-policy-rule-nebula1-" name) cfg.systemd.services);
+            providerPolicyRuleServices;
         dynamicScripts =
           lib.mapAttrsToList
             (_: service: builtins.readFile service.serviceConfig.ExecStart)
@@ -41,7 +49,18 @@ nix_eval_json_or_fail \
         scripts = builtins.concatStringsSep "\n" serviceScripts;
         dynamic = builtins.concatStringsSep "\n" dynamicScripts;
         has = lib.hasInfix;
+        providerServices = (builtins.attrValues providerPolicyRuleServices) ++ (builtins.attrValues providerRouteServices);
+        providerPaths = (lib.mapAttrsToList (name: value: { inherit name value; }) providerPolicyRulePaths)
+          ++ (lib.mapAttrsToList (name: value: { inherit name value; }) providerRoutePaths);
         checks = {
+          provider_units_wait_for_runtime_interface =
+            (builtins.length providerPaths) >= 4
+            && builtins.all
+              (entry:
+                (entry.value.pathConfig.PathExists or null) == "/sys/class/net/nebula1"
+                && (entry.value.pathConfig.Unit or null) == "${entry.name}.service")
+              providerPaths
+            && builtins.all (service: (service.wantedBy or []) == []) providerServices;
           installs_hostile_v4_source_rule =
             has "rule add from '10.70.10.0/24' iif 'upstream' table '2000' priority '2000'" scripts;
           installs_hostile_ula_source_rule =
