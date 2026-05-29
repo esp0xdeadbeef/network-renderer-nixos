@@ -19,6 +19,15 @@
 , forTargetRules
 ,
 }:
+# CODE trace:
+# SDS-SW-021-005 / UP-006-OP-001-PH-002 -> SMS-MOD-007-003 ->
+# CMC-MOD-006-004 -> CMC-FUNC-POLICY-ROUTING-003 through
+# CMC-FUNC-POLICY-ROUTING-010.
+#
+# This ControlModule assembles explicit CPM route/rule/source-scope contracts
+# into NixOS policy-routing artifacts. Source-scoped egress and
+# destination-scoped return selectors are independent selectors for the same
+# modeled table; target-side scope must not leak to unrelated ingress.
 builtins.foldl'
   (
     acc: entry:
@@ -38,6 +47,10 @@ builtins.foldl'
       sourceScope = sourcePrefixes.forInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
       scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
+      emptyScope = {
+        staticPrefixes = [ ];
+        sourceFiles = [ ];
+      };
       scopeHasEntries =
         scope: (scope.staticPrefixes or [ ]) != [ ] || (scope.sourceFiles or [ ]) != [ ];
       isReturnSideRuleIngress =
@@ -81,16 +94,21 @@ builtins.foldl'
               }
             else
               forwardingSourceScope.forPair sourceInterfaceName interfaceName;
+          forwardingScopeForIngress =
+            if sourceIfName == ifName || isReturnSideRuleIngress sourceIfName then
+              forwardingMainScope
+            else
+              emptyScope;
         in
         baseScope
         // {
           staticPrefixes = lib.unique (
             (baseScope.staticPrefixes or [ ])
-            ++ forwardingMainScope.staticPrefixes
+            ++ forwardingScopeForIngress.staticPrefixes
             ++ pairScope.staticPrefixes
           );
           sourceFiles = lib.unique (
-            (baseScope.sourceFiles or [ ]) ++ forwardingMainScope.sourceFiles ++ pairScope.sourceFiles
+            (baseScope.sourceFiles or [ ]) ++ forwardingScopeForIngress.sourceFiles ++ pairScope.sourceFiles
           );
         };
       routesByInterface = routesByOutputInterface {
@@ -116,13 +134,16 @@ builtins.foldl'
           sourceIfName:
           let
             destinationScope = if sourceIfName == ifName then [ ] else destinationScopeForIngress sourceIfName;
-            sourceScopeForRule =
-              if destinationScope != [ ] then
-                [ ]
-              else
-                (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
+            sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
+            destinationScopedRules =
+              policyRulesFor interfaceName tableId [ sourceIfName ] [ ] destinationScope;
+            sourceScopedRules =
+              policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule [ ];
           in
-          policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule destinationScope
+          if destinationScope != [ ] && sourceScopeForRule != [ ] then
+            destinationScopedRules ++ sourceScopedRules
+          else
+            policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule destinationScope
         )
         sourceIfNames;
       forwardingIngressRules =

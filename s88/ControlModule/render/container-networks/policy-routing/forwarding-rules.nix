@@ -3,6 +3,14 @@
   containerModel,
   forwardingIntent ? null,
 }:
+# CODE trace:
+# SDS-SW-021-005 / UP-006-OP-001-PH-002 -> SMS-MOD-007-003 ->
+# CMC-MOD-006-004 -> CMC-FUNC-POLICY-ROUTING-001.
+#
+# This ControlModule classifies explicit CPM forwarding accepts before route
+# selection. L4/service-only accepts remain firewall material unless CPM also
+# supplies source scope; otherwise Linux RPDB would route traffic that the model
+# only allowed at firewall/L4 scope.
 let
   forwardingIntentData =
     if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { };
@@ -83,6 +91,20 @@ let
     in
     expectedFamily == null || ruleFamily == null || ruleFamily == expectedFamily;
 
+  hasSourceScope =
+    rule:
+    builtins.isList (rule.sourcePrefixes or null) && rule.sourcePrefixes != [ ]
+    || builtins.isList (rule.sourceFiles or null) && rule.sourceFiles != [ ];
+
+  hasLayer4Scope =
+    rule:
+    (builtins.isString (rule.trafficType or null) && rule.trafficType != "")
+    || (builtins.isList (rule.match or null) && rule.match != [ ]);
+
+  routeSelectableForwardingRule =
+    rule:
+    !(hasLayer4Scope rule) || hasSourceScope rule;
+
   matchingAcceptForwardingRules =
     fromName: toName:
     lib.filter (
@@ -100,5 +122,11 @@ in
 
   hasAcceptForwardingRuleForRoute =
     fromName: toName: route:
-    builtins.any (rule: ruleMatchesFamily rule route) (matchingAcceptForwardingRules fromName toName);
+    builtins.any
+      (
+        rule:
+        routeSelectableForwardingRule rule
+        && ruleMatchesFamily rule route
+      )
+      (matchingAcceptForwardingRules fromName toName);
 }
