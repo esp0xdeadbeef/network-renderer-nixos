@@ -28,7 +28,7 @@ nix_eval_true_or_fail \
               interfaces = {
                 tenant-client = {
                   containerInterfaceName = "tenant-client";
-                  addresses = [ "10.20.20.1/24" "fd42:dead:beef:20::1/64" ];
+                  addresses = [ "10.20.20.1/24" "fd42:dead:beef:20:0:0:0:1/64" ];
                   interfaceClass.edgeFacing = true;
                   backingRef.lane.access = "router-access-client";
                   routes = [ ];

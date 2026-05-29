@@ -45,11 +45,16 @@ nix_eval_json_or_fail \
           lib.mapAttrsToList
             (_: service: readExecScript service)
             providerPolicyRuleServices;
+        routeServiceScripts =
+          lib.mapAttrsToList
+            (_: service: readExecScript service)
+            providerRouteServices;
         dynamicScripts =
           lib.mapAttrsToList
             (_: service: readExecScript service)
             (lib.filterAttrs (name: _: lib.hasPrefix "s88-dynamic-policy-rule-" name) cfg.systemd.services);
         scripts = builtins.concatStringsSep "\n" serviceScripts;
+        routeScripts = builtins.concatStringsSep "\n" routeServiceScripts;
         dynamic = builtins.concatStringsSep "\n" dynamicScripts;
         has = lib.hasInfix;
         providerServices = (builtins.attrValues providerPolicyRuleServices) ++ (builtins.attrValues providerRouteServices);
@@ -84,6 +89,10 @@ nix_eval_json_or_fail \
             has "rule add from 'fd42:dead:feed:0070:0000:0000:0000:0000/64' iif 'upstream' table '2000' priority '2000'" scripts;
           installs_main_suppress_fallback =
             has "rule add from '10.70.10.0/24' iif 'upstream' table main suppress_prefixlength '0' priority '12000'" scripts;
+          installs_v4_overlay_reachability_route =
+            has "route replace table 2000 10.20.20.0/24 dev nebula1 scope link" routeScripts;
+          installs_ula_overlay_reachability_route =
+            has "ip -6 route replace table 2000 fd42:dead:beef:20::/64 dev nebula1 scope link" routeScripts;
           keeps_dynamic_runtime_gua_source_file_rule =
             has "source_file='/run/secrets/access-node-ipv6-prefix-espbranch-site-b-b-router-access-hostile'" dynamic
             && has "interface='upstream'" dynamic
@@ -96,6 +105,7 @@ nix_eval_json_or_fail \
         ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);
         failed = builtins.filter (name: !(checks.${name})) (builtins.attrNames checks);
         inherit checks scripts dynamic;
+        inherit routeScripts;
       }
     '
 

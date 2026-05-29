@@ -34,9 +34,18 @@ let
       if lib.hasInfix ":" ip then
         if prefixLength == "64" then
           let
-            head = builtins.head (lib.splitString "::" ip);
+            compressedParts = lib.splitString "::" ip;
           in
-          "${head}::/64"
+          if builtins.length compressedParts > 1 then
+            let
+              head = builtins.head compressedParts;
+            in
+            if head == "" then "::/64" else "${head}::/64"
+          else
+            let
+              hextets = lib.splitString ":" ip;
+            in
+            if builtins.length hextets >= 4 then "${lib.concatStringsSep ":" (lib.take 4 hextets)}::/64" else null
         else
           null
       else
