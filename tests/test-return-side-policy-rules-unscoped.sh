@@ -29,6 +29,8 @@ nix_eval_true_or_fail \
             (network.routingPolicyRules or [ ]);
         hasUnscopedTableRule = network: interface:
           builtins.any (rule: !(rule ? From)) (tableRulesFor network interface);
+        hasBroadTableRule = network: interface:
+          builtins.any (rule: !(rule ? From) && !(rule ? To)) (tableRulesFor network interface);
         hasScopedTableRule = network: interface: prefix:
           builtins.any (rule: (rule.From or null) == prefix) (tableRulesFor network interface);
         hasDestinationScopedTableRule = network: interface: prefix:
@@ -159,11 +161,155 @@ nix_eval_true_or_fail \
             };
           };
         };
+        policyLeakRender = render {
+          forwardingIntent.rules = [
+            { action = "accept"; fromInterface = "downstr-admin"; toInterface = "up-admin-a"; }
+            { action = "accept"; fromInterface = "up-admin-a"; toInterface = "downstr-admin"; }
+            { action = "accept"; fromInterface = "downstr-client"; toInterface = "up-client-a"; }
+            { action = "accept"; fromInterface = "up-client-a"; toInterface = "downstr-client"; }
+          ];
+          containerModel = {
+            networkBehavior.isPolicy = true;
+            site.tenantPrefixOwners = {
+              "4|10.20.15.0/24".owner = "router-access-admin";
+              "4|10.20.20.0/24".owner = "router-access-client";
+              "4|10.20.70.0/24".owner = "router-access-hostile";
+            };
+            policyRoutingSources.up-admin-a = [
+              "up-admin-a"
+              "downstr-admin"
+              "downstr-client"
+              "downstr-hostile"
+            ];
+            interfaces = {
+              downstr-admin = {
+                containerInterfaceName = "downstr-admin";
+                addresses = [ "10.10.0.19/31" ];
+                interfaceClass.fabricFacing = true;
+                backingRef.lane.access = "router-access-admin";
+              };
+              downstr-client = {
+                containerInterfaceName = "downstr-client";
+                addresses = [ "10.10.0.21/31" ];
+                interfaceClass.fabricFacing = true;
+                backingRef.lane.access = "router-access-client";
+              };
+              downstr-hostile = {
+                containerInterfaceName = "downstr-hostile";
+                addresses = [ "10.10.0.25/31" ];
+                interfaceClass.fabricFacing = true;
+                backingRef.lane.access = "router-access-hostile";
+              };
+              up-admin-a = {
+                containerInterfaceName = "up-admin-a";
+                addresses = [ "10.10.0.30/31" ];
+                interfaceClass.exitFacing = true;
+                backingRef.lane = {
+                  access = "router-access-admin";
+                  uplink = "isp-a";
+                  uplinks = [ "isp-a" ];
+                };
+                routes = [
+                  {
+                    dst = "0.0.0.0/0";
+                    via4 = "10.10.0.31";
+                    policyOnly = true;
+                    reason = "policy-derived-default";
+                    lane.access = "router-access-admin";
+                    lane.uplink = "isp-a";
+                  }
+                ];
+              };
+              up-client-a = {
+                containerInterfaceName = "up-client-a";
+                addresses = [ "10.10.0.34/31" ];
+                interfaceClass.exitFacing = true;
+                backingRef.lane = {
+                  access = "router-access-client";
+                  uplink = "isp-a";
+                  uplinks = [ "isp-a" ];
+                };
+                routes = [ ];
+              };
+            };
+          };
+        };
+        upstreamLeakRender = render {
+          forwardingIntent.rules = [
+            { action = "accept"; fromInterface = "pol-admin-a"; toInterface = "core-a"; }
+            { action = "accept"; fromInterface = "core-a"; toInterface = "pol-admin-a"; }
+            { action = "accept"; fromInterface = "pol-hostile-ew"; toInterface = "core-nebula"; }
+            { action = "accept"; fromInterface = "core-nebula"; toInterface = "pol-hostile-ew"; }
+          ];
+          containerModel = {
+            networkBehavior.isUpstreamSelector = true;
+            site.tenantPrefixOwners = {
+              "4|10.20.15.0/24".owner = "router-access-admin";
+              "4|10.20.70.0/24".owner = "router-access-hostile";
+            };
+            policyRoutingSources.core-a = [
+              "core-a"
+              "pol-admin-a"
+              "pol-hostile-ew"
+            ];
+            interfaces = {
+              core-a = {
+                containerInterfaceName = "core-a";
+                addresses = [ "10.10.0.13/31" ];
+                interfaceClass.coreFacing = true;
+                backingRef.lane = {
+                  uplink = "isp-a";
+                  uplinks = [ "isp-a" ];
+                };
+                routes = [
+                  {
+                    dst = "0.0.0.0/0";
+                    via4 = "10.10.0.12";
+                    policyOnly = true;
+                    reason = "policy-derived-default";
+                    lane.uplink = "isp-a";
+                  }
+                ];
+              };
+              core-nebula = {
+                containerInterfaceName = "core-nebula";
+                addresses = [ "10.10.0.17/31" ];
+                interfaceClass.coreFacing = true;
+                backingRef.lane = {
+                  uplink = "east-west";
+                  uplinks = [ "east-west" ];
+                };
+              };
+              pol-admin-a = {
+                containerInterfaceName = "pol-admin-a";
+                addresses = [ "10.10.0.31/31" ];
+                interfaceClass.exitFacing = true;
+                backingRef.lane = {
+                  access = "router-access-admin";
+                  uplink = "isp-a";
+                  uplinks = [ "isp-a" ];
+                };
+              };
+              pol-hostile-ew = {
+                containerInterfaceName = "pol-hostile-ew";
+                addresses = [ "10.10.0.39/31" ];
+                interfaceClass.exitFacing = true;
+                backingRef.lane = {
+                  access = "router-access-hostile";
+                  uplink = "east-west";
+                  uplinks = [ "east-west" ];
+                };
+              };
+            };
+          };
+        };
         policyUpstream = policyRender.networks."10-up-client-b";
         policyDownstream = policyRender.networks."10-downstr-client";
         selectorPolicy = downstreamRender.networks."10-policy-client";
         selectorAccess = downstreamRender.networks."10-access-client";
         accessTransit = accessRender.networks."10-transit";
+        policyLeakUpAdmin = policyLeakRender.networks."10-up-admin-a";
+        upstreamLeakCoreA = upstreamLeakRender.networks."10-core-a";
         upstreamReturnRoutes = policyRender.networks."10-downstr-client".routes or [ ];
         selectorReturnRoutes = selectorAccess.routes or [ ];
         hasUpstreamReturnTenantRoute =
@@ -203,6 +349,22 @@ nix_eval_true_or_fail \
           })
         else if !(hasDestinationScopedTableRule accessTransit "transit" "10.20.20.0/24") then
           throw "access router return path must use a destination-scoped rule into the tenant table"
+        else if !(hasBroadTableRule policyLeakUpAdmin "up-admin-a") then
+          throw "policy return ingress must keep an unscoped self-ingress rule for replies"
+        else if hasBroadTableRule policyLeakUpAdmin "downstr-client" then
+          throw "policy return table leaked a broad rule onto an unrelated client downstream ingress"
+        else if hasBroadTableRule policyLeakUpAdmin "downstr-hostile" then
+          throw "policy return table leaked a broad rule onto hostile downstream ingress"
+        else if !(hasScopedTableRule policyLeakUpAdmin "downstr-client" "10.20.20.0/24") then
+          throw "policy return table must source-scope unrelated client downstream ingress"
+        else if !(hasBroadTableRule upstreamLeakCoreA "core-a") then
+          throw "upstream-selector core return ingress must keep an unscoped self-ingress rule for replies"
+        else if hasBroadTableRule upstreamLeakCoreA "pol-admin-a" then
+          throw "upstream-selector core table leaked a broad rule onto admin policy ingress"
+        else if hasBroadTableRule upstreamLeakCoreA "pol-hostile-ew" then
+          throw "upstream-selector core table leaked a broad rule onto hostile east-west ingress"
+        else if !(hasScopedTableRule upstreamLeakCoreA "pol-admin-a" "10.20.15.0/24") then
+          throw "upstream-selector core table must source-scope policy ingress by tenant owner"
         else true
     '
 

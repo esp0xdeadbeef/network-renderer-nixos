@@ -170,6 +170,7 @@ let
       renderedInterfaceNames
       isPolicy
       isDownstreamSelectorPolicyInterface
+      isUpstreamSelectorCoreInterface
       isPolicyUpstreamInterface
       isPolicyDownstreamInterface
       sourceReachabilityRoutes
