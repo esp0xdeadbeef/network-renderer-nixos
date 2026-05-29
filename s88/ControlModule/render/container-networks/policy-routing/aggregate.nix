@@ -3,6 +3,7 @@
 , renderedInterfaceNames
 , isPolicy
 , isDownstreamSelectorPolicyInterface
+, isUpstreamSelectorCoreInterface
 , isPolicyUpstreamInterface
 , isPolicyDownstreamInterface
 , sourceReachabilityRoutes
@@ -37,6 +38,25 @@ builtins.foldl'
       sourceScope = sourcePrefixes.forInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
       scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
+      scopeHasEntries =
+        scope: (scope.staticPrefixes or [ ]) != [ ] || (scope.sourceFiles or [ ]) != [ ];
+      isReturnSideRuleIngress =
+        sourceIfName:
+        let
+          sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
+        in
+        (
+          isDownstreamSelectorPolicyInterface interfaceName
+          && isDownstreamSelectorPolicyInterface sourceInterfaceName
+        )
+        || (
+          isPolicyUpstreamInterface interfaceName
+          && isPolicyUpstreamInterface sourceInterfaceName
+        )
+        || (
+          isUpstreamSelectorCoreInterface interfaceName
+          && isUpstreamSelectorCoreInterface sourceInterfaceName
+        );
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
@@ -44,6 +64,15 @@ builtins.foldl'
       ruleSourceScopeForIngress =
         sourceIfName:
         let
+          sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
+          ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
+          baseScope =
+            if isReturnSideRuleIngress sourceIfName then
+              scopedRuleSource
+            else if scopeHasEntries ingressSourceScope then
+              ingressSourceScope
+            else
+              sourceScope;
           pairScope =
             if isDownstreamSelectorPolicyInterface interfaceName then
               {
@@ -51,17 +80,17 @@ builtins.foldl'
                 sourceFiles = [ ];
               }
             else
-              forwardingSourceScope.forPair renderedInterfaceNames.${sourceIfName} interfaceName;
+              forwardingSourceScope.forPair sourceInterfaceName interfaceName;
         in
-        scopedRuleSource
+        baseScope
         // {
           staticPrefixes = lib.unique (
-            scopedRuleSource.staticPrefixes
+            (baseScope.staticPrefixes or [ ])
             ++ forwardingMainScope.staticPrefixes
             ++ pairScope.staticPrefixes
           );
           sourceFiles = lib.unique (
-            scopedRuleSource.sourceFiles ++ forwardingMainScope.sourceFiles ++ pairScope.sourceFiles
+            (baseScope.sourceFiles or [ ]) ++ forwardingMainScope.sourceFiles ++ pairScope.sourceFiles
           );
         };
       routesByInterface = routesByOutputInterface {
