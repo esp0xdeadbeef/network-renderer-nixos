@@ -7,6 +7,7 @@
 , addressForFamily
 , ipv4PeerFor31
 , ipv6PeerFor127
+, returnDestinationsForAccessUnit
 , returnDestinationsForTenant
 ,
 }:
@@ -21,14 +22,47 @@ let
     in
     if policyKey != null then policyKey else downstreamPairKeyFor name;
 
-  routesForTenantViaInterface =
-    tenantKey: sourceIfName:
+  interfaceKeyForRenderedName =
+    renderedName:
+    lib.findFirst (name: renderedInterfaceNames.${name} == renderedName) null (builtins.attrNames interfaces);
+
+  accessUnitForInterface =
+    renderedName:
+    let
+      key = interfaceKeyForRenderedName renderedName;
+      lane = if key == null then { } else (interfaces.${key}.backingRef or { }).lane or { };
+    in
+    if builtins.isAttrs lane && builtins.isString (lane.access or null) && lane.access != "" then
+      lane.access
+    else
+      null;
+
+  destinationsForInterface =
+    renderedName:
+    let
+      accessUnit = accessUnitForInterface renderedName;
+      ownerDestinations =
+        if accessUnit == null then
+          [ ]
+        else
+          returnDestinationsForAccessUnit accessUnit;
+      tenantKey = tenantKeyForInterface renderedName;
+      tenantDestinations =
+        if tenantKey == null then
+          [ ]
+        else
+          returnDestinationsForTenant tenantKey;
+    in
+    lib.unique (ownerDestinations ++ tenantDestinations);
+
+  routesForDestinationsViaInterface =
+    destinations: sourceIfName:
     let
       sourceIface = interfaces.${sourceIfName} or { };
       peer4 = ipv4PeerFor31 (addressForFamily 4 sourceIface);
       peer6 = ipv6PeerFor127 (addressForFamily 6 sourceIface);
     in
-    if tenantKey == null then
+    if destinations == [ ] then
       [ ]
     else
       lib.filter (route: route != null) (
@@ -52,23 +86,22 @@ let
                 via4 = gateway;
               }
           )
-          (returnDestinationsForTenant tenantKey)
+          destinations
       );
 
   routesForTenantInterface =
     sourceIfName:
     let
       sourceRenderedName = renderedInterfaceNames.${sourceIfName};
-      tenantKey = tenantKeyForInterface sourceRenderedName;
     in
-    routesForTenantViaInterface tenantKey sourceIfName;
+    routesForDestinationsViaInterface (destinationsForInterface sourceRenderedName) sourceIfName;
 in
 {
   forTenantInterface = routesForTenantInterface;
 
   forTenantOfInterfaceViaInterface =
     tenantInterfaceName: sourceIfName:
-    routesForTenantViaInterface (tenantKeyForInterface tenantInterfaceName) sourceIfName;
+    routesForDestinationsViaInterface (destinationsForInterface tenantInterfaceName) sourceIfName;
 
   forUpstreamCore =
     targetName: sourceIfName:

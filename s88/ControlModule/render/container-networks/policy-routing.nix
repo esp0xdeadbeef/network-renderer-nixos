@@ -67,7 +67,7 @@ let
       isUpstreamSelectorCoreInterface
       ;
     inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
-    inherit (siteDestinations) returnDestinationsForTenant;
+    inherit (siteDestinations) returnDestinationsForAccessUnit returnDestinationsForTenant;
   };
   routeHelpers = import ./policy-routing/route-helpers.nix {
     inherit
