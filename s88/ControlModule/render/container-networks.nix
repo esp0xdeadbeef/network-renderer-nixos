@@ -55,6 +55,8 @@ let
     else
       [ ];
 
+  providerOverlayRoutes = import ./container-networks/provider-overlay-routes.nix;
+
   providerInterfaceFor =
     ifName: iface:
     let
@@ -74,7 +76,7 @@ let
       renderedIfName = runtimeIfName;
       containerInterfaceName = runtimeIfName;
       addresses = addressListForInterface iface;
-      routes = routeListForInterface iface;
+      routes = providerOverlayRoutes.normalize (routeListForInterface iface);
       backingRef = backingRef;
       connectivity = (attrsOrEmpty (iface.connectivity or null)) // {
         sourceKind = iface.sourceKind or "overlay";
