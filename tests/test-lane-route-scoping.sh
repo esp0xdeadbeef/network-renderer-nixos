@@ -18,6 +18,8 @@ REPO_ROOT="${repo_root}" nix eval \
           containerModel = model;
           uplinks = { };
           wanUplinkName = null;
+          forwardingIntent = model.forwardingIntent or null;
+          firewallRuleset = model.firewallRuleset or null;
         };
       default4 = gateway: {
         dst = "0.0.0.0/0";
@@ -238,6 +240,153 @@ REPO_ROOT="${repo_root}" nix eval \
             };
           };
         };
+      remoteOverlayEgressRender =
+        render {
+          forwardingIntent = {
+            rules = [
+              {
+                action = "accept";
+                fromInterface = "nebula-core";
+                sourcePrefixes = [
+                  { family = 4; prefix = "10.89.0.0/32"; }
+                  { family = 6; prefix = "fd42:dead:cafe:1900::/128"; }
+                ];
+                toInterface = "core";
+              }
+              {
+                action = "accept";
+                fromInterface = "nebula-core";
+                toInterface = "pol-dmz-ew";
+              }
+              {
+                action = "accept";
+                fromInterface = "pol-dmz-ew";
+                toInterface = "core";
+              }
+              {
+                action = "accept";
+                fromInterface = "core";
+                sourcePrefixes = [
+                  { family = 4; prefix = "10.20.70.0/24"; }
+                  { family = 6; prefix = "fd42:dead:beef:70::/64"; }
+                ];
+                toInterface = "policy-dmz-wan";
+              }
+              {
+                action = "accept";
+                fromInterface = "policy-dmz-wan";
+                sourcePrefixes = [
+                  { family = 4; prefix = "10.20.70.0/24"; }
+                  { family = 6; prefix = "fd42:dead:beef:70::/64"; }
+                ];
+                toInterface = "core";
+              }
+            ];
+          };
+          interfaces = {
+            core = {
+              containerInterfaceName = "core";
+              addresses = [ "10.80.0.5/31" "fd42:dead:cafe:1000::5/127" ];
+              interfaceClass.coreFacing = true;
+              backingRef.lane = {
+                kind = "uplink";
+                uplink = "wan";
+                uplinks = [ "wan" ];
+              };
+              routes = [
+                {
+                  dst = "0.0.0.0/0";
+                  via4 = "10.80.0.4";
+                  metric = 1000;
+                }
+                {
+                  dst = "::/0";
+                  via6 = "fd42:dead:cafe:1000::4";
+                  metric = 1000;
+                }
+              ];
+            };
+            nebula-core = {
+              containerInterfaceName = "nebula-core";
+              addresses = [ "10.80.0.11/31" "fd42:dead:cafe:1000::b/127" ];
+              interfaceClass.coreFacing = true;
+              backingRef.lane = {
+                kind = "uplink";
+                uplink = "east-west";
+                uplinks = [ "east-west" ];
+              };
+              routes = [
+                {
+                  dst = "0.0.0.0/0";
+                  via4 = "10.80.0.10";
+                  metric = 2000;
+                  policyOnly = true;
+                  intent.kind = "default-reachability";
+                }
+                {
+                  dst = "0.0.0.0/0";
+                  via4 = "10.80.0.14";
+                  metric = 2000;
+                  policyOnly = true;
+                  lane = { access = null; uplink = "east-west"; };
+                  intent.kind = "default-reachability";
+                }
+                {
+                  dst = "::/0";
+                  via6 = "fd42:dead:cafe:1000::a";
+                  metric = 2000;
+                  policyOnly = true;
+                  intent.kind = "default-reachability";
+                }
+                {
+                  dst = "::/0";
+                  via6 = "fd42:dead:cafe:1000::e";
+                  metric = 2000;
+                  policyOnly = true;
+                  lane = { access = null; uplink = "east-west"; };
+                  intent.kind = "default-reachability";
+                }
+              ];
+            };
+            pol-dmz-ew = {
+              containerInterfaceName = "pol-dmz-ew";
+              addresses = [ "10.80.0.15/31" "fd42:dead:cafe:1000::f/127" ];
+              interfaceClass.exitFacing = true;
+              backingRef.lane = {
+                access = "hetz-router-access-dmz";
+                kind = "access-uplink";
+                uplink = "east-west";
+                uplinks = [ "east-west" ];
+              };
+            };
+            policy-dmz-wan = {
+              containerInterfaceName = "policy-dmz-wan";
+              addresses = [ "10.80.0.17/31" "fd42:dead:cafe:1000::11/127" ];
+              interfaceClass.exitFacing = true;
+              backingRef.lane = {
+                access = "hetz-router-access-dmz";
+                kind = "access-uplink";
+                uplink = "wan";
+                uplinks = [ "wan" ];
+              };
+              routes = [
+                {
+                  dst = "10.20.70.0/24";
+                  via4 = "10.80.0.16";
+                }
+                {
+                  dst = "fd42:dead:beef:70::/64";
+                  via6 = "fd42:dead:cafe:1000::10";
+                }
+              ];
+            };
+          };
+          networkBehavior = {
+            isSelector = true;
+            isUpstreamSelector = true;
+            keepInterfaceRoutesInMain = true;
+          };
+        };
       selectorPolicyBranch = selectorRender.networks."10-policy-branch".routes or [ ];
       selectorPolicyHostile = selectorRender.networks."10-policy-hostile".routes or [ ];
       selectorBranchRules = selectorRender.networks."10-access-branch".routingPolicyRules or [ ];
@@ -268,6 +417,17 @@ REPO_ROOT="${repo_root}" nix eval \
         upstreamSelectorServiceIngressRender.networks."10-core-nebula".routes or [ ];
       serviceIngressWanRoutes =
         upstreamSelectorServiceIngressRender.networks."10-core".routes or [ ];
+      remoteOverlayRoutes =
+        lib.concatLists (
+          map (network: network.routes or [ ]) (builtins.attrValues remoteOverlayEgressRender.networks)
+        );
+      remoteOverlayRules =
+        lib.concatLists (
+          map (network: network.routingPolicyRules or [ ]) (builtins.attrValues remoteOverlayEgressRender.networks)
+        );
+      remoteOverlayTable = tableForIngress "nebula-core" remoteOverlayRules;
+      remoteOverlayReturn4Table = tableForRoute remoteOverlayRoutes "10.20.70.0/24" "10.80.0.16";
+      remoteOverlayReturn6Table = tableForRoute remoteOverlayRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::10";
       routesAllHaveTable =
         expectedTable: routes:
         builtins.length routes > 0
@@ -290,6 +450,35 @@ REPO_ROOT="${repo_root}" nix eval \
           ) rules;
         in
         if matches == [ ] then null else (builtins.head matches).Table;
+      tableForRoute =
+        routes: expectedDestination: expectedGateway:
+        let
+          matches = builtins.filter (
+            route:
+            (route.Destination or null) == expectedDestination
+            && (route.Gateway or null) == expectedGateway
+            && (route.Table or null) != null
+          ) routes;
+        in
+        if matches == [ ] then null else (builtins.head matches).Table;
+      hasDestinationIngressRule =
+        expectedIf: expectedDestination: expectedTable: rules:
+        builtins.any (
+          rule:
+          (rule.IncomingInterface or null) == expectedIf
+          && (rule.To or null) == expectedDestination
+          && (rule.Table or null) == expectedTable
+          && (rule.SuppressPrefixLength or null) == null
+        ) rules;
+      hasUnscopedIngressRule =
+        expectedIf: rules:
+        builtins.any (
+          rule:
+          (rule.IncomingInterface or null) == expectedIf
+          && (rule.From or null) == null
+          && (rule.To or null) == null
+          && (rule.SuppressPrefixLength or null) == null
+        ) rules;
       hostileEwTable = tableForIngress "pol-hostile-ew" splitHostileEwRules;
       hostileWanTable = tableForIngress "policy-hostile" splitHostileWanRules;
       hasRoute = routes: destination: gateway: table:
@@ -339,6 +528,17 @@ REPO_ROOT="${repo_root}" nix eval \
     && hasRoute serviceIngressCoreRoutes "10.20.70.0/24" "10.80.0.10" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "10.80.0.10/31" "10.80.0.10" serviceIngressPolicyTable
     && hasRoute serviceIngressCoreRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::a" serviceIngressPolicyTable
+    && hasRoute remoteOverlayRoutes "0.0.0.0/0" "10.80.0.14" remoteOverlayTable
+    && hasRoute remoteOverlayRoutes "::/0" "fd42:dead:cafe:1000::e" remoteOverlayTable
+    && lacksRoute remoteOverlayRoutes "0.0.0.0/0" "10.80.0.4" remoteOverlayTable
+    && lacksRoute remoteOverlayRoutes "::/0" "fd42:dead:cafe:1000::4" remoteOverlayTable
+    && remoteOverlayReturn4Table != null
+    && remoteOverlayReturn6Table != null
+    && hasRoute remoteOverlayRoutes "10.20.70.0/24" "10.80.0.16" remoteOverlayReturn4Table
+    && hasRoute remoteOverlayRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::10" remoteOverlayReturn6Table
+    && hasDestinationIngressRule "core" "10.20.70.0/24" remoteOverlayReturn4Table remoteOverlayRules
+    && hasDestinationIngressRule "core" "fd42:dead:beef:70::/64" remoteOverlayReturn6Table remoteOverlayRules
+    && !(hasUnscopedIngressRule "core" remoteOverlayRules)
   ' >/dev/null || {
     echo "FAIL lane-route-scoping" >&2
     exit 1
