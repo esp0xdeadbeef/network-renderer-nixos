@@ -98,61 +98,6 @@ let
       (sortedAttrNames configuredWanGroupToUplink)
   );
 
-  autoMatchedWanGroups = builtins.listToAttrs (
-    lib.concatMap
-      (
-        wanGroupName:
-        let
-          candidates = lookup.candidateUplinkNamesForWanGroup wanGroupName;
-        in
-        if builtins.length candidates == 1 then
-          [
-            {
-              name = wanGroupName;
-              value = builtins.head candidates;
-            }
-          ]
-        else
-          [ ]
-      )
-      lookup.wanGroupNames
-  );
-
-  autoMatchedUplinkNames = lib.unique (builtins.attrValues autoMatchedWanGroups);
-
-  remainingWanGroupsForAuto = lib.filter
-    (
-      wanGroupName: !builtins.hasAttr wanGroupName autoMatchedWanGroups
-    )
-    lookup.wanGroupNames;
-
-  remainingUplinkNamesForAuto = lib.filter
-    (
-      uplinkName: !(builtins.elem uplinkName autoMatchedUplinkNames)
-    )
-    lookup.uplinkNames;
-
-  zippedWanGroupToUplink =
-    let
-      count = builtins.length remainingWanGroupsForAuto;
-    in
-    if count == 0 then
-      { }
-    else if count == builtins.length remainingUplinkNamesForAuto then
-      builtins.listToAttrs
-        (
-          builtins.genList
-            (idx: {
-              name = builtins.elemAt remainingWanGroupsForAuto idx;
-              value = builtins.elemAt remainingUplinkNamesForAuto idx;
-            })
-            count
-        )
-    else
-      { };
-
-  autoWanGroupToUplink = autoMatchedWanGroups // zippedWanGroupToUplink;
-
   wanGroupToUplinkName = builtins.seq _validateConfiguredWanGroupToUplink (
     if configuredWanGroupToUplink != { } then
       configuredWanGroupToUplink
@@ -167,7 +112,7 @@ let
             lookup.wanGroupNames
         )
     else
-      autoWanGroupToUplink
+      { }
   );
 
   missingWanGroupAssignments = lib.filter
