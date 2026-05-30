@@ -6,7 +6,11 @@
 
 let
   cfgFile = "/run/etc/kea/${scope.fileStem}-dhcp6.json";
-  leaseFile = "/var/lib/kea/${scope.fileStem}-dhcp6.leases";
+  lease = (import ./lease-state.nix {
+    service = "DHCPv6";
+    fileStem = scope.fileStem;
+    suffix = "-dhcp6";
+  }) (scope.leaseState or null);
 
   configJson = builtins.toJSON {
     Dhcp6 = {
@@ -16,8 +20,8 @@ let
 
       "lease-database" = {
         type = "memfile";
-        persist = true;
-        name = leaseFile;
+        persist = lease.persist;
+        name = lease.path;
       };
 
       subnet6 = [
@@ -46,7 +50,7 @@ let
 
   genConfig = pkgs.writeShellScript "gen-kea-dhcp6-${scope.fileStem}" ''
     set -euo pipefail
-    mkdir -p /run/etc/kea /var/lib/kea
+    mkdir -p /run/etc/kea ${lib.escapeShellArg lease.directory}
 
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
     ${configJson}
@@ -119,7 +123,6 @@ in
       RestartSec = "2s";
 
       RuntimeDirectory = "kea";
-      StateDirectory = "kea";
 
       CapabilityBoundingSet = [
         "CAP_NET_BIND_SERVICE"
