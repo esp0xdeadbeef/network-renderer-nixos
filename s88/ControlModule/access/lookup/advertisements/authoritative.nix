@@ -28,6 +28,7 @@ let
     lib.filter (entry: builtins.isAttrs entry && (entry.enabled or true) != false) raw;
 
   authoritativeDhcp4 = enabledList "dhcp4";
+  authoritativeDhcpv6 = enabledList "dhcpv6";
   authoritativeIpv6Ra = enabledList "ipv6Ra";
 
   advInterface =
@@ -49,6 +50,13 @@ let
       "${pool.start} - ${pool.end}"
     else
       null;
+
+  requireBool =
+    path: value:
+    if builtins.isBool value then
+      value
+    else
+      throw "CPM renderer contract update required: ${path} must be an explicit boolean";
 
   delegatedPrefixFor =
     { adv, tenantName }:
@@ -109,7 +117,7 @@ let
       null;
 in
 {
-  haveAuthoritativeAdvertisements = authoritativeDhcp4 != [ ] || authoritativeIpv6Ra != [ ];
+  haveAuthoritativeAdvertisements = authoritativeDhcp4 != [ ] || authoritativeDhcpv6 != [ ] || authoritativeIpv6Ra != [ ];
 
   authoritativeDhcp4Scopes = builtins.genList
     (
@@ -140,6 +148,28 @@ in
     )
     (builtins.length authoritativeDhcp4);
 
+  authoritativeDhcpv6Scopes = builtins.genList
+    (
+      idx:
+      let
+        adv = builtins.elemAt authoritativeDhcpv6 idx;
+        interfaceName = advInterface adv;
+        stem = safeStem (if builtins.isString (adv.id or null) && adv.id != "" then adv.id else if interfaceName != null then interfaceName else "dhcpv6-${builtins.toString (idx + 1)}");
+      in
+      {
+        serviceName = "lan-${stem}";
+        fileStem = stem;
+        interfaceKey = interfaceName;
+        inherit interfaceName;
+        subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
+        pool = poolStringFrom (adv.pool or null);
+        dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
+        domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
+        subnetId = idx + 1;
+      }
+    )
+    (builtins.length authoritativeDhcpv6);
+
   authoritativeRadvdScopes = builtins.genList
     (
       idx:
@@ -159,6 +189,10 @@ in
         prefixes = if adv ? prefixes then asStringList adv.prefixes else [ ];
         rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
         domain = if dnssl != [ ] then builtins.head dnssl else "lan.";
+        managed = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].managed" (adv.managed or null);
+        otherConfig = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].otherConfig" (adv.otherConfig or null);
+        onLink = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].onLink" (adv.onLink or null);
+        autonomous = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].autonomous" (adv.autonomous or null);
       }
       // lib.optionalAttrs (delegatedPrefix != null) { inherit delegatedPrefix; }
     )
