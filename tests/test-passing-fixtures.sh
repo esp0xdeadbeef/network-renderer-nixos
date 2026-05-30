@@ -48,9 +48,9 @@ bash "${repo_root}/tests/test-host-build-container-selection.sh"
 # Renderer-level validation: policy nft rules must not cross tenant/zone p2p lanes.
 bash "${repo_root}/tests/test-policy-zone-firewall-scoping.sh"
 
-# !!!! Production safety gates: selectors are dumb lane movers and policy is the
-# !!!! only policy decision point. These scan network-labs/examples/* fixtures.
-bash "${repo_root}/tests/test-upstream-selector-no-core-crossconnect.sh"
+# Renderer must preserve explicit CPM forwarding pairs; upstream CPM owns
+# selector/core cross-connect semantics.
+bash "${repo_root}/tests/test-upstream-selector-explicit-forwarding-projection.sh"
 bash "${repo_root}/tests/test-downstream-selector-no-lane-crossconnect.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-unscoped-catchall.sh"
 bash "${repo_root}/tests/test-policy-firewall-no-invalid-actions.sh"
