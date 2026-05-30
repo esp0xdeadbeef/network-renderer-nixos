@@ -39,6 +39,18 @@ let
     ++ (map
       (
         scope:
+        import ./kea-dhcp6.nix {
+          inherit
+            lib
+            pkgs
+            scope
+            ;
+        }
+      )
+      advertisementModel.dhcpv6Scopes)
+    ++ (map
+      (
+        scope:
         import ./radvd.nix {
           inherit
             lib

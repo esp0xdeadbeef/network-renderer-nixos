@@ -7,6 +7,17 @@
 let
   cfgFile = "/run/radvd-${scope.fileStem}.conf";
   delegatedPrefix = scope.delegatedPrefix or null;
+  flag = enabled: if enabled then "on" else "off";
+  requireBool =
+    name: value:
+    if builtins.isBool value then
+      value
+    else
+      throw "radvd scope ${scope.fileStem} missing explicit ${name} boolean";
+  managed = requireBool "managed" (scope.managed or null);
+  otherConfig = requireBool "otherConfig" (scope.otherConfig or null);
+  onLink = requireBool "onLink" (scope.onLink or null);
+  autonomous = requireBool "autonomous" (scope.autonomous or null);
   delegatedPrefixSourceFile =
     if delegatedPrefix != null && builtins.isString (delegatedPrefix.sourceFile or null) then
       delegatedPrefix.sourceFile
@@ -79,8 +90,8 @@ let
       AdvSendAdvert on;
       MinRtrAdvInterval 10;
       MaxRtrAdvInterval 30;
-      AdvManagedFlag off;
-      AdvOtherConfigFlag off;
+      AdvManagedFlag ${flag managed};
+      AdvOtherConfigFlag ${flag otherConfig};
     ${lib.optionalString (scope.rdnss != [ ]) ''
       RDNSS ${builtins.concatStringsSep " " scope.rdnss} {
         AdvRDNSSLifetime 600;
@@ -93,8 +104,8 @@ let
     ''}
     ${lib.concatMapStrings (prefix: ''
       prefix ${prefix} {
-        AdvOnLink on;
-        AdvAutonomous on;
+        AdvOnLink ${flag onLink};
+        AdvAutonomous ${flag autonomous};
       };
     '') scope.prefixes}
     };
@@ -107,8 +118,8 @@ let
               sed '$d' ${lib.escapeShellArg cfgFile} > "$tmp_cfg"
               cat >> "$tmp_cfg" <<EOF_PD
             prefix $pd_prefix {
-              AdvOnLink on;
-              AdvAutonomous on;
+              AdvOnLink ${flag onLink};
+              AdvAutonomous ${flag autonomous};
             };
           };
       EOF_PD

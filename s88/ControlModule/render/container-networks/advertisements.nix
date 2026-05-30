@@ -45,6 +45,7 @@ in
               lib.filter builtins.isString adv.prefixes
             else
               [ ];
+          onLink = builtins.isBool (adv.onLink or null) && adv.onLink;
           routes = map
             (prefix: {
               dst = prefix;
@@ -52,7 +53,7 @@ in
             })
             prefixes;
         in
-        if ifName == null || routes == [ ] then
+        if ifName == null || !onLink || routes == [ ] then
           acc
         else
           acc // { ${ifName} = (acc.${ifName} or [ ]) ++ routes; }

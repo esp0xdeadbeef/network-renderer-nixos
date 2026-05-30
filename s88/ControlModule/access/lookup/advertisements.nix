@@ -34,7 +34,8 @@ let
     inherit lib isa;
     inherit (context) containerDisplayName roleName;
     inherit (interfaces) interfaceEntries interfaceLabelForEntry;
-    inherit (derived) derivedDhcp4Entries derivedRadvdEntries;
+    inherit (derived) derivedDhcp4Entries;
+    derivedRadvdEntries = [ ];
     inherit (authoritative) haveAuthoritativeAdvertisements;
   };
 in
@@ -45,11 +46,14 @@ in
     else
       derived.dhcp4Scopes;
 
-  radvdScopes =
+  dhcpv6Scopes =
     if authoritative.haveAuthoritativeAdvertisements then
-      authoritative.authoritativeRadvdScopes
+      authoritative.authoritativeDhcpv6Scopes
     else
-      derived.radvdScopes;
+      [ ];
+
+  radvdScopes =
+    authoritative.authoritativeRadvdScopes;
 
   inherit (alarms) alarms warnings;
 }
