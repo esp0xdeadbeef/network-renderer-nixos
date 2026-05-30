@@ -6,7 +6,10 @@
 
 let
   cfgFile = "/run/etc/kea/${scope.fileStem}.json";
-  leaseFile = "/var/lib/kea/${scope.fileStem}.leases";
+  lease = (import ./lease-state.nix {
+    service = "DHCPv4";
+    fileStem = scope.fileStem;
+  }) (scope.leaseState or null);
   syncScript = "/run/kea-unbound-sync/${scope.fileStem}.sh";
 
   # Do not use Kea libdhcp_run_script for this runtime script. Kea restricts
@@ -20,8 +23,8 @@ let
 
       "lease-database" = {
         type = "memfile";
-        persist = true;
-        name = leaseFile;
+        persist = lease.persist;
+        name = lease.path;
       };
 
       subnet4 = [
@@ -54,7 +57,7 @@ let
 
   genConfig = pkgs.writeShellScript "gen-kea-${scope.fileStem}" ''
     set -euo pipefail
-    mkdir -p /run/etc/kea /run/kea-unbound-sync /var/lib/kea
+    mkdir -p /run/etc/kea /run/kea-unbound-sync ${lib.escapeShellArg lease.directory}
 
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
     ${configJson}
@@ -64,7 +67,7 @@ let
     #!${pkgs.runtimeShell}
     set -eu
 
-    lease_file=${lib.escapeShellArg leaseFile}
+    lease_file=${lib.escapeShellArg lease.path}
     domain=${lib.escapeShellArg scope.domain}
     unbound_control=${pkgs.unbound}/bin/unbound-control
 
@@ -190,7 +193,6 @@ in
       RestartSec = "2s";
 
       RuntimeDirectory = "kea";
-      StateDirectory = "kea";
 
       CapabilityBoundingSet = [
         "CAP_NET_BIND_SERVICE"

@@ -31,6 +31,10 @@ let
   authoritativeDhcpv6 = enabledList "dhcpv6";
   authoritativeIpv6Ra = enabledList "ipv6Ra";
 
+  stateContracts = import ./state-contracts.nix {
+    inherit lib runtimeTarget;
+  };
+
   advInterface =
     adv:
     resolveAuthoritativeInterfaceName (
@@ -126,6 +130,11 @@ in
         adv = builtins.elemAt authoritativeDhcp4 idx;
         interfaceName = advInterface adv;
         stem = safeStem (if builtins.isString (adv.id or null) && adv.id != "" then adv.id else if interfaceName != null then interfaceName else "dhcp4-${builtins.toString (idx + 1)}");
+        leaseState = stateContracts.contractFor {
+          listName = "dhcp4Leases";
+          service = "dhcp4";
+          inherit adv interfaceName idx;
+        };
         router =
           if builtins.isString (adv.router or null) && adv.router != "" then
             adv.router
@@ -138,6 +147,7 @@ in
         serviceName = "lan-${stem}";
         fileStem = stem;
         interfaceKey = interfaceName;
+        inherit leaseState;
         inherit interfaceName router;
         subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
         pool = poolStringFrom (adv.pool or null);
@@ -155,11 +165,17 @@ in
         adv = builtins.elemAt authoritativeDhcpv6 idx;
         interfaceName = advInterface adv;
         stem = safeStem (if builtins.isString (adv.id or null) && adv.id != "" then adv.id else if interfaceName != null then interfaceName else "dhcpv6-${builtins.toString (idx + 1)}");
+        leaseState = stateContracts.contractFor {
+          listName = "dhcpv6Leases";
+          service = "dhcpv6";
+          inherit adv interfaceName idx;
+        };
       in
       {
         serviceName = "lan-${stem}";
         fileStem = stem;
         interfaceKey = interfaceName;
+        inherit leaseState;
         inherit interfaceName;
         subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
         pool = poolStringFrom (adv.pool or null);

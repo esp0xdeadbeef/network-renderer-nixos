@@ -152,6 +152,9 @@ bash "${repo_root}/tests/test-dns-local-records.sh"
 # Regression: Kea DHCP lease hostnames must be publishable into Unbound without /etc/hosts.
 bash "${repo_root}/tests/test-kea-unbound-lease-sync.sh"
 
+# Regression: Kea lease-state locations must come from CPM persistence contracts.
+bash "${repo_root}/tests/test-kea-persistence-contract-render.sh"
+
 # Regression: runtime targets must be able to render modeled mDNS reflector settings.
 "${repo_root}/tests/test-mdns-service.sh"
 

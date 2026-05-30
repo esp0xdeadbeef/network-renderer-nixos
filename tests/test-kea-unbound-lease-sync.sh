@@ -39,6 +39,17 @@ nix_eval_true_or_fail \
               router = "10.20.20.1";
               dnsServers = [ "10.20.20.1" ];
               domain = "lan.";
+              leaseState = {
+                service = "dhcp4";
+                id = "client";
+                kind = "lease-state";
+                mode = "persistent";
+                required = true;
+                interface = "tenant-client";
+                tenant = "client";
+                source = "inventory-realization";
+                path = "/persist/network/state/dhcp4/router-access-client/client";
+              };
             };
           };
         service = kea.systemd.services."kea-dhcp4-client";
@@ -85,6 +96,17 @@ gen_script="$(
               router = "10.20.20.1";
               dnsServers = [ "10.20.20.1" ];
               domain = "lan.";
+              leaseState = {
+                service = "dhcp4";
+                id = "client";
+                kind = "lease-state";
+                mode = "persistent";
+                required = true;
+                interface = "tenant-client";
+                tenant = "client";
+                source = "inventory-realization";
+                path = "/persist/network/state/dhcp4/router-access-client/client";
+              };
             };
           };
       in
@@ -112,6 +134,17 @@ gen_drv="$(
               router = "10.20.20.1";
               dnsServers = [ "10.20.20.1" ];
               domain = "lan.";
+              leaseState = {
+                service = "dhcp4";
+                id = "client";
+                kind = "lease-state";
+                mode = "persistent";
+                required = true;
+                interface = "tenant-client";
+                tenant = "client";
+                source = "inventory-realization";
+                path = "/persist/network/state/dhcp4/router-access-client/client";
+              };
             };
           };
       in
@@ -121,6 +154,10 @@ gen_drv="$(
 
 nix-store -r "$gen_drv" >/dev/null
 [[ -x "$gen_script" ]] || fail "FAIL kea-unbound-lease-sync: generated config script is not executable: ${gen_script}"
+grep -F '"/persist/network/state/dhcp4/router-access-client/client"' "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not use CPM lease-state path"
+if grep -F '/var/lib/kea' "$gen_script" >/dev/null; then
+  fail "FAIL kea-unbound-lease-sync: generated script used renderer-local /var/lib/kea lease path"
+fi
 if grep -F '"hooks-libraries"' "$gen_script" >/dev/null; then
   fail "FAIL kea-unbound-lease-sync: generated Kea config must not use libdhcp_run_script hook"
 fi

@@ -36,6 +36,7 @@ nix_eval_true_or_fail \
                     {
                       id = "client";
                       interface = "tenant-client";
+                      tenant = "client";
                       subnet = "fd42:dead:beef:20::/64";
                       pool = "fd42:dead:beef:20::100 - fd42:dead:beef:20::1ff";
                       dnsServers = [ "fd42:dead:beef:20::1" ];
@@ -43,6 +44,19 @@ nix_eval_true_or_fail \
                     }
                   ];
                 };
+                stateContracts.persistence.dhcpv6Leases = [
+                  {
+                    service = "dhcpv6";
+                    id = "client";
+                    kind = "lease-state";
+                    mode = "persistent";
+                    required = true;
+                    interface = "tenant-client";
+                    tenant = "client";
+                    source = "inventory-realization";
+                    path = "/persist/network/state/dhcpv6/router-access-client/client";
+                  }
+                ];
               };
             };
           };
@@ -87,6 +101,17 @@ gen_script="$(
               pool = "fd42:dead:beef:20::100 - fd42:dead:beef:20::1ff";
               dnsServers = [ "fd42:dead:beef:20::1" ];
               domain = "lan.";
+              leaseState = {
+                service = "dhcpv6";
+                id = "client";
+                kind = "lease-state";
+                mode = "persistent";
+                required = true;
+                interface = "tenant-client";
+                tenant = "client";
+                source = "inventory-realization";
+                path = "/persist/network/state/dhcpv6/router-access-client/client";
+              };
             };
           };
       in
@@ -113,6 +138,17 @@ gen_drv="$(
               pool = "fd42:dead:beef:20::100 - fd42:dead:beef:20::1ff";
               dnsServers = [ "fd42:dead:beef:20::1" ];
               domain = "lan.";
+              leaseState = {
+                service = "dhcpv6";
+                id = "client";
+                kind = "lease-state";
+                mode = "persistent";
+                required = true;
+                interface = "tenant-client";
+                tenant = "client";
+                source = "inventory-realization";
+                path = "/persist/network/state/dhcpv6/router-access-client/client";
+              };
             };
           };
       in
@@ -123,6 +159,10 @@ gen_drv="$(
 nix-store -r "$gen_drv" >/dev/null
 [[ -x "$gen_script" ]] || fail "FAIL kea-dhcpv6-render: generated config script is not executable: ${gen_script}"
 grep -F '"Dhcp6"' "$gen_script" >/dev/null || fail "FAIL kea-dhcpv6-render: generated script does not contain Dhcp6 config"
+grep -F '"/persist/network/state/dhcpv6/router-access-client/client"' "$gen_script" >/dev/null || fail "FAIL kea-dhcpv6-render: generated script does not use CPM lease-state path"
+if grep -F '/var/lib/kea' "$gen_script" >/dev/null; then
+  fail "FAIL kea-dhcpv6-render: generated script used renderer-local /var/lib/kea lease path"
+fi
 if grep -F '"Dhcp4"' "$gen_script" >/dev/null; then
   fail "FAIL kea-dhcpv6-render: DHCPv6 renderer emitted Dhcp4 config"
 fi
