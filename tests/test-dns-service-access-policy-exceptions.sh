@@ -53,8 +53,8 @@ nix_eval_json_or_fail \
             !(hasDirectDnsDrop "tenant-mgmt" accessMgmtRules)
             && !(hasDirectDnsDrop "tenant-mgmt" accessMgmtDnsScript);
           policy_still_blocks_direct_client_dns_to_uplinks =
-            lib.hasInfix "iifname \"downstr-client\" oifname \"up-client-a\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" policyRules
-            && lib.hasInfix "iifname \"downstr-client\" oifname \"up-client-b\" meta l4proto tcp tcp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" policyRules;
+            lib.hasInfix "iifname \"down-client\" oifname \"up-client-a\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" policyRules
+            && lib.hasInfix "iifname \"down-client\" oifname \"up-client-b\" meta l4proto tcp tcp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" policyRules;
         };
       in
       {

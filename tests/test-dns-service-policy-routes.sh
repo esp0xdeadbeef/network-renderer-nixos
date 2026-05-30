@@ -134,7 +134,7 @@ nix_eval_json_or_fail \
         branchHostileWanRoutes = branchUpstreamNetworks."10-core-isp".routes or [ ];
         branchCoreNebulaRules = branchUpstreamNetworks."10-core-nebula".routingPolicyRules or [ ];
         branchHostileEwRules = branchUpstreamNetworks."10-pol-hostile-ew".routingPolicyRules or [ ];
-        sitecClientRoutes = sitecNetworks."10-downstr-client".routes or [ ];
+        sitecClientRoutes = sitecNetworks."10-down-client".routes or [ ];
         branchCoreNebulaTable = policyTableFor branchUpstreamNetworks "10-core-nebula";
         branchBranchEwTable = policyTableFor branchUpstreamNetworks "10-pol-branch-ew";
         branchHostileEwTable = policyTableFor branchUpstreamNetworks "10-pol-hostile-ew";
@@ -152,17 +152,17 @@ nix_eval_json_or_fail \
           branch_v6_dns_route =
             hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:d" 2000;
           branch_dns_service_udp_rule =
-            lib.hasInfix "iifname \"downstr-branch\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules;
+            lib.hasInfix "iifname \"down-branch\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules;
           branch_dns_service_tcp_rule =
-            lib.hasInfix "iifname \"downstr-branch\" oifname \"up-branch-ew\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules;
+            lib.hasInfix "iifname \"down-branch\" oifname \"up-branch-ew\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules;
           branch_dns_service_wrong_lane_udp_absent =
-            !(lib.hasInfix "iifname \"downstr-branch\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules);
+            !(lib.hasInfix "iifname \"down-branch\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules);
           branch_dns_service_wrong_lane_tcp_absent =
-            !(lib.hasInfix "iifname \"downstr-branch\" oifname \"up-hostile-ew\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules);
+            !(lib.hasInfix "iifname \"down-branch\" oifname \"up-hostile-ew\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules);
           hostile_dns_service_wrong_lane_udp_absent =
-            !(lib.hasInfix "iifname \"downstr-hostile\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-sitec-public-dns\"" branchPolicyRules);
+            !(lib.hasInfix "iifname \"down-hostile\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-sitec-public-dns\"" branchPolicyRules);
           hostile_dns_service_wrong_lane_tcp_absent =
-            !(lib.hasInfix "iifname \"downstr-hostile\" oifname \"up-branch-ew\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-hostile-dns-to-sitec-public-dns\"" branchPolicyRules);
+            !(lib.hasInfix "iifname \"down-hostile\" oifname \"up-branch-ew\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-hostile-dns-to-sitec-public-dns\"" branchPolicyRules);
           branch_upstream_branch_return =
             hasAllPolicyRoutes branchUpstreamNetworks [
               { destination = "10.60.10.0/24"; gateway = "10.50.0.12"; }
@@ -232,9 +232,9 @@ nix_eval_json_or_fail \
           sitea_policy_client_ew_mgmt_dns_v6_absent =
             !(hasPolicyRoute siteaPolicyNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:25" siteaPolicyClientEwTable);
           sitea_dns_udp_rule =
-            lib.hasInfix "iifname \"downstr-client\" oifname \"downstream-mgmt\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
+            lib.hasInfix "iifname \"down-client\" oifname \"downstream-mgmt\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
           sitea_dns_tcp_rule =
-            lib.hasInfix "iifname \"downstr-client\" oifname \"downstream-mgmt\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
+            lib.hasInfix "iifname \"down-client\" oifname \"downstream-mgmt\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
           sitec_client_to_dmz_dns_v4 =
             hasRoute sitecClientRoutes "10.90.20.0/24" "10.80.0.6" 2002;
           sitec_client_to_dmz_dns_v6 =

@@ -44,7 +44,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             nixpkgsLib.mapAttrsToList (_networkName: network: network.routingPolicyRules or [ ])
               policy.systemd.network.networks
           );
-        policyDownstreamClientRoutes = policy.systemd.network.networks."10-downstr-client".routes or [ ];
+        policyDownstreamClientRoutes = policy.systemd.network.networks."10-down-client".routes or [ ];
         policyRoutes =
           nixpkgsLib.concatLists (
             nixpkgsLib.mapAttrsToList (_networkName: network: network.routes or [ ])
@@ -164,7 +164,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
             matches =
               builtins.filter
                 (rule:
-                  (rule.IncomingInterface or null) == "downstr-client"
+                  (rule.IncomingInterface or null) == "down-client"
                   && (rule.From or null) == "10.19.0.8/32"
                   && builtins.isInt (rule.Table or null)
                   && !(rule ? SuppressPrefixLength))
@@ -176,7 +176,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         hasPolicyRuntimeSourceRule6 =
           builtins.any
             (rule:
-              (rule.IncomingInterface or null) == "downstr-client"
+              (rule.IncomingInterface or null) == "down-client"
               && (
                 (rule.From or null) == "fd42:dead:beef:1900::8/128"
                 || (rule.From or null) == "fd42:dead:beef:1900:0:0:0:8/128"
@@ -204,7 +204,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
           nixpkgsLib.concatLists (
             nixpkgsLib.mapAttrsToList
               (networkName: network:
-                if networkName == "10-downstr-client" then
+                if networkName == "10-down-client" then
                   [ ]
                 else
                   map

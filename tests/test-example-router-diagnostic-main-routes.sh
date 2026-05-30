@@ -91,7 +91,7 @@ nix_eval_true_or_fail \
             downstreamPolicyIngressAccessTableReturn6 =
               hasTableRoute downstream "10-access-client" "fd42:dead:beef:20::/64" "fd42:dead:beef:1000:0:0:0:2" 2001;
             policyHostileReturn =
-              hasMainRoute policy "10-downstr-client" "10.20.20.0/24" "10.10.0.20";
+              hasMainRoute policy "10-down-client" "10.20.20.0/24" "10.10.0.20";
             upstreamHostileReturn =
               hasMainRoute upstream "10-pol-cli-ew" "10.20.20.0/24" "10.10.0.36";
             downstreamNoSitecViaAdminMain =

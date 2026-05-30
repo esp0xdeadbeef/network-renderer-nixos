@@ -34,15 +34,15 @@ policy_rules="$(
 )"
 
 for uplink in a b; do
-  grep -F "iifname \"downstr-client2\" oifname \"up-cl2-${uplink}\" accept comment \"allow-tenants-to-uplinks\"" \
+  grep -F "iifname \"down-client2\" oifname \"up-cl2-${uplink}\" accept comment \"allow-tenants-to-uplinks\"" \
     <<<"${policy_rules}" >/dev/null \
     || fail "missing client2 public-egress allow for up-cl2-${uplink}; renderer dropped an intent tenant-set member whose policy lane uses an abbreviated runtime interface"
 
-  grep -F "iifname \"downstr-client2\" oifname \"up-cl2-${uplink}\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
+  grep -F "iifname \"down-client2\" oifname \"up-cl2-${uplink}\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
     <<<"${policy_rules}" >/dev/null \
     || fail "missing client2 UDP DNS leak block for up-cl2-${uplink}"
 
-  grep -F "iifname \"downstr-client2\" oifname \"up-cl2-${uplink}\" meta l4proto tcp tcp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
+  grep -F "iifname \"down-client2\" oifname \"up-cl2-${uplink}\" meta l4proto tcp tcp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
     <<<"${policy_rules}" >/dev/null \
     || fail "missing client2 TCP DNS leak block for up-cl2-${uplink}"
 done
