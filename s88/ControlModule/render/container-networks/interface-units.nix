@@ -215,6 +215,9 @@ let
                 ConfigureWithoutCarrier = true;
               }
               // mkDynamicWanNetworkConfig iface;
+              linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
+                MTUBytes = iface.mtu;
+              };
               address = iface.addresses or [ ];
               routes = map stripRouteMetadata (
                 lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes

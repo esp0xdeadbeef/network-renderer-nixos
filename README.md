@@ -5,6 +5,9 @@
 
 It is an emission stage only.
 
+Migration, deviation, exception, transition, or temporary compatibility behavior
+must be explicit in the README, tests, and owning layer before it is accepted.
+
 ```text
 network-forwarding-model -> network-control-plane-model -> network-renderer-nixos
 ```
