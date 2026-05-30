@@ -49,32 +49,32 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && has "iifname \"lo\" accept" rules
         && has "ct state established,related accept" rules
         && has "icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment \"allow-ipv6-nd-ra\"" rules
-        && has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-east-west\"" rules
-        && has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-east-west\"" rules
-        && has "iifname \"up-hostile-ew\" oifname \"downstr-hostile\" accept comment \"allow-east-west-to-hostile\"" rules
-        && has "iifname \"downstr-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" rules
-        && has "iifname \"downstr-branch\" oifname \"upstream-branch\" accept comment \"allow-branch-to-wan\"" rules
-        && !(has "iifname \"downstr-hostile\" oifname \"up-hostile\" accept comment \"allow-hostile-to-wan\"" rules)
-        && !(has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-wan\"" rules)
-        && !(has "iifname \"downstr-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-wan\"" rules)
-        && !(has "iifname \"downstr-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-hostile-dns-to-wan\"" rules)
-        && !(has "iifname \"downstr-branch\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-branch-dns-to-wan\"" rules)
-        && !(has "iifname \"downstr-hostile\" oifname \"upstream-branch\" accept comment \"allow-hostile-to-wan\"" rules)
-        && !(has "iifname \"downstr-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-wan\"" rules)
-        && !(has "iifname \"downstr-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-east-west\"" rules)
-        && !(has "iifname \"up-branch-ew\" oifname \"downstr-hostile\" accept comment \"allow-east-west-to-hostile\"" rules)
-        && !(has "iifname \"downstr-branch\" oifname \"up-hostile\" accept comment \"allow-branch-to-wan\"" rules)
-        && !(has "iifname \"downstr-branch\" oifname \"up-hostile-ew\" accept comment \"allow-branch-to-wan\"" rules)
+        && has "iifname \"down-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-east-west\"" rules
+        && has "iifname \"down-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-east-west\"" rules
+        && has "iifname \"up-hostile-ew\" oifname \"down-hostile\" accept comment \"allow-east-west-to-hostile\"" rules
+        && has "iifname \"down-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" rules
+        && has "iifname \"down-branch\" oifname \"upstream-branch\" accept comment \"allow-branch-to-wan\"" rules
+        && !(has "iifname \"down-hostile\" oifname \"up-hostile\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-hostile-dns-to-wan\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-branch-dns-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"upstream-branch\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-east-west\"" rules)
+        && !(has "iifname \"up-branch-ew\" oifname \"down-hostile\" accept comment \"allow-east-west-to-hostile\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-hostile\" accept comment \"allow-branch-to-wan\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-hostile-ew\" accept comment \"allow-branch-to-wan\"" rules)
         && has "iifname \"downstream-dmz\" oifname \"up-dmz-wan\" accept comment \"allow-sitec-dmz-to-wan\"" siteCRules
-        && has "iifname \"downstr-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
-        && has "iifname \"downstr-client\" oifname \"downstream-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCRules
-        && has "iifname \"downstr-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
-        && has "iifname \"downstr-client\" oifname \"up-client-ew\" accept comment \"allow-sitec-client-to-east-west\"" siteCRules
-        && has "iifname \"up-client-ew\" oifname \"downstr-client\" accept comment \"allow-east-west-to-sitec-client\"" siteCRules
+        && has "iifname \"down-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && has "iifname \"down-client\" oifname \"downstream-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCRules
+        && has "iifname \"down-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
+        && has "iifname \"down-client\" oifname \"up-client-ew\" accept comment \"allow-sitec-client-to-east-west\"" siteCRules
+        && has "iifname \"up-client-ew\" oifname \"down-client\" accept comment \"allow-east-west-to-sitec-client\"" siteCRules
         && has "iifname \"up-client-ew\" oifname \"up-client-wan\" meta l4proto udp udp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" siteCRules
         && has "iifname \"up-client-ew\" oifname \"up-client-wan\" meta l4proto tcp tcp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" siteCRules
         && !(has "iifname \"up-client-ew\" oifname \"up-client-wan\" accept" siteCRules)
-        && hasBefore "iifname \"downstr-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" "iifname \"downstr-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && hasBefore "iifname \"down-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" "iifname \"down-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
         && has "type filter hook forward priority filter; policy drop;" branchDownstreamRules
         && !(has "iifname \"access-branch\" oifname \"access-hostile\" accept" branchDownstreamRules)
         && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
@@ -82,8 +82,8 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && !(has "iifname \"access-dmz\" oifname \"access-client\" accept" siteCDownstreamRules)
         && has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
         && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-wan\"" siteCDownstreamRules)
-        && !(has "iifname \"policy-client-wan\" oifname \"policy-dmz-wan\" accept" siteCUpstreamRules)
-        && !(has "iifname \"policy-dmz-wan\" oifname \"policy-client-wan\" accept" siteCUpstreamRules)
+        && !(has "iifname \"pol-client-wan\" oifname \"policy-dmz-wan\" accept" siteCUpstreamRules)
+        && !(has "iifname \"policy-dmz-wan\" oifname \"pol-client-wan\" accept" siteCUpstreamRules)
     '
 
 echo "PASS policy-zone-firewall-scoping"

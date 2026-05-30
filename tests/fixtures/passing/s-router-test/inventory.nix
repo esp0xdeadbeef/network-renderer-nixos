@@ -491,7 +491,7 @@
             adapterName = "policy-downstream-admin";
             attach.kind = "bridge";
             attach.bridge = "tr104";
-            interface.name = "downstream-admin";
+            interface.name = "down-admin";
           };
 
           downstream-access-client = {
@@ -499,7 +499,7 @@
             adapterName = "policy-downstream-client";
             attach.kind = "bridge";
             attach.bridge = "tr105";
-            interface.name = "downstream-client";
+            interface.name = "down-client";
           };
 
           downstream-access-mgmt = {
