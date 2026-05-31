@@ -16,11 +16,50 @@ let
           originalRuntimeTarget.logicalNode
         else
           { };
-      originalInterfaces =
+      runtimeInterfaces =
         if originalRuntimeTarget ? interfaces && builtins.isAttrs originalRuntimeTarget.interfaces && originalRuntimeTarget.interfaces != { } then
           originalRuntimeTarget.interfaces
         else
-          (originalRuntimeTarget.effectiveRuntimeRealization or { }).interfaces or { };
+          { };
+      effectiveInterfaces =
+        if
+          originalRuntimeTarget ? effectiveRuntimeRealization
+          && builtins.isAttrs originalRuntimeTarget.effectiveRuntimeRealization
+          && builtins.isAttrs (originalRuntimeTarget.effectiveRuntimeRealization.interfaces or null)
+        then
+          originalRuntimeTarget.effectiveRuntimeRealization.interfaces
+        else
+          { };
+      interfaceNamesForAssembly =
+        if runtimeInterfaces != { } then
+          builtins.attrNames runtimeInterfaces
+        else
+          builtins.attrNames effectiveInterfaces;
+      originalInterfaces =
+        builtins.listToAttrs (
+          map
+            (
+              ifName:
+              let
+                effectiveIface = effectiveInterfaces.${ifName} or { };
+                runtimeIface = runtimeInterfaces.${ifName} or { };
+                effectiveMtu = effectiveIface.mtu or null;
+                runtimeMtu = runtimeIface.mtu or null;
+                baseIface =
+                  if runtimeInterfaces != { } then
+                    runtimeIface
+                  else
+                    effectiveIface;
+              in
+              {
+                name = ifName;
+                value = baseIface // lib.optionalAttrs (builtins.isInt runtimeMtu || builtins.isInt effectiveMtu) {
+                  mtu = if builtins.isInt runtimeMtu then runtimeMtu else effectiveMtu;
+                };
+              }
+            )
+            (lib.sort builtins.lessThan interfaceNamesForAssembly)
+        );
     in
     originalRuntimeTarget
     // {

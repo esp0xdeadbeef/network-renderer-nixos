@@ -8,10 +8,14 @@ owns it, and which controlled construction specification it implements.
 
 Parent design:
 
-- `SDS-SW-021-005`
-- `UP-006-OP-001-PH-002`
-- `SMS-MOD-007-003`
-- `CMC-MOD-006-004`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-006`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-007`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-004`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-005`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-006`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-007`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-CMC-001-004`
+- `USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-CMC-001-005`
 
 Dead-code rule: a Nix policy-routing source file that is not listed here is not
 traceable CODE. It must either be added here with a specific CMC function and

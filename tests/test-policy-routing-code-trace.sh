@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# GAMP-ID: SMT-NIXOS-POLICY-ROUTING-CODE-TRACE-001
-# SDS: SDS-SW-021-005, UP-006-OP-001-PH-002
-# SMS: SMS-MOD-007-003
-# CMC: CMC-MOD-006-004, CMC-FUNC-POLICY-ROUTING-001..010
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-006
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-007
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-004
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-005
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-006
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-007
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-CMC-001-004
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-CMC-001-005
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,10 +21,12 @@ fail() {
 
 [[ -f "${trace_file}" ]] || fail "missing ${trace_file}"
 
-grep -Fq "SDS-SW-021-005" "${trace_file}" || fail "TRACE.md missing SDS route/rule parent"
-grep -Fq "UP-006-OP-001-PH-002" "${trace_file}" || fail "TRACE.md missing software-recipe phase parent"
-grep -Fq "SMS-MOD-007-003" "${trace_file}" || fail "TRACE.md missing SMS route/rule parent"
-grep -Fq "CMC-MOD-006-004" "${trace_file}" || fail "TRACE.md missing NixOS route/rule CMC parent"
+grep -Fq "USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-006" "${trace_file}" || fail "TRACE.md missing NixOS route SMS parent"
+grep -Fq "USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-007" "${trace_file}" || fail "TRACE.md missing NixOS policy-rule SMS parent"
+grep -Fq "USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-006" "${trace_file}" || fail "TRACE.md missing NixOS route CMC parent"
+grep -Fq "USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-007" "${trace_file}" || fail "TRACE.md missing NixOS policy-rule CMC parent"
+grep -Fq "USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-004" "${trace_file}" || fail "TRACE.md missing NixOS route request-surface SMS parent"
+grep -Fq "USR-MODEL-001-FS-001-HDS-002-SDS-001-006-SMS-001-005" "${trace_file}" || fail "TRACE.md missing NixOS policy-rule request-surface SMS parent"
 grep -Fq "Dead-code rule" "${trace_file}" || fail "TRACE.md missing dead-code rule"
 
 check_surface() {
