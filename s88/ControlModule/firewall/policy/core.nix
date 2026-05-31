@@ -125,6 +125,7 @@ else
     inherit (forwarding)
       forwardPairs
       natInterfaces
+      nat4SourcePrefixes
       nat6Interfaces
       nat6SourcePrefixes
       clampMssInterfaces

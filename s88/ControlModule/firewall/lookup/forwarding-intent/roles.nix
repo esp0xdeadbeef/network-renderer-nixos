@@ -115,6 +115,20 @@ let
     ];
   };
 
+  explicitNat4SourcePrefixes = stringListFromPaths {
+    roots = [ runtimeTarget nodeForwarding nodeEgress nodeNat ];
+    paths = [
+      [ "natSourcePrefixes4" ]
+      [ "masqueradeSourcePrefixes4" ]
+      [ "nat" "sourcePrefixes4" ]
+      [ "masquerade" "sourcePrefixes4" ]
+      [ "egress" "natSourcePrefixes4" ]
+      [ "egress" "nat" "sourcePrefixes4" ]
+      [ "egress" "masqueradeSourcePrefixes4" ]
+      [ "egress" "masquerade" "sourcePrefixes4" ]
+    ];
+  };
+
   explicitClampMssInterfaces = explicitNames [ runtimeTarget nodeForwarding nodeEgress nodeNat ] [
     [ "clampMssInterfaces" ]
     [ "tcpMssClampInterfaces" ]
@@ -163,7 +177,7 @@ in
   inherit
     explicitLocalAdapterNames explicitUplinkNames explicitTransitNames explicitWanNames
     explicitExitEligibleNames explicitNatInterfaces explicitNat4Interfaces explicitNat6Interfaces
-    explicitNat6SourcePrefixes explicitClampMssInterfaces overlayInterfaceNames
+    explicitNat4SourcePrefixes explicitNat6SourcePrefixes explicitClampMssInterfaces overlayInterfaceNames
     ;
   resolvedLocalAdapterNames = if explicitLocalAdapterNames != [ ] then explicitLocalAdapterNames else fallbackLocalAdapterNames;
   resolvedWanNames = if explicitWanNames != [ ] then explicitWanNames else fallbackWanNames;

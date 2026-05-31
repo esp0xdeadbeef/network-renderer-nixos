@@ -108,6 +108,7 @@ in
     upstreamSelectorForwardPairs
     coreNatInterfaces
     coreNat4Interfaces
+    coreNat4SourcePrefixes
     coreNat6Interfaces
     coreNat6SourcePrefixes
     accessClampMssInterfaces

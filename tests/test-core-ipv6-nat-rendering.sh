@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# GAMP-ID: USR-INET-001-FS-001-HDS-001-SDS-001-001-SMS-001-005
+# GAMP-ID: USR-INET-001-FS-001-HDS-001-SDS-001-001-SMS-001-CMC-001-005
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-001-SDS-001-002-SMS-001-003
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-001-SDS-001-002-SMS-001-CMC-001-003
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-009
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-010
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-009
+# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-010
 set -euo pipefail
 # LAB-SMT-ID: LAB-SMT-019
 # LAB-SMT-SCOPE: examples-only; see network-labs/tests/SMT.md
@@ -22,6 +30,7 @@ nix_eval_json_or_fail \
   env REPO_ROOT="${repo_root}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
+    CPM_INPUT_PATH="${NETWORK_INPUT_PATH_NETWORK_CONTROL_PLANE_MODEL:-}" \
     nix eval \
     --extra-experimental-features 'nix-command flakes' \
     --impure --json --expr '
@@ -29,7 +38,24 @@ nix_eval_json_or_fail \
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
         system = "x86_64-linux";
-        builtContainers = flake.lib.containers.buildForBox {
+        cpmInputPath = builtins.getEnv "CPM_INPUT_PATH";
+        cpmInput =
+          if cpmInputPath != "" then
+            builtins.getFlake ("path:" + cpmInputPath)
+          else
+            flake.inputs.network-control-plane-model;
+        rendererApi = import ./s88/Enterprise/default.nix {
+          inherit lib;
+          repoRoot = ./.;
+          flakeInputs = flake.inputs // { network-control-plane-model = cpmInput; };
+        };
+        hostBuild = rendererApi.renderer.buildHostFromPaths {
+          selector = "s-router-test";
+          inherit system;
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        };
+        builtContainers = rendererApi.containers.buildForBox {
           boxName = "s-router-test";
           inherit system;
           intentPath = builtins.getEnv "INTENT_PATH";
@@ -41,21 +67,33 @@ nix_eval_json_or_fail \
         }).config;
       in {
         rules = cfg.networking.nftables.ruleset;
+        coreNatIntent =
+          hostBuild.controlPlaneOut.control_plane_model.data.esp0xdeadbeef."site-a"
+            .runtimeTargets."esp0xdeadbeef-site-a-s-router-core-wan".natIntent;
       }
     '
 
 _jq -r '.rules' "${result_json}" >"${rules_file}"
 
-if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "eth0" masquerade' "${rules_file}"; then
-  echo "FAIL core-ipv6-nat-rendering: expected IPv4 NAT on rendered WAN eth0" >&2
+if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "eth0".*ip saddr .*masquerade' "${rules_file}"; then
+  echo "FAIL core-ipv6-nat-rendering: expected source-scoped IPv4 NAT on rendered WAN eth0" >&2
   rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
   exit 1
 fi
 
-if ! rg -q 'table ip6 nat' "${rules_file}" || ! rg -q 'oifname "eth0" masquerade' "${rules_file}"; then
-  echo "FAIL core-ipv6-nat-rendering: expected IPv6 NAT on rendered WAN eth0 when CPM natIntent.families.ipv6 is true" >&2
-  rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
-  exit 1
+nat6_expected="$(_jq -r '.coreNatIntent.families.ipv6 // false' "${result_json}")"
+if [[ "${nat6_expected}" == "true" ]]; then
+  if ! rg -q 'table ip6 nat' "${rules_file}" || ! rg -q 'oifname "eth0" masquerade' "${rules_file}"; then
+    echo "FAIL core-ipv6-nat-rendering: expected IPv6 NAT on rendered WAN eth0 when CPM natIntent.families.ipv6 is true" >&2
+    rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
+    exit 1
+  fi
+else
+  if rg -q 'oifname "eth0" ip6 saddr .*masquerade|oifname "eth0" masquerade' "${rules_file}"; then
+    echo "FAIL core-ipv6-nat-rendering: CPM disabled IPv6 NAT but renderer emitted WAN masquerade" >&2
+    rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
+    exit 1
+  fi
 fi
 
 scoped_rules="$(
@@ -72,6 +110,33 @@ scoped_rules="$(
       }
   '
 )"
+
+scoped_v4_rules="$(
+  nix eval --raw --extra-experimental-features 'nix-command flakes' --impure --expr '
+    let
+      flake = builtins.getFlake ("path:" + toString ./.);
+      renderRuleset = import ./s88/ControlModule/firewall/emission/render-ruleset.nix {
+        lib = flake.inputs.nixpkgs.lib;
+      };
+    in
+      renderRuleset {
+        natInterfaces = [ "eth0" ];
+        nat4SourcePrefixes = [ "10.20.10.0/24" ];
+      }
+  '
+)"
+
+if ! grep -Fq 'oifname "eth0" ip saddr 10.20.10.0/24 masquerade' <<<"${scoped_v4_rules}"; then
+  echo "FAIL core-ipv6-nat-rendering: explicit IPv4 NAT source prefixes must scope NAT44" >&2
+  printf "%s\n" "${scoped_v4_rules}" >&2
+  exit 1
+fi
+
+if grep -Fq 'oifname "eth0" masquerade' <<<"${scoped_v4_rules}"; then
+  echo "FAIL core-ipv6-nat-rendering: source-scoped NAT44 must not also emit unscoped masquerade" >&2
+  printf "%s\n" "${scoped_v4_rules}" >&2
+  exit 1
+fi
 
 if ! grep -Fq 'oifname "eth0" ip6 saddr fd42:dead:feed:10::/64 masquerade' <<<"${scoped_rules}"; then
   echo "FAIL core-ipv6-nat-rendering: explicit IPv6 NAT source prefixes must scope NAT66" >&2

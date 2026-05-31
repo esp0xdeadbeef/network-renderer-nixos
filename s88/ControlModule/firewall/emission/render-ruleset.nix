@@ -9,6 +9,7 @@
 , inputRules ? [ ]
 , outputRules ? [ ]
 , natInterfaces ? [ ]
+, nat4SourcePrefixes ? [ ]
 , nat6Interfaces ? [ ]
 , nat6SourcePrefixes ? [ ]
 , natPreroutingRules4 ? [ ]
@@ -142,6 +143,7 @@ let
       "${builtins.concatStringsSep "\n" (map (rule: "    ${rule}") rules)}\n";
 
   natIfs4 = sortedStrings natInterfaces;
+  nat4Sources = sortedStrings nat4SourcePrefixes;
   natIfs6 = sortedStrings nat6Interfaces;
   nat6Sources = sortedStrings nat6SourcePrefixes;
   prerouting4 = lib.filter (rule: builtins.isString rule && rule != "") natPreroutingRules4;
@@ -177,7 +179,7 @@ in
   ${lib.optionalString (natIfs4 != [ ]) ''
     chain postrouting {
       type nat hook postrouting priority 100; policy accept;
-      oifname ${renderIfExpr natIfs4} masquerade
+      oifname ${renderIfExpr natIfs4}${lib.optionalString (nat4Sources != [ ]) " ip saddr ${renderValueExpr nat4Sources}"} masquerade
     }
   ''}
     }

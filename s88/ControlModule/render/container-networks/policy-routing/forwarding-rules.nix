@@ -4,8 +4,11 @@
   forwardingIntent ? null,
 }:
 # CODE trace:
-# SDS-SW-021-005 / UP-006-OP-001-PH-002 -> SMS-MOD-007-003 ->
-# CMC-MOD-006-004 -> CMC-FUNC-POLICY-ROUTING-001.
+# USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-006 /
+# USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-007 ->
+# USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-006 /
+# USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-007 ->
+# CMC-FUNC-POLICY-ROUTING-001.
 #
 # This ControlModule classifies explicit CPM forwarding accepts before route
 # selection. L4/service-only accepts remain firewall material unless CPM also
