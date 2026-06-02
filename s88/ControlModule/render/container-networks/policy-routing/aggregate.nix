@@ -4,6 +4,7 @@
 , isPolicy
 , isDownstreamSelectorPolicyInterface
 , isUpstreamSelectorCoreInterface
+, isUpstreamSelectorPolicyInterface
 , isPolicyUpstreamInterface
 , isPolicyDownstreamInterface
 , sourceReachabilityRoutes
@@ -75,6 +76,10 @@ builtins.foldl'
             && isUpstreamSelectorCoreInterface sourceInterfaceName
           )
         );
+      isReturnSideSelfIngress =
+        (isDownstreamSelectorPolicyInterface interfaceName && !(isPolicy || isUpstreamSelectorCoreInterface interfaceName))
+        || (isPolicy && isPolicyUpstreamInterface interfaceName)
+        || (isUpstreamSelectorCoreInterface interfaceName && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName));
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
@@ -85,7 +90,9 @@ builtins.foldl'
           sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
           ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
           baseScope =
-            if isReturnSideRuleIngress sourceIfName then
+            if sourceIfName == ifName && isReturnSideSelfIngress then
+              emptyScope
+            else if isReturnSideRuleIngress sourceIfName then
               scopedRuleSource
             else if scopeHasEntries ingressSourceScope then
               ingressSourceScope
@@ -102,6 +109,11 @@ builtins.foldl'
           forwardingScopeForIngress =
             if isReturnSideRuleIngress sourceIfName then
               forwardingMainScope
+            else if sourceIfName == ifName then
+              {
+                staticPrefixes = forwardingMainScope.staticPrefixes;
+                sourceFiles = if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.sourceFiles;
+              }
             else
               emptyScope;
         in
