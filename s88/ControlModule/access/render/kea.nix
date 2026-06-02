@@ -11,6 +11,17 @@ let
     fileStem = scope.fileStem;
   }) (scope.leaseState or null);
   syncScript = "/run/kea-unbound-sync/${scope.fileStem}.sh";
+  reservations =
+    map
+      (reservation:
+        {
+          "hw-address" = reservation.mac;
+          "ip-address" = reservation.address;
+        }
+        // lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "") {
+          hostname = reservation.hostname;
+        })
+      (scope.reservations or [ ]);
 
   # Do not use Kea libdhcp_run_script for this runtime script. Kea restricts
   # that hook to its own packaged script directory, so a /run script makes DHCP
@@ -50,6 +61,7 @@ let
               data = scope.domain;
             }
           ];
+          inherit reservations;
         }
       ];
     };

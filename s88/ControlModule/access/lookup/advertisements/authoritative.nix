@@ -151,6 +151,7 @@ in
         inherit interfaceName router;
         subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
         pool = poolStringFrom (adv.pool or null);
+        reservations = if builtins.isList (adv.reservations or null) then adv.reservations else [ ];
         dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
         domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
         subnetId = idx + 1;
@@ -179,6 +180,7 @@ in
         inherit interfaceName;
         subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
         pool = poolStringFrom (adv.pool or null);
+        reservations = if builtins.isList (adv.reservations or null) then adv.reservations else [ ];
         dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
         domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
         subnetId = idx + 1;
