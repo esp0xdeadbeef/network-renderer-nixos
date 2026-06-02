@@ -32,6 +32,9 @@ network-forwarding-model -> network-control-plane-model -> network-renderer-nixo
   configuration from explicit CPM fields.
 - Consume explicit provider-neutral overlay interface semantics supplied by CPM
   or a provider renderer.
+- Map explicit logical interface identities to deterministic platform-valid
+  runtime interface names where Linux-bound artifacts impose stricter limits,
+  while preserving aliases for audit back to the CPM/provider identity.
 
 ## Not Allowed
 

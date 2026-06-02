@@ -51,7 +51,7 @@ trap 'rm -f "${result_json}" "${eval_stderr}" "${rules_file}"' EXIT
 
 _jq -r '.rules' "${result_json}" >"${rules_file}"
 
-if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "eth0" masquerade' "${rules_file}"; then
+if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "eth0".*masquerade' "${rules_file}"; then
   echo "FAIL routed-gua-no-nat66: expected IPv4 egress masquerade to remain rendered for private IPv4 internet egress" >&2
   echo "nft nat excerpt:" >&2
   rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
