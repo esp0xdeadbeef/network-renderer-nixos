@@ -171,6 +171,7 @@ let
       isPolicy
       isDownstreamSelectorPolicyInterface
       isUpstreamSelectorCoreInterface
+      isUpstreamSelectorPolicyInterface
       isPolicyUpstreamInterface
       isPolicyDownstreamInterface
       sourceReachabilityRoutes
