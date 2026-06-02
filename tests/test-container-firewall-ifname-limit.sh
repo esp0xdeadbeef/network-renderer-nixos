@@ -31,8 +31,26 @@ firewall_text="$(
           (name: ((cfgFor name).systemd.services.nft-allow-dns-service.script or ""))
           (builtins.attrNames built)
       );
+      satBuiltHost = flake.lib.renderer.buildHostFromPaths {
+        intentPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/sat/intent.nix";
+        inventoryPath = (builtins.getFlake "'"${labs_root}"'").outPath + "/sat/inventory.nix";
+        selector = "s-router-hetzner-anywhere";
+      };
+      satContainers = satBuiltHost.renderedHost.containers or { };
+      satCfgFor = name:
+        (nixpkgsLib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [ satContainers.${name}.config ];
+        }).config;
+      satFirewall = nixpkgsLib.concatStringsSep "\n" (
+        map
+          (name:
+            let cfg = satCfgFor name;
+            in (cfg.networking.nftables.ruleset or "") + "\n" + (cfg.systemd.services.nft-allow-dns-service.script or ""))
+          (builtins.attrNames satContainers)
+      );
     in
-      built."c-router-upstream-selector".specialArgs.s88Firewall.ruleset + "\n" + dnsScripts
+      built."c-router-upstream-selector".specialArgs.s88Firewall.ruleset + "\n" + dnsScripts + "\n" + satFirewall
   '
 )"
 
