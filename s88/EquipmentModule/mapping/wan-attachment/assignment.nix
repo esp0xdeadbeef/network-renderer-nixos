@@ -98,21 +98,48 @@ let
       (sortedAttrNames configuredWanGroupToUplink)
   );
 
+  candidateWanGroupToUplink =
+    let
+      candidateUplinkNamesForWanGroup =
+        lookup.candidateUplinkNamesForWanGroup or (_wanGroupName: [ ]);
+    in
+    builtins.listToAttrs (
+      lib.filter (entry: entry.value != null) (
+        map
+          (
+            wanGroupName:
+            let
+              candidates = candidateUplinkNamesForWanGroup wanGroupName;
+            in
+            {
+              name = wanGroupName;
+              value = if builtins.length candidates == 1 then builtins.head candidates else null;
+            }
+          )
+          lookup.wanGroupNames
+      )
+    );
+
   wanGroupToUplinkName = builtins.seq _validateConfiguredWanGroupToUplink (
     if configuredWanGroupToUplink != { } then
       configuredWanGroupToUplink
     else if configuredWanUplinkName != null then
-      builtins.listToAttrs
+      candidateWanGroupToUplink
+      // builtins.listToAttrs
         (
           map
             (wanGroupName: {
               name = wanGroupName;
-              value = configuredWanUplinkName;
+              value =
+                if builtins.hasAttr wanGroupName candidateWanGroupToUplink then
+                  candidateWanGroupToUplink.${wanGroupName}
+                else
+                  configuredWanUplinkName;
             })
             lookup.wanGroupNames
         )
     else
-      { }
+      candidateWanGroupToUplink
   );
 
   missingWanGroupAssignments = lib.filter
