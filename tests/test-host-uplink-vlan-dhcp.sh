@@ -86,10 +86,22 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
             && (netdevs."13-${name}".vlanConfig.Id or null) == vlan
             && lib.elem name (networks."20-eth0".networkConfig.VLAN or [ ])
             && (networks."22-${name}".networkConfig.Bridge or null) == bridgeName;
+        syntheticWanAttachTarget = unitNameSuffix: portName:
+          let
+            matches = builtins.filter
+              (target:
+                lib.hasSuffix unitNameSuffix (target.unitName or "")
+                && (target.ifName or null) == portName
+                && (target.interface.sourceKind or null) == "wan")
+              (host.renderedHost.attachTargets or [ ]);
+          in
+          if builtins.length matches == 1 then builtins.head matches else { };
         netdevs = host.renderedHost.netdevs;
         managementUplink = uplinkNameForVlan 2;
         vlan4Uplink = uplinkNameForVlan 4;
         vlan5Uplink = uplinkNameForVlan 5;
+        ispAAttach = syntheticWanAttachTarget "s-router-core-isp-a" "isp-a";
+        ispBAttach = syntheticWanAttachTarget "s-router-core-isp-b" "isp-b";
         managementBridge =
           if managementUplink != null then uplinks.${managementUplink}.bridge else null;
         clientHostNetdevs = clientHost.renderedHost.netdevs;
@@ -130,6 +142,10 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && hasVlanAttachment 2
         && hasVlanAttachment 4
         && hasVlanAttachment 5
+        && (ispAAttach.assignedUplinkName or null) == vlan4Uplink
+        && (ispBAttach.assignedUplinkName or null) == vlan5Uplink
+        && (ispAAttach.renderedHostBridgeName or null) == uplinks.${vlan4Uplink}.bridge
+        && (ispBAttach.renderedHostBridgeName or null) == uplinks.${vlan5Uplink}.bridge
         && tenantVlanAttachment "mgmt" 300
         && tenantVlanAttachment "client" 302
         && tenantVlanAttachment "hostile" 306
