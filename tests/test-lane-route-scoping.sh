@@ -260,6 +260,15 @@ REPO_ROOT="${repo_root}" nix eval \
               }
               {
                 action = "accept";
+                sourcePrefixes = [
+                  { family = 4; prefix = "10.90.10.0/24"; }
+                  { family = 6; prefix = "fd42:dead:cafe:10::/64"; }
+                ];
+                fromInterface = "pol-dmz-ew";
+                toInterface = "nebula-core";
+              }
+              {
+                action = "accept";
                 fromInterface = "pol-dmz-ew";
                 toInterface = "core";
               }
@@ -426,6 +435,7 @@ REPO_ROOT="${repo_root}" nix eval \
           map (network: network.routingPolicyRules or [ ]) (builtins.attrValues remoteOverlayEgressRender.networks)
         );
       remoteOverlayTable = tableForIngress "nebula-core" remoteOverlayRules;
+      remoteOverlayDmzEwTable = tableForIngress "pol-dmz-ew" remoteOverlayRules;
       remoteOverlayReturn4Table = tableForRoute remoteOverlayRoutes "10.20.70.0/24" "10.80.0.16";
       remoteOverlayReturn6Table = tableForRoute remoteOverlayRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::10";
       routesAllHaveTable =
@@ -532,6 +542,9 @@ REPO_ROOT="${repo_root}" nix eval \
     && hasRoute remoteOverlayRoutes "::/0" "fd42:dead:cafe:1000::e" remoteOverlayTable
     && lacksRoute remoteOverlayRoutes "0.0.0.0/0" "10.80.0.4" remoteOverlayTable
     && lacksRoute remoteOverlayRoutes "::/0" "fd42:dead:cafe:1000::4" remoteOverlayTable
+    && remoteOverlayDmzEwTable != null
+    && hasRoute remoteOverlayRoutes "10.20.70.0/24" "10.80.0.10" remoteOverlayDmzEwTable
+    && hasRoute remoteOverlayRoutes "fd42:dead:beef:70::/64" "fd42:dead:cafe:1000::a" remoteOverlayDmzEwTable
     && remoteOverlayReturn4Table != null
     && remoteOverlayReturn6Table != null
     && hasRoute remoteOverlayRoutes "10.20.70.0/24" "10.80.0.16" remoteOverlayReturn4Table
