@@ -244,6 +244,13 @@ REPO_ROOT="${repo_root}" nix eval \
       && service != null
       && builtins.match ".*ip6 saddr.*" service.script != null
       && lib.hasInfix "index($0, \"comment \\\"\" comment \"\\\"\") { print $NF }" service.script
+      && !(builtins.any
+        (route:
+          route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && route.interfaceName == "core-nebula"
+          && route.gateway == "fd42:dead:cafe:1000::a"
+          && route.table == 2002)
+        policyRouteRender.dynamicDelegatedRoutes)
       && builtins.any
         (route:
           route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
@@ -252,18 +259,17 @@ REPO_ROOT="${repo_root}" nix eval \
           && route.table == 2000)
         policyRouteRender.dynamicDelegatedRoutes
       && builtins.any
-        (route:
-          route.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
-          && route.interfaceName == "core-nebula"
-          && route.gateway == "fd42:dead:cafe:1000::a"
-          && route.table == 2002)
-        policyRouteRender.dynamicDelegatedRoutes
-      && builtins.any
         (rule:
           rule.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
           && rule.interfaceName == "policy-dmz-wan"
           && rule.table != 254)
         policyRouteRender.dynamicPolicySourceRules
+      && !(builtins.any
+        (rule:
+          rule.sourceFile == "/run/secrets/access-node-ipv6-prefix-hostile"
+          && rule.interfaceName == "policy-dmz-wan"
+          && rule.table == 2002)
+        policyRouteRender.dynamicPolicySourceRules)
       && builtins.any
           (rule:
           (rule.From or null) == "10.20.70.0/24"

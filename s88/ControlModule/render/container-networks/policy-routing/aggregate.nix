@@ -60,17 +60,20 @@ builtins.foldl'
         let
           sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
         in
-        (
-          isDownstreamSelectorPolicyInterface interfaceName
-          && isDownstreamSelectorPolicyInterface sourceInterfaceName
-        )
-        || (
-          isPolicyUpstreamInterface interfaceName
-          && isPolicyUpstreamInterface sourceInterfaceName
-        )
-        || (
-          isUpstreamSelectorCoreInterface interfaceName
-          && isUpstreamSelectorCoreInterface sourceInterfaceName
+        sourceIfName != ifName
+        && (
+          (
+            isDownstreamSelectorPolicyInterface interfaceName
+            && isDownstreamSelectorPolicyInterface sourceInterfaceName
+          )
+          || (
+            isPolicyUpstreamInterface interfaceName
+            && isPolicyUpstreamInterface sourceInterfaceName
+          )
+          || (
+            isUpstreamSelectorCoreInterface interfaceName
+            && isUpstreamSelectorCoreInterface sourceInterfaceName
+          )
         );
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
@@ -97,7 +100,7 @@ builtins.foldl'
             else
               forwardingSourceScope.forPair sourceInterfaceName interfaceName;
           forwardingScopeForIngress =
-            if sourceIfName == ifName || isReturnSideRuleIngress sourceIfName then
+            if isReturnSideRuleIngress sourceIfName then
               forwardingMainScope
             else
               emptyScope;
