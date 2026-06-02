@@ -39,6 +39,9 @@ let
     else
       null;
 
+  isRuntimeRoutedPrefixReturnRoute =
+    route: ((route.intent or { }).kind or null) == "runtime-routed-prefix-return";
+
   dynamicDelegatedRouteCandidates = lib.concatLists (
     map
       (
@@ -147,8 +150,27 @@ let
             index: route:
               let
                 sourceFile = delegatedPrefixSourceForRoute route;
+                matchingTables =
+                  lib.unique (
+                    map (rule: rule.table) (
+                      lib.filter
+                        (
+                          rule:
+                          (rule.sourceFile or null) == sourceFile
+                          && builtins.isInt (rule.table or null)
+                          && (rule.table or null) != 254
+                        )
+                        (policyRoutingByInterface.dynamicSourceRules or [ ])
+                    )
+                  );
+                targetTables =
+                  if matchingTables != [ ] then matchingTables else allPolicyTableIds;
               in
-              if sourceFile == null || isOverlayProviderRoute iface route then
+              if
+                sourceFile == null
+                || isOverlayProviderRoute iface route
+                || !(isRuntimeRoutedPrefixReturnRoute route)
+              then
                 [ ]
               else
                 map
@@ -160,7 +182,7 @@ let
                     metric = route.metric or null;
                     priority = dynamicRoutePriority iface route;
                   })
-                  allPolicyTableIds
+                  targetTables
           )
           (iface.routes or [ ])
       )
