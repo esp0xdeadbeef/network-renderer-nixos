@@ -11,6 +11,22 @@ let
     fileStem = scope.fileStem;
     suffix = "-dhcp6";
   }) (scope.leaseState or null);
+  reservations =
+    map
+      (reservation:
+        (
+          if builtins.isString (reservation.duid or null) && reservation.duid != "" then
+            { duid = reservation.duid; }
+          else
+            { "hw-address" = reservation.mac; }
+        )
+        // {
+          "ip-addresses" = [ reservation.address ];
+        }
+        // lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "") {
+          hostname = reservation.hostname;
+        })
+      (scope.reservations or [ ]);
 
   configJson = builtins.toJSON {
     Dhcp6 = {
@@ -43,6 +59,7 @@ let
               data = scope.domain;
             }
           ];
+          inherit reservations;
         }
       ];
     };
