@@ -51,6 +51,10 @@ let
       handoff = row.handoff or { };
       containerName = server.node;
       serviceName = "s88-pppoe-server";
+      usernameFile = server.credentials.usernameFile;
+      passwordFile = server.credentials.passwordFile;
+      providerAddress = server.session.providerAddress;
+      customerAddress = server.session.customerAddress;
     in
     {
       name = containerName;
@@ -81,6 +85,12 @@ let
               pkgs.ppp
               pkgs.rp-pppoe
             ];
+            environment.etc."s88/pppoe-tools".text = ''
+              pppoe-server=${pkgs.rp-pppoe}/bin/pppoe-server
+              pppoe=${pkgs.rp-pppoe}/bin/pppoe
+              pppoe-sniff=${pkgs.rp-pppoe}/bin/pppoe-sniff
+              pppd=${pkgs.ppp}/bin/pppd
+            '';
             system.stateVersion = "25.11";
             systemd.services.${serviceName} = {
               description = "S88 PPPoE access concentrator on ${handoff.bridge}";
@@ -101,10 +111,39 @@ let
               script = ''
                 set -eu
                 ${pkgs.iproute2}/bin/ip link set eth0 up
+                ${pkgs.coreutils}/bin/test -x ${pkgs.rp-pppoe}/bin/pppoe-sniff
+                ${pkgs.coreutils}/bin/mkdir -p /etc/ppp
+                user="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg usernameFile})"
+                pass="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg passwordFile})"
+                ${pkgs.coreutils}/bin/install -m 0600 /dev/null /etc/ppp/chap-secrets
+                ${pkgs.coreutils}/bin/install -m 0600 /dev/null /etc/ppp/pap-secrets
+                printf '%s * %s *\n' "$user" "$pass" > /etc/ppp/chap-secrets
+                printf '* * %s *\n' "$pass" >> /etc/ppp/chap-secrets
+                printf '%s * %s *\n' "$user" "$pass" > /etc/ppp/pap-secrets
+                printf '* * %s *\n' "$pass" >> /etc/ppp/pap-secrets
+                ${pkgs.coreutils}/bin/cat > /etc/ppp/s88-pppoe-server-options <<EOF
+                require-pap
+                refuse-chap
+                refuse-mschap
+                refuse-mschap-v2
+                refuse-eap
+                noauth
+                nobsdcomp
+                nodeflate
+                noccp
+                novj
+                +ipv6
+                ipv6cp-accept-local
+                ipv6cp-accept-remote
+                lcp-echo-interval 10
+                lcp-echo-failure 3
+                ms-dns ${providerAddress}
+                EOF
                 exec ${pkgs.rp-pppoe}/bin/pppoe-server \
                   -I eth0 \
-                  -L ${lib.escapeShellArg server.session.providerAddress} \
-                  -R ${lib.escapeShellArg server.session.customerAddress} \
+                  -L ${lib.escapeShellArg providerAddress} \
+                  -R ${lib.escapeShellArg customerAddress} \
+                  -O /etc/ppp/s88-pppoe-server-options \
                   -q ${pkgs.ppp}/bin/pppd \
                   -Q ${pkgs.rp-pppoe}/bin/pppoe \
                   -N 32
@@ -117,6 +156,7 @@ let
           unitName = containerName;
           s88Warnings = [
             "FS-800 NixOS PPPoE server uses rp-pppoe because accel-ppp is not present in the current nixpkgs input"
+            "FS-800 NixOS PPPoE emulated-ISP image includes rp-pppoe pppoe-sniff for handoff debugging"
           ];
           s88Alarms = [ ];
         };

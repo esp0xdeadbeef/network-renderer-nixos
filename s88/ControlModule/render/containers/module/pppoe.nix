@@ -34,14 +34,16 @@ let
       )
       rowValues;
 
-  clientServiceFor =
+  clientPeerFor =
     row:
     let
       client = row.pppoe.client;
       server = row.pppoe.server;
       logicalIf = client.coreInterface;
       interfaceName = ifaceNameFor logicalIf;
-      serviceName = "s88-pppoe-client-${logicalIf}";
+      peerName = "s88-pppoe-client-${logicalIf}";
+      unitName = "pppd-${peerName}";
+      runtimeOptions = "/run/pppd/${peerName}.options";
       usernameFile = server.credentials.usernameFile;
       passwordFile = server.credentials.passwordFile;
       pppName = client.runtimeInterface or "ppp0";
@@ -52,66 +54,79 @@ let
         fi
       '';
       mtu = toString (client.mtu or row.handoff.mtu or 1492);
-      secretsScript = ''
-        user="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg usernameFile})"
-        pass="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg passwordFile})"
-        ${pkgs.coreutils}/bin/install -m 0600 /dev/null /run/ppp/chap-secrets
-        ${pkgs.coreutils}/bin/install -m 0600 /dev/null /run/ppp/pap-secrets
-        printf '%s * %s *\n' "$user" "$pass" > /run/ppp/chap-secrets
-        printf '%s * %s *\n' "$user" "$pass" > /run/ppp/pap-secrets
-      '';
     in
     {
-      name = serviceName;
+      name = peerName;
       value = {
-        description = "S88 PPPoE client on ${interfaceName}";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-        path = [
+        inherit unitName;
+        peer = {
+          enable = true;
+          autostart = true;
+          config = ''
+            file ${runtimeOptions}
+          '';
+        };
+        service = {
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          path = [
             pkgs.coreutils
             pkgs.iproute2
             pkgs.ppp
-            pkgs.rp-pppoe
-        ];
-        serviceConfig = {
-          Type = "simple";
-          Restart = "always";
-          RestartSec = 2;
+          ];
+          preStart = ''
+            set -eu
+            ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg interfaceName} up
+            user="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg usernameFile})"
+            pass="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg passwordFile})"
+            ${pkgs.coreutils}/bin/install -m 0600 /dev/null ${runtimeOptions}
+            cat > ${runtimeOptions} <<EOF
+            plugin pppoe.so
+            nic-${interfaceName}
+            user "$user"
+            password "$pass"
+            noauth
+            refuse-chap
+            refuse-mschap
+            refuse-mschap-v2
+            refuse-eap
+            noipdefault
+            defaultroute
+            replacedefaultroute
+            usepeerdns
+            persist
+            maxfail 0
+            +ipv6
+            ipv6cp-accept-local
+            ipv6cp-accept-remote
+            mtu ${mtu}
+            mru ${mtu}
+            ip-up-script ${ipUp}
+            EOF
+          '';
         };
-        script = ''
-          set -eu
-          ${pkgs.coreutils}/bin/mkdir -p /run/ppp
-          ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg interfaceName} up
-          ${secretsScript}
-          exec ${pkgs.ppp}/bin/pppd \
-            pty "${pkgs.rp-pppoe}/bin/pppoe -I ${interfaceName}" \
-            user s88-lab \
-            noauth \
-            noipdefault \
-            defaultroute \
-            replacedefaultroute \
-            usepeerdns \
-            persist \
-            maxfail 0 \
-            mtu ${mtu} \
-            mru ${mtu} \
-            ip-up-script ${ipUp} \
-            nodetach
-        '';
       };
     };
 
-  clientServices = builtins.listToAttrs (map clientServiceFor clientRows);
+  clientPeers = builtins.listToAttrs (map clientPeerFor clientRows);
 in
 {
   config = lib.optionalAttrs (clientRows != [ ]) {
     environment.systemPackages = [
             pkgs.ppp
-            pkgs.rp-pppoe
     ];
     networking.useDHCP = lib.mkForce false;
     services.resolved.enable = lib.mkForce false;
-    systemd.services = clientServices;
+    services.pppd = {
+      enable = true;
+      package = pkgs.ppp;
+      peers = builtins.mapAttrs (_: row: row.peer) clientPeers;
+    };
+    systemd.services = builtins.listToAttrs (
+      map (row: {
+        name = row.unitName;
+        value = row.service;
+      }) (builtins.attrValues clientPeers)
+    );
   };
 }
