@@ -82,6 +82,20 @@ let
     else
       { };
 
+  pppoeClientRowsFor =
+    site: unitNames:
+    let
+      upstreamEmulation =
+        if builtins.isAttrs (site.upstreamEmulation or null) then site.upstreamEmulation else { };
+    in
+    lib.filter
+      (
+        row:
+        let client = ((row.pppoe or { }).client or { });
+        in (row.mode or null) == "pppoe" && builtins.elem (client.coreNode or null) unitNames
+      )
+      (builtins.attrValues upstreamEmulation);
+
   interfaceNameFor =
     iface:
     if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
@@ -118,12 +132,30 @@ in
       roleName = lookup.roleForUnit unitName;
       roleConfig = lookup.roleConfigForUnit unitName;
       containerConfig = lookup.containerConfigForUnit unitName;
+      site = siteFor lookup.siteData runtimeTarget;
+      pppoeClientRows = pppoeClientRowsFor site [ unitName emittedUnitName ];
+      pppDeviceBindMounts = lib.optionalAttrs (pppoeClientRows != [ ]) {
+        "/dev/ppp" = {
+          hostPath = "/dev/ppp";
+          isReadOnly = false;
+        };
+      };
+      pppAllowedDevices = lib.optionals (pppoeClientRows != [ ]) [
+        {
+          node = "/dev/ppp";
+          modifier = "rw";
+        }
+      ];
       ifNameFor = ifName: let resolved = interfaceNameFor renderedInterfaces.${ifName}; in if resolved != null then resolved else ifName;
     in
     {
       inherit roleConfig roleName runtimeTarget renderedInterfaces;
-      bindMounts = if containerConfig ? bindMounts && builtins.isAttrs containerConfig.bindMounts then containerConfig.bindMounts else { };
-      allowedDevices = if containerConfig ? allowedDevices && builtins.isList containerConfig.allowedDevices then containerConfig.allowedDevices else [ ];
+      bindMounts =
+        (if containerConfig ? bindMounts && builtins.isAttrs containerConfig.bindMounts then containerConfig.bindMounts else { })
+        // pppDeviceBindMounts;
+      allowedDevices =
+        (if containerConfig ? allowedDevices && builtins.isList containerConfig.allowedDevices then containerConfig.allowedDevices else [ ])
+        ++ pppAllowedDevices;
       additionalCapabilities = if containerConfig ? additionalCapabilities && builtins.isList containerConfig.additionalCapabilities then containerConfig.additionalCapabilities else [ ];
       enableEdgeServices = containerConfig.enableEdgeServices or false;
       firewallPolicyPath = roleConfig.firewallPolicyPath or null;
@@ -146,7 +178,7 @@ in
           )
           interfaceNames
       );
-      site = siteFor lookup.siteData runtimeTarget;
+      inherit site;
       inventorySite = siteFor lookup.inventorySiteData runtimeTarget;
       deploymentHostName = lookup.deploymentHostName;
       hostContext = lookup.hostContext;

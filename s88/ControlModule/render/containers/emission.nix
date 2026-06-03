@@ -14,6 +14,38 @@ let
   uniqueStrings =
     values: lib.unique (lib.filter (value: builtins.isString value && value != "") values);
 
+  allowedDeviceFor =
+    device:
+    if builtins.isAttrs device && builtins.isString (device.node or null) && device.node != "" then
+      {
+        node = device.node;
+        modifier =
+          if builtins.isString (device.modifier or null) && device.modifier != "" then
+            device.modifier
+          else
+            "rw";
+      }
+    else if builtins.isString device && device != "" then
+      {
+        node = device;
+        modifier = "rw";
+      }
+    else
+      null;
+
+  uniqueAllowedDevices =
+    values:
+    builtins.attrValues (
+      builtins.listToAttrs (
+        map
+          (device: {
+            name = device.node;
+            value = device;
+          })
+          (lib.filter (device: device != null) (map allowedDeviceFor values))
+      )
+    );
+
   routeSourceFile =
     route:
     if builtins.isString (route.sourceFile or null) && route.sourceFile != "" then
@@ -133,7 +165,7 @@ in
 
   extraVeths = renderedModel.veths or { };
 
-  allowedDevices = uniqueStrings (
+  allowedDevices = uniqueAllowedDevices (
     if renderedModel ? allowedDevices && builtins.isList renderedModel.allowedDevices then
       renderedModel.allowedDevices
     else

@@ -62,9 +62,19 @@ let
         autoStart = true;
         privateNetwork = true;
         hostBridge = handoff.bridge;
-        bindMounts = { };
+        bindMounts = {
+          "/dev/ppp" = {
+            hostPath = "/dev/ppp";
+            isReadOnly = false;
+          };
+        };
         extraVeths = { };
-        allowedDevices = [ ];
+        allowedDevices = [
+          {
+            node = "/dev/ppp";
+            modifier = "rw";
+          }
+        ];
         additionalCapabilities = [
           "CAP_NET_ADMIN"
           "CAP_NET_RAW"
