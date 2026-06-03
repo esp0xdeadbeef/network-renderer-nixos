@@ -70,6 +70,10 @@ let
       ;
   });
 
+  pppoeServerContainers = trace.emit "host-network:${hostName}:pppoe-server-containers" (import ../../ControlModule/render/pppoe-server-containers.nix {
+    inherit lib cpm hostName hostPlan;
+  });
+
   pipelineAlarmModel = trace.emit "host-network:${hostName}:alarms" (isa.normalizeModel cpm);
 in
 {
@@ -96,7 +100,7 @@ in
 
   netdevs = hostSystemd.netdevs;
   networks = hostSystemd.networks;
-  containers = containerRenderings;
+  containers = containerRenderings // pppoeServerContainers;
   sites = renderSites;
 
   debug = {

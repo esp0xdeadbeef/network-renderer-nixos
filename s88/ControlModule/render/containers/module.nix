@@ -78,6 +78,7 @@ let
   };
   mdnsServices = import ./mdns-services.nix { inherit lib pkgs renderedModel; };
   bgpServices = import ./bgp-services.nix { inherit lib renderedModel; };
+  pppoeServices = import ./module/pppoe.nix { inherit lib pkgs renderedModel; };
 in
 {
   imports = base.imports;
@@ -105,6 +106,7 @@ in
     dnsServices
     mdnsServices
     bgpServices
+    pppoeServices.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
       networking.nftables.ruleset = firewallArg.ruleset;
