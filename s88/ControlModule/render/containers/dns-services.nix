@@ -43,6 +43,7 @@ else
   {
     services.unbound = {
       enable = true;
+      enableRootTrustAnchor = false;
       settings = {
         server = {
           interface = listenAddresses;

@@ -86,6 +86,7 @@ REPO_ROOT="${repo_root}" nix eval \
       explicitServer = renderedWithExplicitOutgoing.services.unbound.settings.server;
       roleServer = renderedWithRoleOutgoing.services.unbound.settings.server;
       unboundService = rendered.systemd.services.unbound;
+      unboundRootAnchor = rendered.services.unbound.enableRootTrustAnchor or true;
       nftScript = renderedWithExplicitOutgoing.systemd.services.nft-allow-dns-service.script;
       roleNftScript = renderedWithRoleOutgoing.systemd.services.nft-allow-dns-service.script;
       localZones = server."local-zone" or [ ];
@@ -106,10 +107,11 @@ REPO_ROOT="${repo_root}" nix eval \
         && lib.hasInfix "deny-public-dns-output-leak" nftScript
         && server."infra-host-ttl" == 1
         && server."infra-lame-ttl" == 1
+        && unboundRootAnchor == false
         && builtins.elem "network-online.target" unboundService.after
         && builtins.elem "network-online.target" unboundService.wants;
     in
-      if ok then true else throw "dns-local-records failed: rendered DNS service must not add a default outgoing-interface, and explicit outgoingInterfaces must still override that default"
+      if ok then true else throw "dns-local-records failed: rendered DNS service must not add a default outgoing-interface, explicit outgoingInterfaces must still override that default, and hardware boot must not depend on root-anchor refresh"
   ' >/dev/null || {
     echo "FAIL dns-local-records" >&2
     exit 1
