@@ -87,20 +87,39 @@ nix_eval_json_or_fail \
           modules = [ serverContainers.sat-nixos-pppoe-ac.config ];
         };
         clientServices = clientEval.config.systemd.services;
+        clientPeers = clientEval.config.services.pppd.peers;
         serverServices = serverEval.config.systemd.services;
-        clientScript = clientServices."s88-pppoe-client-pppoe-wan".script;
+        clientUnit = clientServices."pppd-s88-pppoe-client-pppoe-wan";
+        clientPreStart = clientUnit.preStart;
+        clientPeerConfig = clientPeers."s88-pppoe-client-pppoe-wan".config;
         serverScript = serverServices.s88-pppoe-server.script;
         checks = {
-          client_service_emitted = clientServices ? "s88-pppoe-client-pppoe-wan";
-          client_uses_pppd = builtins.match ".*pppd.*nodetach.*" clientScript != null;
-          client_uses_rp_pppoe = builtins.match ".*pppoe -I wan-pppoe.*" clientScript != null;
-          client_uses_modeled_interface = builtins.match ".*ip link set wan-pppoe up.*" clientScript != null;
+          client_pppd_enabled = clientEval.config.services.pppd.enable == true;
+          client_peer_emitted = clientPeers ? "s88-pppoe-client-pppoe-wan";
+          client_peer_uses_runtime_options =
+            builtins.match ".*file /run/pppd/s88-pppoe-client-pppoe-wan[.]options.*" clientPeerConfig != null;
+          client_service_emitted = clientServices ? "pppd-s88-pppoe-client-pppoe-wan";
+          client_uses_native_pppoe_plugin =
+            builtins.match ".*plugin pppoe[.]so.*nic-wan-pppoe.*" clientPreStart != null;
+          client_uses_pap_like_legacy =
+            builtins.match ".*refuse-chap.*refuse-mschap.*refuse-eap.*" clientPreStart != null;
+          client_uses_modeled_interface = builtins.match ".*ip link set wan-pppoe up.*" clientPreStart != null;
           client_reads_modeled_secret_files =
-            builtins.match ".*sat-pppoe-nixos-username.*sat-pppoe-nixos-password.*" clientScript != null;
+            builtins.match ".*sat-pppoe-nixos-username.*sat-pppoe-nixos-password.*" clientPreStart != null;
           server_container_emitted = serverContainers ? sat-nixos-pppoe-ac;
           server_attaches_handoff_bridge = serverContainers.sat-nixos-pppoe-ac.hostBridge == "br-nix-pppoe";
           server_service_emitted = serverServices ? s88-pppoe-server;
           server_uses_pppoe_server = builtins.match ".*pppoe-server.*-I eth0.*" serverScript != null;
+          server_exposes_pppoe_sniff =
+            (serverEval.config.environment.etc ? "s88/pppoe-tools")
+            && builtins.match ".*pppoe-sniff.*" serverEval.config.environment.etc."s88/pppoe-tools".text != null
+            && builtins.match ".*pppoe-sniff.*" serverScript != null;
+          server_writes_pppd_options =
+            builtins.match ".*s88-pppoe-server-options.*require-pap.*refuse-chap.*" serverScript != null;
+          server_writes_pap_secrets =
+            builtins.match ".*sat-pppoe-nixos-username.*sat-pppoe-nixos-password.*pap-secrets.*" serverScript != null;
+          server_uses_explicit_pppd =
+            builtins.match ".*-q .*/bin/pppd.*" serverScript != null;
           server_uses_session_addresses =
             builtins.match ".*203[.]0[.]113[.]9.*203[.]0[.]113[.]10.*" serverScript != null;
         };
