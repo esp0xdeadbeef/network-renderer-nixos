@@ -111,21 +111,21 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           in (clientHostNetdevs."13-${name}".vlanConfig.Id or null) == vlan
             && lib.elem name (clientHostNetworks."20-eth0".networkConfig.VLAN or [ ])
             && (clientHostNetworks."22-${name}".networkConfig.Bridge or null) == bridgeName;
-        collidedAccessContainer = import (builtins.toPath (
+        renderedAccessContainer = import (builtins.toPath (
           builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/render/containers/mapping.nix"
         )) {
           inherit lib;
           model = {
-            interfaces.tenant-mgmt = {
+            interfaces.tenant-client = {
               sourceKind = "tenant";
               backingRef = {
                 kind = "attachment";
-                name = managementBridge;
+                name = "client";
               };
-              hostVethName = "access-tenant-mgmt";
-              renderedHostBridgeName = "rt--tena-collided";
+              hostVethName = "accc-tencli-32a";
+              renderedHostBridgeName = "br-client-rendered";
             };
-            veths.access-tenant-mgmt.hostBridge = "rt--tena-collided";
+            veths.accc-tencli-32a.hostBridge = "br-client-rendered";
           };
         };
       in
@@ -161,8 +161,9 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && tenantBridgeRejectsHostRa "branch"
         && tenantBridgeRejectsHostRa "client"
         && tenantBridgeRejectsHostRa "admin"
-        && collidedAccessContainer.veths.access-tenant-mgmt.hostBridge == managementBridge
-        && collidedAccessContainer.interfaces.tenant-mgmt.renderedHostBridgeName == managementBridge
+        && renderedAccessContainer.veths.accc-tencli-32a.hostBridge == "br-client-rendered"
+        && renderedAccessContainer.interfaces.tenant-client.renderedHostBridgeName == "br-client-rendered"
+        && renderedAccessContainer.veths.accc-tencli-32a.hostBridge != "client"
     '
 
 echo "PASS host-uplink-vlan-dhcp"
