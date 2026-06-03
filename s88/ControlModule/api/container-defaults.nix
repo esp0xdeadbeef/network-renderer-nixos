@@ -2,6 +2,26 @@
 
 let
   mergeStringLists = left: right: lib.unique (lib.filter builtins.isString (left ++ right));
+
+  allowedDeviceKey =
+    device:
+    if builtins.isString device then
+      device
+    else if builtins.isAttrs device && builtins.isString (device.node or null) then
+      device.node
+    else
+      "";
+
+  mergeAllowedDevices =
+    left: right:
+    let
+      devices = lib.filter (device: allowedDeviceKey device != "") (left ++ right);
+      keyed = map (device: {
+        name = allowedDeviceKey device;
+        value = device;
+      }) devices;
+    in
+    builtins.attrValues (builtins.listToAttrs keyed);
 in
 {
   mergeContainerDefaults =
@@ -38,6 +58,6 @@ in
       additionalCapabilities = mergeStringLists defaultCapabilities renderedCapabilities;
     }
     // lib.optionalAttrs (defaultAllowedDevices != [ ] || renderedAllowedDevices != [ ]) {
-      allowedDevices = mergeStringLists defaultAllowedDevices renderedAllowedDevices;
+      allowedDevices = mergeAllowedDevices defaultAllowedDevices renderedAllowedDevices;
     };
 }

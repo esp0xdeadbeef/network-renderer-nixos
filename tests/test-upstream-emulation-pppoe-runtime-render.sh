@@ -93,6 +93,31 @@ nix_eval_json_or_fail \
         clientPreStart = clientUnit.preStart;
         clientPeerConfig = clientPeers."s88-pppoe-client-pppoe-wan".config;
         serverScript = serverServices.s88-pppoe-server.script;
+        clientRuntime = import (repoPath + "/s88/ControlModule/render/containers/emission.nix") {
+          inherit lib;
+          debugEnabled = false;
+          deploymentHostName = "s-router-nixos";
+          containerName = "nixos-router-core-isp-a";
+          renderedModel = {
+            unitName = "nixos-router-core-isp-a";
+            interfaces.pppoe-wan.containerInterfaceName = "wan-pppoe";
+            site.upstreamEmulation.pppoeNixos = row;
+            bindMounts."/dev/ppp" = {
+              hostPath = "/dev/ppp";
+              isReadOnly = false;
+            };
+            allowedDevices = [
+              {
+                node = "/dev/ppp";
+                modifier = "rw";
+              }
+            ];
+          };
+          firewallArg = { enable = false; };
+          alarmModel = { };
+          uplinks = { };
+          wanUplinkName = null;
+        };
         checks = {
           client_pppd_enabled = clientEval.config.services.pppd.enable == true;
           client_peer_emitted = clientPeers ? "s88-pppoe-client-pppoe-wan";
@@ -106,8 +131,18 @@ nix_eval_json_or_fail \
           client_uses_modeled_interface = builtins.match ".*ip link set wan-pppoe up.*" clientPreStart != null;
           client_reads_modeled_secret_files =
             builtins.match ".*sat-pppoe-nixos-username.*sat-pppoe-nixos-password.*" clientPreStart != null;
+          client_binds_ppp_device =
+            (clientRuntime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
+            && clientRuntime.bindMounts."/dev/ppp".isReadOnly == false;
+          client_allows_ppp_device =
+            builtins.elem { node = "/dev/ppp"; modifier = "rw"; } clientRuntime.allowedDevices;
           server_container_emitted = serverContainers ? sat-nixos-pppoe-ac;
           server_attaches_handoff_bridge = serverContainers.sat-nixos-pppoe-ac.hostBridge == "br-nix-pppoe";
+          server_binds_ppp_device =
+            (serverContainers.sat-nixos-pppoe-ac.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
+            && serverContainers.sat-nixos-pppoe-ac.bindMounts."/dev/ppp".isReadOnly == false;
+          server_allows_ppp_device =
+            builtins.elem { node = "/dev/ppp"; modifier = "rw"; } serverContainers.sat-nixos-pppoe-ac.allowedDevices;
           server_service_emitted = serverServices ? s88-pppoe-server;
           server_uses_pppoe_server = builtins.match ".*pppoe-server.*-I eth0.*" serverScript != null;
           server_exposes_pppoe_sniff =
