@@ -23,6 +23,42 @@ nix_eval_json_or_fail "static-host-bridge-wan" "$result_json" "$stderr_file" \
 let
   flake = builtins.getFlake ("path:" + toString ./.);
   lib = flake.inputs.nixpkgs.lib;
+  normalizedWanInterfaces =
+    (import ./s88/ControlModule/mapping/container-runtime/interfaces.nix {
+      inherit lib;
+      lookup = {
+        sortedAttrNames = attrs: builtins.sort builtins.lessThan (builtins.attrNames attrs);
+        bridgeNameMap = { };
+        localAttachTargets = [
+          {
+            unitName = "c-router-core";
+            ifName = "wan";
+            renderedHostBridgeName = "br-wan";
+            assignedUplinkName = "wan";
+            identity.portName = "wan";
+          }
+        ];
+      };
+    }).normalizedInterfacesForUnit {
+      unitName = "c-router-core";
+      containerName = "c-router-core";
+      interfaces.wan = {
+        sourceKind = "wan";
+        hostBridge = "br-wan";
+        ipv4.address = "172.31.254.3/24";
+        ipv6.address = "2001:db8:113::2/64";
+        routes = [
+          {
+            dst = "0.0.0.0/0";
+            via4 = "172.31.254.1";
+          }
+          {
+            dst = "::/0";
+            proto = "upstream";
+          }
+        ];
+      };
+    };
   assembly = import ./s88/ControlModule/mapping/container-runtime/model/container-assembly.nix {
     inherit lib;
     lookup = {
@@ -44,26 +80,7 @@ let
       containerNameForUnit = name: name;
     };
     interfaces = {
-      normalizedInterfacesForUnit = _: {
-        wan = {
-          sourceKind = "wan";
-          usePrimaryHostBridge = true;
-          renderedHostBridgeName = "br-wan";
-          assignedUplinkName = "wan";
-          containerInterfaceName = "eth0";
-          addresses = [ "172.31.254.3/24" ];
-          routes = [
-            {
-              dst = "0.0.0.0/0";
-              via4 = "172.31.254.1";
-            }
-            {
-              dst = "::/0";
-              proto = "upstream";
-            }
-          ];
-        };
-      };
+      normalizedInterfacesForUnit = _: normalizedWanInterfaces;
       vethsForInterfaces = _: { };
     };
   };
@@ -78,7 +95,7 @@ let
       };
       ipv6 = {
         enable = true;
-        acceptRA = true;
+        acceptRA = false;
       };
     };
     wanUplinkName = "wan";
@@ -86,11 +103,12 @@ let
   eth0 = network.networks."10-eth0";
   checks = {
     explicitWanSkipsNetworkManager = containerModel.networkManagerWanInterfaces == [ ];
-    explicitWanKeepsStaticAddress = eth0.address == [ "172.31.254.3/24" ];
+    explicitWanKeepsStaticAddress = eth0.address == [ "172.31.254.3/24" "2001:db8:113::2/64" ];
+    nestedUplinkAddressNormalized = normalizedWanInterfaces.wan.addresses == [ "172.31.254.3/24" "2001:db8:113::2/64" ];
     explicitWanDisablesDhcp = !(eth0.networkConfig ? DHCP) || eth0.networkConfig.DHCP == "no";
-    explicitWanKeepsIpv6RA = (eth0.networkConfig.IPv6AcceptRA or false) == true;
-    explicitWanKeepsLinkLocalForRA = (eth0.networkConfig.LinkLocalAddressing or null) == "ipv6";
-    explicitWanRequestsAcceptRASysctl = network.ipv6AcceptRAInterfaces == [ "eth0" ];
+    explicitWanDoesNotForceIpv6RA = (eth0.networkConfig.IPv6AcceptRA or false) == false;
+    explicitWanDisablesLinkLocalWithoutRA = (eth0.networkConfig.LinkLocalAddressing or null) == "no";
+    explicitWanDoesNotRequestAcceptRASysctl = network.ipv6AcceptRAInterfaces == [ ];
     explicitWanKeepsDefaultRoute = builtins.elem {
       Destination = "0.0.0.0/0";
       Gateway = "172.31.254.1";

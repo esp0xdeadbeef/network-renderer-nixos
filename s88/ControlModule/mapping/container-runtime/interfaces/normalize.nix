@@ -39,8 +39,18 @@ let
       existing = if builtins.isList (iface.addresses or null) then iface.addresses else [ ];
       addr4 = if builtins.isString (iface.addr4 or null) then [ iface.addr4 ] else [ ];
       addr6 = if builtins.isString (iface.addr6 or null) then [ iface.addr6 ] else [ ];
+      ipv4Address =
+        if builtins.isAttrs (iface.ipv4 or null) && builtins.isString (iface.ipv4.address or null) then
+          [ iface.ipv4.address ]
+        else
+          [ ];
+      ipv6Address =
+        if builtins.isAttrs (iface.ipv6 or null) && builtins.isString (iface.ipv6.address or null) then
+          [ iface.ipv6.address ]
+        else
+          [ ];
     in
-    lib.unique (existing ++ addr4 ++ addr6);
+    lib.unique (existing ++ addr4 ++ addr6 ++ ipv4Address ++ ipv6Address);
 
   routeListForInterface =
     iface:
