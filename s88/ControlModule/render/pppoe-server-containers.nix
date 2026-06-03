@@ -34,13 +34,33 @@ let
     lib.filter
       (
         row:
-        let client = ((row.pppoe or { }).client or { });
+        let
+          client = ((row.pppoe or { }).client or { });
+          clientCoreNode = client.coreNode or null;
+          selectedUnits = hostPlan.selectedUnits or [ ];
+          selectedLocalNames = map
+            (
+              unitName:
+              let parts = lib.splitString "::" unitName;
+              in
+              if builtins.length parts > 0 then builtins.elemAt parts ((builtins.length parts) - 1) else unitName
+            )
+            selectedUnits;
+          selectedUnitMatches = selectedUnits ++ selectedLocalNames;
+          selectedCoreNode =
+            builtins.isString clientCoreNode
+            && (
+              builtins.elem clientCoreNode selectedUnitMatches
+              || lib.any
+                (unitName: lib.hasSuffix "::${clientCoreNode}" unitName || lib.hasSuffix "-${clientCoreNode}" unitName)
+                selectedUnits
+            );
         in
         (row.mode or null) == "pppoe"
         && (row.backend or null) == "nixos"
         && (row.pppoe or { }) ? server
         && (row.pppoe or { }) ? client
-        && builtins.elem (client.coreNode or null) (hostPlan.selectedUnits or [ ])
+        && selectedCoreNode
       )
       siteRows;
 
