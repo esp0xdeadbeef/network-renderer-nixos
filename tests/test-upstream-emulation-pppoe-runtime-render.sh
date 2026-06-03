@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-800-HDS-010-SDS-010-SMS-010
+# GAMP-ID: FS-800-HDS-010-SDS-020-SMS-010
 # GAMP-SCOPE: software-module-test
 set -euo pipefail
 
@@ -80,7 +80,7 @@ nix_eval_json_or_fail \
             control_plane_model.data.esp.nixos.upstreamEmulation.pppoeNixos = row;
           };
           hostName = "s-router-nixos";
-          hostPlan.selectedUnits = [ "nixos-router-core-isp-a" ];
+          hostPlan.selectedUnits = [ "esp::nixos::esp-nixos-router-core-isp-a" ];
         };
         serverEval = flake.inputs.nixpkgs.lib.nixosSystem {
           inherit system;
@@ -131,6 +131,11 @@ nix_eval_json_or_fail \
           client_uses_modeled_interface = builtins.match ".*ip link set wan-pppoe up.*" clientPreStart != null;
           client_reads_modeled_secret_files =
             builtins.match ".*sat-pppoe-nixos-username.*sat-pppoe-nixos-password.*" clientPreStart != null;
+          client_does_not_render_dhcp_fallback =
+            builtins.match ".*[Dd][Hh][Cc][Pp].*" (clientPreStart + clientPeerConfig) == null;
+          client_does_not_render_slaac_fallback =
+            builtins.match ".*[Ss][Ll][Aa][Aa][Cc].*" (clientPreStart + clientPeerConfig) == null
+            && builtins.match ".*[Aa]ccept[Rr][Aa].*" (clientPreStart + clientPeerConfig) == null;
           client_binds_ppp_device =
             (clientRuntime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
             && clientRuntime.bindMounts."/dev/ppp".isReadOnly == false;
