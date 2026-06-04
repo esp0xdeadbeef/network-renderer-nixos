@@ -35,6 +35,7 @@ let
 
   clientConfig = if builtins.isAttrs (pppoe.client or null) then pppoe.client else null;
   serverConfig = if builtins.isAttrs (pppoe.server or null) then pppoe.server else null;
+  validation = import ./pppoe/validation.nix { inherit renderedModel; };
 
   clientPeer =
     if clientConfig == null then
@@ -132,6 +133,8 @@ let
         customerAddress = serverConfig.customerAddress;
         mtu = toString (serverConfig.mtu or 1492);
         maxSessions = toString (serverConfig.maxSessions or 32);
+        runtimeDirectory = "s88-pppoe-server";
+        pidFile = "/run/${runtimeDirectory}/pppoe-server.pid";
       in
       {
         s88-pppoe-server = {
@@ -146,7 +149,9 @@ let
             pkgs.rp-pppoe
           ];
           serviceConfig = {
-            Type = "simple";
+            Type = "forking";
+            RuntimeDirectory = runtimeDirectory;
+            PIDFile = pidFile;
             Restart = "always";
             RestartSec = 2;
           };
@@ -189,7 +194,8 @@ let
               -O /etc/ppp/s88-pppoe-server-options \
               -q ${pkgs.ppp}/bin/pppd \
               -Q ${pkgs.rp-pppoe}/bin/pppoe \
-              -N ${maxSessions}
+              -N ${maxSessions} \
+              -X ${lib.escapeShellArg pidFile}
           '';
         };
       };
@@ -207,20 +213,13 @@ in
     assertions = [
       {
         assertion =
-          clientConfig == null
-          || (builtins.isString (clientConfig.interface or null) && builtins.isAttrs (clientConfig.credentials or null));
-        message = "NixOS PPPoE client service requires services.pppoe.client.interface and credentials";
+          validation.clientAssertion clientConfig;
+        message = "NixOS PPPoE client service requires services.pppoe.client.interface to name a rendered interface, credentials, and supported implementation 'rp-pppoe'";
       }
       {
         assertion =
-          serverConfig == null
-          || (
-            builtins.isString (serverConfig.interface or null)
-            && builtins.isString (serverConfig.providerAddress or null)
-            && builtins.isString (serverConfig.customerAddress or null)
-            && builtins.isAttrs (serverConfig.credentials or null)
-          );
-        message = "NixOS PPPoE server service requires services.pppoe.server.interface, providerAddress, customerAddress, and credentials";
+          validation.serverAssertion serverConfig;
+        message = "NixOS PPPoE server service requires services.pppoe.server.interface to name a rendered interface, providerAddress, customerAddress, credentials, and supported implementation 'rp-pppoe'";
       }
     ];
     environment.systemPackages = [
