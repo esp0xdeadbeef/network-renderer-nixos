@@ -73,6 +73,17 @@ do
   rm -rf "${tmp_dir}"
 done
 
+hat_dir="${labs_root}/HAT/emulated-isp-residential-testnet"
+if [[ -f "${hat_dir}/intent.nix" && -f "${hat_dir}/inventory-nixos.nix" ]]; then
+  check_box \
+    "HAT/emulated-isp-residential-testnet" \
+    "s-router-nixos" \
+    "${hat_dir}/intent.nix" \
+    "${hat_dir}/inventory-nixos.nix"
+else
+  echo "!!!! policy-forward-default-paths: missing HAT fixture ${hat_dir}" >>"${violations}"
+fi
+
 if [[ -s "${violations}" ]]; then
   cat "${violations}" >&2
   fail "!!!! policy-forward-default-paths: downstream-uplink nft allows must have matching default routes"
