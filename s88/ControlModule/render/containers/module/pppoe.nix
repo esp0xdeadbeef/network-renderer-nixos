@@ -58,12 +58,14 @@ let
             ''
           else
             "";
-        usePeerDnsLine = if clientConfig.usePeerDns or true then "usepeerdns" else "";
+        usePeerDns = clientConfig.usePeerDns or true;
+        peerDns = import ./pppoe/client-peer-dns.nix { inherit lib pkgs peerName usePeerDns; scriptSuffix = sanitizeName logicalIf; };
         ipUp = pkgs.writeShellScript "s88-pppoe-ip-up-${sanitizeName logicalIf}" ''
           set -eu
           if [ "$1" != ${lib.escapeShellArg pppName} ]; then
             ${pkgs.iproute2}/bin/ip link set "$1" name ${lib.escapeShellArg pppName} || true
           fi
+          ${peerDns.ipUpBlock}
         '';
       in
       {
@@ -107,7 +109,7 @@ let
             refuse-eap
             noipdefault
             ${defaultRouteLines}
-            ${usePeerDnsLine}
+            ${peerDns.options}
             persist
             maxfail 0
             +ipv6
@@ -116,6 +118,7 @@ let
             mtu ${mtu}
             mru ${mtu}
             ip-up-script ${ipUp}
+            ${peerDns.ipDownOption}
             EOF
           '';
         };
