@@ -82,20 +82,6 @@ let
     else
       { };
 
-  pppoeClientRowsFor =
-    site: unitNames:
-    let
-      upstreamEmulation =
-        if builtins.isAttrs (site.upstreamEmulation or null) then site.upstreamEmulation else { };
-    in
-    lib.filter
-      (
-        row:
-        let client = ((row.pppoe or { }).client or { });
-        in (row.mode or null) == "pppoe" && builtins.elem (client.coreNode or null) unitNames
-      )
-      (builtins.attrValues upstreamEmulation);
-
   interfaceNameFor =
     iface:
     if iface ? containerInterfaceName && builtins.isString iface.containerInterfaceName then
@@ -104,6 +90,11 @@ let
       iface.hostInterfaceName
     else
       null;
+
+  hasPppoeService =
+    runtimeTarget:
+    let pppoe = (runtimeTarget.services or { }).pppoe or { };
+    in builtins.isAttrs pppoe && (builtins.isAttrs (pppoe.client or null) || builtins.isAttrs (pppoe.server or null));
 in
 {
   mkContainerRuntime =
@@ -133,14 +124,14 @@ in
       roleConfig = lookup.roleConfigForUnit unitName;
       containerConfig = lookup.containerConfigForUnit unitName;
       site = siteFor lookup.siteData runtimeTarget;
-      pppoeClientRows = pppoeClientRowsFor site [ unitName emittedUnitName ];
-      pppDeviceBindMounts = lib.optionalAttrs (pppoeClientRows != [ ]) {
+      pppoeEnabled = hasPppoeService runtimeTarget;
+      pppDeviceBindMounts = lib.optionalAttrs pppoeEnabled {
         "/dev/ppp" = {
           hostPath = "/dev/ppp";
           isReadOnly = false;
         };
       };
-      pppAllowedDevices = lib.optionals (pppoeClientRows != [ ]) [
+      pppAllowedDevices = lib.optionals pppoeEnabled [
         {
           node = "/dev/ppp";
           modifier = "rw";
@@ -188,6 +179,7 @@ in
       profilePath = if containerConfig ? profilePath then containerConfig.profilePath else null;
       hostBridge = primaryHostBridge;
       interfaces = renderedInterfaces;
+      services = runtimeTarget.services or { };
       inherit policyRoutingSources;
       inherit networkBehavior;
       loopback = runtimeTarget.loopback or { };

@@ -26,7 +26,6 @@ else
                 ipv6 = siteObj.ipv6 or { };
                 routing = siteObj.routing or { };
                 transit = siteObj.transit or { };
-                upstreamEmulation = siteObj.upstreamEmulation or { };
               }
           )
           sites

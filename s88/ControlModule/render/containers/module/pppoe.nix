@@ -1,16 +1,9 @@
 { lib, pkgs, renderedModel }:
 
 let
-  site =
-    if builtins.isAttrs (renderedModel.site or null) then renderedModel.site else { };
-
-  upstreamEmulation =
-    if builtins.isAttrs (site.upstreamEmulation or null) then site.upstreamEmulation else { };
-
-  rowValues = builtins.attrValues upstreamEmulation;
-
-  unitName =
-    if builtins.isString (renderedModel.unitName or null) then renderedModel.unitName else "";
+  services = if builtins.isAttrs (renderedModel.services or null) then renderedModel.services else { };
+  pppoe = if builtins.isAttrs (services.pppoe or null) then services.pppoe else { };
+  unitName = if builtins.isString (renderedModel.unitName or null) then renderedModel.unitName else "";
 
   ifaceNameFor =
     logicalName:
@@ -24,41 +17,56 @@ let
     else
       logicalName;
 
-  clientRows =
-    lib.filter
-      (
-        row:
-        let client = ((row.pppoe or { }).client or { });
-        in (row.mode or null) == "pppoe"
-          && (client.coreNode or null) == unitName
-      )
-      rowValues;
-
-  clientPeerFor =
-    row:
+  credentialReadCommand =
+    credentials: field:
     let
-      client = row.pppoe.client;
-      server = row.pppoe.server;
-      logicalIf = client.coreInterface;
-      interfaceName = ifaceNameFor logicalIf;
-      peerName = "s88-pppoe-client-${logicalIf}";
-      unitName = "pppd-${peerName}";
-      runtimeOptions = "/run/pppd/${peerName}.options";
-      usernameFile = server.credentials.usernameFile;
-      passwordFile = server.credentials.passwordFile;
-      pppName = client.runtimeInterface or "ppp0";
-      ipUp = pkgs.writeShellScript "s88-pppoe-ip-up-${logicalIf}" ''
-        set -eu
-        if [ "$1" != ${lib.escapeShellArg pppName} ]; then
-          ${pkgs.iproute2}/bin/ip link set "$1" name ${lib.escapeShellArg pppName} || true
-        fi
-      '';
-      mtu = toString (client.mtu or row.handoff.mtu or 1492);
+      fileField = "${field}File";
+      value = credentials.${field} or null;
+      fileValue = credentials.${fileField} or null;
     in
-    {
-      name = peerName;
-      value = {
-        inherit unitName;
+    if builtins.isString fileValue && fileValue != "" then
+      "${pkgs.coreutils}/bin/cat ${lib.escapeShellArg fileValue}"
+    else if builtins.isString value then
+      "${pkgs.coreutils}/bin/printf '%s' ${lib.escapeShellArg value}"
+    else
+      "false";
+
+  sanitizeName = value: builtins.replaceStrings [ "/" ":" "." "@" ] [ "-" "-" "-" "-" ] value;
+
+  clientConfig = if builtins.isAttrs (pppoe.client or null) then pppoe.client else null;
+  serverConfig = if builtins.isAttrs (pppoe.server or null) then pppoe.server else null;
+
+  clientPeer =
+    if clientConfig == null then
+      null
+    else
+      let
+        logicalIf = clientConfig.interface;
+        interfaceName = ifaceNameFor logicalIf;
+        peerName = "s88-pppoe-client-${sanitizeName logicalIf}";
+        systemdUnitName = "pppd-${peerName}";
+        runtimeOptions = "/run/pppd/${peerName}.options";
+        credentials = clientConfig.credentials or { };
+        pppName = clientConfig.runtimeInterface or "ppp0";
+        mtu = toString (clientConfig.mtu or 1492);
+        defaultRouteLines =
+          if clientConfig.defaultRoute or true then
+            ''
+              defaultroute
+              replacedefaultroute
+            ''
+          else
+            "";
+        usePeerDnsLine = if clientConfig.usePeerDns or true then "usepeerdns" else "";
+        ipUp = pkgs.writeShellScript "s88-pppoe-ip-up-${sanitizeName logicalIf}" ''
+          set -eu
+          if [ "$1" != ${lib.escapeShellArg pppName} ]; then
+            ${pkgs.iproute2}/bin/ip link set "$1" name ${lib.escapeShellArg pppName} || true
+          fi
+        '';
+      in
+      {
+        inherit peerName systemdUnitName;
         peer = {
           enable = true;
           autostart = true;
@@ -76,9 +84,10 @@ let
           ];
           preStart = ''
             set -eu
+            ${pkgs.coreutils}/bin/mkdir -p /run/pppd
             ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg interfaceName} up
-            user="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg usernameFile})"
-            pass="$(${pkgs.coreutils}/bin/cat ${lib.escapeShellArg passwordFile})"
+            user="$(${credentialReadCommand credentials "username"})"
+            pass="$(${credentialReadCommand credentials "password"})"
             ${pkgs.coreutils}/bin/install -m 0600 /dev/null ${runtimeOptions}
             cat > ${runtimeOptions} <<EOF
             plugin pppoe.so
@@ -91,9 +100,8 @@ let
             refuse-mschap-v2
             refuse-eap
             noipdefault
-            defaultroute
-            replacedefaultroute
-            usepeerdns
+            ${defaultRouteLines}
+            ${usePeerDnsLine}
             persist
             maxfail 0
             +ipv6
@@ -106,27 +114,127 @@ let
           '';
         };
       };
-    };
 
-  clientPeers = builtins.listToAttrs (map clientPeerFor clientRows);
+  serverUnit =
+    if serverConfig == null then
+      { }
+    else
+      let
+        logicalIf = serverConfig.interface;
+        interfaceName = ifaceNameFor logicalIf;
+        credentials = serverConfig.credentials or { };
+        providerAddress = serverConfig.providerAddress;
+        customerAddress = serverConfig.customerAddress;
+        mtu = toString (serverConfig.mtu or 1492);
+        maxSessions = toString (serverConfig.maxSessions or 32);
+      in
+      {
+        s88-pppoe-server = {
+          description = "S88 PPPoE access service on ${interfaceName}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          path = [
+            pkgs.coreutils
+            pkgs.iproute2
+            pkgs.ppp
+            pkgs.rp-pppoe
+          ];
+          serviceConfig = {
+            Type = "simple";
+            Restart = "always";
+            RestartSec = 2;
+          };
+          script = ''
+            set -eu
+            ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg interfaceName} up
+            ${pkgs.coreutils}/bin/mkdir -p /etc/ppp
+            user="$(${credentialReadCommand credentials "username"})"
+            pass="$(${credentialReadCommand credentials "password"})"
+            ${pkgs.coreutils}/bin/install -m 0600 /dev/null /etc/ppp/chap-secrets
+            ${pkgs.coreutils}/bin/install -m 0600 /dev/null /etc/ppp/pap-secrets
+            printf '%s * %s *\n' "$user" "$pass" > /etc/ppp/chap-secrets
+            printf '* * %s *\n' "$pass" >> /etc/ppp/chap-secrets
+            printf '%s * %s *\n' "$user" "$pass" > /etc/ppp/pap-secrets
+            printf '* * %s *\n' "$pass" >> /etc/ppp/pap-secrets
+            cat > /etc/ppp/s88-pppoe-server-options <<EOF
+            require-pap
+            refuse-chap
+            refuse-mschap
+            refuse-mschap-v2
+            refuse-eap
+            noauth
+            nobsdcomp
+            nodeflate
+            noccp
+            novj
+            +ipv6
+            ipv6cp-accept-local
+            ipv6cp-accept-remote
+            lcp-echo-interval 10
+            lcp-echo-failure 3
+            mtu ${mtu}
+            mru ${mtu}
+            ms-dns ${providerAddress}
+            EOF
+            exec ${pkgs.rp-pppoe}/bin/pppoe-server \
+              -I ${lib.escapeShellArg interfaceName} \
+              -L ${lib.escapeShellArg providerAddress} \
+              -R ${lib.escapeShellArg customerAddress} \
+              -O /etc/ppp/s88-pppoe-server-options \
+              -q ${pkgs.ppp}/bin/pppd \
+              -Q ${pkgs.rp-pppoe}/bin/pppoe \
+              -N ${maxSessions}
+          '';
+        };
+      };
+
+  clientServices =
+    if clientPeer == null then
+      { }
+    else
+      {
+        ${clientPeer.systemdUnitName} = clientPeer.service;
+      };
 in
 {
-  config = lib.optionalAttrs (clientRows != [ ]) {
-    environment.systemPackages = [
-            pkgs.ppp
+  config = lib.mkIf (clientConfig != null || serverConfig != null) {
+    assertions = [
+      {
+        assertion =
+          clientConfig == null
+          || (builtins.isString (clientConfig.interface or null) && builtins.isAttrs (clientConfig.credentials or null));
+        message = "NixOS PPPoE client service requires services.pppoe.client.interface and credentials";
+      }
+      {
+        assertion =
+          serverConfig == null
+          || (
+            builtins.isString (serverConfig.interface or null)
+            && builtins.isString (serverConfig.providerAddress or null)
+            && builtins.isString (serverConfig.customerAddress or null)
+            && builtins.isAttrs (serverConfig.credentials or null)
+          );
+        message = "NixOS PPPoE server service requires services.pppoe.server.interface, providerAddress, customerAddress, and credentials";
+      }
     ];
-    networking.useDHCP = lib.mkForce false;
-    services.resolved.enable = lib.mkForce false;
-    services.pppd = {
+    environment.systemPackages = [
+      pkgs.ppp
+      pkgs.rp-pppoe
+    ];
+    services.pppd = lib.optionalAttrs (clientPeer != null) {
       enable = true;
       package = pkgs.ppp;
-      peers = builtins.mapAttrs (_: row: row.peer) clientPeers;
+      peers.${clientPeer.peerName} = clientPeer.peer;
     };
-    systemd.services = builtins.listToAttrs (
-      map (row: {
-        name = row.unitName;
-        value = row.service;
-      }) (builtins.attrValues clientPeers)
-    );
+    systemd.services = clientServices // serverUnit;
+    environment.etc = lib.optionalAttrs (serverConfig != null) {
+      "s88/pppoe-tools".text = ''
+        pppoe-server=${pkgs.rp-pppoe}/bin/pppoe-server
+        pppoe=${pkgs.rp-pppoe}/bin/pppoe
+        pppoe-sniff=${pkgs.rp-pppoe}/bin/pppoe-sniff
+        pppd=${pkgs.ppp}/bin/pppd
+      '';
+    };
   };
 }
