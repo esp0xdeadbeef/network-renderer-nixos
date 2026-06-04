@@ -109,6 +109,7 @@ nix_eval_json_or_fail \
         clientServices = clientEval.config.systemd.services;
         clientPeers = clientEval.config.services.pppd.peers;
         clientPreStart = clientServices."pppd-s88-pppoe-client-provider-handoff".preStart;
+        clientServiceUnit = clientServices."pppd-s88-pppoe-client-provider-handoff";
         clientPeerConfig = clientPeers."s88-pppoe-client-provider-handoff".config;
         serverServices = serverEval.config.systemd.services;
         serverScript = serverServices.s88-pppoe-server.script;
@@ -116,6 +117,10 @@ nix_eval_json_or_fail \
           client_pppd_enabled = clientEval.config.services.pppd.enable == true;
           client_peer_emitted = clientPeers ? "s88-pppoe-client-provider-handoff";
           client_service_emitted = clientServices ? "pppd-s88-pppoe-client-provider-handoff";
+          client_service_wanted_by_multi_user =
+            builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]);
+          client_service_restarts =
+            (clientServiceUnit.serviceConfig.Restart or null) == "always";
           client_uses_pppoe_plugin = builtins.match ".*plugin pppoe[.]so.*nic-ens20.*" clientPreStart != null;
           client_uses_modeled_credentials = builtins.match ".*hat-pppoe.*" clientPreStart != null;
           client_peer_uses_options_file = builtins.match ".*file /run/pppd/s88-pppoe-client-provider-handoff[.]options.*" clientPeerConfig != null;

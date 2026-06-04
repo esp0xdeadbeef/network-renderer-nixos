@@ -75,6 +75,7 @@ let
           '';
         };
         service = {
+          wantedBy = [ "multi-user.target" ];
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
           path = [
@@ -82,6 +83,10 @@ let
             pkgs.iproute2
             pkgs.ppp
           ];
+          serviceConfig = {
+            Restart = "always";
+            RestartSec = 2;
+          };
           preStart = ''
             set -eu
             ${pkgs.coreutils}/bin/mkdir -p /run/pppd
