@@ -84,8 +84,8 @@ let
             pkgs.ppp
           ];
           serviceConfig = {
-            Restart = "always";
-            RestartSec = 2;
+            Restart = lib.mkDefault "always";
+            RestartSec = lib.mkDefault 5;
           };
           preStart = ''
             set -eu
