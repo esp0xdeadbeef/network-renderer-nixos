@@ -126,6 +126,15 @@ nix_eval_json_or_fail \
           client_uses_pppoe_plugin = builtins.match ".*plugin pppoe[.]so.*nic-ens20.*" clientPreStart != null;
           client_uses_modeled_credentials = builtins.match ".*hat-pppoe.*" clientPreStart != null;
           client_peer_uses_options_file = builtins.match ".*file /run/pppd/s88-pppoe-client-provider-handoff[.]options.*" clientPeerConfig != null;
+          client_peer_dns_keeps_hardened_unit =
+            (clientServiceUnit.serviceConfig.ProtectSystem or null) == "strict"
+            && (clientServiceUnit.serviceConfig.ReadWritePaths or null) == null;
+          client_peer_dns_does_not_write_etc =
+            builtins.match ".*usepeerdns.*noresolvconf.*" clientPreStart != null;
+          client_peer_dns_writes_runtime_resolv =
+            builtins.match ".*ip-up-script /nix/store/[^[:space:]]+s88-pppoe-ip-up-provider-handoff.*" clientPreStart != null;
+          client_peer_dns_cleans_runtime_resolv =
+            builtins.match ".*ip-down-script /nix/store/[^[:space:]]+s88-pppoe-ip-down-provider-handoff.*" clientPreStart != null;
           runtime_binds_ppp_device =
             (runtime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
             && runtime.bindMounts."/dev/ppp".isReadOnly == false;
