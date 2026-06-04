@@ -40,17 +40,9 @@ let
   };
 in
 {
-  dhcp4Scopes =
-    if authoritative.haveAuthoritativeAdvertisements then
-      authoritative.authoritativeDhcp4Scopes
-    else
-      derived.dhcp4Scopes;
+  dhcp4Scopes = authoritative.authoritativeDhcp4Scopes;
 
-  dhcpv6Scopes =
-    if authoritative.haveAuthoritativeAdvertisements then
-      authoritative.authoritativeDhcpv6Scopes
-    else
-      [ ];
+  dhcpv6Scopes = authoritative.authoritativeDhcpv6Scopes;
 
   radvdScopes =
     authoritative.authoritativeRadvdScopes;
