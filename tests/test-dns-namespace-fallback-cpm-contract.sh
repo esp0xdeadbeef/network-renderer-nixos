@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
+# GAMP-ID: FS-880-HDS-010-SDS-010-SMS-020
+# GAMP-SCOPE: software-module-test
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 
 REPO_ROOT="${repo_root}" nix eval \
   --extra-experimental-features 'nix-command flakes' \
@@ -67,5 +71,44 @@ REPO_ROOT="${repo_root}" nix eval \
     echo "FAIL dns-namespace-fallback-cpm-contract" >&2
     exit 1
   }
+
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure \
+  --expr '
+    let
+      repoRoot = builtins.getEnv "REPO_ROOT";
+      flake = builtins.getFlake ("path:" + repoRoot);
+      lib = flake.inputs.nixpkgs.lib;
+      pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+      rendered =
+        import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
+          inherit lib pkgs;
+          renderedModel.runtimeTarget.services.dns = {
+            listen = [ "10.20.0.1" ];
+            allowFrom = [ "10.20.0.0/24" ];
+            forwarders = [ "1.1.1.1" ];
+            namespaceFallback = {
+              decisions = [
+                {
+                  namespace = "tenant-a.lan.";
+                  action = "block";
+                  publicRecursionFallback = false;
+                }
+              ];
+            };
+          };
+        };
+    in
+      builtins.deepSeq rendered true
+  ' >/dev/null 2>"${tmp}/missing-requester-scope.err"; then
+  echo "FAIL dns-namespace-fallback-cpm-contract" >&2
+  exit 1
+fi
+
+grep -F 'requires requesterScope and namespace' "${tmp}/missing-requester-scope.err" >/dev/null || {
+  echo "FAIL dns-namespace-fallback-cpm-contract" >&2
+  exit 1
+}
 
 echo "PASS dns-namespace-fallback-cpm-contract"

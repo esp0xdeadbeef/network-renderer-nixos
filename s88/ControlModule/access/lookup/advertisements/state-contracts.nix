@@ -63,7 +63,7 @@ in
     if builtins.length candidates == 1 then
       builtins.head candidates
     else if candidates == [ ] then
-      throw "CPM renderer contract update required: runtimeTarget.stateContracts.persistence.${listName} is missing ${service} lease-state contract '${contractId}'"
+      throw "NixOS ${service} renderer state-loss classification: required persistent state is unavailable because runtimeTarget.stateContracts.persistence.${listName} is missing lease-state contract '${contractId}'"
     else
-      throw "CPM renderer contract update required: runtimeTarget.stateContracts.persistence.${listName} has ambiguous ${service} lease-state contract '${contractId}'";
+      throw "NixOS ${service} renderer state-loss classification: required persistent state is unavailable because runtimeTarget.stateContracts.persistence.${listName} has ambiguous lease-state contract '${contractId}'";
 }
