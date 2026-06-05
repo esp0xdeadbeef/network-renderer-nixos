@@ -52,7 +52,7 @@ let
   resolvedInventory = renderInputs.resolvedInventory;
   metadataSourcePaths = renderInputs.metadataSourcePaths;
 
-  sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+  sortedAttrNames = attrs: resolvedLib.sort builtins.lessThan (builtins.attrNames attrs);
 
   _validateRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
     cpm = controlPlane;
