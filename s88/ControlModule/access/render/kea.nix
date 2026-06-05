@@ -11,6 +11,28 @@ let
     fileStem = scope.fileStem;
   }) (scope.leaseState or null);
   syncScript = "/run/kea-unbound-sync/${scope.fileStem}.sh";
+  requiredLeaseDnsField =
+    name: value:
+    if builtins.isString value && value != "" then
+      value
+    else
+      throw "NixOS DHCPv4 renderer requires scope.leaseDns.${name} before lease hostnames may be published to DNS";
+  leaseDns =
+    if (scope.leaseDns or null) == null then
+      null
+    else if builtins.isAttrs scope.leaseDns then
+      let
+        rawNamespace = requiredLeaseDnsField "namespace" (scope.leaseDns.namespace or null);
+        namespace = if lib.hasSuffix "." rawNamespace then rawNamespace else "${rawNamespace}.";
+      in
+      {
+        ownerScope = requiredLeaseDnsField "ownerScope" (scope.leaseDns.ownerScope or null);
+        requesterScope = requiredLeaseDnsField "requesterScope" (scope.leaseDns.requesterScope or null);
+        inherit namespace;
+      }
+    else
+      throw "NixOS DHCPv4 renderer requires scope.leaseDns to be an explicit owner/requester namespace contract";
+  syncEnabled = leaseDns != null;
   reservations =
     map
       (reservation:
@@ -69,18 +91,21 @@ let
 
   genConfig = pkgs.writeShellScript "gen-kea-${scope.fileStem}" ''
     set -euo pipefail
-    mkdir -p /run/etc/kea /run/kea-unbound-sync ${lib.escapeShellArg lease.directory}
+    mkdir -p /run/etc/kea ${lib.optionalString syncEnabled "/run/kea-unbound-sync "}${lib.escapeShellArg lease.directory}
 
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
     ${configJson}
     EOF
 
+    ${lib.optionalString syncEnabled ''
     cat > ${lib.escapeShellArg syncScript} <<'EOF'
     #!${pkgs.runtimeShell}
     set -eu
 
     lease_file=${lib.escapeShellArg lease.path}
-    domain=${lib.escapeShellArg scope.domain}
+    namespace=${lib.escapeShellArg leaseDns.namespace}
+    owner_scope=${lib.escapeShellArg leaseDns.ownerScope}
+    requester_scope=${lib.escapeShellArg leaseDns.requesterScope}
     unbound_control=${pkgs.unbound}/bin/unbound-control
 
     [ -x "$unbound_control" ] || exit 0
@@ -94,18 +119,25 @@ let
       esac
       case "$hostname" in
         *.*) fqdn="$hostname" ;;
-        *) fqdn="$hostname.$domain" ;;
+        *) fqdn="$hostname.$namespace" ;;
       esac
       case "$fqdn" in
         *.) ;;
         *) fqdn="$fqdn." ;;
       esac
+      case "$fqdn" in
+        *."$namespace") ;;
+        *) continue ;;
+      esac
+      [ -n "$owner_scope" ] || exit 1
+      [ -n "$requester_scope" ] || exit 1
 
       "$unbound_control" -c /etc/unbound/unbound.conf local_data_remove "$fqdn" >/dev/null 2>&1 || true
       "$unbound_control" -c /etc/unbound/unbound.conf local_data "$fqdn 60 IN A $address" >/dev/null 2>&1 || true
     done
     EOF
     chmod 0755 ${lib.escapeShellArg syncScript}
+    ''}
   '';
 
   waitIface = pkgs.writeShellScript "wait-iface-ready-${scope.fileStem}" ''
@@ -150,99 +182,102 @@ in
 {
   environment.systemPackages = [
     pkgs.kea
-    pkgs.unbound
     pkgs.iproute2
     pkgs.gnugrep
     pkgs.gawk
     pkgs.coreutils
-  ];
+  ] ++ lib.optional syncEnabled pkgs.unbound;
 
-  systemd.services."gen-kea-${scope.fileStem}" = {
-    wantedBy = [ "multi-user.target" ];
-    before = [ "kea-dhcp4-${scope.fileStem}.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = genConfig;
-      RemainAfterExit = true;
+  systemd.services = {
+    "gen-kea-${scope.fileStem}" = {
+      wantedBy = [ "multi-user.target" ];
+      before = [ "kea-dhcp4-${scope.fileStem}.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = genConfig;
+        RemainAfterExit = true;
+      };
+    };
+
+    "kea-dhcp4-${scope.fileStem}" = {
+      description = "Kea DHCPv4 on ${scope.interfaceName}";
+      wantedBy = [ "multi-user.target" ];
+      after = [
+        "systemd-networkd.service"
+        "gen-kea-${scope.fileStem}.service"
+      ] ++ lib.optional syncEnabled "unbound.service";
+      requires = [
+        "systemd-networkd.service"
+        "gen-kea-${scope.fileStem}.service"
+      ];
+      wants = lib.optional syncEnabled "unbound.service";
+
+      path = [
+        pkgs.coreutils
+        pkgs.iproute2
+        pkgs.gnugrep
+        pkgs.gawk
+      ];
+
+      serviceConfig = {
+        Type = "simple";
+
+        ExecStartPre = [
+          "${waitIface} ${lib.escapeShellArg scope.interfaceName}"
+        ];
+
+        ExecStart = "${pkgs.kea}/bin/kea-dhcp4 -d -c ${cfgFile}";
+
+        ExecStartPost = [
+          "${postCheck} ${lib.escapeShellArg scope.interfaceName}"
+        ];
+
+        Restart = "always";
+        RestartSec = "2s";
+
+        RuntimeDirectory = "kea";
+
+        CapabilityBoundingSet = [
+          "CAP_NET_BIND_SERVICE"
+          "CAP_NET_ADMIN"
+          "CAP_NET_RAW"
+        ];
+
+        AmbientCapabilities = [
+          "CAP_NET_BIND_SERVICE"
+          "CAP_NET_ADMIN"
+          "CAP_NET_RAW"
+        ];
+      };
+    };
+
+  } // lib.optionalAttrs syncEnabled {
+    "kea-unbound-sync-${scope.fileStem}" = {
+      description = "Publish Kea DHCPv4 lease hostnames to Unbound for ${scope.interfaceName}";
+      after = [
+        "kea-dhcp4-${scope.fileStem}.service"
+        "unbound.service"
+      ];
+      wants = [
+        "kea-dhcp4-${scope.fileStem}.service"
+        "unbound.service"
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = syncScript;
+      };
     };
   };
 
-  systemd.services."kea-dhcp4-${scope.fileStem}" = {
-    description = "Kea DHCPv4 on ${scope.interfaceName}";
-    wantedBy = [ "multi-user.target" ];
-    after = [
-      "systemd-networkd.service"
-      "gen-kea-${scope.fileStem}.service"
-      "unbound.service"
-    ];
-    requires = [
-      "systemd-networkd.service"
-      "gen-kea-${scope.fileStem}.service"
-    ];
-    wants = [ "unbound.service" ];
-
-    path = [
-      pkgs.coreutils
-      pkgs.iproute2
-      pkgs.gnugrep
-      pkgs.gawk
-    ];
-
-    serviceConfig = {
-      Type = "simple";
-
-      ExecStartPre = [
-        "${waitIface} ${lib.escapeShellArg scope.interfaceName}"
-      ];
-
-      ExecStart = "${pkgs.kea}/bin/kea-dhcp4 -d -c ${cfgFile}";
-
-      ExecStartPost = [
-        "${postCheck} ${lib.escapeShellArg scope.interfaceName}"
-      ];
-
-      Restart = "always";
-      RestartSec = "2s";
-
-      RuntimeDirectory = "kea";
-
-      CapabilityBoundingSet = [
-        "CAP_NET_BIND_SERVICE"
-        "CAP_NET_ADMIN"
-        "CAP_NET_RAW"
-      ];
-
-      AmbientCapabilities = [
-        "CAP_NET_BIND_SERVICE"
-        "CAP_NET_ADMIN"
-        "CAP_NET_RAW"
-      ];
-    };
-  };
-
-  systemd.services."kea-unbound-sync-${scope.fileStem}" = {
-    description = "Publish Kea DHCPv4 lease hostnames to Unbound for ${scope.interfaceName}";
-    after = [
-      "kea-dhcp4-${scope.fileStem}.service"
-      "unbound.service"
-    ];
-    wants = [
-      "kea-dhcp4-${scope.fileStem}.service"
-      "unbound.service"
-    ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = syncScript;
-    };
-  };
-
-  systemd.timers."kea-unbound-sync-${scope.fileStem}" = {
-    description = "Best-effort Kea DHCPv4 lease hostname sync for ${scope.interfaceName}";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "30s";
-      OnUnitActiveSec = "60s";
-      Unit = "kea-unbound-sync-${scope.fileStem}.service";
+  systemd.timers = lib.optionalAttrs syncEnabled {
+    "kea-unbound-sync-${scope.fileStem}" = {
+      description = "Best-effort Kea DHCPv4 lease hostname sync for ${scope.interfaceName}";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "30s";
+        OnUnitActiveSec = "60s";
+        Unit = "kea-unbound-sync-${scope.fileStem}.service";
+      };
     };
   };
 }
