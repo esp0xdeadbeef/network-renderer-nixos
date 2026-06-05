@@ -185,6 +185,17 @@ else
       lib.filter
         (record: builtins.isAttrs record && builtins.isString (record.name or null) && record.name != "")
         (if builtins.isList (dnsService.localRecords or null) then dnsService.localRecords else [ ]);
+    namespaceFallback =
+      if builtins.isAttrs (dnsService.namespaceFallback or null) then dnsService.namespaceFallback else { };
+    namespaceFallbackDecisions =
+      lib.filter
+        (decision:
+          builtins.isAttrs decision
+          && builtins.isString (decision.namespace or null)
+          && decision.namespace != ""
+          && !((decision.publicRecursionFallback or false))
+          && builtins.elem (decision.action or null) [ "block" "deny" ])
+        (if builtins.isList (namespaceFallback.decisions or null) then namespaceFallback.decisions else [ ]);
     dnsRoles = if builtins.isAttrs (dnsService.roles or null) then dnsService.roles else { };
     recursionRole = if builtins.isAttrs (dnsRoles.recursion or null) then dnsRoles.recursion else { };
     roleOutgoingInterfaces = stringList (recursionRole.outgoingInterfaces or [ ]);

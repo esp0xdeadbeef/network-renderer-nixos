@@ -21,11 +21,15 @@ else
       hasMixedForwarders
       localZones
       localRecords
+      namespaceFallbackDecisions
       outgoingInterfaces
       ;
 
     accessControl = map (cidr: "${cidr} allow") allowFrom;
-    localZoneSettings = map (zone: "${zone.name} ${zone.type or "static"}") localZones;
+    namespaceFallbackZoneSettings =
+      map (decision: "${decision.namespace} static") namespaceFallbackDecisions;
+    localZoneSettings =
+      lib.unique ((map (zone: "${zone.name} ${zone.type or "static"}") localZones) ++ namespaceFallbackZoneSettings);
     localDataSettings = lib.concatMap
       (
         record:
