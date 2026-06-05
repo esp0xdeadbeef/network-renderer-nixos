@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GAMP-ID: FS-880-HDS-010-SDS-010-SMS-010
+# GAMP-SCOPE: software-module-test
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,6 +41,11 @@ nix_eval_true_or_fail \
               router = "10.20.20.1";
               dnsServers = [ "10.20.20.1" ];
               domain = "lan.";
+              leaseDns = {
+                ownerScope = "tenant-client";
+                requesterScope = "tenant-client";
+                namespace = "client.lan.";
+              };
               leaseState = {
                 service = "dhcp4";
                 id = "client";
@@ -96,6 +103,11 @@ gen_script="$(
               router = "10.20.20.1";
               dnsServers = [ "10.20.20.1" ];
               domain = "lan.";
+              leaseDns = {
+                ownerScope = "tenant-client";
+                requesterScope = "tenant-client";
+                namespace = "client.lan.";
+              };
               leaseState = {
                 service = "dhcp4";
                 id = "client";
@@ -134,6 +146,11 @@ gen_drv="$(
               router = "10.20.20.1";
               dnsServers = [ "10.20.20.1" ];
               domain = "lan.";
+              leaseDns = {
+                ownerScope = "tenant-client";
+                requesterScope = "tenant-client";
+                namespace = "client.lan.";
+              };
               leaseState = {
                 service = "dhcp4";
                 id = "client";
@@ -155,6 +172,10 @@ gen_drv="$(
 nix-store -r "$gen_drv" >/dev/null
 [[ -x "$gen_script" ]] || fail "FAIL kea-unbound-lease-sync: generated config script is not executable: ${gen_script}"
 grep -F '"/persist/network/state/dhcp4/router-access-client/client"' "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not use CPM lease-state path"
+grep -F "namespace=client.lan." "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not preserve modeled lease DNS namespace"
+grep -F "owner_scope=tenant-client" "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not preserve modeled owner scope"
+grep -F "requester_scope=tenant-client" "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not preserve modeled requester scope"
+grep -F 'fqdn="$hostname.$namespace"' "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not publish relative leases only under the modeled namespace"
 if grep -F '/var/lib/kea' "$gen_script" >/dev/null; then
   fail "FAIL kea-unbound-lease-sync: generated script used renderer-local /var/lib/kea lease path"
 fi
@@ -184,5 +205,95 @@ cat >"${tmp}/good-no-hook.json" <<EOF
 EOF
 
 "${kea_out}/bin/kea-dhcp4" -t "${tmp}/good-no-hook.json" >/dev/null
+
+nix_eval_true_or_fail \
+  kea-unbound-lease-sync-fail-closed-without-authority \
+  env REPO_ROOT="${repo_root}" \
+    nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+        kea =
+          import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
+            inherit lib pkgs;
+            scope = {
+              fileStem = "client";
+              interfaceName = "tenant-client";
+              subnetId = 20;
+              subnet = "10.20.20.0/24";
+              pool = "10.20.20.100 - 10.20.20.199";
+              router = "10.20.20.1";
+              dnsServers = [ "10.20.20.1" ];
+              domain = "lan.";
+              leaseState = {
+                service = "dhcp4";
+                id = "client";
+                kind = "lease-state";
+                mode = "persistent";
+                required = true;
+                interface = "tenant-client";
+                tenant = "client";
+                source = "inventory-realization";
+                path = "/persist/network/state/dhcp4/router-access-client/client";
+              };
+            };
+          };
+        service = kea.systemd.services."kea-dhcp4-client";
+      in
+        !builtins.hasAttr "kea-unbound-sync-client" kea.systemd.services
+        && !builtins.hasAttr "kea-unbound-sync-client" kea.systemd.timers
+        && !(builtins.elem "unbound.service" service.after)
+        && !(builtins.elem "unbound.service" service.wants)
+    '
+
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure --expr '
+    let
+      repoRoot = builtins.getEnv "REPO_ROOT";
+      flake = builtins.getFlake ("path:" + repoRoot);
+      lib = flake.inputs.nixpkgs.lib;
+      pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+      kea =
+        import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
+          inherit lib pkgs;
+          scope = {
+            fileStem = "client";
+            interfaceName = "tenant-client";
+            subnetId = 20;
+            subnet = "10.20.20.0/24";
+            pool = "10.20.20.100 - 10.20.20.199";
+            router = "10.20.20.1";
+            dnsServers = [ "10.20.20.1" ];
+            domain = "lan.";
+            leaseDns = {
+              requesterScope = "tenant-client";
+              namespace = "client.lan.";
+            };
+            leaseState = {
+              service = "dhcp4";
+              id = "client";
+              kind = "lease-state";
+              mode = "persistent";
+              required = true;
+              interface = "tenant-client";
+              tenant = "client";
+              source = "inventory-realization";
+              path = "/persist/network/state/dhcp4/router-access-client/client";
+            };
+          };
+        };
+    in
+      builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart
+  ' >"${tmp}/partial-authority.out" 2>"${tmp}/partial-authority.err"; then
+  fail "FAIL kea-unbound-lease-sync: partial leaseDns authority was accepted"
+fi
+
+grep -F 'scope.leaseDns.ownerScope' "${tmp}/partial-authority.err" >/dev/null \
+  || fail "FAIL kea-unbound-lease-sync: partial leaseDns diagnostic did not name ownerScope"
 
 echo "PASS kea-unbound-lease-sync"
