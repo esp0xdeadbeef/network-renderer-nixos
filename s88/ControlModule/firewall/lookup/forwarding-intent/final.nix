@@ -84,7 +84,11 @@ in
     || nodeForwardingEnabled == false
     || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
   authoritativeCoreNat =
-    roles.explicitNatInterfaces != [ ] || natEnabled == false || (natEnabled == true && roles.explicitExitEligibleNames != [ ]);
+    roles.explicitNatInterfaces != [ ]
+    || roles.explicitNat4Interfaces != [ ]
+    || roles.explicitNat6Interfaces != [ ]
+    || natEnabled == false
+    || (natEnabled == true && roles.explicitExitEligibleNames != [ ]);
   authoritativeDownstreamSelectorForwarding =
     normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || hasExplicitSelectorForwarding;
   authoritativeUpstreamSelectorForwarding =
