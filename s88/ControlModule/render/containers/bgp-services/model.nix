@@ -44,7 +44,48 @@ let
     else
       { };
 
-  bgp = if runtimeTarget ? bgp && builtins.isAttrs runtimeTarget.bgp then runtimeTarget.bgp else { };
+  requireInt =
+    path: value:
+    if builtins.isInt value then
+      value
+    else
+      throw "CPM renderer contract update required: ${path} must be an integer";
+
+  requireNonEmptyString =
+    path: value:
+    if builtins.isString value && value != "" then
+      value
+    else
+      throw "CPM renderer contract update required: ${path} must be a non-empty string";
+
+  requireBool =
+    path: value:
+    if builtins.isBool value then
+      value
+    else
+      throw "CPM renderer contract update required: ${path} must be an explicit boolean";
+
+  routingModeRaw = runtimeTarget.routingMode or "static";
+  routingMode = if builtins.isString routingModeRaw then lib.toLower routingModeRaw else "static";
+
+  bgp =
+    if routingMode != "bgp" then
+      if runtimeTarget ? bgp && builtins.isAttrs runtimeTarget.bgp then runtimeTarget.bgp else { }
+    else
+      let
+        raw =
+          if runtimeTarget ? bgp && builtins.isAttrs runtimeTarget.bgp then
+            runtimeTarget.bgp
+          else
+            throw "CPM renderer contract update required: runtimeTarget.bgp must be an attrset when runtimeTarget.routingMode = \"bgp\"";
+        _asn = requireInt "runtimeTarget.bgp.asn" (raw.asn or null);
+        _neighbors =
+          if !builtins.hasAttr "neighbors" raw || builtins.isList raw.neighbors then
+            true
+          else
+            throw "CPM renderer contract update required: runtimeTarget.bgp.neighbors must be a list";
+      in
+      builtins.seq _asn (builtins.seq _neighbors raw);
 
   neighborsRaw = if bgp ? neighbors && builtins.isList bgp.neighbors then bgp.neighbors else [ ];
 
@@ -127,31 +168,45 @@ let
       )
     );
 
-  normalizedNeighbors = lib.filter (neighbor: neighbor != null) (
-    map
-      (
-        neighbor:
-        if !builtins.isAttrs neighbor || !builtins.isInt (neighbor.peer_asn or null) then
-          null
-        else
-          let
-            peer4 = stripCidr (neighbor.peer_addr4 or null);
-            peer6 = stripCidr (neighbor.peer_addr6 or null);
-          in
-          {
-            peerAsn = neighbor.peer_asn;
-            peerAddr4 = if builtins.isString peer4 && peer4 != "" then peer4 else null;
-            peerAddr6 = if builtins.isString peer6 && peer6 != "" then peer6 else null;
-            updateSource =
-              if builtins.isString (neighbor.update_source or null) && neighbor.update_source != "" then
-                neighbor.update_source
-              else
-                null;
-            routeReflectorClient = neighbor.route_reflector_client or false;
-          }
-      )
-      neighborsRaw
-  );
+  validateNeighbor =
+    idx: neighbor:
+    if !builtins.isAttrs neighbor then
+      throw "CPM renderer contract update required: runtimeTarget.bgp.neighbors[${builtins.toString idx}] must be a neighbor record"
+    else
+      let
+        path = "runtimeTarget.bgp.neighbors[${builtins.toString idx}]";
+        peer4 = stripCidr (neighbor.peer_addr4 or null);
+        peer6 = stripCidr (neighbor.peer_addr6 or null);
+        peerAddr4 = if builtins.isString peer4 && peer4 != "" then peer4 else null;
+        peerAddr6 = if builtins.isString peer6 && peer6 != "" then peer6 else null;
+        _peerAsn = requireInt "${path}.peer_asn" (neighbor.peer_asn or null);
+        _peerAddr =
+          if peerAddr4 != null || peerAddr6 != null then
+            true
+          else
+            throw "CPM renderer contract update required: ${path} must carry peer_addr4 or peer_addr6";
+        _updateSource =
+          if neighbor ? update_source then
+            builtins.seq (requireNonEmptyString "${path}.update_source" neighbor.update_source) true
+          else
+            true;
+        _routeReflectorClient =
+          if neighbor ? route_reflector_client then
+            builtins.seq (requireBool "${path}.route_reflector_client" neighbor.route_reflector_client) true
+          else
+            true;
+      in
+      builtins.seq _peerAsn (builtins.seq _peerAddr (builtins.seq _updateSource (builtins.seq _routeReflectorClient {
+        peerAsn = neighbor.peer_asn;
+        inherit peerAddr4 peerAddr6;
+        updateSource = if neighbor ? update_source then neighbor.update_source else null;
+        routeReflectorClient = if neighbor ? route_reflector_client then neighbor.route_reflector_client else false;
+      })));
+
+  normalizedNeighbors =
+    builtins.genList
+      (idx: validateNeighbor idx (builtins.elemAt neighborsRaw idx))
+      (builtins.length neighborsRaw);
 
   ipv4Neighbors = lib.sort (a: b: a.peerAddr4 < b.peerAddr4) (
     uniqueBy
