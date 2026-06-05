@@ -62,6 +62,92 @@ let
     else
       throw "CPM renderer contract update required: ${path} must be an explicit boolean";
 
+  requireNonEmptyString =
+    path: value:
+    if builtins.isString value && value != "" then
+      value
+    else
+      throw "CPM renderer contract update required: ${path} must be a non-empty string";
+
+  forbiddenReservationAuthorityKeys = [
+    "reachability"
+    "routes"
+    "route"
+    "policyRoutes"
+    "firewall"
+    "dnsRecursion"
+    "recursiveDns"
+    "managementAccess"
+    "publicEgress"
+    "egress"
+    "nat"
+  ];
+
+  rejectReservationAuthority =
+    path: reservation:
+    let
+      present = lib.filter (name: builtins.hasAttr name reservation) forbiddenReservationAuthorityKeys;
+    in
+    if present == [ ] then
+      true
+    else
+      throw "CPM renderer contract update required: ${path} must not carry unrelated network authority fields: ${lib.concatStringsSep ", " present}";
+
+  validateReservationAddressFamily =
+    path: family: address:
+    if family == "dhcp4" && builtins.match ".*:.*" address != null then
+      throw "CPM renderer contract update required: ${path}.address must be a resolved IPv4 reservation address"
+    else if family == "dhcpv6" && builtins.match ".*:.*" address == null then
+      throw "CPM renderer contract update required: ${path}.address must be a resolved IPv6 reservation address"
+    else
+      true;
+
+  validateReservation =
+    family: path: reservation:
+    if !builtins.isAttrs reservation then
+      throw "CPM renderer contract update required: ${path} must be a reservation record"
+    else
+      let
+        address = requireNonEmptyString "${path}.address" (reservation.address or null);
+        _family = validateReservationAddressFamily path family address;
+        _identity =
+          if family == "dhcpv6" then
+            if
+              (builtins.isString (reservation.mac or null) && reservation.mac != "")
+              || (builtins.isString (reservation.duid or null) && reservation.duid != "")
+            then
+              true
+            else
+              throw "CPM renderer contract update required: ${path} must carry explicit mac or duid identity"
+          else
+            builtins.seq (requireNonEmptyString "${path}.mac" (reservation.mac or null)) true;
+        _authority = rejectReservationAuthority path reservation;
+      in
+      builtins.seq _family (builtins.seq _identity (builtins.seq _authority reservation));
+
+  reservationsFor =
+    family: entryPath: adv:
+    let
+      raw =
+        if builtins.hasAttr "reservations" adv then
+          if builtins.isList adv.reservations then
+            adv.reservations
+          else
+            throw "CPM renderer contract update required: ${entryPath}.reservations must be a list"
+        else
+          [ ];
+      _servedScope =
+        if raw == [ ] then
+          true
+        else
+          builtins.seq (requireNonEmptyString "${entryPath}.subnet" (adv.subnet or null)) true;
+    in
+    builtins.seq _servedScope (
+      builtins.genList
+        (idx: validateReservation family "${entryPath}.reservations[${builtins.toString idx}]" (builtins.elemAt raw idx))
+        (builtins.length raw)
+    );
+
   delegatedPrefixFor =
     { adv, tenantName }:
     let
@@ -151,7 +237,7 @@ in
         inherit interfaceName router;
         subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
         pool = poolStringFrom (adv.pool or null);
-        reservations = if builtins.isList (adv.reservations or null) then adv.reservations else [ ];
+        reservations = reservationsFor "dhcp4" "runtimeTarget.advertisements.dhcp4[${builtins.toString idx}]" adv;
         dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
         domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
         subnetId = idx + 1;
@@ -180,7 +266,7 @@ in
         inherit interfaceName;
         subnet = if builtins.isString (adv.subnet or null) && adv.subnet != "" then adv.subnet else null;
         pool = poolStringFrom (adv.pool or null);
-        reservations = if builtins.isList (adv.reservations or null) then adv.reservations else [ ];
+        reservations = reservationsFor "dhcpv6" "runtimeTarget.advertisements.dhcpv6[${builtins.toString idx}]" adv;
         dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
         domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
         subnetId = idx + 1;
