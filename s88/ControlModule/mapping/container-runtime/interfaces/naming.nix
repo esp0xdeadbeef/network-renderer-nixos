@@ -19,8 +19,30 @@ let
 
   nonDistinctContainerTokens = [ "s" "router" "network" "container" ];
 
+  stringCharacters =
+    value:
+    if value == "" then [ ] else map (index: builtins.substring index 1 value) (lib.range 0 (builtins.stringLength value - 1));
+
+  isValidInterfaceNameCharacter =
+    char: builtins.match "[A-Za-z0-9_.-]" char != null;
+
+  normalizeInterfaceNameToken =
+    token:
+    let
+      chars = stringCharacters token;
+      normalized = lib.concatStrings (map (char: if isValidInterfaceNameCharacter char then char else "-") chars);
+      compacted = lib.concatStringsSep "-" (lib.filter (part: part != "") (lib.splitString "-" normalized));
+    in
+    if compacted != "" then compacted else "if";
+
   validInterfaceName =
-    name: builtins.isString name && name != "" && builtins.stringLength name <= interfaceNameMaxLength;
+    name:
+    builtins.isString name
+    && name != ""
+    && name != "."
+    && name != ".."
+    && builtins.stringLength name <= interfaceNameMaxLength
+    && builtins.match "[A-Za-z0-9_.-]+" name != null;
 
   aliasToken = token: if builtins.hasAttr token semanticTokenAliases then semanticTokenAliases.${token} else token;
 
@@ -30,7 +52,10 @@ let
     in if tokenLen <= maxLen then token else builtins.substring 0 maxLen token;
 
   semanticTokensForName =
-    name: map aliasToken (lib.filter (token: token != "") (lib.splitString "-" name));
+    name:
+    map
+      (token: normalizeInterfaceNameToken (aliasToken token))
+      (lib.filter (token: token != "") (lib.splitString "-" name));
 
   compactSemanticName =
     { name, maxLen, fallback, removeTokens ? [ ] }:
@@ -94,13 +119,16 @@ rec {
     let
       rawTokens = lib.filter (token: token != "") (lib.splitString "-" desiredInterfaceName);
       aliasedTokens = map aliasToken rawTokens;
+      normalizedDesiredInterfaceName = normalizeInterfaceNameToken desiredInterfaceName;
+      normalizedAliasedTokens = map normalizeInterfaceNameToken aliasedTokens;
       candidateNames = [
         desiredInterfaceName
-        (lib.concatStringsSep "-" aliasedTokens)
-        (lib.concatStringsSep "-" (map (truncateToken 4) aliasedTokens))
-        (lib.concatStringsSep "-" (map (truncateToken 3) aliasedTokens))
-        (lib.concatStringsSep "" (map (truncateToken 1) aliasedTokens))
-        (builtins.substring 0 interfaceNameMaxLength desiredInterfaceName)
+        normalizedDesiredInterfaceName
+        (lib.concatStringsSep "-" normalizedAliasedTokens)
+        (lib.concatStringsSep "-" (map (truncateToken 4) normalizedAliasedTokens))
+        (lib.concatStringsSep "-" (map (truncateToken 3) normalizedAliasedTokens))
+        (lib.concatStringsSep "" (map (truncateToken 1) normalizedAliasedTokens))
+        (builtins.substring 0 interfaceNameMaxLength normalizedDesiredInterfaceName)
       ];
       validNames = lib.filter validInterfaceName candidateNames;
     in

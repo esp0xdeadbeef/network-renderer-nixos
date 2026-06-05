@@ -57,6 +57,17 @@ let
       renderedIfName = runtimeIfName;
       containerInterfaceName = runtimeIfName;
       interfaceAliases = lib.unique (existingAliases ++ [ ifName requestedRuntimeIfName runtimeIfName ]);
+      runtimeInterfaceAudit = {
+        logicalInterfaceName = ifName;
+        desiredInterfaceName = requestedRuntimeIfName;
+        sourceKind = iface.sourceKind or "overlay";
+        aliases = lib.unique (existingAliases ++ [ ifName requestedRuntimeIfName runtimeIfName ]);
+        providerIdentity = {
+          ifName = ifName;
+          requestedRuntimeIfName = requestedRuntimeIfName;
+          backingRef = backingRef;
+        };
+      };
       backingRef = backingRef;
       connectivity = (attrsOrEmpty (iface.connectivity or null)) // {
         sourceKind = iface.sourceKind or "overlay";
