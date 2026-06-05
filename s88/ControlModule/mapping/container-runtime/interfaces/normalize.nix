@@ -122,6 +122,19 @@ let
       inherit ifName;
       value = {
         inherit ifName sourceKind desiredInterfaceName usePrimaryHostBridge realizationPortName interfaceAliases;
+        runtimeInterfaceAudit = {
+          logicalInterfaceName = ifName;
+          desiredInterfaceName = desiredInterfaceName;
+          sourceKind = sourceKind;
+          aliases = interfaceAliases;
+          cpmIdentity = {
+            ifName = ifName;
+            renderedIfName = iface.renderedIfName or null;
+            sourceInterface = iface.sourceInterface or null;
+            backingRef = iface.backingRef or { };
+            identity = attachTarget.identity or { };
+          };
+        };
         hostVethBaseName = semanticHostVethBaseName {
           inherit containerName desiredInterfaceName;
           adapterName = if iface ? adapterName then iface.adapterName else null;
