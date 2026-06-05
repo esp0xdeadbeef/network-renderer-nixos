@@ -44,6 +44,7 @@ let
   renderedInterfacesForUnit = import ./dry-config-model/interfaces.nix {
     inherit lib runtimeContext normalizedRuntimeTargets hostRenderings deploymentHostNames controlPlane resolvedInventory;
   };
+  provenance = import ./provenance.nix { inherit lib; };
 
   renderHosts = builtins.listToAttrs (
     map
@@ -110,24 +111,38 @@ let
 
   renderSites = import ./dry-config-model/sites.nix { inherit controlPlane; };
 
+  render = {
+    hosts = renderHosts;
+    nodes = renderNodes;
+    containers = renderContainers;
+    sites = renderSites;
+  };
+
+  provenanceRecord = provenance.build {
+    inherit
+      controlPlane
+      deploymentHostNames
+      metadataSourcePaths
+      normalizedRuntimeTargets
+      renderSites
+      ;
+    repoRoot = metadataSourcePaths.repoRoot;
+  };
+
   output = {
     metadata = {
       sourcePaths = metadataSourcePaths;
       warnings = pipelineAlarmModel.warningMessages;
       alarms = pipelineAlarmModel.alarms;
+      provenance = provenanceRecord;
     };
 
-    render = {
-      hosts = renderHosts;
-      nodes = renderNodes;
-      containers = renderContainers;
-      sites = renderSites;
-    };
+    inherit render;
   }
   // lib.optionalAttrs debugEnabled {
     debug = {
-      controlPlane = controlPlane;
-      inventory = resolvedInventory;
+      controlPlane = provenance.safeValue controlPlane;
+      inventory = provenance.safeValue resolvedInventory;
       normalizedRuntimeTargets = normalizedRuntimeTargets;
       hostRenderings = hostRenderingsDebug;
     };
