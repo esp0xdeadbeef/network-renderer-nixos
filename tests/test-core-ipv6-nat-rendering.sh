@@ -21,7 +21,9 @@ inventory_path="${example_root}/inventory-clab.nix"
 result_json="$(mktemp)"
 eval_stderr="$(mktemp)"
 rules_file="$(mktemp)"
-trap 'rm -f "${result_json}" "${eval_stderr}" "${rules_file}"' EXIT
+family_nat_json="$(mktemp)"
+family_nat_stderr="$(mktemp)"
+trap 'rm -f "${result_json}" "${eval_stderr}" "${rules_file}" "${family_nat_json}" "${family_nat_stderr}"' EXIT
 
 nix_eval_json_or_fail \
   core-ipv6-nat-rendering \
@@ -147,6 +149,86 @@ fi
 if grep -Fq 'oifname "eth0" masquerade' <<<"${scoped_rules}"; then
   echo "FAIL core-ipv6-nat-rendering: source-scoped NAT66 must not also emit unscoped masquerade" >&2
   rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
+  exit 1
+fi
+
+nix_eval_json_or_fail \
+  core-ipv6-nat-rendering \
+  "${family_nat_json}" \
+  "${family_nat_stderr}" \
+  env REPO_ROOT="${repo_root}" \
+    nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --json --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        forwardingIntent = import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent.nix") {
+          inherit lib;
+          runtimeTarget = {
+            natIntent = {
+              enabled = true;
+              families = {
+                ipv4 = false;
+                ipv6 = true;
+              };
+              masqueradeInterfaces6 = [ "isp-a" ];
+              masqueradeSourcePrefixes6 = [ "fd42:dead:beef:20::/64" ];
+            };
+          };
+          interfaces = {
+            isp-a = {
+              name = "isp-a";
+              sourceKind = "wan";
+            };
+            tenant-client = {
+              name = "tenant-client";
+              sourceKind = "tenant";
+            };
+          };
+          wanIfs = [ "isp-a" ];
+          lanIfs = [ "tenant-client" ];
+          uplinks = { };
+        };
+        coreForwarding = import (repoRoot + "/s88/ControlModule/firewall/policy/core/forwarding.nix") {
+          inherit lib forwardingIntent;
+          uplinks = { };
+          wanNames = [ "isp-a" ];
+          lanNames = [ "tenant-client" ];
+          forwardEgressNames = [ "isp-a" ];
+          overlayIngressNames = [ ];
+          adapterNames = [ "tenant-client" ];
+        };
+        renderRuleset = import (repoRoot + "/s88/ControlModule/firewall/emission/render-ruleset.nix") {
+          inherit lib;
+        };
+      in {
+        authoritativeCoreNat = forwardingIntent.authoritativeCoreNat;
+        nat6Interfaces = coreForwarding.nat6Interfaces;
+        nat6SourcePrefixes = coreForwarding.nat6SourcePrefixes;
+        rules = renderRuleset {
+          nat6Interfaces = coreForwarding.nat6Interfaces;
+          nat6SourcePrefixes = coreForwarding.nat6SourcePrefixes;
+        };
+      }
+    '
+
+if [[ "$(_jq -r '.authoritativeCoreNat' "${family_nat_json}")" != "true" ]]; then
+  echo "FAIL core-ipv6-nat-rendering: family-specific NAT66 interfaces must mark core NAT intent authoritative" >&2
+  _jq '.' "${family_nat_json}" >&2
+  exit 1
+fi
+
+if [[ "$(_jq -r '.nat6Interfaces | join(",")' "${family_nat_json}")" != "isp-a" ]]; then
+  echo "FAIL core-ipv6-nat-rendering: family-specific NAT66 interfaces must flow into core firewall forwarding" >&2
+  _jq '.' "${family_nat_json}" >&2
+  exit 1
+fi
+
+if ! _jq -r '.rules' "${family_nat_json}" | grep -Fq 'oifname "isp-a" ip6 saddr fd42:dead:beef:20::/64 masquerade'; then
+  echo "FAIL core-ipv6-nat-rendering: family-specific NAT66 intent must render source-scoped IPv6 masquerade" >&2
+  _jq -r '.rules' "${family_nat_json}" >&2
   exit 1
 fi
 
