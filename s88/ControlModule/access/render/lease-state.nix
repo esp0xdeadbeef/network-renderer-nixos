@@ -14,7 +14,7 @@ let
     if builtins.isAttrs leaseState then
       leaseState
     else
-      throw "NixOS ${service} renderer requires explicit scope.leaseState from CPM stateContracts.persistence";
+      throw "NixOS ${service} renderer state-loss classification: required persistent state is unavailable because explicit scope.leaseState from CPM stateContracts.persistence is missing";
   mode = requiredField "mode" (checkedState.mode or null);
   path =
     if builtins.isString (checkedState.path or null) && checkedState.path != "" then
@@ -22,7 +22,7 @@ let
     else if mode == "ephemeral" && (checkedState.runtimeLocation or null) == "ephemeral" then
       "/run/kea/${fileStem}${suffix}.leases"
     else
-      throw "NixOS ${service} renderer requires scope.leaseState.path for persistent lease state or runtimeLocation=ephemeral";
+      throw "NixOS ${service} renderer state-loss classification: required persistent state for ${fileStem} is unavailable because scope.leaseState.path is missing and runtimeLocation=ephemeral was not selected";
   persist =
     if mode == "persistent" then
       true

@@ -185,17 +185,50 @@ else
       lib.filter
         (record: builtins.isAttrs record && builtins.isString (record.name or null) && record.name != "")
         (if builtins.isList (dnsService.localRecords or null) then dnsService.localRecords else [ ]);
-    namespaceFallback =
-      if builtins.isAttrs (dnsService.namespaceFallback or null) then dnsService.namespaceFallback else { };
-    namespaceFallbackDecisions =
+  namespaceFallback =
+    if builtins.isAttrs (dnsService.namespaceFallback or null) then dnsService.namespaceFallback else { };
+  namespaceFallbackDecisionsRaw =
+    if builtins.isList (namespaceFallback.decisions or null) then namespaceFallback.decisions else [ ];
+  invalidNamespaceConflictDecisions =
+    lib.filter
+      (decision:
+        builtins.isAttrs decision
+        && !(decision.publicRecursionFallback or false)
+        && builtins.elem (decision.action or null) [ "block" "deny" ]
+        && !(
+          builtins.isString (decision.requesterScope or null)
+          && decision.requesterScope != ""
+          && builtins.isString (decision.namespace or null)
+          && decision.namespace != ""
+        ))
+      namespaceFallbackDecisionsRaw;
+  namespaceFallbackDecisions =
+      if invalidNamespaceConflictDecisions != [ ] then
+        let
+          bad = builtins.head invalidNamespaceConflictDecisions;
+          badNamespace =
+            if builtins.isString (bad.namespace or null) && bad.namespace != "" then
+              bad.namespace
+            else
+              "<missing-namespace>";
+          badAction =
+            if builtins.isString (bad.action or null) && bad.action != "" then
+              bad.action
+            else
+              "<missing-action>";
+        in
+        throw "NixOS DNS renderer requires requesterScope and namespace for modeled namespace-conflict state predicate action '${badAction}' on '${badNamespace}'"
+      else
       lib.filter
         (decision:
           builtins.isAttrs decision
+          && builtins.isString (decision.requesterScope or null)
+          && decision.requesterScope != ""
           && builtins.isString (decision.namespace or null)
           && decision.namespace != ""
           && !((decision.publicRecursionFallback or false))
           && builtins.elem (decision.action or null) [ "block" "deny" ])
-        (if builtins.isList (namespaceFallback.decisions or null) then namespaceFallback.decisions else [ ]);
+        namespaceFallbackDecisionsRaw;
     dnsRoles = if builtins.isAttrs (dnsService.roles or null) then dnsService.roles else { };
     recursionRole = if builtins.isAttrs (dnsRoles.recursion or null) then dnsRoles.recursion else { };
     roleOutgoingInterfaces = stringList (recursionRole.outgoingInterfaces or [ ]);
