@@ -1,4 +1,6 @@
 { repoRoot
+, lib ? null
+, renderer ? null
 , cpm ? null
 , cpmPath ? null
 , inventory ? { }
@@ -9,11 +11,18 @@
 }:
 
 let
-  flake = builtins.getFlake (toString (builtins.toPath repoRoot));
+  flake =
+    if lib == null || renderer == null then
+      builtins.getFlake (toString (builtins.toPath repoRoot))
+    else
+      null;
 
-  lib =
-    if
-      flake ? lib
+  resolvedLib =
+    if lib != null then
+      lib
+    else if
+      flake != null
+      && flake ? lib
       && flake.lib ? flakeInputs
       && flake.lib.flakeInputs ? nixpkgs
       && flake.lib.flakeInputs.nixpkgs ? lib
@@ -22,22 +31,21 @@ let
     else
       throw "s88/Unit/render/dry-config-output.nix: unable to resolve nixpkgs lib from flake inputs";
 
-  renderer = flake.lib.renderer;
+  resolvedRenderer =
+    if renderer != null then
+      renderer
+    else if flake != null && flake ? lib && flake.lib ? renderer then
+      flake.lib.renderer
+    else
+      throw "s88/Unit/render/dry-config-output.nix: unable to resolve renderer API";
 
-  runtimeContext = import ../lookup/runtime-context.nix { inherit lib; };
-  runtimeTargets = import ../mapping/runtime-targets.nix { inherit lib; };
+  runtimeContext = import ../lookup/runtime-context.nix { lib = resolvedLib; };
+  runtimeTargets = import ../mapping/runtime-targets.nix { lib = resolvedLib; };
 
   renderInputs = import ../../ControlModule/lookup/render-inputs.nix {
-    inherit
-      lib
-      renderer
-      repoRoot
-      cpm
-      cpmPath
-      inventory
-      inventoryPath
-      exampleDir
-      ;
+    lib = resolvedLib;
+    renderer = resolvedRenderer;
+    inherit repoRoot cpm cpmPath inventory inventoryPath exampleDir;
   };
 
   controlPlane = renderInputs.controlPlane;
@@ -79,7 +87,7 @@ let
     map
       (hostName: {
         name = hostName;
-        value = renderer.renderHostNetwork {
+        value = resolvedRenderer.renderHostNetwork {
           inherit hostName;
           cpm = controlPlane;
           inventory = resolvedInventory;
@@ -89,8 +97,8 @@ let
   );
 
   output = import ../../ControlModule/render/dry-config-model.nix {
+    lib = resolvedLib;
     inherit
-      lib
       metadataSourcePaths
       runtimeContext
       normalizedRuntimeTargets
