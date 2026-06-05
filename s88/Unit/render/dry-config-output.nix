@@ -67,8 +67,8 @@ let
 
   unitNames = sortedAttrNames normalizedRuntimeTargets;
 
-  deploymentHostNames = lib.sort builtins.lessThan (
-    lib.unique (
+  deploymentHostNames = resolvedLib.sort builtins.lessThan (
+    resolvedLib.unique (
       map
         (
           unitName:
