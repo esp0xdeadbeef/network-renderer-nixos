@@ -36,6 +36,7 @@ in
     let
       isWan = (iface.sourceKind or null) == "wan";
       addresses = iface.addresses or [ ];
+      pppoeOwned = (iface._s88PppoeOwned or false) == true;
       hasStaticIpv4 = lib.any hasIpv4Address addresses;
       hasStaticIpv6 = lib.any hasIpv6Address addresses;
       assignedUplink = assignedUplinkFor iface;
@@ -48,15 +49,18 @@ in
       ipv4Enabled = ipv4Contract ? enable && (ipv4Contract.enable or false);
       ipv4Dhcp =
         ipv4Enabled
+        && !pppoeOwned
         && !hasStaticIpv4
         && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp");
       ipv6Enabled = ipv6Contract ? enable && (ipv6Contract.enable or false);
       ipv6Dhcp =
         ipv6Enabled
+        && !pppoeOwned
         && !hasStaticIpv6
         && ((ipv6Contract.dhcp or false) || (ipv6Contract.method or null) == "dhcp");
       ipv6AcceptRA =
         ipv6Enabled
+        && !pppoeOwned
         && !hasStaticIpv6
         && ((ipv6Contract.acceptRA or false) || (ipv6Contract.method or null) == "slaac");
       dhcpMode =
@@ -85,12 +89,14 @@ in
     iface:
     let
       assignedUplink = assignedUplinkFor iface;
+      pppoeOwned = (iface._s88PppoeOwned or false) == true;
       dynamicAddressing = attrsOrEmpty (iface.dynamicAddressing or null);
       explicitIpv6 = attrsOrEmpty (dynamicAddressing.ipv6 or null);
       hasExplicitDynamic = dynamicAddressing ? ipv6;
       ipv6Contract = if hasExplicitDynamic then explicitIpv6 else attrsOrEmpty (assignedUplink.ipv6 or null);
     in
-    ((iface.sourceKind or null) == "wan" || hasExplicitDynamic)
+    !pppoeOwned
+    && ((iface.sourceKind or null) == "wan" || hasExplicitDynamic)
     && !(lib.any hasIpv6Address (iface.addresses or [ ]))
     && (ipv6Contract.enable or false)
     && ((ipv6Contract.acceptRA or false) || (ipv6Contract.method or null) == "slaac");

@@ -15,6 +15,26 @@ let
   listOrEmpty = value: if builtins.isList value then value else [ ];
 
   baseInterfaces = containerModel.interfaces or { };
+  pppoeService = attrsOrEmpty ((attrsOrEmpty (containerModel.services or null)).pppoe or null);
+  pppoeOwnedInterfaceNames =
+    lib.unique (
+      lib.filter
+        (name: builtins.isString name && name != "")
+        [
+          ((attrsOrEmpty (pppoeService.client or null)).interface or null)
+          ((attrsOrEmpty (pppoeService.server or null)).interface or null)
+        ]
+    );
+  pppoeMarkedInterfaces =
+    lib.mapAttrs
+      (
+        name: iface:
+        if builtins.elem name pppoeOwnedInterfaceNames then
+          iface // { _s88PppoeOwned = true; }
+        else
+          iface
+      )
+      baseInterfaces;
   runtimeInterfaces = attrsOrEmpty (
     (attrsOrEmpty ((attrsOrEmpty (containerModel.runtimeTarget or null)).effectiveRuntimeRealization or null)).interfaces or null
   );
@@ -58,7 +78,7 @@ let
         };
     };
 
-  interfaces = baseInterfaces // providerInterfaces;
+  interfaces = pppoeMarkedInterfaces // providerInterfaces;
   interfaceView = import ./container-networks/interface-view.nix {
     inherit lib interfaces common;
   };
