@@ -41,6 +41,12 @@ let
     }:
     import ../render/dry-config-output.nix {
       repoRoot = builtins.toString repoRoot;
+      inherit lib;
+      renderer = {
+        loadInventory = selectors.importMaybeFunction;
+        loadControlPlane = selectors.loadStructuredPath;
+        renderHostNetwork = renderHostNetworkImpl;
+      };
       inherit
         cpm
         cpmPath
