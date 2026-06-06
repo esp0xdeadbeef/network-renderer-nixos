@@ -111,7 +111,8 @@ builtins.foldl'
               forwardingMainScope
             else if sourceIfName == ifName then
               {
-                staticPrefixes = forwardingMainScope.staticPrefixes;
+                staticPrefixes =
+                  if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.staticPrefixes;
                 sourceFiles = if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.sourceFiles;
               }
             else
@@ -157,7 +158,13 @@ builtins.foldl'
             sourceScopedRules =
               policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule [ ];
           in
-          if destinationScope != [ ] && sourceScopeForRule != [ ] then
+          if
+            sourceIfName == ifName
+            && isUpstreamSelectorPolicyInterface interfaceName
+            && scopeHasEntries forwardingMainScope
+          then
+            [ ]
+          else if destinationScope != [ ] && sourceScopeForRule != [ ] then
             destinationScopedRules ++ sourceScopedRules
           else
             policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule destinationScope
@@ -169,7 +176,7 @@ builtins.foldl'
             Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
             From = prefix.prefix;
             IncomingInterface = interfaceName;
-            Priority = tableId;
+            Priority = 9000 + tableId;
             Table = tableId;
           };
           mainFallbackRuleFor = prefix: {

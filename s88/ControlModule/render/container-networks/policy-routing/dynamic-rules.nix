@@ -20,7 +20,7 @@ let
     [
       {
         interfaceName = incomingInterface;
-        priority = tableId;
+        priority = 9000 + tableId;
         table = tableId;
       }
       {

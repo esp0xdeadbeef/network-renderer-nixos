@@ -183,11 +183,7 @@ let
     if
       isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName
     then
-      (lib.filter
-        (
-          route: builtins.isAttrs route && (!(isDefaultRoute route) || isPolicyOnlyRoute route)
-        )
-        (interfaces.${sourceIfName}.routes or [ ]))
+      (lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ]))
       ++ upstreamCoreReturnRoutes
     else if
       isUpstreamSelector
