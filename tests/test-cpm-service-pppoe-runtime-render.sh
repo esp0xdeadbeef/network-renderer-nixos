@@ -158,6 +158,14 @@ nix_eval_json_or_fail \
           runtime_binds_ppp_device =
             (runtime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
             && runtime.bindMounts."/dev/ppp".isReadOnly == false;
+          runtime_binds_exact_username_path =
+            (runtime.bindMounts."/run/secrets/provider-access-pppoe-username".hostPath or null)
+              == "/run/secrets/provider-access-pppoe-username"
+            && runtime.bindMounts."/run/secrets/provider-access-pppoe-username".isReadOnly == true;
+          runtime_binds_exact_password_path =
+            (runtime.bindMounts."/run/secrets/provider-access-pppoe-password".hostPath or null)
+              == "/run/secrets/provider-access-pppoe-password"
+            && runtime.bindMounts."/run/secrets/provider-access-pppoe-password".isReadOnly == true;
           runtime_allows_ppp_device =
             builtins.elem { node = "/dev/ppp"; modifier = "rw"; } runtime.allowedDevices;
           server_service_emitted = serverServices ? s88-pppoe-server;
