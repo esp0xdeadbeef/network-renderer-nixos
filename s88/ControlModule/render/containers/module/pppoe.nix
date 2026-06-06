@@ -105,6 +105,7 @@ let
             refuse-mschap-v2
             refuse-eap
             noipdefault
+            ifname ${pppName}
             ${defaultRouteLines}
             ${peerDns.options}
             persist
