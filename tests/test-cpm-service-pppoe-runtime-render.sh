@@ -30,6 +30,10 @@ nix_eval_json_or_fail \
           username = "hat-pppoe";
           password = "hat-pppoe";
         };
+        fileCredentials = {
+          usernameFile = "/run/secrets/sat-pppoe-nixos-username";
+          passwordFile = "/run/secrets/sat-pppoe-nixos-password";
+        };
         clientService = {
           client = {
             interface = "provider-handoff";
@@ -38,6 +42,11 @@ nix_eval_json_or_fail \
             defaultRoute = true;
             mtu = 1492;
             usePeerDns = true;
+          };
+        };
+        clientFileService = {
+          client = clientService.client // {
+            credentials = fileCredentials;
           };
         };
         serverService = {
@@ -51,6 +60,12 @@ nix_eval_json_or_fail \
             mtu = 1492;
           };
         };
+        peerDnsHelper = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe/client-peer-dns.nix") {
+          inherit lib pkgs;
+          peerName = "s88-pppoe-client-provider-handoff";
+          scriptSuffix = "provider-handoff";
+          usePeerDns = true;
+        };
         clientModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
           inherit lib pkgs;
           renderedModel = {
@@ -62,6 +77,18 @@ nix_eval_json_or_fail \
         clientEval = lib.nixosSystem {
           inherit system;
           modules = [ clientModule.config ];
+        };
+        clientFileModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
+          inherit lib pkgs;
+          renderedModel = {
+            unitName = "nixos-core-testnet-file-secrets";
+            interfaces.provider-handoff.containerInterfaceName = "ens20";
+            services.pppoe = clientFileService;
+          };
+        };
+        clientFileEval = lib.nixosSystem {
+          inherit system;
+          modules = [ clientFileModule.config ];
         };
         serverModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
           inherit lib pkgs;
@@ -112,6 +139,7 @@ nix_eval_json_or_fail \
         clientPreStart = clientServices."pppd-s88-pppoe-client-provider-handoff".preStart;
         clientServiceUnit = clientServices."pppd-s88-pppoe-client-provider-handoff";
         clientPeerConfig = clientPeers."s88-pppoe-client-provider-handoff".config;
+        clientFilePreStart = clientFileEval.config.systemd.services."pppd-s88-pppoe-client-provider-handoff".preStart;
         serverServices = serverEval.config.systemd.services;
         serverScript = serverServices.s88-pppoe-server.script;
         serverUnit = serverServices.s88-pppoe-server;
@@ -125,12 +153,24 @@ nix_eval_json_or_fail \
             (clientServiceUnit.serviceConfig.Restart or null) == "always";
           client_uses_pppoe_plugin = builtins.match ".*plugin pppoe[.]so.*nic-ens20.*" clientPreStart != null;
           client_uses_modeled_credentials = builtins.match ".*hat-pppoe.*" clientPreStart != null;
+          client_file_credentials_use_exact_username_path =
+            builtins.match ".*cat /run/secrets/sat-pppoe-nixos-username.*" clientFilePreStart != null;
+          client_file_credentials_use_exact_password_path =
+            builtins.match ".*cat /run/secrets/sat-pppoe-nixos-password.*" clientFilePreStart != null;
+          client_file_credentials_do_not_invent_inline_secret =
+            builtins.match ".*hat-pppoe.*" clientFilePreStart == null;
           client_peer_uses_options_file = builtins.match ".*file /run/pppd/s88-pppoe-client-provider-handoff[.]options.*" clientPeerConfig != null;
           client_peer_dns_keeps_hardened_unit =
             (clientServiceUnit.serviceConfig.ProtectSystem or null) == "strict"
             && (clientServiceUnit.serviceConfig.ReadWritePaths or null) == null;
           client_peer_dns_does_not_write_etc =
             builtins.match ".*usepeerdns.*noresolvconf.*" clientPreStart != null;
+          client_peer_dns_prestart_has_no_etc_resolv =
+            builtins.match ".*[/]etc[/]ppp[/]resolv[.]conf.*" clientPreStart == null;
+          client_peer_dns_helper_has_no_etc_resolv =
+            builtins.match ".*[/]etc[/]ppp[/]resolv[.]conf.*" peerDnsHelper.ipUpBlock == null;
+          client_peer_dns_helper_writes_runtime_resolv =
+            builtins.match ".*[/]run[/]pppd[/]s88-pppoe-client-provider-handoff[.]resolv[.]conf.*" peerDnsHelper.ipUpBlock != null;
           client_peer_dns_writes_runtime_resolv =
             builtins.match ".*ip-up-script /nix/store/[^[:space:]]+s88-pppoe-ip-up-provider-handoff.*" clientPreStart != null;
           client_peer_dns_cleans_runtime_resolv =
