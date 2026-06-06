@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-800-HDS-010-SDS-020-SMS-010
+# GAMP-ID: FS-800-HDS-030-SDS-010-SMS-010 FS-800-HDS-030-SDS-020-SMS-010
 # GAMP-SCOPE: software-module-test
 set -euo pipefail
 
@@ -81,38 +81,41 @@ nix_eval_json_or_fail \
           inherit system;
           modules = [ serverModule.config ];
         };
-        assembly = import (repoPath + "/s88/ControlModule/mapping/container-runtime/model/container-assembly.nix") {
-          inherit lib;
-          naming = {
-            emittedUnitNameForUnit = unitName: unitName;
-            containerNameForUnit = unitName: unitName;
-          };
-          interfaces = {
-            normalizedInterfacesForUnit = { unitName, containerName, interfaces }:
-              builtins.mapAttrs (_: iface: iface // { containerInterfaceName = iface.containerInterfaceName or iface.interface.name or "ens20"; sourceKind = "lan"; }) interfaces;
-            vethsForInterfaces = _: { };
-          };
-          lookup = {
-            deploymentHostName = "s-router-nixos";
-            siteData = { };
-            inventorySiteData = { };
-            hostContext = { };
-            sortedAttrNames = attrs: builtins.sort builtins.lessThan (builtins.attrNames attrs);
-            runtimeTargetForUnit = unitName: {
-              logicalNode = {
-                enterprise = "esp0xdeadbeef";
-                site = "site-a";
-                name = unitName;
-              };
-              services.pppoe = clientService;
-              effectiveRuntimeRealization.interfaces.provider-handoff.containerInterfaceName = "ens20";
+        mkAssemblyFor =
+          pppoeService:
+          import (repoPath + "/s88/ControlModule/mapping/container-runtime/model/container-assembly.nix") {
+            inherit lib;
+            naming = {
+              emittedUnitNameForUnit = unitName: unitName;
+              containerNameForUnit = unitName: unitName;
             };
-            roleForUnit = _: "core";
-            roleConfigForUnit = _: { };
-            containerConfigForUnit = _: { };
+            interfaces = {
+              normalizedInterfacesForUnit = { unitName, containerName, interfaces }:
+                builtins.mapAttrs (_: iface: iface // { containerInterfaceName = iface.containerInterfaceName or iface.interface.name or "ens20"; sourceKind = "lan"; }) interfaces;
+              vethsForInterfaces = _: { };
+            };
+            lookup = {
+              deploymentHostName = "s-router-nixos";
+              siteData = { };
+              inventorySiteData = { };
+              hostContext = { };
+              sortedAttrNames = attrs: builtins.sort builtins.lessThan (builtins.attrNames attrs);
+              runtimeTargetForUnit = unitName: {
+                logicalNode = {
+                  enterprise = "esp0xdeadbeef";
+                  site = "site-a";
+                  name = unitName;
+                };
+                services.pppoe = pppoeService;
+                effectiveRuntimeRealization.interfaces.provider-handoff.containerInterfaceName = "ens20";
+              };
+              roleForUnit = _: "core";
+              roleConfigForUnit = _: { };
+              containerConfigForUnit = _: { };
+            };
           };
-        };
-        runtime = assembly.mkContainerRuntime "nixos-core-testnet-host-isp";
+        clientRuntime = (mkAssemblyFor clientService).mkContainerRuntime "nixos-core-testnet-host-isp";
+        serverRuntime = (mkAssemblyFor serverService).mkContainerRuntime "nixos-provider-handoff-access-a";
         clientServices = clientEval.config.systemd.services;
         clientPeers = clientEval.config.services.pppd.peers;
         clientPreStart = clientServices."pppd-s88-pppoe-client-provider-handoff".preStart;
@@ -121,15 +124,30 @@ nix_eval_json_or_fail \
         serverServices = serverEval.config.systemd.services;
         serverScript = serverServices.s88-pppoe-server.script;
         serverUnit = serverServices.s88-pppoe-server;
+        serverToolsText = serverEval.config.environment.etc."s88/pppoe-tools".text;
         checks = {
           client_pppd_enabled = clientEval.config.services.pppd.enable == true;
           client_peer_emitted = clientPeers ? "s88-pppoe-client-provider-handoff";
+          client_peer_autostarts =
+            (clientPeers."s88-pppoe-client-provider-handoff".enable or false) == true
+            && (clientPeers."s88-pppoe-client-provider-handoff".autostart or false) == true;
           client_service_emitted = clientServices ? "pppd-s88-pppoe-client-provider-handoff";
           client_service_wanted_by_multi_user =
             builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]);
+          client_service_waits_for_handoff_network =
+            builtins.elem "network-online.target" (clientServiceUnit.after or [ ])
+            && builtins.elem "network-online.target" (clientServiceUnit.wants or [ ]);
           client_service_restarts =
             (clientServiceUnit.serviceConfig.Restart or null) == "always";
+          client_handoff_interface_brought_up =
+            builtins.match ".*ip link set ens20 up.*" clientPreStart != null;
           client_uses_pppoe_plugin = builtins.match ".*plugin pppoe[.]so.*nic-ens20.*" clientPreStart != null;
+          client_session_options_set_runtime_interface =
+            builtins.match ".*ifname ppp0.*" clientPreStart != null;
+          client_session_options_install_default_route =
+            builtins.match ".*defaultroute.*replacedefaultroute.*" clientPreStart != null;
+          client_session_options_enable_ipv6cp =
+            builtins.match ".*[+]ipv6.*ipv6cp-accept-local.*ipv6cp-accept-remote.*" clientPreStart != null;
           client_uses_exact_username_path =
             builtins.match ".*cat /run/secrets/provider-access-pppoe-username.*" clientPreStart != null;
           client_uses_exact_password_path =
@@ -155,24 +173,47 @@ nix_eval_json_or_fail \
             builtins.match ".*ip-up-script /nix/store/[^[:space:]]+s88-pppoe-ip-up-provider-handoff.*" clientPreStart != null;
           client_peer_dns_cleans_runtime_resolv =
             builtins.match ".*ip-down-script /nix/store/[^[:space:]]+s88-pppoe-ip-down-provider-handoff.*" clientPreStart != null;
-          runtime_binds_ppp_device =
-            (runtime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
-            && runtime.bindMounts."/dev/ppp".isReadOnly == false;
-          runtime_binds_exact_username_path =
-            (runtime.bindMounts."/run/secrets/provider-access-pppoe-username".hostPath or null)
+          client_runtime_binds_ppp_device =
+            (clientRuntime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
+            && clientRuntime.bindMounts."/dev/ppp".isReadOnly == false;
+          client_runtime_binds_exact_username_path =
+            (clientRuntime.bindMounts."/run/secrets/provider-access-pppoe-username".hostPath or null)
               == "/run/secrets/provider-access-pppoe-username"
-            && runtime.bindMounts."/run/secrets/provider-access-pppoe-username".isReadOnly == true;
-          runtime_binds_exact_password_path =
-            (runtime.bindMounts."/run/secrets/provider-access-pppoe-password".hostPath or null)
+            && clientRuntime.bindMounts."/run/secrets/provider-access-pppoe-username".isReadOnly == true;
+          client_runtime_binds_exact_password_path =
+            (clientRuntime.bindMounts."/run/secrets/provider-access-pppoe-password".hostPath or null)
               == "/run/secrets/provider-access-pppoe-password"
-            && runtime.bindMounts."/run/secrets/provider-access-pppoe-password".isReadOnly == true;
-          runtime_allows_ppp_device =
-            builtins.elem { node = "/dev/ppp"; modifier = "rw"; } runtime.allowedDevices;
+            && clientRuntime.bindMounts."/run/secrets/provider-access-pppoe-password".isReadOnly == true;
+          client_runtime_allows_ppp_device =
+            builtins.elem { node = "/dev/ppp"; modifier = "rw"; } clientRuntime.allowedDevices;
+          server_runtime_binds_ppp_device =
+            (serverRuntime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
+            && serverRuntime.bindMounts."/dev/ppp".isReadOnly == false;
+          server_runtime_binds_exact_username_path =
+            (serverRuntime.bindMounts."/run/secrets/provider-access-pppoe-username".hostPath or null)
+              == "/run/secrets/provider-access-pppoe-username"
+            && serverRuntime.bindMounts."/run/secrets/provider-access-pppoe-username".isReadOnly == true;
+          server_runtime_binds_exact_password_path =
+            (serverRuntime.bindMounts."/run/secrets/provider-access-pppoe-password".hostPath or null)
+              == "/run/secrets/provider-access-pppoe-password"
+            && serverRuntime.bindMounts."/run/secrets/provider-access-pppoe-password".isReadOnly == true;
+          server_runtime_allows_ppp_device =
+            builtins.elem { node = "/dev/ppp"; modifier = "rw"; } serverRuntime.allowedDevices;
           server_service_emitted = serverServices ? s88-pppoe-server;
+          server_service_wanted_by_multi_user =
+            builtins.elem "multi-user.target" (serverUnit.wantedBy or [ ]);
+          server_service_waits_for_handoff_network =
+            builtins.elem "network-online.target" (serverUnit.after or [ ])
+            && builtins.elem "network-online.target" (serverUnit.wants or [ ]);
+          server_service_restarts =
+            (serverUnit.serviceConfig.Restart or null) == "always"
+            && (serverUnit.serviceConfig.RestartSec or null) == 2;
           server_service_tracks_forked_daemon =
             (serverUnit.serviceConfig.Type or null) == "forking"
             && (serverUnit.serviceConfig.PIDFile or null) == "/run/s88-pppoe-server/pppoe-server.pid"
             && (serverUnit.serviceConfig.RuntimeDirectory or null) == "s88-pppoe-server";
+          server_handoff_interface_brought_up =
+            builtins.match ".*ip link set ens20 up.*" serverScript != null;
           server_uses_pppoe_server = builtins.match ".*pppoe-server.*-I ens20.*" serverScript != null;
           server_uses_exact_username_path =
             builtins.match ".*cat /run/secrets/provider-access-pppoe-username.*" serverScript != null;
@@ -187,6 +228,10 @@ nix_eval_json_or_fail \
           server_uses_session_addresses =
             builtins.match ".*203[.]0[.]113[.]5.*203[.]0[.]113[.]4.*" serverScript != null;
           server_exposes_tools = serverEval.config.environment.etc ? "s88/pppoe-tools";
+          server_debug_tools_include_pppoe_sniff =
+            builtins.match ".*pppoe-sniff=.*[/]bin[/]pppoe-sniff.*" serverToolsText != null;
+          server_debug_tools_include_pppd =
+            builtins.match ".*pppd=.*[/]bin[/]pppd.*" serverToolsText != null;
         };
       in
       {
