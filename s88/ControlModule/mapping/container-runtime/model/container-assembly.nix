@@ -95,6 +95,23 @@ let
     runtimeTarget:
     let pppoe = (runtimeTarget.services or { }).pppoe or { };
     in builtins.isAttrs pppoe && (builtins.isAttrs (pppoe.client or null) || builtins.isAttrs (pppoe.server or null));
+
+  pppoeCredentialPaths =
+    runtimeTarget:
+    let
+      pppoe = (runtimeTarget.services or { }).pppoe or { };
+      credentialPathsFor =
+        config:
+        let credentials = if builtins.isAttrs (config.credentials or null) then config.credentials else { };
+        in lib.filter (path: builtins.isString path && path != "") [
+          (credentials.usernameFile or null)
+          (credentials.passwordFile or null)
+        ];
+    in
+    lib.unique (
+      (if builtins.isAttrs (pppoe.client or null) then credentialPathsFor pppoe.client else [ ])
+      ++ (if builtins.isAttrs (pppoe.server or null) then credentialPathsFor pppoe.server else [ ])
+    );
 in
 {
   mkContainerRuntime =
@@ -131,6 +148,10 @@ in
           isReadOnly = false;
         };
       };
+      pppoeCredentialBindMounts = lib.genAttrs (pppoeCredentialPaths runtimeTarget) (path: {
+        hostPath = path;
+        isReadOnly = true;
+      });
       pppAllowedDevices = lib.optionals pppoeEnabled [
         {
           node = "/dev/ppp";
@@ -143,7 +164,8 @@ in
       inherit roleConfig roleName runtimeTarget renderedInterfaces;
       bindMounts =
         (if containerConfig ? bindMounts && builtins.isAttrs containerConfig.bindMounts then containerConfig.bindMounts else { })
-        // pppDeviceBindMounts;
+        // pppDeviceBindMounts
+        // pppoeCredentialBindMounts;
       allowedDevices =
         (if containerConfig ? allowedDevices && builtins.isList containerConfig.allowedDevices then containerConfig.allowedDevices else [ ])
         ++ pppAllowedDevices;
