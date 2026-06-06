@@ -21,15 +21,12 @@ let
     credentials: field:
     let
       fileField = "${field}File";
-      value = credentials.${field} or null;
       fileValue = credentials.${fileField} or null;
     in
     if builtins.isString fileValue && fileValue != "" then
       "${pkgs.coreutils}/bin/cat ${lib.escapeShellArg fileValue}"
-    else if builtins.isString value then
-      "${pkgs.coreutils}/bin/printf '%s' ${lib.escapeShellArg value}"
     else
-      "false";
+      throw "NixOS PPPoE renderer requires non-empty credentials.usernameFile and credentials.passwordFile paths";
 
   sanitizeName = value: builtins.replaceStrings [ "/" ":" "." "@" ] [ "-" "-" "-" "-" ] value;
 
@@ -217,12 +214,12 @@ in
       {
         assertion =
           validation.clientAssertion clientConfig;
-        message = "NixOS PPPoE client service requires services.pppoe.client.interface to name a rendered interface, credentials, and supported implementation 'rp-pppoe'";
+        message = "NixOS PPPoE client service requires services.pppoe.client.interface to name a rendered interface, non-empty credentials.usernameFile and credentials.passwordFile paths with no inline username/password values, and supported implementation 'rp-pppoe'";
       }
       {
         assertion =
           validation.serverAssertion serverConfig;
-        message = "NixOS PPPoE server service requires services.pppoe.server.interface to name a rendered interface, providerAddress, customerAddress, credentials, and supported implementation 'rp-pppoe'";
+        message = "NixOS PPPoE server service requires services.pppoe.server.interface to name a rendered interface, providerAddress, customerAddress, non-empty credentials.usernameFile and credentials.passwordFile paths with no inline username/password values, and supported implementation 'rp-pppoe'";
       }
     ];
     environment.systemPackages = [

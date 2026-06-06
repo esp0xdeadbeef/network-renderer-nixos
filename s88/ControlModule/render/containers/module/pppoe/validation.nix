@@ -13,6 +13,25 @@ let
     config:
     !(builtins.isString (config.implementation or null))
     || (config.implementation or null) == "rp-pppoe";
+
+  hasFileCredential =
+    credentials: field:
+    let
+      value = credentials.${field} or null;
+    in
+    builtins.isString value && value != "";
+
+  hasInlineCredential =
+    credentials: field:
+    builtins.isString (credentials.${field} or null);
+
+  hasCredentialFileContract =
+    credentials:
+    builtins.isAttrs credentials
+    && hasFileCredential credentials "usernameFile"
+    && hasFileCredential credentials "passwordFile"
+    && !(hasInlineCredential credentials "username")
+    && !(hasInlineCredential credentials "password");
 in
 {
   clientAssertion =
@@ -20,7 +39,7 @@ in
     clientConfig == null
     || (
       hasRenderedInterface (clientConfig.interface or null)
-      && builtins.isAttrs (clientConfig.credentials or null)
+      && hasCredentialFileContract (clientConfig.credentials or null)
       && supportedImplementation clientConfig
     );
 
@@ -31,7 +50,7 @@ in
       hasRenderedInterface (serverConfig.interface or null)
       && builtins.isString (serverConfig.providerAddress or null)
       && builtins.isString (serverConfig.customerAddress or null)
-      && builtins.isAttrs (serverConfig.credentials or null)
+      && hasCredentialFileContract (serverConfig.credentials or null)
       && supportedImplementation serverConfig
     );
 }

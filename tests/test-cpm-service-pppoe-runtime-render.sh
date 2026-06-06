@@ -27,12 +27,8 @@ nix_eval_json_or_fail \
         pkgs = import flake.inputs.nixpkgs { inherit system; };
         credentials = {
           labOnly = true;
-          username = "hat-pppoe";
-          password = "hat-pppoe";
-        };
-        fileCredentials = {
-          usernameFile = "/run/secrets/sat-pppoe-nixos-username";
-          passwordFile = "/run/secrets/sat-pppoe-nixos-password";
+          usernameFile = "/run/secrets/provider-access-pppoe-username";
+          passwordFile = "/run/secrets/provider-access-pppoe-password";
         };
         clientService = {
           client = {
@@ -42,11 +38,6 @@ nix_eval_json_or_fail \
             defaultRoute = true;
             mtu = 1492;
             usePeerDns = true;
-          };
-        };
-        clientFileService = {
-          client = clientService.client // {
-            credentials = fileCredentials;
           };
         };
         serverService = {
@@ -77,18 +68,6 @@ nix_eval_json_or_fail \
         clientEval = lib.nixosSystem {
           inherit system;
           modules = [ clientModule.config ];
-        };
-        clientFileModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
-          inherit lib pkgs;
-          renderedModel = {
-            unitName = "nixos-core-testnet-file-secrets";
-            interfaces.provider-handoff.containerInterfaceName = "ens20";
-            services.pppoe = clientFileService;
-          };
-        };
-        clientFileEval = lib.nixosSystem {
-          inherit system;
-          modules = [ clientFileModule.config ];
         };
         serverModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
           inherit lib pkgs;
@@ -139,7 +118,6 @@ nix_eval_json_or_fail \
         clientPreStart = clientServices."pppd-s88-pppoe-client-provider-handoff".preStart;
         clientServiceUnit = clientServices."pppd-s88-pppoe-client-provider-handoff";
         clientPeerConfig = clientPeers."s88-pppoe-client-provider-handoff".config;
-        clientFilePreStart = clientFileEval.config.systemd.services."pppd-s88-pppoe-client-provider-handoff".preStart;
         serverServices = serverEval.config.systemd.services;
         serverScript = serverServices.s88-pppoe-server.script;
         serverUnit = serverServices.s88-pppoe-server;
@@ -152,13 +130,15 @@ nix_eval_json_or_fail \
           client_service_restarts =
             (clientServiceUnit.serviceConfig.Restart or null) == "always";
           client_uses_pppoe_plugin = builtins.match ".*plugin pppoe[.]so.*nic-ens20.*" clientPreStart != null;
-          client_uses_modeled_credentials = builtins.match ".*hat-pppoe.*" clientPreStart != null;
-          client_file_credentials_use_exact_username_path =
-            builtins.match ".*cat /run/secrets/sat-pppoe-nixos-username.*" clientFilePreStart != null;
-          client_file_credentials_use_exact_password_path =
-            builtins.match ".*cat /run/secrets/sat-pppoe-nixos-password.*" clientFilePreStart != null;
-          client_file_credentials_do_not_invent_inline_secret =
-            builtins.match ".*hat-pppoe.*" clientFilePreStart == null;
+          client_uses_exact_username_path =
+            builtins.match ".*cat /run/secrets/provider-access-pppoe-username.*" clientPreStart != null;
+          client_uses_exact_password_path =
+            builtins.match ".*cat /run/secrets/provider-access-pppoe-password.*" clientPreStart != null;
+          client_does_not_inline_secret_values =
+            builtins.match ".*[/]bin[/]printf.*" clientPreStart == null;
+          client_does_not_invent_hat_or_sat_secret_names =
+            builtins.match ".*hat-pppoe.*" clientPreStart == null
+            && builtins.match ".*sat-pppoe.*" clientPreStart == null;
           client_peer_uses_options_file = builtins.match ".*file /run/pppd/s88-pppoe-client-provider-handoff[.]options.*" clientPeerConfig != null;
           client_peer_dns_keeps_hardened_unit =
             (clientServiceUnit.serviceConfig.ProtectSystem or null) == "strict"
@@ -186,6 +166,15 @@ nix_eval_json_or_fail \
             && (serverUnit.serviceConfig.PIDFile or null) == "/run/s88-pppoe-server/pppoe-server.pid"
             && (serverUnit.serviceConfig.RuntimeDirectory or null) == "s88-pppoe-server";
           server_uses_pppoe_server = builtins.match ".*pppoe-server.*-I ens20.*" serverScript != null;
+          server_uses_exact_username_path =
+            builtins.match ".*cat /run/secrets/provider-access-pppoe-username.*" serverScript != null;
+          server_uses_exact_password_path =
+            builtins.match ".*cat /run/secrets/provider-access-pppoe-password.*" serverScript != null;
+          server_does_not_inline_secret_values =
+            builtins.match ".*[/]bin[/]printf.*" serverScript == null;
+          server_does_not_invent_hat_or_sat_secret_names =
+            builtins.match ".*hat-pppoe.*" serverScript == null
+            && builtins.match ".*sat-pppoe.*" serverScript == null;
           server_uses_pidfile = builtins.match ".*-X '/run/s88-pppoe-server/pppoe-server[.]pid'.*" serverScript != null;
           server_uses_session_addresses =
             builtins.match ".*203[.]0[.]113[.]5.*203[.]0[.]113[.]4.*" serverScript != null;
@@ -240,17 +229,37 @@ run_negative_eval() {
 
 run_negative_eval \
   cpm-service-pppoe-missing-client-interface \
-  '{"unitName":"bad-client","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"client":{"interface":"missing-handoff","runtimeInterface":"ppp0","credentials":{"labOnly":true,"username":"hat-pppoe","password":"hat-pppoe"},"defaultRoute":true}}}}' \
+  '{"unitName":"bad-client","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"client":{"interface":"missing-handoff","runtimeInterface":"ppp0","credentials":{"labOnly":true,"usernameFile":"/run/secrets/provider-access-pppoe-username","passwordFile":"/run/secrets/provider-access-pppoe-password"},"defaultRoute":true}}}}' \
   "services.pppoe.client.interface to name a rendered interface"
 
 run_negative_eval \
   cpm-service-pppoe-missing-server-interface \
-  '{"unitName":"bad-server","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"server":{"interface":"missing-handoff","providerAddress":"203.0.113.5","customerAddress":"203.0.113.4","credentials":{"labOnly":true,"username":"hat-pppoe","password":"hat-pppoe"},"implementation":"rp-pppoe"}}}}' \
+  '{"unitName":"bad-server","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"server":{"interface":"missing-handoff","providerAddress":"203.0.113.5","customerAddress":"203.0.113.4","credentials":{"labOnly":true,"usernameFile":"/run/secrets/provider-access-pppoe-username","passwordFile":"/run/secrets/provider-access-pppoe-password"},"implementation":"rp-pppoe"}}}}' \
   "services.pppoe.server.interface to name a rendered interface"
 
 run_negative_eval \
   cpm-service-pppoe-unsupported-implementation \
-  '{"unitName":"bad-server","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"server":{"interface":"provider-handoff","providerAddress":"203.0.113.5","customerAddress":"203.0.113.4","credentials":{"labOnly":true,"username":"hat-pppoe","password":"hat-pppoe"},"implementation":"accel-ppp"}}}}' \
+  '{"unitName":"bad-server","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"server":{"interface":"provider-handoff","providerAddress":"203.0.113.5","customerAddress":"203.0.113.4","credentials":{"labOnly":true,"usernameFile":"/run/secrets/provider-access-pppoe-username","passwordFile":"/run/secrets/provider-access-pppoe-password"},"implementation":"accel-ppp"}}}}' \
   "supported implementation"
+
+run_negative_eval \
+  cpm-service-pppoe-missing-client-secret-path \
+  '{"unitName":"bad-client-secret","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"client":{"interface":"provider-handoff","runtimeInterface":"ppp0","credentials":{"labOnly":true,"usernameFile":"/run/secrets/provider-access-pppoe-username"},"defaultRoute":true}}}}' \
+  "credentials.usernameFile and credentials.passwordFile paths"
+
+run_negative_eval \
+  cpm-service-pppoe-inline-client-secret \
+  '{"unitName":"bad-client-inline-secret","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"client":{"interface":"provider-handoff","runtimeInterface":"ppp0","credentials":{"labOnly":true,"username":"hat-pppoe","password":"hat-pppoe"},"defaultRoute":true}}}}' \
+  "no inline username/password values"
+
+run_negative_eval \
+  cpm-service-pppoe-missing-server-secret-path \
+  '{"unitName":"bad-server-secret","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"server":{"interface":"provider-handoff","providerAddress":"203.0.113.5","customerAddress":"203.0.113.4","credentials":{"labOnly":true,"usernameFile":"/run/secrets/provider-access-pppoe-username"},"implementation":"rp-pppoe"}}}}' \
+  "credentials.usernameFile and credentials.passwordFile paths"
+
+run_negative_eval \
+  cpm-service-pppoe-inline-server-secret \
+  '{"unitName":"bad-server-inline-secret","interfaces":{"provider-handoff":{"containerInterfaceName":"ens20"}},"services":{"pppoe":{"server":{"interface":"provider-handoff","providerAddress":"203.0.113.5","customerAddress":"203.0.113.4","credentials":{"labOnly":true,"username":"hat-pppoe","password":"hat-pppoe"},"implementation":"rp-pppoe"}}}}' \
+  "no inline username/password values"
 
 echo "PASS cpm-service-pppoe-runtime-render"

@@ -26,8 +26,8 @@ nix_eval_json_or_fail \
         pkgs = import flake.inputs.nixpkgs { inherit system; };
         credentials = {
           labOnly = true;
-          username = "hat-pppoe";
-          password = "hat-pppoe";
+          usernameFile = "/run/secrets/provider-access-pppoe-username";
+          passwordFile = "/run/secrets/provider-access-pppoe-password";
         };
         dynamicWanInterface = {
           containerInterfaceName = "ens20";
