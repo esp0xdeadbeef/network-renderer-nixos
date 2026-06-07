@@ -44,6 +44,11 @@
         };
       };
 
+      hostModule =
+        _rendererInput:
+        { ... }:
+        { };
+
       mkVmApiForSystem =
         system:
         let
@@ -67,8 +72,7 @@
               renderedContainers = lib.mapAttrs
                 (
                   _name: container:
-
-                    simulatedContainerDefaults // (if builtins.isAttrs container then container else { })
+                  simulatedContainerDefaults // (if builtins.isAttrs container then container else { })
                 )
                 renderedContainersRaw;
             in
@@ -77,7 +81,7 @@
 
               renderedNetdevs = renderedHost.netdevs or { };
               renderedNetworks = renderedHost.networks or { };
-              renderedContainers = renderedContainers;
+              inherit renderedContainers;
 
               inherit (hostBuild) compilerOut forwardingOut controlPlaneOut;
 
@@ -105,21 +109,15 @@
         api
         // vmApi
         // {
-
-          renderer = api.renderer // vmApi;
+          renderer = api.renderer // {
+            inherit hostModule;
+          } // vmApi;
         };
     in
     {
       lib = api // {
         renderer = api.renderer // {
-          hostModule =
-            _rendererInput:
-            { ... }:
-            {
-              # TODO: implement the NixOS backend host module.
-              # Temporary no-op so consumers can depend on the standard renderer
-              # contract without patching downstream NixOS host profiles.
-            };
+          inherit hostModule;
         };
       };
 
@@ -135,7 +133,7 @@
           s88CallFlowEvalTarget =
             let
               hostBuild = api.renderer.buildHostFromPaths {
-                system = system;
+                inherit system;
                 selector = "s-router-hetzner-anywhere";
                 intentPath = network-labs.outPath + "/examples/s-router-overlay-dns-lane-policy/intent.nix";
                 inventoryPath = network-labs.outPath + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
