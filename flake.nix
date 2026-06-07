@@ -110,7 +110,19 @@
         };
     in
     {
-      lib = api;
+      lib = api // {
+        renderer = api.renderer // {
+          hostModule =
+            _rendererInput:
+            { ... }:
+            {
+              # TODO: implement the NixOS backend host module.
+              # Temporary no-op so consumers can depend on the standard renderer
+              # contract without patching downstream NixOS host profiles.
+            };
+        };
+      };
+
       libBySystem = forAllSystems mkLibForSystem;
 
       packages = forAllSystems (
