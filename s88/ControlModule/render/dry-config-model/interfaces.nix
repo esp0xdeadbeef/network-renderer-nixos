@@ -10,6 +10,93 @@
 
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
+  isSelectorRelationRule =
+    rule:
+    let
+      relationId = rule.relationId or "";
+      relationCardinality = attrsOrEmpty (rule.relationCardinality or null);
+    in
+    (builtins.isString relationId && builtins.match "selector-.*" relationId != null)
+    || (relationCardinality.unit or null) == "selector-forwarding-rule";
+
+  selectorRelationAuditForEndpoint =
+    { unitName
+    , ifName
+    , iface
+    , runtimeTarget
+    , rule
+    , side
+    ,
+    }:
+    let
+      endpoint = attrsOrEmpty (rule.${side} or null);
+      cpmRuntimeInterface = endpoint.runtimeInterface or null;
+      renderedIfName = iface.renderedIfName or ifName;
+      candidateInterfaceNames = [
+        renderedIfName
+        (iface.runtimeIfName or null)
+        (iface.sourceInterface or null)
+        ifName
+      ];
+    in
+    lib.optionals
+      (
+        builtins.isString cpmRuntimeInterface
+        && builtins.elem cpmRuntimeInterface candidateInterfaceNames
+        && isSelectorRelationRule rule
+      )
+      [
+        {
+          inherit unitName ifName side cpmRuntimeInterface;
+          runtimeInterface = renderedIfName;
+          runtimeTargetRole = runtimeTarget.role or null;
+          relationId = rule.relationId or null;
+          relationComment = rule.comment or null;
+          relationAction = rule.action or null;
+          relationDirection = rule.direction or null;
+          relationPurpose = endpoint.relationPurpose or null;
+          hostFacing = endpoint.hostFacing or null;
+          backingRef = endpoint.backingRef or null;
+          lane = endpoint.lane or null;
+          relationCardinality = rule.relationCardinality or null;
+        }
+      ];
+
+  selectorRelationAuditForInterface =
+    { unitName
+    , ifName
+    , iface
+    ,
+    }:
+    let
+      runtimeTarget = normalizedRuntimeTargets.${unitName};
+      forwardingIntent = attrsOrEmpty (runtimeTarget.forwardingIntent or null);
+      rules =
+        if builtins.isList (forwardingIntent.rules or null) then
+          forwardingIntent.rules
+        else
+          [ ];
+    in
+    builtins.concatLists (
+      map
+        (
+          rule:
+          if !builtins.isAttrs rule then
+            [ ]
+          else
+            (selectorRelationAuditForEndpoint {
+              inherit unitName ifName iface runtimeTarget rule;
+              side = "from";
+            })
+            ++ (selectorRelationAuditForEndpoint {
+              inherit unitName ifName iface runtimeTarget rule;
+              side = "to";
+            })
+        )
+        rules
+    );
 
   attachTargetForUnitInterface =
     { hostRendering
@@ -103,9 +190,19 @@ builtins.listToAttrs (
       in
       {
         name = ifName;
-        value = iface // {
-          inherit renderedHostBridgeName;
-        };
+        value =
+          let
+            selectorRelationAudit = selectorRelationAuditForInterface {
+              inherit unitName ifName iface;
+            };
+          in
+          iface
+          // {
+            inherit renderedHostBridgeName;
+          }
+          // lib.optionalAttrs (selectorRelationAudit != [ ]) {
+            inherit selectorRelationAudit;
+          };
       }
     )
     (sortedAttrNames interfaces)
