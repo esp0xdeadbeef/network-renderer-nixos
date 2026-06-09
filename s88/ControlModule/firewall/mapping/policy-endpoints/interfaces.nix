@@ -60,7 +60,7 @@ let
     else if builtins.isString sourceKind then
       sourceKind
     else
-      null;
+      "";
 
   interfaceRefStrings =
     entry:
@@ -95,38 +95,33 @@ let
     entry:
     let
       backingRef = entryOrIfaceField entry "backingRef" { };
+      lane = entryOrIfaceField entry "lane" null;
+      kind = sourceKindOf entry;
     in
-    attrsOrEmpty (backingRef.lane or null);
+    if lane != null && builtins.isString lane then
+      lane
+    else
+      "";
 
   interfaceLaneAccessMatches =
-    targetUnit: entry:
+    match:
     let
-      lane = interfaceLane entry;
+      lane = interfaceLane match;
     in
-    builtins.isString targetUnit && targetUnit != "" && (lane.access or null) == targetUnit;
+    lane != "" && lane != "uplink" && lane != "provider";
 
   interfaceLaneUplinkMatches =
-    uplinkName: entry:
+    match:
     let
-      lane = interfaceLane entry;
-      uplinks =
-        sortedStrings (
-          (if builtins.isList (lane.uplinks or null) then lane.uplinks else [ ])
-          ++ [ (lane.uplink or null) ]
-        );
+      lane = interfaceLane match;
     in
-    builtins.isString uplinkName && uplinkName != "" && builtins.elem uplinkName uplinks;
+    lane == "uplink" || lane == "provider";
 
   interfaceAliasMap = builtins.listToAttrs (
     lib.concatMap
-      (
-        entry:
+      (entry:
         let
-          iface =
-            if builtins.isAttrs entry && entry ? iface && builtins.isAttrs entry.iface then
-              entry.iface
-            else
-              { };
+          iface = ifaceOf entry;
           aliases = sortedStrings (
             lib.filter builtins.isString [
               entry.name or null
@@ -173,27 +168,20 @@ let
     else if builtins.length matches == 1 then
       builtins.head matches
     else
-      (
-        let
-          # Prefer non-p2p session/overlay entries over raw p2p transport
-          nonP2p = builtins.filter
-            (name:
-              let
-                entry = builtins.head (builtins.filter (e: e.name == name) interfaceEntries);
-                kind = sourceKindOf entry;
-              in
-              kind != null && kind != "" && kind != "p2p"
-            )
-            matches;
-        in
-        if nonP2p != [ ] then
-          if builtins.length nonP2p == 1 then
-            builtins.head nonP2p
-          else
-            builtins.head matches
-        else
-          builtins.head matches
-      )
+      # Prefer non-p2p session/overlay entries; fall back to first match
+      let
+        nonP2p = lib.filter
+          (name:
+            let
+              candidates = lib.filter (e: e.name == name) interfaceEntries;
+              entry = if candidates != [ ] then builtins.head candidates else { };
+              kind = sourceKindOf entry;
+            in
+            kind != "" && kind != "p2p"
+          )
+          matches;
+      in
+      if nonP2p != [ ] then builtins.head nonP2p else builtins.head matches;
 in
 {
   inherit
