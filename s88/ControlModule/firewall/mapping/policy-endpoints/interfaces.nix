@@ -173,27 +173,27 @@ let
     else if builtins.length matches == 1 then
       builtins.head matches
     else
-      let
-        # Prefer non-p2p session/overlay entries over raw p2p transport
-        nonP2p = builtins.filter
-          (name:
-            let
-              entry = builtins.head (builtins.filter (e: e.name == name) interfaceEntries);
-              kind = sourceKindOf entry;
-            in
-            kind != null && kind != "" && kind != "p2p"
-          )
-          matches;
-        preferred =
-          if nonP2p != [ ] then
-            if builtins.length nonP2p == 1 then
-              builtins.head nonP2p
-            else
-              builtins.head matches
+      (
+        let
+          # Prefer non-p2p session/overlay entries over raw p2p transport
+          nonP2p = builtins.filter
+            (name:
+              let
+                entry = builtins.head (builtins.filter (e: e.name == name) interfaceEntries);
+                kind = sourceKindOf entry;
+              in
+              kind != null && kind != "" && kind != "p2p"
+            )
+            matches;
+        in
+        if nonP2p != [ ] then
+          if builtins.length nonP2p == 1 then
+            builtins.head nonP2p
           else
-            builtins.head matches;
-      in
-      preferred
+            builtins.head matches
+        else
+          builtins.head matches
+      )
 in
 {
   inherit
