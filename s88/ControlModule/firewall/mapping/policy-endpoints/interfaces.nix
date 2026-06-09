@@ -60,7 +60,7 @@ let
     else if builtins.isString sourceKind then
       sourceKind
     else
-      "";
+      null;
 
   interfaceRefStrings =
     entry:
@@ -95,33 +95,38 @@ let
     entry:
     let
       backingRef = entryOrIfaceField entry "backingRef" { };
-      lane = entryOrIfaceField entry "lane" null;
-      kind = sourceKindOf entry;
     in
-    if lane != null && builtins.isString lane then
-      lane
-    else
-      "";
+    attrsOrEmpty (backingRef.lane or null);
 
   interfaceLaneAccessMatches =
-    match:
+    targetUnit: entry:
     let
-      lane = interfaceLane match;
+      lane = interfaceLane entry;
     in
-    lane != "" && lane != "uplink" && lane != "provider";
+    builtins.isString targetUnit && targetUnit != "" && (lane.access or null) == targetUnit;
 
   interfaceLaneUplinkMatches =
-    match:
+    uplinkName: entry:
     let
-      lane = interfaceLane match;
+      lane = interfaceLane entry;
+      uplinks =
+        sortedStrings (
+          (if builtins.isList (lane.uplinks or null) then lane.uplinks else [ ])
+          ++ [ (lane.uplink or null) ]
+        );
     in
-    lane == "uplink" || lane == "provider";
+    builtins.isString uplinkName && uplinkName != "" && builtins.elem uplinkName uplinks;
 
   interfaceAliasMap = builtins.listToAttrs (
     lib.concatMap
-      (entry:
+      (
+        entry:
         let
-          iface = ifaceOf entry;
+          iface =
+            if builtins.isAttrs entry && entry ? iface && builtins.isAttrs entry.iface then
+              entry.iface
+            else
+              { };
           aliases = sortedStrings (
             lib.filter builtins.isString [
               entry.name or null
@@ -157,9 +162,7 @@ let
         map (entry: entry.name) (
           lib.filter
             (
-              entry: builtins.elem linkName (interfaceRefStrings entry) && (
-                if builtins.isFunction entryMatches then entryMatches entry else entryMatches
-              )
+              entry: builtins.elem linkName (interfaceRefStrings entry) && entryMatches entry
             )
             interfaceEntries
         )
