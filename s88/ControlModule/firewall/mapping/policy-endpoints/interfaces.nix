@@ -170,20 +170,7 @@ let
     else if builtins.length matches == 1 then
       builtins.head matches
     else
-      # Prefer non-p2p session/overlay entries; fall back to first match
-      let
-        nonP2p = lib.filter
-          (name:
-            let
-              candidates = lib.filter (e: e.name == name) interfaceEntries;
-              entry = if candidates != [ ] then builtins.head candidates else { };
-              kind = sourceKindOf entry;
-            in
-            kind != "" && kind != "p2p"
-          )
-          matches;
-      in
-      if nonP2p != [ ] then builtins.head nonP2p else builtins.head matches;
+      builtins.head matches
 in
 {
   inherit
