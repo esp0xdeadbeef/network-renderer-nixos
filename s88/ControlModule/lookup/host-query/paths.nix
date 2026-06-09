@@ -32,7 +32,7 @@ let
   repoRootFromOutPath = outPath: builtins.dirOf (builtins.dirOf (builtins.dirOf outPath));
 
   fabricRootFromOutPath =
-    outPath: builtins.toPath "${repoRootFromOutPath outPath}/library/100-fabric-routing";
+    outPath: "${repoRootFromOutPath outPath}/library/100-fabric-routing";
 
   pathsFromOutPath =
     { outPath
@@ -41,13 +41,29 @@ let
     }:
     let
       resolvedFabricRoot = if fabricRoot != null then fabricRoot else fabricRootFromOutPath outPath;
+      fabricRootCandidates =
+        if builtins.pathExists resolvedFabricRoot then
+          [
+            "${resolvedFabricRoot}/inputs/intent.nix"
+          ]
+        else
+          [ ];
+      fabricRootInventoryCandidates =
+        if builtins.pathExists resolvedFabricRoot then
+          [
+            "${resolvedFabricRoot}/inputs/inventory-nixos.nix"
+            "${resolvedFabricRoot}/inputs/inventory.nix"
+            "${resolvedFabricRoot}/inventory-nixos.nix"
+            "${resolvedFabricRoot}/inventory.nix"
+          ]
+        else
+          [ ];
 
       intentCandidates = [
         "${outPath}/library/100-fabric-routing/inputs/intent.nix"
         "${outPath}/inputs/intent.nix"
         "${outPath}/intent.nix"
-        "${resolvedFabricRoot}/inputs/intent.nix"
-      ];
+      ] ++ fabricRootCandidates;
 
       inventoryCandidates = [
         "${outPath}/library/100-fabric-routing/inputs/inventory-nixos.nix"
@@ -58,11 +74,7 @@ let
         "${outPath}/inputs/inventory.nix"
         "${outPath}/inventory-nixos.nix"
         "${outPath}/inventory.nix"
-        "${resolvedFabricRoot}/inputs/inventory-nixos.nix"
-        "${resolvedFabricRoot}/inputs/inventory.nix"
-        "${resolvedFabricRoot}/inventory-nixos.nix"
-        "${resolvedFabricRoot}/inventory.nix"
-      ];
+      ] ++ fabricRootInventoryCandidates;
     in
     {
       intentPath =

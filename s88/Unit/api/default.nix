@@ -143,6 +143,8 @@ in
       buildHostFromOutPath
       ;
 
+    hostModule = args: (hostBuild args).nixosModule;
+
     inherit (dryRenderBuild)
       buildAndRenderFromPaths
       ;

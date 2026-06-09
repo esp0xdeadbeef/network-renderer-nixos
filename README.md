@@ -82,7 +82,9 @@ Main consumers use:
 
 - `lib.containers.buildForBox`
 - `lib.hosts.buildHostFromPaths`
-- renderer-produced host/container modules and debug artifacts
+- `lib.renderer.hostModule { outPath; hostName; ... }` for a NixOS module
+  attrset carrying rendered networkd, container, module-argument and debug
+  artifact output
 
 ## Tests
 

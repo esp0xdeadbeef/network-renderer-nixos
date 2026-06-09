@@ -9,12 +9,17 @@
 , outPath
 , hostName
 , inventoryPath ? null
+, inventoryRenderer ? null
 , selectorFile ? "s88/Unit/api/module-host-build.nix"
+, containerDefaults ? { }
+, disabled ? { }
 , containerSelection ? { }
 ,
 }:
 
 let
+  resolvedOutPath = builtins.toPath outPath;
+
   effectiveLib =
     if lib != null then
       lib
@@ -24,19 +29,30 @@ let
       '';
 
   resolvedPaths = selectors.pathsFromOutPath {
-    inherit outPath;
+    outPath = resolvedOutPath;
   };
 
   resolvedIntentPath = resolvedPaths.intentPath;
 
   resolvedInventoryPath =
-    if inventoryPath != null then inventoryPath else resolvedPaths.inventoryPath;
+    if inventoryPath != null then
+      inventoryPath
+    else if inventoryRenderer != null && builtins.pathExists "${resolvedOutPath}/getResolvedInventory.nix" then
+      builtins.toFile "network-renderer-nixos-resolved-inventory-${inventoryRenderer}.nix" ''
+        import ${resolvedOutPath}/getResolvedInventory.nix { renderer = "${inventoryRenderer}"; }
+      ''
+    else
+      resolvedPaths.inventoryPath;
 
   builtHost = buildHostFromPaths {
     intentPath = resolvedIntentPath;
     inventoryPath = resolvedInventoryPath;
     selector = hostName;
-    inherit system;
+    inherit
+      system
+      containerDefaults
+      disabled
+      ;
     file = selectorFile;
   };
 
@@ -68,9 +84,6 @@ let
     intentPath = resolvedIntentPath;
     inventoryPath = resolvedInventoryPath;
   };
-in
-{
-  inherit renderedHostNetwork debugPayload;
 
   artifactModule = import ../../ControlModule/api/artifact-module.nix { inherit debugPayload; };
 
@@ -78,9 +91,30 @@ in
     globalInventory = builtHost.globalInventory;
     hostContext = builtHost.hostContext;
     intent = builtHost.fabricInputs;
+    fabricInputs = builtHost.fabricInputs;
     compilerOut = builtHost.compilerOut;
     forwardingOut = builtHost.forwardingOut;
     controlPlaneOut = builtHost.controlPlaneOut;
     inherit renderedHostNetwork;
+  };
+in
+{
+  inherit renderedHostNetwork debugPayload;
+
+  inherit artifactModule moduleArgs;
+
+  nixosModule = {
+    imports = [ artifactModule ];
+
+    _module.args = moduleArgs;
+
+    networking.useNetworkd = true;
+    systemd.network.enable = true;
+    networking.useDHCP = false;
+    networking.useHostResolvConf = effectiveLib.mkForce false;
+
+    systemd.network.netdevs = renderedHostNetwork.netdevs or { };
+    systemd.network.networks = renderedHostNetwork.networks or { };
+    containers = renderedHostNetwork.containers or { };
   };
 }
