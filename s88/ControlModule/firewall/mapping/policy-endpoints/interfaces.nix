@@ -171,9 +171,9 @@ let
     if matches == [ ] then
       null
     else if builtins.length matches == 1 then
-      builtins.head matches
+      builtins.head matches;
     else
-      builtins.head matches
+      builtins.head matches;
 in
 {
   inherit
