@@ -66,8 +66,8 @@
           networking.useDHCP = false;
           networking.useHostResolvConf = userLib.mkForce false;
 
-          systemd.network.netdevs = rendered.netdevs or { };
-          systemd.network.networks = rendered.networks or { };
+          systemd.network.netdevs = userLib.mkDefault (rendered.netdevs or { });
+          systemd.network.networks = userLib.mkDefault (rendered.networks or { });
           containers = rendered.containers or { };
         };
 
