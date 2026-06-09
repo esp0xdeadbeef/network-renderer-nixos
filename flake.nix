@@ -45,9 +45,31 @@
       };
 
       hostModule =
-        _rendererInput:
-        { ... }:
-        { };
+        rendererInput:
+        { config, lib, pkgs, ... }:
+        let
+          system = pkgs.stdenv.hostPlatform.system;
+          hostBuild = api.renderer.buildHostFromPaths {
+            intentPath = rendererInput.intent;
+            inventoryPath = rendererInput.inventory;
+            selector = rendererInput.hostName;
+            inherit system;
+          };
+          rendered = hostBuild.renderedHost;
+          userLib = rendererInput.lib or lib;
+        in
+        {
+          imports = [ hostBuild.artifactModule ];
+
+          networking.useNetworkd = true;
+          systemd.network.enable = true;
+          networking.useDHCP = false;
+          networking.useHostResolvConf = userLib.mkForce false;
+
+          systemd.network.netdevs = rendered.netdevs or { };
+          systemd.network.networks = rendered.networks or { };
+          containers = rendered.containers or { };
+        };
 
       mkVmApiForSystem =
         system:
