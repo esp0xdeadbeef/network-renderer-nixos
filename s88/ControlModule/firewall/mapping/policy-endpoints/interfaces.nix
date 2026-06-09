@@ -157,7 +157,9 @@ let
         map (entry: entry.name) (
           lib.filter
             (
-              entry: builtins.elem linkName (interfaceRefStrings entry) && entryMatches entry
+              entry: builtins.elem linkName (interfaceRefStrings entry) && (
+                if builtins.isFunction entryMatches then entryMatches entry else entryMatches
+              )
             )
             interfaceEntries
         )
