@@ -172,12 +172,50 @@ let
       (entry: entry.name)
       (lib.filter (entry: !(builtins.elem entry.name fallbackWanNames) && !(isOverlayEntry entry)) entries)
   );
+
+  # Derive NAT source prefixes from fabric (non-WAN, non-overlay) interface addresses.
+  # Core-upstream-vlan4 receives traffic from the entire fabric chain, and the CPM
+  # explicit list only covers tenant IPs.  Include the /31 and /24 subnets of every
+  # p2p/tenant interface so provider-handoff source IPs are masqueraded.
+  interfaceAddr4CIDR =
+    addr4:
+    let
+      parts = lib.splitString "/" addr4;
+      prefix = builtins.elemAt parts 0;
+      mask = if builtins.length parts >= 2 then builtins.elemAt parts 1 else "";
+    in
+    if prefix != "" && mask != "" && mask != "32" then "${prefix}/29" else "";
+  interfaceNat4Prefixes = lib.unique (
+    builtins.filter (s: s != "") (
+      map (entry: interfaceAddr4CIDR (entry.addr4 or ""))
+      (lib.filter (entry:
+        entry.sourceKind != "wan" && entry.sourceKind != "pppoe-session" && !(isOverlayEntry entry)
+      ) entries)
+    )
+  );
+  interfaceNat6Prefixes = lib.unique (
+    builtins.filter (s: s != "") (
+      map (entry:
+        let
+          addr6 = entry.addr6 or "";
+          parts = lib.splitString "/" addr6;
+          prefix = builtins.elemAt parts 0;
+          mask = if builtins.length parts >= 2 then builtins.elemAt parts 1 else "";
+        in
+        if prefix != "" && mask != "" && mask != "128" then "${prefix}/${mask}" else ""
+      )
+      (lib.filter (entry:
+        entry.sourceKind != "wan" && entry.sourceKind != "pppoe-session" && !(isOverlayEntry entry)
+      ) entries)
+    )
+  );
 in
 {
   inherit
     explicitLocalAdapterNames explicitUplinkNames explicitTransitNames explicitWanNames
     explicitExitEligibleNames explicitNatInterfaces explicitNat4Interfaces explicitNat6Interfaces
     explicitNat4SourcePrefixes explicitNat6SourcePrefixes explicitClampMssInterfaces overlayInterfaceNames
+    interfaceNat4Prefixes interfaceNat6Prefixes
     ;
   resolvedLocalAdapterNames = if explicitLocalAdapterNames != [ ] then explicitLocalAdapterNames else fallbackLocalAdapterNames;
   resolvedWanNames = if explicitWanNames != [ ] then explicitWanNames else fallbackWanNames;

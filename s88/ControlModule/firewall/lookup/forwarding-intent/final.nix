@@ -67,8 +67,8 @@ let
 in
 {
   inherit accessForwardPairs coreNatInterfaces coreNat4Interfaces coreNat6Interfaces;
-  coreNat4SourcePrefixes = roles.explicitNat4SourcePrefixes;
-  coreNat6SourcePrefixes = roles.explicitNat6SourcePrefixes;
+  coreNat4SourcePrefixes = roles.explicitNat4SourcePrefixes ++ roles.interfaceNat4Prefixes;
+  coreNat6SourcePrefixes = roles.explicitNat6SourcePrefixes ++ roles.interfaceNat6Prefixes;
   coreForwardPairs = baseCoreForwardPairs ++ overlayCoreForwardPairs;
   downstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
   upstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
