@@ -175,8 +175,8 @@ let
 
   # Derive NAT source prefixes from fabric (non-WAN, non-overlay) interface addresses.
   # Core-upstream-vlan4 receives traffic from the entire fabric chain, and the CPM
-  # explicit list only covers tenant IPs.  Include the /31 and /24 subnets of every
-  # p2p/tenant interface so provider-handoff source IPs are masqueraded.
+  # explicit list only covers tenant IPs.  Include the /31, /30, /29 and /24 subnets
+  # of every p2p/tenant interface so provider-handoff source IPs are masqueraded.
   interfaceAddr4CIDR =
     addr4:
     let
@@ -184,7 +184,7 @@ let
       prefix = builtins.elemAt parts 0;
       mask = if builtins.length parts >= 2 then builtins.elemAt parts 1 else "";
     in
-    if prefix != "" && mask != "" && mask != "32" then "${prefix}/29" else "";
+    if prefix != "" && mask != "" && mask != "32" then "${prefix}/${mask}" else "";
   interfaceNat4Prefixes = lib.unique (
     builtins.filter (s: s != "") (
       map (entry: interfaceAddr4CIDR (entry.addr4 or ""))
