@@ -39,8 +39,8 @@ let
         forwardingIntent = {
           rules = [
             {
-              relationId = "selector-handoff-forward--tenant--selector-transport-to-access-to-selector--no-uplink";
-              comment = "selector-handoff-forward--tenant--selector-transport-to-access-to-selector--no-uplink";
+              relationId = "selector-handoff-forward--tenant--selector-transport-to-access-to-selector--fabric";
+              comment = "selector-handoff-forward--tenant--selector-transport-to-access-to-selector--fabric";
               action = "accept";
               direction = "forward";
               fromInterface = "tenant-client";
@@ -100,7 +100,7 @@ let
     selector_edge_has_one_audit_record = builtins.length audit == 1;
     audit_maps_runtime_name = first.runtimeInterface == "ens20";
     audit_preserves_relation_identity =
-      first.relationId == "selector-handoff-forward--tenant--selector-transport-to-access-to-selector--no-uplink"
+      first.relationId == "selector-handoff-forward--tenant--selector-transport-to-access-to-selector--fabric"
       && first.relationPurpose == "access-to-selector";
     audit_preserves_host_facing_classification = first.hostFacing == false;
     audit_preserves_selector_role = first.runtimeTargetRole == "downstream-selector";
