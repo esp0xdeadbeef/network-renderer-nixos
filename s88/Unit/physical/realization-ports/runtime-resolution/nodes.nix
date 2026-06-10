@@ -82,18 +82,7 @@ in
     if candidateNames != [ ] then
       candidateNames
     else
-      throw ''
-        ${file}: could not resolve candidate realization nodes for runtime unit '${unitName}'
-
-        runtimeTargetId:
-        ${builtins.toJSON runtimeTargetId}
-
-        logicalNode:
-        ${builtins.toJSON logicalNode}
-
-        known realization nodes:
-        ${builtins.toJSON (sortedAttrNames realizationNodes)}
-      '';
+      [ ];
 
   scopedNodeNamesForRuntimeUnit =
     { inventory, normalizedRuntimeTargets, unitName, file ? "s88/Unit/physical/realization-ports.nix" }:
