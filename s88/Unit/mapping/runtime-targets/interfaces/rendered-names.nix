@@ -48,25 +48,35 @@ let
     else
       resolveUniqueInterfaceName { inherit baseName usedNames; index = index + 1; };
 
+  # Accept a list of {ifName, desiredName} entries and assign unique rendered
+  # names per-entry, keyed by the logical ifName.  When two entries share the
+  # same desired rendered name, the first (by sort order) keeps the base name
+  # and later entries receive uniquified variants.  This preserves the logical
+  # ifName identity through the uniquification so that the caller can directly
+  # look up each ifName's resolved rendered name.
   ensureUniqueRenderedNames =
-    names:
-    (builtins.foldl'
-      (
-        acc: originalName:
-        let
-          baseName = semanticShortNameForInterface originalName;
-          renderedName = resolveUniqueInterfaceName {
-            inherit baseName;
-            usedNames = acc.usedNames;
-          };
-        in
-        {
-          usedNames = acc.usedNames // { ${renderedName} = true; };
-          renderedNameMap = acc.renderedNameMap // { ${originalName} = renderedName; };
-        }
-      )
-      { usedNames = { }; renderedNameMap = { }; }
-      names).renderedNameMap;
+    entries:
+    let
+      sorted = lib.sort (a: b: a.ifName < b.ifName) entries;
+      result = builtins.foldl'
+        (
+          acc: entry:
+          let
+            baseName = semanticShortNameForInterface entry.desiredName;
+            renderedName = resolveUniqueInterfaceName {
+              inherit baseName;
+              usedNames = acc.usedNames;
+            };
+          in
+          {
+            usedNames = acc.usedNames // { ${renderedName} = true; };
+            renderedNameMap = acc.renderedNameMap // { ${entry.ifName} = renderedName; };
+          }
+        )
+        { usedNames = { }; renderedNameMap = { }; }
+        sorted;
+    in
+    result.renderedNameMap;
 in
 {
   desiredRenderedIfNameForInterface =
@@ -98,14 +108,21 @@ in
             desiredRenderedIfNameMap:
             ${builtins.toJSON desiredRenderedIfNameMap}
           '' true;
-      renderedNameMap = ensureUniqueRenderedNames desiredRenderedIfNames;
+      # Build ({ifName, desiredName}) entries preserving logical identity for uniquification
+      renderedNameEntries = map
+        (ifName: {
+          inherit ifName;
+          desiredName = desiredRenderedIfNameMap.${ifName};
+        })
+        interfaceNames;
+      renderedNameMap = ensureUniqueRenderedNames renderedNameEntries;
     in
     builtins.seq _validateDesiredRenderedIfNames (
       builtins.listToAttrs (
         map
           (ifName: {
             name = ifName;
-            value = renderedNameMap.${desiredRenderedIfNameMap.${ifName}};
+            value = renderedNameMap.${ifName};
           })
           interfaceNames
       )
