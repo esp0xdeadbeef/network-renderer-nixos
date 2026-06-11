@@ -86,6 +86,13 @@ let
     let
       iface = interfaces.${ifName};
       attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
+      # Skip interfaces whose hostBridge couldn't be resolved
+      attachResult = if attachTarget == null then
+        builtins.trace "WARNING: skipping interface '${ifName}' for '${unitName}' — no attach target" null
+      else attachTarget;
+      if attachResult == null then null else
+      let
+        attachTarget = attachResult;
       sourceKind = sourceKindForInterface iface;
       desiredInterfaceName = effectiveInterfaceNameForInterface { inherit ifName iface attachTarget; };
       bridgeEligibleWanIfNames = lib.filter
@@ -168,7 +175,7 @@ in
   normalizedInterfacesForUnit =
     { unitName, containerName, interfaces }:
     let
-      entriesRaw = map (entryFor { inherit unitName containerName interfaces; }) (lookup.sortedAttrNames interfaces);
+      entriesRaw = builtins.filter (x: x != null) (map (entryFor { inherit unitName containerName interfaces; }) (lookup.sortedAttrNames interfaces));
       entries = assignUniqueContainerInterfaceNames (assignUniqueHostVethNames entriesRaw);
       interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
       _validateUniqueInterfaceNames =

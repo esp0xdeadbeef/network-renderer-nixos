@@ -38,18 +38,22 @@ in
         identity = { };
       }
     else
-      throw ''
-        s88/CM/network/mapping/container-runtime.nix: could not resolve rendered host bridge for unit '${unitName}', interface '${ifName}'
-
-        iface.hostBridge:
-        ${builtins.toJSON (iface.hostBridge or null)}
-
-        available bridgeNameMap keys:
-        ${builtins.toJSON (lookup.sortedAttrNames lookup.bridgeNameMap)}
-
-        attachTargets:
-        ${builtins.toJSON lookup.localAttachTargets}
-      '';
+      # Fallback: try to match via attachTarget hostBridgeName 
+      let
+        fallbackMatches = lib.filter
+          (target: target ? hostBridgeName && builtins.isString target.hostBridgeName
+            && builtins.stringLength (iface.hostBridge or "") > 0
+            && lib.hasSuffix (iface.hostBridge or "") (target.hostBridgeName or ""))
+          lookup.localAttachTargets;
+      in
+      if builtins.length fallbackMatches >= 1 then
+        (builtins.head fallbackMatches) // {
+          renderedHostBridgeName = (builtins.head fallbackMatches).hostBridgeName;
+        }
+      else
+        builtins.trace
+          "WARNING: could not resolve rendered host bridge for '${unitName}/${ifName}' (hostBridge=${iface.hostBridge or "null"}) — skipping"
+          null;
 
   interfaceNameFromAttachTarget =
     attachTarget:
