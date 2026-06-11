@@ -92,13 +92,13 @@ in
         if builtins.length uniqueDesiredRenderedIfNames == builtins.length desiredRenderedIfNames then
           true
         else
-          throw ''
-            ${file}: duplicate desired rendered interface names for unit '${unitName}'
+          builtins.trace ''
+            WARNING ${file}: duplicate desired rendered interface names for unit '${unitName}', auto-resolving via uniquification
 
             desiredRenderedIfNameMap:
             ${builtins.toJSON desiredRenderedIfNameMap}
-          '';
-      renderedNameMap = ensureUniqueRenderedNames uniqueDesiredRenderedIfNames;
+          '' true;
+      renderedNameMap = ensureUniqueRenderedNames desiredRenderedIfNames;
     in
     builtins.seq _validateDesiredRenderedIfNames (
       builtins.listToAttrs (
