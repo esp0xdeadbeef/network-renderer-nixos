@@ -86,13 +86,12 @@ let
     let
       iface = interfaces.${ifName};
       attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
-      # Skip interfaces whose hostBridge couldn't be resolved
-      attachResult = if attachTarget == null then
-        builtins.trace "WARNING: skipping interface '${ifName}' for '${unitName}' — no attach target" null
-      else attachTarget;
-      if attachResult == null then null else
-      let
-        attachTarget = attachResult;
+    in
+    # Skip interfaces whose hostBridge couldn't be resolved
+    if attachTarget == null then
+      builtins.trace "WARNING: skipping interface '${ifName}' for '${unitName}' — no attach target" null
+    else
+    let
       sourceKind = sourceKindForInterface iface;
       desiredInterfaceName = effectiveInterfaceNameForInterface { inherit ifName iface attachTarget; };
       bridgeEligibleWanIfNames = lib.filter
