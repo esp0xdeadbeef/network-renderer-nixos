@@ -141,8 +141,6 @@ let
   ]
     (entry: boolOrFalse entry.explicit.explicitClampMss);
 
-  fallbackWanNames = sortedStrings (wanIfs ++ map (entry: entry.name) (lib.filter (entry: entry.sourceKind == "wan") entries));
-  fallbackP2pNames = sortedStrings (map (entry: entry.name) (lib.filter (entry: entry.sourceKind == "p2p") entries));
   overlayInterfaceNames = sortedStrings (
     map (entry: entry.name) (
       lib.filter
@@ -160,19 +158,6 @@ let
     (entry.sourceKind or null) == "overlay"
     || (entry ? backingRef && builtins.isAttrs entry.backingRef && (entry.backingRef.kind or null) == "overlay");
 
-  fallbackLocalAdapterNames = sortedStrings (
-    lanIfs
-    ++ map
-      (entry: entry.name)
-      (lib.filter (entry: entry.sourceKind != "wan" && entry.sourceKind != "p2p" && !(isOverlayEntry entry)) entries)
-  );
-  fallbackLanNames = sortedStrings (
-    lanIfs
-    ++ map
-      (entry: entry.name)
-      (lib.filter (entry: !(builtins.elem entry.name fallbackWanNames) && !(isOverlayEntry entry)) entries)
-  );
-
   # Derive NAT source prefixes from fabric (non-WAN, non-overlay) interface addresses.
   # Core-upstream-vlan4 receives traffic from the entire fabric chain, and the CPM
   # explicit list only covers tenant IPs.  Include the /31, /30, /29 and /24 subnets
@@ -189,7 +174,7 @@ let
     builtins.filter (s: s != "") (
       map (entry: interfaceAddr4CIDR (entry.addr4 or ""))
       (lib.filter (entry:
-        entry.sourceKind != "wan" && entry.sourceKind != "pppoe-session" && !(isOverlayEntry entry)
+        !(boolOrFalse entry.explicit.explicitWan) && !(entry.sourceKind or null == "pppoe-session") && !(isOverlayEntry entry)
       ) entries)
     )
   );
@@ -205,7 +190,7 @@ let
         if prefix != "" && mask != "" && mask != "128" then "${prefix}/${mask}" else ""
       )
       (lib.filter (entry:
-        entry.sourceKind != "wan" && entry.sourceKind != "pppoe-session" && !(isOverlayEntry entry)
+        !(boolOrFalse entry.explicit.explicitWan) && !(entry.sourceKind or null == "pppoe-session") && !(isOverlayEntry entry)
       ) entries)
     )
   );
@@ -217,10 +202,10 @@ in
     explicitNat4SourcePrefixes explicitNat6SourcePrefixes explicitClampMssInterfaces overlayInterfaceNames
     interfaceNat4Prefixes interfaceNat6Prefixes
     ;
-  resolvedLocalAdapterNames = if explicitLocalAdapterNames != [ ] then explicitLocalAdapterNames else fallbackLocalAdapterNames;
-  resolvedWanNames = if explicitWanNames != [ ] then explicitWanNames else fallbackWanNames;
-  resolvedLanNames = if explicitLocalAdapterNames != [ ] then explicitLocalAdapterNames else fallbackLanNames;
-  resolvedTransitNames = if explicitTransitNames != [ ] then explicitTransitNames else fallbackP2pNames;
-  resolvedUplinkNames = if explicitUplinkNames != [ ] then explicitUplinkNames else fallbackWanNames;
-  resolvedAccessUplinkNames = if explicitUplinkNames != [ ] then explicitUplinkNames else if fallbackP2pNames != [ ] then fallbackP2pNames else fallbackWanNames;
+  resolvedLocalAdapterNames = explicitLocalAdapterNames;
+  resolvedWanNames = explicitWanNames;
+  resolvedLanNames = explicitLocalAdapterNames;
+  resolvedTransitNames = explicitTransitNames;
+  resolvedUplinkNames = explicitUplinkNames;
+  resolvedAccessUplinkNames = explicitUplinkNames;
 }
