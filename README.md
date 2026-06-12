@@ -12,6 +12,57 @@ must be explicit in the README, tests, and owning layer before it is accepted.
 network-forwarding-model -> network-control-plane-model -> network-renderer-nixos
 ```
 
+## Spec Chain
+
+This renderer is owned by the following GAMP trace chain. All behavior requirements
+originate from the URS, flow through FS, and are refined by HDS → SDS → SMS before
+reaching this renderer.
+
+### Primary Chain: Renderer Policy Boundary
+
+| Layer | ID | Description |
+|-------|----|-------------|
+| URS   | L11, L29, L156 | Portable meaning, renderers don't invent meaning, explicit policy only |
+| FS    | FS-310 | Renderer Policy Boundary — materialize explicit CPM policy, no local allow rules |
+| HDS   | FS-310-HDS-010 | Renderer Policy Boundary hardware design — substrate facts for renderer contracts |
+| SDS   | FS-310-HDS-010-SDS-010 | Renderer Policy Boundary software design — interface architecture, S88 layout, primitive registry |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-010 | **Coordinator** — renderer policy boundary module (SMT: OK) |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-040 | Interface name source binding — no hardcoded `eth0`/`ens3` |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-050 | nftables primitive source binding — table/chain names from CPM |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-100 | CPM-only consumption — no intent.nix, inventory.nix parsing |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-110 | Fail-closed contract — missing/partial CPM input must fail |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-120 | No naming inference — don't guess from node/interface/role names |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-130 | No policy invention — don't create firewall/routing from defaults |
+
+### Secondary Chain: Layout Preservation
+
+| Layer | ID | Description |
+|-------|----|-------------|
+| FS    | FS-320 | Renderer Layout Preservation — compact layouts must preserve roles/policy/hygiene |
+| HDS   | FS-320-HDS-010 | Layout Preservation hardware design — substrate constraints for role co-location |
+| SDS   | FS-320-HDS-010-SDS-010 | Layout Preservation software design — mapping logical roles without reinterpretation |
+| SMS   | FS-320-HDS-010-SDS-010-SMS-010 | Coordinator — layout preservation module (SMT: OK) |
+| SMS   | FS-320-HDS-010-SDS-010-SMS-020 | Runtime interface name mapping — deterministic valid names with audit alias |
+| SMS   | FS-320-HDS-010-SDS-010-SMS-030 | Renderer interface audit mapping — inspectable logical-to-runtime mapping |
+
+### SMT Status (2026-06-12)
+
+- FS-310-HDS-010-SDS-010-SMS-010: **OK** — Coordinator: NixOS tests pass (policy-endpoint, container-routing, firewall-parity, explicit-forwarding)
+- FS-320-HDS-010-SDS-010-SMS-010: **OK** — Coordinator: bridge-link realization contracts pass
+- All child SMS rows trace to coordinator or are in controlled SMT backlog.
+
+### Pipeline
+
+```
+network-labs (intent + inventory) → network-compiler → NFM → CPM → network-renderer-nixos
+```
+
+Required input: CPM output only. Must not parse `intent.nix`, `inventory.nix`, or `inventory-nixos.nix`.
+
+### Owning Repository
+
+Construction tests: `network-renderer-nixos/tests/`
+
 ## Contract
 
 - The forwarding model and CPM are the source of truth.
