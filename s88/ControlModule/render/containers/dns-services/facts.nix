@@ -141,6 +141,15 @@ in
 if !(builtins.isAttrs dnsService) then
   null
 else
+  let
+    _fwd = if dnsService ? forwarders then stringList dnsService.forwarders else if dnsService ? upstreams then stringList dnsService.upstreams else [ ];
+    _listen = lib.unique ([ "127.0.0.1" "::1" ] ++ stringList (dnsService.listen or [ ]));
+    _nonLoopback = builtins.filter (a: a != "127.0.0.1" && a != "::1") _listen;
+    _selfRef = builtins.filter (f: builtins.elem f _nonLoopback) _fwd;
+  in
+  if _selfRef != [ ] then
+    throw "NixOS DNS renderer rejects self-referential forwarder: forward-addr ${builtins.concatStringsSep ", " _selfRef} matches unbound listen address on access-client container. Configure distinct upstream resolver addresses. GAMP: FS-540-HDS-010-SDS-010-SMS-035"
+  else
   rec {
     inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules;
     listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
