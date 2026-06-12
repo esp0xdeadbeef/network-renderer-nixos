@@ -11,14 +11,14 @@ stderr_file="$(mktemp)"
 trap 'rm -f "$result_json" "$stderr_file"' EXIT
 
 # ---------------------------------------------------------------------------
-# D23-HOST-RUNTIME-IFNAME-BRIDGE: rendered interface name uniquification
+# FS-320-HDS-010-SDS-010-SMS-020: rendered interface name uniquification
 # must preserve logical ifName identity through deduplication.
 #   FS-320: logical identifiers shall remain separate from platform runtime
 #   interface names; the renderer shall emit a deterministic valid runtime
 #   name and preserve an inspectable mapping back to the logical identifier.
 # ---------------------------------------------------------------------------
 
-nix_eval_json_or_fail "D23-rendered-name-uniquification" "$result_json" "$stderr_file" \
+nix_eval_json_or_fail "FS-320-HDS-010-SDS-010-SMS-020-rendered-name-uniquification" "$result_json" "$stderr_file" \
   env REPO_ROOT="${repo_root}" \
   nix eval --json --extra-experimental-features 'nix-command flakes' --impure \
   --expr '
@@ -60,7 +60,7 @@ let
             "p2p-link"      = { renderedIfName = "ens21"; };
           };
           unitName = "test-unit";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result."commercial-vpn" == "ens80"
          && result.ens20 == "ens20"
@@ -79,7 +79,7 @@ let
             "p2p-nixos-core-commercial-vpn-nixos-upstream-selector" = { renderedIfName = "ens20"; };
           };
           unitName = "esp0xdeadbeef::site-a::esp0xdeadbeef-site-a-nixos-core-commercial-vpn";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result.ens20 == "ens20"
     ))
@@ -92,7 +92,7 @@ let
             "p2p-nixos-core-commercial-vpn-nixos-upstream-selector" = { renderedIfName = "ens20"; };
           };
           unitName = "esp0xdeadbeef::site-a::esp0xdeadbeef-site-a-nixos-core-commercial-vpn";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result."p2p-nixos-core-commercial-vpn-nixos-upstream-selector" != "ens20"
     ))
@@ -105,7 +105,7 @@ let
             "p2p-nixos-core-commercial-vpn-nixos-upstream-selector" = { renderedIfName = "ens20"; };
           };
           unitName = "esp0xdeadbeef::site-a::esp0xdeadbeef-site-a-nixos-core-commercial-vpn";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result.ens20 != result."p2p-nixos-core-commercial-vpn-nixos-upstream-selector"
     ))
@@ -124,7 +124,7 @@ let
             "p2p-nixos-core-commercial-vpn-nixos-upstream-selector" = { renderedIfName = "ens20"; };
           };
           unitName = "esp0xdeadbeef::site-a::esp0xdeadbeef-site-a-nixos-core-commercial-vpn";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result.ens20 == "ens20"
     ))
@@ -138,7 +138,7 @@ let
             "p2p-nixos-core-commercial-vpn-nixos-upstream-selector" = { renderedIfName = "ens20"; };
           };
           unitName = "esp0xdeadbeef::site-a::esp0xdeadbeef-site-a-nixos-core-commercial-vpn";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result."p2p-nixos-core-commercial-vpn-nixos-upstream-selector" != "ens20"
     ))
@@ -152,7 +152,7 @@ let
             "p2p-nixos-core-commercial-vpn-nixos-upstream-selector" = { renderedIfName = "ens20"; };
           };
           unitName = "esp0xdeadbeef::site-a::esp0xdeadbeef-site-a-nixos-core-commercial-vpn";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
         vals = [
           result."commercial-vpn"
@@ -174,7 +174,7 @@ let
             "c" = { renderedIfName = "ens20"; };
           };
           unitName = "test-unit";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
         vals = [ result.a result.b result.c ];
       in builtins.length (lib.unique vals) == 3
@@ -189,7 +189,7 @@ let
             "c" = { renderedIfName = "ens20"; };
           };
           unitName = "test-unit";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result.a == "ens20"
     ))
@@ -205,7 +205,7 @@ let
             "p2p"   = { renderedIfName = "ens20"; };
           };
           unitName = "test-unit";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
         r1 = mkResult;
         r2 = mkResult;
@@ -223,7 +223,7 @@ let
             "my-interface" = { };
           };
           unitName = "test-unit";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result."my-interface" == "my-interface"
     ))
@@ -242,7 +242,7 @@ let
             "ens20" = { renderedIfName = "ens20"; };
           };
           unitName = "test-unit";
-          file = "test-d23";
+          file = "test-fs320-hds010-sds010-sms020";
         };
       in result ? ens20 && result.ens20 == "ens20"
     ))
@@ -260,6 +260,6 @@ in
 }
 '
 
-assert_json_checks_ok "D23-HOST-RUNTIME-IFNAME-BRIDGE" "$result_json"
+assert_json_checks_ok "FS-320-HDS-010-SDS-010-SMS-020" "$result_json"
 
-echo "PASS D23-HOST-RUNTIME-IFNAME-BRIDGE: all assertions passed"
+echo "PASS FS-320-HDS-010-SDS-010-SMS-020: all assertions passed"
