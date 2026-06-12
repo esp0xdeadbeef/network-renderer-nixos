@@ -159,6 +159,7 @@ let
               impl.build {
                 input = forwardingOut;
                 inherit inventory;
+                emulationSubnets = inventory.hat.emulationSubnets or [];
               }
             )
           )
