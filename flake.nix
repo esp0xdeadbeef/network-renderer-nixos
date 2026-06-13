@@ -78,50 +78,8 @@
           networking.useDHCP = false;
           networking.useHostResolvConf = userLib.mkForce false;
 
-          systemd.network.netdevs = userLib.mkMerge [
-            (userLib.mkOverride 90 (rendered.netdevs or { }))
-            {
-              # Management VLAN2: eth0.2 vlan + vlan2 bridge
-              "10-eth0.2" = {
-                netdevConfig = { Name = "eth0.2"; Kind = "vlan"; };
-                vlanConfig = { Id = 2; };
-              };
-              "20-vlan2" = {
-                netdevConfig = { Name = "vlan2"; Kind = "bridge"; };
-              };
-            }
-          ];
-
-          systemd.network.networks = userLib.mkMerge [
-            (userLib.mkOverride 90 (rendered.networks or { }))
-            {
-              "10-eth0" = {
-                matchConfig.Name = "eth0";
-                networkConfig = {
-                  DHCP = "no";
-                  LinkLocalAddressing = "no";
-                  VLAN = [ "eth0.2" ];
-                };
-              };
-              "20-eth0.2" = {
-                matchConfig.Name = "eth0.2";
-                networkConfig = {
-                  DHCP = "no";
-                  LinkLocalAddressing = "no";
-                  Bridge = "vlan2";
-                };
-              };
-              "30-vlan2" = {
-                matchConfig.Name = "vlan2";
-                networkConfig = {
-                  DHCP = "ipv4";
-                  LinkLocalAddressing = "no";
-                  IPv6AcceptRA = "no";
-                };
-              };
-            }
-          ];
-
+          systemd.network.netdevs = userLib.mkOverride 90 (rendered.netdevs or { });
+          systemd.network.networks = userLib.mkOverride 90 (rendered.networks or { });
           containers = rendered.containers or { };
         };
 
