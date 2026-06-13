@@ -29,7 +29,7 @@ let
     { selector ? null
     , hostname ? null
     , intent ? null
-    , inventory ? null
+    , source ? null
     , controlPlaneOut ? null
     , compilerOut ? { }
     , forwardingOut ? { }
@@ -46,7 +46,7 @@ let
           selector
           hostname
           intent
-          inventory
+          source
           file
           ;
       };
@@ -73,7 +73,7 @@ let
         hostName = resolved.selectorValue;
         hostContext = resolved.hostContext;
         cpm = resolvedControlPlaneOut;
-        inventory = resolved.globalInventory;
+        source = resolved.globalInventory;
       });
 
       renderedHostWithSelectedContainers = trace.emit "host-build:${resolved.selectorValue}:select-containers" (hostSelection.selectedContainersForHost {
@@ -124,9 +124,9 @@ let
 
   # CMC-NIXOS-REMOVE-INTENT-V2: buildHostFromControlPlane is the primary entry point.
   # It accepts pre-built CPM output and skips internal pipeline compilation.
+  # Inventory/source data is extracted from CPM output — no separate parameter.
   buildHostFromControlPlane =
     { controlPlaneOut
-    , inventory
     , selector ? null
     , hostname ? null
     , system ? currentSystem
@@ -138,7 +138,6 @@ let
     }:
     buildHost {
       inherit
-        inventory
         controlPlaneOut
         selector
         hostname

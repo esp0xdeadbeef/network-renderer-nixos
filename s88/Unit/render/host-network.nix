@@ -4,7 +4,7 @@
 , cpm
 , source ? { }
 , hostContext ? null
-,
+, ...
 }:
 
 let

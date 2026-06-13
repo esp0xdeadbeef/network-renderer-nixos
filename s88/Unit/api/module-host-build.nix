@@ -17,7 +17,8 @@
 , system ? "x86_64-linux"
 , hostName
 , cpm ? null
-, inventory ? { }
+, controlPlane ? null
+, source ? { }
 , selectorFile ? "s88/Unit/api/module-host-build.nix"
 , containerDefaults ? { }
 , disabled ? { }
@@ -38,17 +39,19 @@ let
   resolvedCpm =
     if cpm != null then
       cpm
+    else if controlPlane != null then
+      controlPlane
     else
       throw ''
-        s88/Unit/api/module-host-build.nix: cpm (control plane model) is required.
+        s88/Unit/api/module-host-build.nix: cpm or controlPlane (control plane model) is required.
         Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume CPM output,
         not discover intent.nix/inventory.nix from disk.
-        Provide pre-built CPM output via the 'cpm' parameter.
+        Provide pre-built CPM output via the 'cpm' or 'controlPlane' parameter.
       '';
 
   builtHost = buildHostFromControlPlane {
     controlPlaneOut = resolvedCpm;
-    inherit inventory;
+    inherit source;
     selector = hostName;
     inherit
       system

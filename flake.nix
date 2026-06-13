@@ -51,7 +51,7 @@
       # NOT inside the renderer.
       hostModule =
         { cpm ? null
-        , inventory ? { }
+        , controlPlane ? null
         , hostName
         , system ? null
         , ...
@@ -59,11 +59,11 @@
         { config, lib, pkgs, ... }:
         let
           resolvedSystem = if system != null then system else pkgs.stdenv.hostPlatform.system;
+          effectiveCpm = if cpm != null then cpm else controlPlane;
           hostBuild = api.renderer.buildHostFromControlPlane {
             controlPlaneOut =
-              if cpm != null then cpm
-              else throw "network-renderer-nixos hostModule: 'cpm' (control plane model) is required. Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.";
-            inherit inventory;
+              if effectiveCpm != null then effectiveCpm
+              else throw "network-renderer-nixos hostModule: 'cpm' or 'controlPlane' (control plane model) is required. Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.";
             selector = hostName;
             system = resolvedSystem;
           };
@@ -90,7 +90,6 @@
         let
           buildVm =
             { cpm ? null
-            , inventory ? { }
             , boxName
             , simulatedContainerDefaults ? { }
             ,
@@ -101,7 +100,7 @@
                   if cpm != null then cpm
                   else throw "network-renderer-nixos buildVm: 'cpm' (control plane model) is required.";
                 selector = boxName;
-                inherit inventory system;
+                inherit system;
               };
 
               renderedHost = hostBuild.renderedHost;

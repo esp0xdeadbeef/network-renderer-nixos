@@ -78,7 +78,7 @@ let
         hostName = selectorValue;
         hostContext = narrowedHostContext;
         cpm = builtHost.controlPlaneOut;
-        inventory = builtHost.globalInventory;
+        source = builtHost.globalInventory;
       };
     in
     {
