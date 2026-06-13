@@ -11,7 +11,6 @@ let
     { selector ? null
     , hostname ? null
     , intent ? null
-    , inventory ? null   # kept for backward compat, prefer 'source'
     , source ? null
     , file ? "s88/ControlModule/lookup/host-query.nix"
     ,
@@ -31,12 +30,10 @@ let
         else
           { };
 
-      # Resolved source: prefer explicit 'source', fall back to 'inventory' for backward compat
+      # Resolved source: source data comes from CPM or explicit parameter.
       resolvedSource =
         if source != null then
           source
-        else if inventory != null then
-          inventory
         else
           { };
     in
