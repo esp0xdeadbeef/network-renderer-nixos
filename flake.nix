@@ -74,14 +74,15 @@
           mgmtHost = if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null;
           mgmtUplink = if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null;
           mgmtVlanId = if mgmtUplink != null && mgmtUplink ? vlan then mgmtUplink.vlan else null;
-          _mgmtDebug = throw ''
-            VLAN2-DEBUG hostName=${hostName}
-            hasDeploymentHosts=${toString (effectiveCpm != null && effectiveCpm ? deploymentHosts)}
-            mgmtHost=${if mgmtHost != null then "FOUND" else "NULL"}
-            mgmtUplink=${if mgmtUplink != null then "FOUND" else "NULL"}
-            mgmtVlanId=${toString mgmtVlanId}
-            deploymentHosts-keys=${toString (if effectiveCpm != null && effectiveCpm ? deploymentHosts then builtins.attrNames effectiveCpm.deploymentHosts else [])}
-          '';
+          _mgmtDebug = {
+            text = ''
+              hostName=${hostName}
+              hasDeploymentHosts=${toString (effectiveCpm != null && effectiveCpm ? deploymentHosts)}
+              mgmtHost=${if mgmtHost != null then "FOUND" else "NULL"}
+              mgmtUplink=${if mgmtUplink != null then "FOUND" else "NULL"}
+              mgmtVlanId=${toString mgmtVlanId}
+            '';
+          };
           mgmtNetdevs = if mgmtVlanId != null then {
             "10-eth0.${toString mgmtVlanId}" = {
               netdevConfig = { Name = "eth0.${toString mgmtVlanId}"; Kind = "vlan"; };
@@ -115,13 +116,15 @@
             };
           } else { };
         in
-        builtins.seq _mgmtDebug {
+        {
           imports = [ hostBuild.artifactModule ];
 
           networking.useNetworkd = true;
           systemd.network.enable = true;
           networking.useDHCP = false;
           networking.useHostResolvConf = userLib.mkForce false;
+
+          environment.etc."vlan2-mgmt-debug".text = _mgmtDebug;
 
           systemd.network.netdevs = userLib.mkMerge [
             (userLib.mkOverride 90 (rendered.netdevs or { }))
