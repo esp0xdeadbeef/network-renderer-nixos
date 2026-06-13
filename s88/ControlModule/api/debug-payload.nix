@@ -8,8 +8,7 @@
 , forwardingOut
 , controlPlaneOut
 , renderedHostNetwork
-, intentPath
-, inventoryPath
+,  # CMC-NIXOS-REMOVE-INTENT-V2: intentPath/inventoryPath removed (SMS-100)
 ,
 }:
 
@@ -111,9 +110,6 @@ in
     forwardingOut
     controlPlaneOut
     ;
-
-  intentPath = if intentPath == null then null else builtins.toString intentPath;
-  inventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
 
   renderedHost = {
     hostName = renderedHostNetwork.hostName or null;

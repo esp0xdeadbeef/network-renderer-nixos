@@ -4,6 +4,11 @@
 , ...
 }:
 
+# NOTE: vm.nix is a testing-only harness. Do not use as a production deployment path.
+# Updated (CMC-NIXOS-REMOVE-INTENT-INVENTORY): no longer uses buildHostFromPaths.
+# Requires CPM output path via vmInput.cpmPath instead of intentPath/inventoryPath.
+# The pipeline (compiler→NFM→CPM) should be run by the test harness, not this file.
+
 let
   vmInputPath =
     let
@@ -29,18 +34,28 @@ let
   flake = builtins.getFlake (toString ./.);
   api = flake.lib;
 
-  haveBuildPaths = vmInput ? intentPath && vmInput ? inventoryPath;
-
-  _requireBuildPaths =
-    if haveBuildPaths then
-      true
+  # CPM is required — the VM harness no longer discovers intent/inventory from disk.
+  # The caller (vm-input-*.nix) must provide either:
+  #   cpmPath: path to pre-built CPM JSON output, OR
+  #   cpm: already-loaded CPM output
+  resolvedCpm =
+    if vmInput ? cpm then
+      vmInput.cpm
+    else if vmInput ? cpmPath then
+      api.renderer.loadControlPlane vmInput.cpmPath
     else
-      throw "network-renderer-nixos: vm input must define (intentPath + inventoryPath) (the VM harness does not accept raw CPM-only inputs)";
+      throw "network-renderer-nixos: vm input must define 'cpm' or 'cpmPath' (CPM output). Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.";
 
-  hostBuild = api.renderer.buildHostFromPaths {
+  resolvedInventory =
+    if vmInput ? inventory then
+      vmInput.inventory
+    else
+      { };
+
+  hostBuild = api.renderer.buildHostFromControlPlane {
+    controlPlaneOut = resolvedCpm;
     selector = boxName;
-    intentPath = vmInput.intentPath;
-    inventoryPath = vmInput.inventoryPath;
+    inventory = resolvedInventory;
   };
 
   renderedHost = hostBuild.renderedHost;

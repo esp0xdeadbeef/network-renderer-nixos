@@ -4,13 +4,14 @@ let
   pathLookup = import ./paths.nix { inherit lib; };
   inventoryLookup = import ./inventory.nix { inherit lib; };
 
+  # NOTE: intentPath/inventoryPath params removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+  # Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM-mediated data.
+  # Callers must provide already-loaded intent/inventory objects, not filesystem paths.
   query =
     { selector ? null
     , hostname ? null
     , intent ? null
     , inventory ? null
-    , intentPath ? null
-    , inventoryPath ? null
     , file ? "s88/ControlModule/lookup/host-query.nix"
     ,
     }:
@@ -26,16 +27,12 @@ let
       fabricInputs =
         if intent != null then
           intent
-        else if intentPath != null then
-          pathLookup.importMaybeFunction intentPath
         else
           { };
 
       globalInventory =
         if inventory != null then
           inventory
-        else if inventoryPath != null then
-          pathLookup.importMaybeFunction inventoryPath
         else
           { };
     in
@@ -49,28 +46,13 @@ let
       };
     };
 
-  queryFromOutPath =
-    { outPath
-    , hostname
-    , fabricRoot ? null
-    , file ? "s88/ControlModule/lookup/host-query.nix"
-    ,
-    }:
-    let
-      paths = pathLookup.pathsFromOutPath {
-        inherit outPath fabricRoot;
-      };
-    in
-    query {
-      inherit hostname file;
-      inherit (paths) intentPath inventoryPath;
-    };
+  # NOTE: queryFromOutPath removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+  # Constructing filesystem paths to upstream intent.nix/inventory.nix is a violation.
 in
 pathLookup
 // inventoryLookup
   // {
   inherit
     query
-    queryFromOutPath
     ;
 }

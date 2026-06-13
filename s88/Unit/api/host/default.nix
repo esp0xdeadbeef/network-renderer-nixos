@@ -1,7 +1,7 @@
 { lib
 , repoPath
 , selectors
-, buildHostFromPaths
+, buildHostFromControlPlane
 , currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
 ,
 }:
@@ -12,7 +12,7 @@ let
       lib
       repoPath
       selectors
-      buildHostFromPaths
+      buildHostFromControlPlane
       currentSystem
       ;
   };
@@ -38,7 +38,6 @@ in
 
       debug = {
         identity = resolved.identity;
-        fabric = resolved.fabric;
         hostName = resolved.hostPlan.hostName or resolved.selectorValue;
         deploymentHostName = resolved.hostPlan.deploymentHostName or null;
         runtimeRole = resolved.hostPlan.runtimeRole or null;

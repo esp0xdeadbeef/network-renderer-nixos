@@ -44,16 +44,28 @@
         };
       };
 
+      # NOTE: hostModule previously used buildHostFromPaths with intentPath/inventoryPath.
+      # Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
+      # hostModule now requires pre-built CPM output via the 'cpm' parameter.
+      # The pipeline (compiler → NFM → CPM) should run in the host repo or a harness,
+      # NOT inside the renderer.
       hostModule =
-        rendererInput:
+        { cpm ? null
+        , inventory ? { }
+        , hostName
+        , system ? null
+        , ...
+        }@rendererInput:
         { config, lib, pkgs, ... }:
         let
-          system = pkgs.stdenv.hostPlatform.system;
-          hostBuild = api.renderer.buildHostFromPaths {
-            intentPath = rendererInput.intent;
-            inventoryPath = rendererInput.inventory;
-            selector = rendererInput.hostName;
-            inherit system;
+          resolvedSystem = if system != null then system else pkgs.stdenv.hostPlatform.system;
+          hostBuild = api.renderer.buildHostFromControlPlane {
+            controlPlaneOut =
+              if cpm != null then cpm
+              else throw "network-renderer-nixos hostModule: 'cpm' (control plane model) is required. Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.";
+            inherit inventory;
+            selector = hostName;
+            system = resolvedSystem;
           };
           rendered = hostBuild.renderedHost;
           userLib = rendererInput.lib or lib;
@@ -71,20 +83,25 @@
           containers = rendered.containers or { };
         };
 
+      # NOTE: buildVm previously used buildHostFromPaths with intentPath/inventoryPath.
+      # Now requires CPM output. Pipeline orchestration belongs in the host repo.
       mkVmApiForSystem =
         system:
         let
           buildVm =
-            { intentPath
-            , inventoryPath
+            { cpm ? null
+            , inventory ? { }
             , boxName
             , simulatedContainerDefaults ? { }
             ,
             }:
             let
-              hostBuild = api.renderer.buildHostFromPaths {
+              hostBuild = api.renderer.buildHostFromControlPlane {
+                controlPlaneOut =
+                  if cpm != null then cpm
+                  else throw "network-renderer-nixos buildVm: 'cpm' (control plane model) is required.";
                 selector = boxName;
-                inherit intentPath inventoryPath system;
+                inherit inventory system;
               };
 
               renderedHost = hostBuild.renderedHost;
@@ -145,6 +162,10 @@
 
       libBySystem = forAllSystems mkLibForSystem;
 
+      # NOTE: s88CallFlowEvalTarget removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+      # Previously used hardcoded paths to intent.nix and inventory-nixos.nix
+      # via buildHostFromPaths. Per SMS-100, renderers must consume CPM output,
+      # not discover upstream files from disk.
       packages = forAllSystems (
         system:
         let
@@ -152,28 +173,10 @@
           renderDryConfig = import ./s88/Unit/tools/render-dry-config-app.nix {
             inherit pkgs self;
           };
-          s88CallFlowEvalTarget =
-            let
-              hostBuild = api.renderer.buildHostFromPaths {
-                inherit system;
-                selector = "s-router-hetzner-anywhere";
-                intentPath = network-labs.outPath + "/examples/s-router-overlay-dns-lane-policy/intent.nix";
-                inventoryPath = network-labs.outPath + "/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix";
-              };
-            in
-            pkgs.writeText "s88-call-flow-eval-target.json" (
-              builtins.toJSON {
-                selectedUnits = hostBuild.selectedUnits or [ ];
-                renderedContainerNames = lib.sort builtins.lessThan (
-                  builtins.attrNames (hostBuild.renderedHost.containers or { })
-                );
-              }
-            );
         in
         {
           jq = pkgs.jq;
           render-dry-config = renderDryConfig;
-          s88-call-flow-eval-target = s88CallFlowEvalTarget;
           default = renderDryConfig;
         }
       );

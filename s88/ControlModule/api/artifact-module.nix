@@ -32,8 +32,6 @@ in
       renderer = "network-renderer-nixos";
       hostName = debugPayload.hostName or null;
       system = debugPayload.system or null;
-      intentPath = debugPayload.intentPath or null;
-      inventoryPath = debugPayload.inventoryPath or null;
       selectedUnits = renderedHost.selectedUnits or [ ];
       selectedRoleNames = renderedHost.selectedRoleNames or [ ];
       containers = builtins.attrNames (renderedHost.containers or { });

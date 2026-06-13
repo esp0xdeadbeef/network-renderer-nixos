@@ -25,13 +25,13 @@ let
         ${builtins.toJSON (hostContext.deploymentHostNames or [ ])}
       '';
 
+  # NOTE: intentPath/inventoryPath params removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+  # Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM-mediated data.
   resolveBuildInputs =
     { selector ? null
     , hostname ? null
     , intent ? null
     , inventory ? null
-    , intentPath ? null
-    , inventoryPath ? null
     , file ? "s88/CM/network/lookup/host-build-inputs.nix"
     ,
     }:
@@ -42,8 +42,6 @@ let
           hostname
           intent
           inventory
-          intentPath
-          inventoryPath
           file
           ;
       };

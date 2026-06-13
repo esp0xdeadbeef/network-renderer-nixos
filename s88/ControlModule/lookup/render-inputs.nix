@@ -4,21 +4,17 @@
 , cpm ? null
 , cpmPath ? null
 , inventory ? { }
-, inventoryPath ? null
 , exampleDir ? null
 ,
 }:
 
-let
-  firstExistingPath =
-    candidates:
-    let
-      existing = lib.filter (path: path != null && builtins.pathExists (builtins.toPath path)) candidates;
-    in
-    if existing == [ ] then null else builtins.head existing;
+# NOTE: inventoryPath parameter removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+# Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
+# Loading inventory.nix from disk is a violation. Inventory must come from
+# the 'inventory' parameter or be extracted from CPM output.
 
+let
   resolvedCpmPath = if cpmPath == null then null else builtins.toString cpmPath;
-  requestedInventoryPath = if inventoryPath == null then null else builtins.toString inventoryPath;
 
   resolvedExampleDir =
     if exampleDir != null then
@@ -27,17 +23,6 @@ let
       builtins.dirOf resolvedCpmPath
     else
       null;
-
-  resolvedInventoryPath =
-    if requestedInventoryPath != null then
-      requestedInventoryPath
-    else
-      firstExistingPath [
-        (if resolvedExampleDir != null then "${resolvedExampleDir}/inventory-nixos.nix" else null)
-        (if resolvedExampleDir != null then "${resolvedExampleDir}/inventory.nix" else null)
-        (if resolvedExampleDir != null then "${resolvedExampleDir}/inputs/inventory-nixos.nix" else null)
-        (if resolvedExampleDir != null then "${resolvedExampleDir}/inputs/inventory.nix" else null)
-      ];
 
   controlPlane =
     if cpm != null then
@@ -70,11 +55,11 @@ let
     else
       { };
 
+  # Resolved inventory: use provided inventory, otherwise extract from CPM.
+  # No disk-based fallback to inventory.nix — SMS-100 violation removed.
   resolvedInventory =
     if inventory != { } then
       inventory
-    else if resolvedInventoryPath != null then
-      renderer.loadInventory (builtins.toPath resolvedInventoryPath)
     else
       inventoryFromCpm controlPlane;
 in
@@ -83,14 +68,14 @@ in
     controlPlane
     resolvedInventory
     resolvedCpmPath
-    resolvedInventoryPath
     resolvedExampleDir
     ;
 
   metadataSourcePaths = {
     repoRoot = builtins.toString repoRoot;
     cpmPath = resolvedCpmPath;
-    inventoryPath = resolvedInventoryPath;
+    # CMC-NIXOS-REMOVE-INTENT-V2: inventoryPath removed — renderers must not
+    # carry upstream file paths (FS-310-HDS-010-SDS-010-SMS-100).
     exampleDir = resolvedExampleDir;
   };
 }

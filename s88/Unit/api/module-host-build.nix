@@ -1,15 +1,23 @@
 { lib ? null
 , selectors
-, buildHostFromPaths
+, buildHostFromControlPlane
 ,
 }:
 
+# NOTE: This module previously accepted outPath and discovered intent.nix/inventory.nix
+# from disk via pathsFromOutPath. Per FS-310-HDS-010-SDS-010-SMS-100, renderers must
+# consume ONLY CPM output. The renderer now requires pre-built CPM output.
+#
+# Callers must provide:
+#   cpm: control plane model output
+#   inventory: inventory data (may be {})
+# These should be built by a pipeline harness (compiler→NFM→CPM) OUTSIDE the renderer.
+
 { lib ? null
 , system ? "x86_64-linux"
-, outPath
 , hostName
-, inventoryPath ? null
-, inventoryRenderer ? null
+, cpm ? null
+, inventory ? { }
 , selectorFile ? "s88/Unit/api/module-host-build.nix"
 , containerDefaults ? { }
 , disabled ? { }
@@ -18,8 +26,6 @@
 }:
 
 let
-  resolvedOutPath = builtins.toPath outPath;
-
   effectiveLib =
     if lib != null then
       lib
@@ -28,25 +34,21 @@ let
         s88/Unit/api/module-host-build.nix: lib is required
       '';
 
-  resolvedPaths = selectors.pathsFromOutPath {
-    outPath = resolvedOutPath;
-  };
-
-  resolvedIntentPath = resolvedPaths.intentPath;
-
-  resolvedInventoryPath =
-    if inventoryPath != null then
-      inventoryPath
-    else if inventoryRenderer != null && builtins.pathExists "${resolvedOutPath}/getResolvedInventory.nix" then
-      builtins.toFile "network-renderer-nixos-resolved-inventory-${inventoryRenderer}.nix" ''
-        import ${resolvedOutPath}/getResolvedInventory.nix { renderer = "${inventoryRenderer}"; }
-      ''
+  # Require CPM output — renderer no longer discovers intent/inventory from disk
+  resolvedCpm =
+    if cpm != null then
+      cpm
     else
-      resolvedPaths.inventoryPath;
+      throw ''
+        s88/Unit/api/module-host-build.nix: cpm (control plane model) is required.
+        Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume CPM output,
+        not discover intent.nix/inventory.nix from disk.
+        Provide pre-built CPM output via the 'cpm' parameter.
+      '';
 
-  builtHost = buildHostFromPaths {
-    intentPath = resolvedIntentPath;
-    inventoryPath = resolvedInventoryPath;
+  builtHost = buildHostFromControlPlane {
+    controlPlaneOut = resolvedCpm;
+    inherit inventory;
     selector = hostName;
     inherit
       system
@@ -81,8 +83,7 @@ let
     compilerOut = builtHost.compilerOut;
     forwardingOut = builtHost.forwardingOut;
     controlPlaneOut = builtHost.controlPlaneOut;
-    intentPath = resolvedIntentPath;
-    inventoryPath = resolvedInventoryPath;
+    # intentPath/inventoryPath no longer passed — removed per SMS-100
   };
 
   artifactModule = import ../../ControlModule/api/artifact-module.nix { inherit debugPayload; };

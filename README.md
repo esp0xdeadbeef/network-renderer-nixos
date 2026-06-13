@@ -24,6 +24,8 @@ reaching this renderer.
 |-------|----|-------------|
 | URS   | L11, L29, L156 | Portable meaning, renderers don't invent meaning, explicit policy only |
 | FS    | FS-310 | Renderer Policy Boundary — materialize explicit CPM policy, no local allow rules |
+| FS    | FS-320 | Renderer Layout Preservation — compact layouts must preserve roles/policy/hygiene |
+| FS    | FS-982 | Host Configuration Renderer Boundary — NixOS host config stays thin; generated network realization belongs in renderers, not host profiles |
 | HDS   | FS-310-HDS-010 | Renderer Policy Boundary hardware design — substrate facts for renderer contracts |
 | SDS   | FS-310-HDS-010-SDS-010 | Renderer Policy Boundary software design — interface architecture, S88 layout, primitive registry |
 | SMS   | FS-310-HDS-010-SDS-010-SMS-010 | **Coordinator** — renderer policy boundary module (SMT: OK) |
