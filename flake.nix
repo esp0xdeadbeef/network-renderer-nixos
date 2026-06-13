@@ -132,6 +132,8 @@
             mgmtVlanId=${toString mgmtVlanId}
             netdevKeys=${toString (builtins.attrNames mgmtNetdevs)}
             networkKeys=${toString (builtins.attrNames mgmtNetworks)}
+            renderedNetdevKeys=${toString (builtins.attrNames (rendered.netdevs or {}))}
+            renderedNetworkKeys=${toString (builtins.attrNames (rendered.networks or {}))}
           '';
 
           systemd.network.netdevs = (rendered.netdevs or { }) // mgmtNetdevs;
