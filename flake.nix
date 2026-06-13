@@ -124,7 +124,15 @@
           networking.useDHCP = false;
           networking.useHostResolvConf = userLib.mkForce false;
 
-          environment.etc."vlan2-mgmt-debug".text = _mgmtDebug;
+          environment.etc."vlan2-mgmt-debug".text = ''
+            hostName=${hostName}
+            hasDeploymentHosts=${toString (effectiveCpm != null && effectiveCpm ? deploymentHosts)}
+            mgmtHost=${if mgmtHost != null then "FOUND" else "NULL"}
+            mgmtUplink=${if mgmtUplink != null then "FOUND" else "NULL"}
+            mgmtVlanId=${toString mgmtVlanId}
+            netdevKeys=${toString (builtins.attrNames mgmtNetdevs)}
+            networkKeys=${toString (builtins.attrNames mgmtNetworks)}
+          '';
 
           systemd.network.netdevs = userLib.mkMerge [
             (userLib.mkOverride 90 (rendered.netdevs or { }))
