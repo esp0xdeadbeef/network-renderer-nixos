@@ -71,9 +71,12 @@
           userLib = rendererInput.lib or lib;
 
           # Management VLAN2 from CPM deployment hosts (per URS: inventory → CPM → renderer)
-          mgmtHost = if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null;
-          mgmtUplink = if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null;
-          mgmtVlanId = if mgmtUplink != null && mgmtUplink ? vlan then mgmtUplink.vlan else null;
+          _mgmtDebug = builtins.trace "DEBUG hostName=${hostName} effectiveCpmHasDeploymentHosts=${if effectiveCpm != null && effectiveCpm ? deploymentHosts then "yes" else "no"}" null;
+          mgmtHost = builtins.seq _mgmtDebug (if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null);
+          _mgmtDebug2 = builtins.trace "DEBUG mgmtHostHasUplinks=${if mgmtHost != null && mgmtHost ? uplinks then "yes" else "no"}" null;
+          mgmtUplink = builtins.seq _mgmtDebug2 (if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null);
+          _mgmtDebug3 = builtins.trace "DEBUG mgmtUplinkHasVlan=${if mgmtUplink != null && mgmtUplink ? vlan then "yes" else "no"} mgmtUplinkVlan=${if mgmtUplink != null && mgmtUplink ? vlan then toString mgmtUplink.vlan else "null"}" null;
+          mgmtVlanId = builtins.seq _mgmtDebug3 (if mgmtUplink != null && mgmtUplink ? vlan then mgmtUplink.vlan else null);
           mgmtNetdevs = if mgmtVlanId != null then {
             "10-eth0.${toString mgmtVlanId}" = {
               netdevConfig = { Name = "eth0.${toString mgmtVlanId}"; Kind = "vlan"; };
