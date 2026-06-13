@@ -69,6 +69,43 @@
           };
           rendered = hostBuild.renderedHost;
           userLib = rendererInput.lib or lib;
+
+          # Management VLAN2 from CPM deployment hosts (per URS: inventory → CPM → renderer)
+          mgmtHost = if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null;
+          mgmtUplink = if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null;
+          mgmtVlanId = if mgmtUplink != null && mgmtUplink ? vlan then mgmtUplink.vlan else null;
+          mgmtNetdevs = if mgmtVlanId != null then {
+            "10-eth0.${toString mgmtVlanId}" = {
+              netdevConfig = { Name = "eth0.${toString mgmtVlanId}"; Kind = "vlan"; };
+              vlanConfig = { Id = mgmtVlanId; };
+            };
+            "20-vlan${toString mgmtVlanId}" = {
+              netdevConfig = { Name = "vlan${toString mgmtVlanId}"; Kind = "bridge"; };
+            };
+          } else { };
+          mgmtNetworks = if mgmtVlanId != null then {
+            "10-eth0" = {
+              matchConfig.Name = "eth0";
+              networkConfig = {
+                DHCP = "no"; LinkLocalAddressing = "no";
+                VLAN = [ "eth0.${toString mgmtVlanId}" ];
+              };
+            };
+            "20-eth0.${toString mgmtVlanId}" = {
+              matchConfig.Name = "eth0.${toString mgmtVlanId}";
+              networkConfig = {
+                DHCP = "no"; LinkLocalAddressing = "no";
+                Bridge = "vlan${toString mgmtVlanId}";
+              };
+            };
+            "30-vlan${toString mgmtVlanId}" = {
+              matchConfig.Name = "vlan${toString mgmtVlanId}";
+              networkConfig = {
+                DHCP = "ipv4"; LinkLocalAddressing = "no";
+                IPv6AcceptRA = "no";
+              };
+            };
+          } else { };
         in
         {
           imports = [ hostBuild.artifactModule ];
@@ -78,8 +115,14 @@
           networking.useDHCP = false;
           networking.useHostResolvConf = userLib.mkForce false;
 
-          systemd.network.netdevs = userLib.mkOverride 90 (rendered.netdevs or { });
-          systemd.network.networks = userLib.mkOverride 90 (rendered.networks or { });
+          systemd.network.netdevs = userLib.mkMerge [
+            (userLib.mkOverride 90 (rendered.netdevs or { }))
+            mgmtNetdevs
+          ];
+          systemd.network.networks = userLib.mkMerge [
+            (userLib.mkOverride 90 (rendered.networks or { }))
+            mgmtNetworks
+          ];
           containers = rendered.containers or { };
         };
 
