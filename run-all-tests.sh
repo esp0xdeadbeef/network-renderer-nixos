@@ -86,9 +86,11 @@ for test_file in "${test_files[@]}"; do
 
   (
     timeout "${test_timeout_seconds}" bash -c '
-      source "$1"
+      _source="$1"
+      _test="$2"
+      source "$_source"
       set --
-      source "$2"
+      source "$_test"
     ' _ "${repo_root}/tests/lib/test-common.sh" "${test_file}"
   ) >"${log_file}" 2>&1 &
 
