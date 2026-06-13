@@ -3,7 +3,7 @@
 , renderer ? null
 , cpm ? null
 , cpmPath ? null
-, inventory ? { }
+, source ? { }
 , exampleDir ? null
 , debug ? false
 ,
@@ -44,7 +44,7 @@ let
   renderInputs = import ../../ControlModule/lookup/render-inputs.nix {
     lib = resolvedLib;
     renderer = resolvedRenderer;
-    inherit repoRoot cpm cpmPath inventory exampleDir;
+    inherit repoRoot cpm cpmPath source exampleDir;
   };
 
   controlPlane = renderInputs.controlPlane;
@@ -55,7 +55,7 @@ let
 
   _validateRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
     cpm = controlPlane;
-    inventory = resolvedInventory;
+    source = resolvedInventory;
     file = "s88/Unit/render/dry-config-output.nix";
   };
 
@@ -73,7 +73,7 @@ let
           unitName:
           runtimeContext.deploymentHostForUnit {
             cpm = controlPlane;
-            inventory = resolvedInventory;
+            source = resolvedInventory;
             inherit unitName;
             file = "s88/Unit/render/dry-config-output.nix";
           }
@@ -89,7 +89,7 @@ let
         value = resolvedRenderer.renderHostNetwork {
           inherit hostName;
           cpm = controlPlane;
-          inventory = resolvedInventory;
+          source = resolvedInventory;
         };
       })
       deploymentHostNames

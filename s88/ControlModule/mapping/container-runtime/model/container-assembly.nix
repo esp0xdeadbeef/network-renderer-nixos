@@ -192,7 +192,6 @@ in
           interfaceNames
       );
       inherit site;
-      inventorySite = siteFor lookup.inventorySiteData runtimeTarget;
       deploymentHostName = lookup.deploymentHostName;
       hostContext = lookup.hostContext;
       unitKey = unitName;

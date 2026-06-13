@@ -2,7 +2,7 @@ args@{ lib
 , repoPath
 , hostName
 , cpm
-, inventory ? { }
+, source ? { }
 , hostContext ? null
 ,
 }:

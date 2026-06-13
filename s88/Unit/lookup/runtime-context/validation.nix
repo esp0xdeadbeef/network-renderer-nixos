@@ -188,7 +188,7 @@ let
 
   validateRuntimeTargetForUnit =
     { cpm
-    , inventory ? { }
+    , source ? { }
     , unitName
     , file ? "s88/Unit/lookup/runtime-context.nix"
     ,
@@ -212,7 +212,7 @@ let
 
   validateAllRuntimeTargets =
     { cpm
-    , inventory ? { }
+    , source ? { }
     , file ? "s88/Unit/lookup/runtime-context.nix"
     ,
     }:
@@ -225,7 +225,7 @@ let
           validateRuntimeTargetForUnit {
             inherit
               cpm
-              inventory
+              source
               unitName
               file
               ;

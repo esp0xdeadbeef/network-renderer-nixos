@@ -2,7 +2,7 @@
 , deploymentHostName
 , deploymentHost
 , cpm
-, inventory ? { }
+, source ? { }
 , attachTargetsBase
 ,
 }:
@@ -74,7 +74,7 @@ let
   logicalNodeIdentityForTarget =
     target:
     runtimeContext.logicalNodeIdentityForUnit {
-      inherit cpm inventory;
+      inherit cpm source;
       unitName = target.unitName;
       file = "s88/EquipmentModule/mapping/wan-attachment.nix";
     };

@@ -25,7 +25,7 @@ let
 in
 {
   selectedUnitsForHostContext =
-    { cpm, inventory ? { }, hostContext, runtimeRole ? null, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, hostContext, runtimeRole ? null, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
       requestedHostName = requestedHostNameFor { inherit hostContext file; };
       deploymentHostName =
@@ -38,20 +38,20 @@ in
       matchesRequestedIdentity =
         unitName:
         let
-          logicalNode = base.logicalNodeForUnit { inherit cpm inventory unitName file; };
+          logicalNode = base.logicalNodeForUnit { inherit cpm source unitName file; };
           unitSite = logicalNode.site or null;
           unitEnterprise = logicalNode.enterprise or null;
         in
         (requestedSiteNames == [ ] || builtins.elem unitSite requestedSiteNames)
         && (requestedEnterpriseNames == [ ] || builtins.elem unitEnterprise requestedEnterpriseNames);
-      deploymentCandidates = deployment.unitNamesForDeploymentHost { inherit cpm inventory deploymentHostName file; };
+      deploymentCandidates = deployment.unitNamesForDeploymentHost { inherit cpm source deploymentHostName file; };
       fallbackCandidates = base.sortedAttrNames (base.runtimeTargets cpm);
       identityFallbackCandidates = lib.filter matchesRequestedIdentity fallbackCandidates;
       hostScopedCandidates = lib.filter
         (
           unitName:
           deployment.requestedHostMatchesUnit {
-            inherit cpm inventory unitName file;
+            inherit cpm source unitName file;
             requestedHostName = requestedHostName;
           }
         )
@@ -70,7 +70,7 @@ in
     else
       lib.filter
         (
-          unitName: base.roleForUnit { inherit cpm inventory unitName file; } == runtimeRole
+          unitName: base.roleForUnit { inherit cpm source unitName file; } == runtimeRole
         )
         identityScopedCandidates;
 }

@@ -23,7 +23,7 @@ let
         hostName = requestedHostName;
         inherit hostContext;
         cpm = controlPlaneOut;
-        inventory = globalInventory;
+        source = globalInventory;
       };
 in
 {

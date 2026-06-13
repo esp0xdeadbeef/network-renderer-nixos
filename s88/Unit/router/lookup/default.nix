@@ -21,7 +21,7 @@ let
   queried = hostQuery.query {
     selector = hostSelector;
     intent = fabricInputs;
-    inventory = globalInventory;
+    source = globalInventory;
     file = "s88/Unit/router/lookup/default.nix";
   };
 

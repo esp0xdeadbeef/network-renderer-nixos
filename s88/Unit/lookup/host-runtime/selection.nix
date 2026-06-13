@@ -1,7 +1,7 @@
 { lib
 , repoPath
 , cpm
-, inventory ? { }
+, source ? { }
 , context
 , file ? "s88/Unit/lookup/host-runtime.nix"
 ,
@@ -22,7 +22,7 @@ let
   allUnitNames = trace.emit "host-runtime:${context.deploymentHostName}:all-unit-names" (sortedAttrNames normalizedRuntimeTargets);
 
   unitsOnDeploymentHost = trace.emit "host-runtime:${context.deploymentHostName}:units-on-deployment-host" (runtimeContext.unitNamesForDeploymentHost {
-    inherit cpm inventory file;
+    inherit cpm source file;
     deploymentHostName = context.deploymentHostName;
   });
 
@@ -37,7 +37,7 @@ let
   selectedUnits = trace.emit "host-runtime:${context.deploymentHostName}:selected-units" (runtimeContext.selectedUnitsForHostContext {
     inherit
       cpm
-      inventory
+      source
       runtimeRole
       file
       ;
@@ -47,7 +47,7 @@ let
   selectedRoleNames = trace.emit "host-runtime:${context.deploymentHostName}:selected-role-names" (runtimeContext.selectedRoleNamesForUnits {
     inherit
       cpm
-      inventory
+      source
       selectedUnits
       file
       ;
