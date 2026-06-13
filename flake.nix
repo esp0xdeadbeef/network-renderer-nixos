@@ -136,11 +136,11 @@
 
           systemd.network.netdevs = userLib.mkMerge [
             (userLib.mkOverride 90 (rendered.netdevs or { }))
-            (userLib.mkForce mgmtNetdevs)
+            (userLib.mkOverride 50 mgmtNetdevs)
           ];
           systemd.network.networks = userLib.mkMerge [
             (userLib.mkOverride 90 (rendered.networks or { }))
-            (userLib.mkForce mgmtNetworks)
+            (userLib.mkOverride 50 mgmtNetworks)
           ];
           containers = rendered.containers or { };
         };
