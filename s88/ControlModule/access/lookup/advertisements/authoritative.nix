@@ -176,7 +176,7 @@ let
     in
     if cpmRoutedPrefix != null then
       {
-        uplink = cpmRoutedPrefix.uplink or "routed-prefix";
+        uplink = if builtins.isString (cpmRoutedPrefix.uplink or null) && cpmRoutedPrefix.uplink != "" then cpmRoutedPrefix.uplink else throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide uplink name in advertisements.ipv6Ra[].delegatedPrefix.uplink, cannot default to 'routed-prefix'";
         delegatedPrefixLength = cpmRoutedPrefix.delegatedPrefixLength or 64;
         perTenantPrefixLength = cpmRoutedPrefix.perTenantPrefixLength or 64;
         slot = cpmRoutedPrefix.slot or 0;
@@ -239,7 +239,7 @@ in
         pool = poolStringFrom (adv.pool or null);
         reservations = reservationsFor "dhcp4" "runtimeTarget.advertisements.dhcp4[${builtins.toString idx}]" adv;
         dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
-        domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
+        domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcp4[].domain, cannot default to 'lan.'";
         subnetId = idx + 1;
       }
     )
@@ -268,7 +268,7 @@ in
         pool = poolStringFrom (adv.pool or null);
         reservations = reservationsFor "dhcpv6" "runtimeTarget.advertisements.dhcpv6[${builtins.toString idx}]" adv;
         dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
-        domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else "lan.";
+        domain = if builtins.isString (adv.domain or null) && adv.domain != "" then adv.domain else throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcpv6[].domain, cannot default to 'lan.'";
         subnetId = idx + 1;
       }
     )
@@ -292,7 +292,7 @@ in
         inherit interfaceName;
         prefixes = if adv ? prefixes then asStringList adv.prefixes else [ ];
         rdnss = if adv ? rdnss then asStringList adv.rdnss else [ ];
-        domain = if dnssl != [ ] then builtins.head dnssl else "lan.";
+        domain = if dnssl != [ ] then builtins.head dnssl else throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.ipv6Ra[].dnssl, cannot default to 'lan.'";
         managed = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].managed" (adv.managed or null);
         otherConfig = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].otherConfig" (adv.otherConfig or null);
         onLink = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].onLink" (adv.onLink or null);

@@ -25,7 +25,7 @@ in
 rec {
   inherit roleName;
 
-  containerDisplayName = containerModel.containerName or (containerModel.unitName or "<unknown>");
+  containerDisplayName = if containerModel ? containerName && builtins.isString containerModel.containerName && containerModel.containerName != "" then containerModel.containerName else if containerModel ? unitName && builtins.isString containerModel.unitName && containerModel.unitName != "" then containerModel.unitName else throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide containerName or unitName in containerModel, cannot default to '<unknown>'";
 
   defaultDhcp4Advertise =
     if advertiseDefaults ? dhcp4 && builtins.isBool advertiseDefaults.dhcp4 then
