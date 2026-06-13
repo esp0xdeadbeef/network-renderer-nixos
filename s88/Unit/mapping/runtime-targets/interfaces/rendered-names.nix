@@ -2,81 +2,6 @@
 
 let
   inherit (common) sortedAttrNames;
-  maxInterfaceNameLength = 15;
-
-  semanticShortNameForInterface =
-    name:
-    let
-      parts = lib.filter (part: part != "") (lib.splitString "-" name);
-      firstPart = if parts != [ ] then builtins.head parts else "";
-      lastPart = if parts != [ ] then builtins.elemAt parts (builtins.length parts - 1) else "";
-      firstShort = builtins.substring 0 7 firstPart;
-      lastShort = builtins.substring 0 7 lastPart;
-      joined =
-        if firstShort != "" && lastShort != "" && firstShort != lastShort then
-          "${firstShort}-${lastShort}"
-        else if firstShort != "" then
-          firstShort
-        else
-          builtins.substring 0 maxInterfaceNameLength name;
-    in
-    if builtins.stringLength name <= maxInterfaceNameLength then
-      name
-    else if builtins.stringLength joined <= maxInterfaceNameLength && joined != "" then
-      joined
-    else
-      builtins.substring 0 maxInterfaceNameLength name;
-
-  uniqueInterfaceNameCandidate =
-    baseName: index:
-    if index <= 1 then
-      baseName
-    else
-      let
-        suffix = "-${toString index}";
-        prefixLen = maxInterfaceNameLength - builtins.stringLength suffix;
-        prefix = if prefixLen > 0 then builtins.substring 0 prefixLen baseName else builtins.substring 0 1 baseName;
-      in
-      "${prefix}${suffix}";
-
-  resolveUniqueInterfaceName =
-    { baseName, usedNames, index ? 1 }:
-    let candidate = uniqueInterfaceNameCandidate baseName index;
-    in
-    if !(builtins.hasAttr candidate usedNames) then
-      candidate
-    else
-      resolveUniqueInterfaceName { inherit baseName usedNames; index = index + 1; };
-
-  # Accept a list of {ifName, desiredName} entries and assign unique rendered
-  # names per-entry, keyed by the logical ifName.  When two entries share the
-  # same desired rendered name, the first (by sort order) keeps the base name
-  # and later entries receive uniquified variants.  This preserves the logical
-  # ifName identity through the uniquification so that the caller can directly
-  # look up each ifName's resolved rendered name.
-  ensureUniqueRenderedNames =
-    entries:
-    let
-      sorted = lib.sort (a: b: a.ifName < b.ifName) entries;
-      result = builtins.foldl'
-        (
-          acc: entry:
-          let
-            baseName = semanticShortNameForInterface entry.desiredName;
-            renderedName = resolveUniqueInterfaceName {
-              inherit baseName;
-              usedNames = acc.usedNames;
-            };
-          in
-          {
-            usedNames = acc.usedNames // { ${renderedName} = true; };
-            renderedNameMap = acc.renderedNameMap // { ${entry.ifName} = renderedName; };
-          }
-        )
-        { usedNames = { }; renderedNameMap = { }; }
-        sorted;
-    in
-    result.renderedNameMap;
 in
 {
   desiredRenderedIfNameForInterface =
@@ -98,31 +23,36 @@ in
       );
       desiredRenderedIfNames = map (ifName: desiredRenderedIfNameMap.${ifName}) interfaceNames;
       uniqueDesiredRenderedIfNames = lib.unique desiredRenderedIfNames;
-      _validateDesiredRenderedIfNames =
-        if builtins.length uniqueDesiredRenderedIfNames == builtins.length desiredRenderedIfNames then
+      hasDuplicates = builtins.length uniqueDesiredRenderedIfNames != builtins.length desiredRenderedIfNames;
+      _rejectDuplicates =
+        if !hasDuplicates then
           true
         else
-          builtins.trace ''
-            WARNING ${file}: duplicate desired rendered interface names for unit '${unitName}', auto-resolving via uniquification
-
-            desiredRenderedIfNameMap:
-            ${builtins.toJSON desiredRenderedIfNameMap}
-          '' true;
-      # Build ({ifName, desiredName}) entries preserving logical identity for uniquification
-      renderedNameEntries = map
-        (ifName: {
-          inherit ifName;
-          desiredName = desiredRenderedIfNameMap.${ifName};
-        })
-        interfaceNames;
-      renderedNameMap = ensureUniqueRenderedNames renderedNameEntries;
+          let
+            countOccurrences = name:
+              builtins.length (builtins.filter (n: n == name) desiredRenderedIfNames);
+            nameCounts = map (name: { inherit name; count = countOccurrences name; }) uniqueDesiredRenderedIfNames;
+            duplicates = builtins.filter (nc: nc.count > 1) nameCounts;
+            duplicateName = if duplicates == [ ] then null else (builtins.head duplicates).name;
+            collidingIfNames = builtins.filter
+              (ifName: desiredRenderedIfNameMap.${ifName} == duplicateName)
+              interfaceNames;
+          in
+          throw ''
+            diagnostic.duplicate-rendered-interface-name:
+              unit: ${unitName}
+              collidingInterface: ${duplicateName}
+              collidingNames: ${builtins.toJSON collidingIfNames}
+              owningLayer: NFM/CPM
+              reason: Two or more desired interface names within unit '${unitName}' map to the same rendered interface name '${duplicateName}'. The owning layer (NFM/CPM or inventory) must resolve this collision before the renderer can proceed.
+          '';
     in
-    builtins.seq _validateDesiredRenderedIfNames (
+    builtins.seq _rejectDuplicates (
       builtins.listToAttrs (
         map
           (ifName: {
             name = ifName;
-            value = renderedNameMap.${ifName};
+            value = desiredRenderedIfNameMap.${ifName};
           })
           interfaceNames
       )
