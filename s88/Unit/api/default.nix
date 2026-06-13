@@ -16,7 +16,7 @@ let
     { hostName
     , hostContext ? null
     , cpm
-    , inventory ? { }
+    , source ? { }
     ,
     }:
     import ../render/host-network.nix {
@@ -26,14 +26,14 @@ let
         hostName
         hostContext
         cpm
-        inventory
+        source
         ;
     };
 
   renderDryConfigImpl =
     { cpm ? null
     , cpmPath ? null
-    , inventory ? { }
+    , source ? { }
     , exampleDir ? null
     , debug ? false
     ,
@@ -48,7 +48,7 @@ let
       inherit
         cpm
         cpmPath
-        inventory
+        source
         exampleDir
         debug
         ;

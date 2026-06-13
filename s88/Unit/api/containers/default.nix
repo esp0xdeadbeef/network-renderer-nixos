@@ -71,7 +71,7 @@ in
         inherit repoPath;
         hostPlan = resolved.hostPlan;
         cpm = resolved.controlPlaneOut;
-        inventory = resolved.globalInventory;
+        source = resolved.globalInventory;
       };
 
       selectedContainers = import ../../../ControlModule/api/container-selection.nix {
