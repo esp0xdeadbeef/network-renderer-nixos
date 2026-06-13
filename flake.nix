@@ -46,23 +46,39 @@
 
       # NOTE: hostModule previously used buildHostFromPaths with intentPath/inventoryPath.
       # Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
-      # hostModule now requires pre-built CPM output via the 'cpm' parameter.
-      # The pipeline (compiler → NFM → CPM) should run in the host repo or a harness,
-      # NOT inside the renderer.
+      # hostModule now requires 'cpm' (pre-built) or 'controlPlane' (CPM flake input
+      # which the renderer builds internally using its own network-labs input).
       hostModule =
         { cpm ? null
         , controlPlane ? null
         , hostName
+        , labSource ? "active-lab"
         , system ? null
         , ...
         }@rendererInput:
+        let
+          # Build CPM when controlPlane is a flake input (has .libBySystem but not .control_plane_model)
+          builtCpm =
+            if cpm != null then cpm
+            else if controlPlane == null then null
+            else if controlPlane ? control_plane_model then controlPlane  # already built
+            else if controlPlane ? libBySystem then  # flake input, build it
+              let
+                labPath = "${network-labs}/${labSource}";
+                cpmLib = controlPlane.libBySystem.\"x86_64-linux\";
+              in
+                cpmLib.compileAndBuildFromPaths {
+                  inputPath = "${labPath}/intent.nix";
+                  inventoryPath = "${labPath}/inventory-nixos.nix";
+                }
+            else null;
+        in
         { config, lib, pkgs, ... }:
         let
           resolvedSystem = if system != null then system else pkgs.stdenv.hostPlatform.system;
-          effectiveCpm = if cpm != null then cpm else controlPlane;
           hostBuild = api.renderer.buildHostFromControlPlane {
             controlPlaneOut =
-              if effectiveCpm != null then effectiveCpm
+              if builtCpm != null then builtCpm
               else throw "network-renderer-nixos hostModule: 'cpm' or 'controlPlane' (control plane model) is required. Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.";
             selector = hostName;
             system = resolvedSystem;
