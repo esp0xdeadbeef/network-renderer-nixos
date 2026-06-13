@@ -134,14 +134,8 @@
             networkKeys=${toString (builtins.attrNames mgmtNetworks)}
           '';
 
-          systemd.network.netdevs = userLib.mkMerge [
-            (userLib.mkOverride 90 (rendered.netdevs or { }))
-            (userLib.mkOverride 50 mgmtNetdevs)
-          ];
-          systemd.network.networks = userLib.mkMerge [
-            (userLib.mkOverride 90 (rendered.networks or { }))
-            (userLib.mkOverride 50 mgmtNetworks)
-          ];
+          systemd.network.netdevs = (rendered.netdevs or { }) // mgmtNetdevs;
+          systemd.network.networks = (rendered.networks or { }) // mgmtNetworks;
           containers = rendered.containers or { };
         };
 
