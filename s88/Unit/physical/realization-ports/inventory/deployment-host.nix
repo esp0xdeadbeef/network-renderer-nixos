@@ -12,12 +12,12 @@ let
 in
 rec {
   unitNamesForDeploymentHost =
-    { inventory
+    { source
     , deploymentHostName
     ,
     }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
     in
     lib.filter
       (
@@ -30,14 +30,14 @@ rec {
       (sortedAttrNames realizationNodes);
 
   attachTargetsForDeploymentHost =
-    { inventory
+    { source
     , deploymentHostName
     , file ? "s88/Unit/physical/realization-ports.nix"
     ,
     }:
     let
       unitNames = unitNamesForDeploymentHost {
-        inherit inventory deploymentHostName;
+        inherit source deploymentHostName;
       };
 
       attachTargetsByHostBridgeName = builtins.listToAttrs (
@@ -46,7 +46,7 @@ rec {
             unitName:
             let
               attachMap = attachMapForUnit {
-                inherit inventory unitName file;
+                inherit source unitName file;
               };
             in
             map

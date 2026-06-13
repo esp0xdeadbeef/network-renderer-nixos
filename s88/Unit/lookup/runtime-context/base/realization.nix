@@ -8,11 +8,11 @@ let
     logicalNodeForUnit
     ;
 
+  # CMC-NIXOS-INTENT-CLEANUP: realizationNodesFor takes cpm or source, not inventory.
+  # Per SMS-100/SMS-101, CPM is the sole data source. Inventory fallback removed.
   realizationNodesFor =
-    { cpm ? null, inventory ? { } }:
-    if inventory ? realization && builtins.isAttrs inventory.realization && builtins.isAttrs (inventory.realization.nodes or null) then
-      inventory.realization.nodes
-    else if
+    { cpm ? null, source ? { } }:
+    if
       cpm != null
       && builtins.isAttrs cpm
       && cpm ? control_plane_model
@@ -24,6 +24,8 @@ let
       cpm.control_plane_model.realization.nodes
     else if cpm != null && builtins.isAttrs cpm && cpm ? realization && builtins.isAttrs cpm.realization && builtins.isAttrs (cpm.realization.nodes or null) then
       cpm.realization.nodes
+    else if builtins.isAttrs source && source ? realization && builtins.isAttrs source.realization && builtins.isAttrs (source.realization.nodes or null) then
+      source.realization.nodes
     else
       { };
 
@@ -34,11 +36,11 @@ rec {
   inherit realizationNodesFor logicalNodeForRealizationNode;
 
   candidateRealizationNodeNamesForUnit =
-    { cpm ? null, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm ? null, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
-      realizationNodes = realizationNodesFor { inherit cpm inventory; };
-      runtimeTargetId = if cpm != null then runtimeTargetIdForUnit { inherit cpm inventory unitName file; } else null;
-      logicalNode = if cpm != null then logicalNodeForUnit { inherit cpm inventory unitName file; } else { };
+      realizationNodes = realizationNodesFor { inherit cpm source; };
+      runtimeTargetId = if cpm != null then runtimeTargetIdForUnit { inherit cpm source unitName file; } else null;
+      logicalNode = if cpm != null then logicalNodeForUnit { inherit cpm source unitName file; } else { };
       logicalName = if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else null;
       logicalSite = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
       logicalEnterprise = if logicalNode ? enterprise && builtins.isString logicalNode.enterprise then logicalNode.enterprise else null;
@@ -75,10 +77,10 @@ rec {
     lib.unique (exactNames ++ logicalMatches ++ prefixMatches);
 
   realizationNodeForUnit =
-    { cpm ? null, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm ? null, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
-      realizationNodes = realizationNodesFor { inherit cpm inventory; };
-      candidates = candidateRealizationNodeNamesForUnit { inherit cpm inventory unitName file; };
+      realizationNodes = realizationNodesFor { inherit cpm source; };
+      candidates = candidateRealizationNodeNamesForUnit { inherit cpm source unitName file; };
     in
     if builtins.hasAttr unitName realizationNodes && builtins.isAttrs realizationNodes.${unitName} then
       realizationNodes.${unitName}
@@ -95,7 +97,7 @@ rec {
       '';
 
   realizationHostForUnit =
-    { cpm ? null, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
-    let node = realizationNodeForUnit { inherit cpm inventory unitName file; };
+    { cpm ? null, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    let node = realizationNodeForUnit { inherit cpm source unitName file; };
     in if node != null && node ? host && builtins.isString node.host then node.host else null;
 }

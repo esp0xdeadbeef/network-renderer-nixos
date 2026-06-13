@@ -1,7 +1,7 @@
-{ lib, inventoryModel }:
+{ lib, sourceModel }:
 
 let
-  inherit (inventoryModel) sortedAttrNames;
+  inherit (sourceModel) sortedAttrNames;
 in
 rec {
   inherit sortedAttrNames;

@@ -3,15 +3,19 @@
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  # NOTE: CMC-NIXOS-INTENT-CLEANUP: renamed from 'inventory' to 'source'.
+  # Per SMS-100/SMS-101, renderers consume CPM output. This function accepts
+  # any source container with a .realization.nodes structure — whether from
+  # CPM (cpm.control_plane_model) or CPM-preserved inventory data.
   realizationNodesFor =
-    inventory:
+    source:
     if
-      inventory ? realization
-      && builtins.isAttrs inventory.realization
-      && inventory.realization ? nodes
-      && builtins.isAttrs inventory.realization.nodes
+      source ? realization
+      && builtins.isAttrs source.realization
+      && source.realization ? nodes
+      && builtins.isAttrs source.realization.nodes
     then
-      inventory.realization.nodes
+      source.realization.nodes
     else
       { };
 
@@ -39,13 +43,13 @@ let
     builtins.concatStringsSep "--" segments;
 
   nodeForUnit =
-    { inventory
+    { source
     , unitName
     , file ? "s88/Unit/physical/realization-ports.nix"
     ,
     }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
     in
     if builtins.hasAttr unitName realizationNodes && builtins.isAttrs realizationNodes.${unitName} then
       realizationNodes.${unitName}
@@ -58,14 +62,14 @@ let
       '';
 
   portsForUnit =
-    { inventory
+    { source
     , unitName
     , file ? "s88/Unit/physical/realization-ports.nix"
     ,
     }:
     let
       node = nodeForUnit {
-        inherit inventory unitName file;
+        inherit source unitName file;
       };
     in
     if node ? ports && builtins.isAttrs node.ports then
@@ -143,18 +147,18 @@ let
       '';
 
   attachMapForUnit =
-    { inventory
+    { source
     , unitName
     , file ? "s88/Unit/physical/realization-ports.nix"
     ,
     }:
     let
       node = nodeForUnit {
-        inherit inventory unitName file;
+        inherit source unitName file;
       };
 
       ports = portsForUnit {
-        inherit inventory unitName file;
+        inherit source unitName file;
       };
     in
     builtins.listToAttrs (
@@ -174,24 +178,27 @@ let
         (sortedAttrNames ports)
     );
 
-  attachMapForInventory =
-    { inventory
+  attachMapForSource =
+    { source
     , file ? "s88/Unit/physical/realization-ports.nix"
     ,
     }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
     in
     builtins.listToAttrs (
       map
         (unitName: {
           name = unitName;
           value = attachMapForUnit {
-            inherit inventory unitName file;
+            inherit source unitName file;
           };
         })
         (sortedAttrNames realizationNodes)
     );
+
+  # Legacy alias for backward compatibility (used by deployment-host.nix)
+  attachMapForInventory = attachMapForSource;
 
   deploymentHostHelpers = import ./inventory/deployment-host.nix {
     inherit lib;
@@ -213,6 +220,7 @@ in
     portsForUnit
     attachForPort
     attachMapForUnit
+    attachMapForSource
     attachMapForInventory
     ;
   inherit (deploymentHostHelpers) unitNamesForDeploymentHost attachTargetsForDeploymentHost;

@@ -1,6 +1,6 @@
 { helpers }:
 
-{ inventory
+{ source
 , hostname
 , file ? "s88/ControlModule/lookup/host-query.nix"
 ,
@@ -14,7 +14,7 @@ let
     sortedAttrNames
     ;
 
-  renderHosts = renderHostsFor inventory;
+  renderHosts = renderHostsFor source;
 
   renderHostConfig =
     if builtins.hasAttr hostname renderHosts && builtins.isAttrs renderHosts.${hostname} then
@@ -22,9 +22,9 @@ let
     else
       { };
 
-  deploymentHosts = deploymentHostsFor inventory;
+  deploymentHosts = deploymentHostsFor source;
   deploymentHostNames = sortedAttrNames deploymentHosts;
-  realizationNodes = realizationNodesFor inventory;
+  realizationNodes = realizationNodesFor source;
 in
 if
   renderHostConfig ? deploymentHost

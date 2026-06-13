@@ -2,16 +2,17 @@
 
 let
   pathLookup = import ./paths.nix { inherit lib; };
-  inventoryLookup = import ./inventory.nix { inherit lib; };
+  sourceLookup = import ./inventory.nix { inherit lib; };
 
-  # NOTE: intentPath/inventoryPath params removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
-  # Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM-mediated data.
-  # Callers must provide already-loaded intent/inventory objects, not filesystem paths.
+  # NOTE: CMC-NIXOS-INTENT-CLEANUP: 'inventory' renamed to 'source'.
+  # Per FS-310-HDS-010-SDS-010-SMS-100/101, renderers consume ONLY CPM-mediated data.
+  # Callers must provide already-loaded source objects (CPM-extracted), not filesystem paths.
   query =
     { selector ? null
     , hostname ? null
     , intent ? null
-    , inventory ? null
+    , inventory ? null   # kept for backward compat, prefer 'source'
+    , source ? null
     , file ? "s88/ControlModule/lookup/host-query.nix"
     ,
     }:
@@ -30,18 +31,22 @@ let
         else
           { };
 
-      globalInventory =
-        if inventory != null then
+      # Resolved source: prefer explicit 'source', fall back to 'inventory' for backward compat
+      resolvedSource =
+        if source != null then
+          source
+        else if inventory != null then
           inventory
         else
           { };
     in
     {
-      inherit fabricInputs globalInventory;
-      hostContext = inventoryLookup.hostContextForSelector {
+      inherit fabricInputs;
+      globalInventory = resolvedSource;
+      hostContext = sourceLookup.hostContextForSelector {
         selector = effectiveSelector;
         intent = fabricInputs;
-        inventory = globalInventory;
+        source = resolvedSource;
         inherit file;
       };
     };
@@ -50,7 +55,7 @@ let
   # Constructing filesystem paths to upstream intent.nix/inventory.nix is a violation.
 in
 pathLookup
-// inventoryLookup
+// sourceLookup
   // {
   inherit
     query
