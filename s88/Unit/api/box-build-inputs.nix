@@ -1,66 +1,24 @@
 { lib
 , repoPath
 , selectors
-, buildHostFromPaths
+, buildHostFromControlPlane
 , currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
 ,
 }:
 
+# NOTE: Path-based discovery of intent.nix/inventory.nix removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+# Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
+# Callers must provide pre-built CPM output via the 'cpm' parameter.
+# The 'resolvePaths' function and path-based fallback logic have been removed.
+
 let
-  resolvePaths =
-    { outPath ? null
-    , fabricRoot ? null
-    , intentPath ? null
-    , inventoryPath ? null
-    , file ? "s88/Unit/api/box-build-inputs.nix"
-    ,
-    }:
-    if intentPath != null && inventoryPath != null then
-      {
-        inherit intentPath inventoryPath;
-      }
-    else if outPath != null then
-      let
-        discovered = selectors.pathsFromOutPath {
-          inherit outPath fabricRoot;
-        };
-      in
-      {
-        intentPath = if intentPath != null then intentPath else discovered.intentPath;
-        inventoryPath = if inventoryPath != null then inventoryPath else discovered.inventoryPath;
-      }
-    else if intentPath != null || inventoryPath != null then
-      {
-        intentPath =
-          if intentPath != null then
-            intentPath
-          else
-            throw ''
-              ${file}: intentPath is required when outPath is not provided
-            '';
-
-        inventoryPath =
-          if inventoryPath != null then
-            inventoryPath
-          else
-            throw ''
-              ${file}: inventoryPath is required when outPath is not provided
-            '';
-      }
-    else
-      throw ''
-        ${file}: requires either outPath or both intentPath and inventoryPath
-      '';
-
   resolve =
-    { outPath ? null
-    , enterpriseName ? null
+    { enterpriseName ? null
     , siteName ? null
     , boxName ? null
     , selector ? null
-    , fabricRoot ? null
-    , intentPath ? null
-    , inventoryPath ? null
+    , cpm ? null
+    , inventory ? { }
     , system ? currentSystem
     , file ? "s88/Unit/api/box-build-inputs.nix"
     , ...
@@ -76,20 +34,20 @@ let
             ${file}: requires boxName or selector
           '';
 
-      resolvedPaths = resolvePaths {
-        inherit
-          outPath
-          fabricRoot
-          intentPath
-          inventoryPath
-          file
-          ;
-      };
+      resolvedCpm =
+        if cpm != null then
+          cpm
+        else
+          throw ''
+            ${file}: cpm (control plane model) is required.
+            Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume CPM output,
+            not discover intent.nix/inventory.nix from disk.
+          '';
 
-      builtHost = buildHostFromPaths {
-        inherit system file;
+      builtHost = buildHostFromControlPlane {
+        controlPlaneOut = resolvedCpm;
+        inherit inventory system file;
         selector = selectorValue;
-        inherit (resolvedPaths) intentPath inventoryPath;
       };
 
       matchedSites =
@@ -129,9 +87,8 @@ let
         boxName = selectorValue;
       };
 
-      fabric = {
-        inherit (resolvedPaths) intentPath inventoryPath;
-      };
+      # NOTE: fabric no longer carries intentPath/inventoryPath — removed per SMS-100
+      fabric = { };
 
       inherit
         selectorValue

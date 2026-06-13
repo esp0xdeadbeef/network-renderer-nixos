@@ -8,9 +8,9 @@ let
   selectors = import ../../ControlModule/lookup/host-query.nix { inherit lib; };
   realizationPorts = import ../physical/realization-ports.nix { inherit lib; };
 
-  builders = import ../../ControlModule/pipeline/builders.nix {
-    inherit lib flakeInputs;
-  };
+  # CMC-NIXOS-REMOVE-INTENT-V2: builders removed — pipeline orchestration
+  # (compiler→NFM→CPM) belongs in the host repo, not the renderer.
+  # Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.
 
   renderHostNetworkImpl =
     { hostName
@@ -34,7 +34,6 @@ let
     { cpm ? null
     , cpmPath ? null
     , inventory ? { }
-    , inventoryPath ? null
     , exampleDir ? null
     , debug ? false
     ,
@@ -43,7 +42,6 @@ let
       repoRoot = builtins.toString repoRoot;
       inherit lib;
       renderer = {
-        loadInventory = selectors.importMaybeFunction;
         loadControlPlane = selectors.loadStructuredPath;
         renderHostNetwork = renderHostNetworkImpl;
       };
@@ -51,7 +49,6 @@ let
         cpm
         cpmPath
         inventory
-        inventoryPath
         exampleDir
         debug
         ;
@@ -62,15 +59,15 @@ let
     inherit
       lib
       selectors
-      builders
       ;
     renderHostNetwork = renderHostNetworkImpl;
   };
 
+  # NOTE: dryRenderBuild no longer provides buildAndRenderFromPaths.
+  # Per SMS-100, the renderer must NOT run compiler→NFM→CPM from file paths.
   dryRenderBuild = import ./dry-render-build.nix {
     inherit
       selectors
-      builders
       ;
     renderDryConfig = renderDryConfigImpl;
   };
@@ -80,7 +77,7 @@ let
       lib
       selectors
       ;
-    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+    buildHostFromControlPlane = hostBuilders.buildHostFromControlPlane;
   };
 
   host = import ./host/default.nix {
@@ -89,7 +86,7 @@ let
       lib
       selectors
       ;
-    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+    buildHostFromControlPlane = hostBuilders.buildHostFromControlPlane;
   };
 
   bridges = import ./bridges/default.nix {
@@ -98,7 +95,7 @@ let
       lib
       selectors
       ;
-    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+    buildHostFromControlPlane = hostBuilders.buildHostFromControlPlane;
   };
 
   containers = import ./containers/default.nix {
@@ -107,7 +104,7 @@ let
       lib
       selectors
       ;
-    buildHostFromPaths = hostBuilders.buildHostFromPaths;
+    buildHostFromControlPlane = hostBuilders.buildHostFromControlPlane;
   };
 
 in
@@ -123,31 +120,26 @@ in
     ;
 
   renderer = {
-    loadIntent = selectors.importMaybeFunction;
-    loadInventory = selectors.importMaybeFunction;
+    # CMC-NIXOS-REMOVE-INTENT-V2: loadIntent/loadInventory removed.
+    # Renderers must not provide generic file loaders that could load
+    # upstream intent.nix/inventory.nix from disk (SMS-100).
     loadControlPlane = selectors.loadStructuredPath;
 
-    inherit (builders)
-      buildCompiler
-      buildForwarding
-      buildControlPlane
-      buildCompilerFromPaths
-      buildForwardingFromPaths
-      buildControlPlaneFromPaths
-      ;
+    # CMC-NIXOS-REMOVE-INTENT-V2: Pipeline builders (buildCompiler,
+    # buildForwarding, buildControlPlane) removed. Pipeline orchestration
+    # belongs in the nixos host repo, not inside the renderer.
+    # Renderers consume pre-built CPM output via buildHostFromControlPlane.
 
+    # NOTE: buildHostFromPaths and buildHostFromOutPath removed.
+    # Use buildHostFromControlPlane with pre-built CPM output.
     inherit (hostBuilders)
-      buildHost
       buildHostFromControlPlane
-      buildHostFromPaths
-      buildHostFromOutPath
       ;
 
     hostModule = args: (hostBuild args).nixosModule;
 
-    inherit (dryRenderBuild)
-      buildAndRenderFromPaths
-      ;
+    # NOTE: buildAndRenderFromPaths removed — renderer no longer runs pipeline from paths.
+    # Use renderDryConfig with pre-built CPM output instead.
 
     renderHostNetwork = renderHostNetworkImpl;
     renderDryConfig = renderDryConfigImpl;

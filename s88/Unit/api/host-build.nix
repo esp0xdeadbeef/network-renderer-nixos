@@ -1,7 +1,6 @@
 { lib
 , repoPath
 , selectors
-, builders
 , renderHostNetwork
 , currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
 ,
@@ -22,16 +21,18 @@ let
 
   flattenRuntimeTargets = import ./host-build/runtime-targets.nix { };
 
+  # NOTE: buildHost uses only pre-built CPM output. Per FS-310-HDS-010-SDS-010-SMS-100,
+  # renderers must consume ONLY CPM output. The fallback that ran compiler->NFM->CPM
+  # internally when controlPlaneOut was null has been removed (CMC-NIXOS-REMOVE-INTENT-V2).
+  # Pipeline orchestration belongs in the nixos host repo, not the renderer.
   buildHost =
     { selector ? null
     , hostname ? null
     , intent ? null
     , inventory ? null
-    , intentPath ? null
-    , inventoryPath ? null
     , controlPlaneOut ? null
-    , compilerOut ? null
-    , forwardingOut ? null
+    , compilerOut ? { }
+    , forwardingOut ? { }
     , system ? currentSystem
     , containerDefaults ? { }
     , disabled ? { }
@@ -46,53 +47,32 @@ let
           hostname
           intent
           inventory
-          intentPath
-          inventoryPath
           file
           ;
       };
 
-      compilerOutResolved =
-        if compilerOut != null then
-          compilerOut
-        else if controlPlaneOut != null then
-          { }
-        else
-          trace.emit "host-build:${resolved.selectorValue}:compiler" (builders.buildCompiler {
-            intent = resolved.fabricInputs;
-            inherit system;
-          });
-
-      forwardingOutResolved =
-        if forwardingOut != null then
-          forwardingOut
-        else if controlPlaneOut != null then
-          { }
-        else
-          trace.emit "host-build:${resolved.selectorValue}:forwarding" (builders.buildForwarding {
-            compilerOut = compilerOutResolved;
-            inherit system;
-          });
-
-      controlPlaneOutResolved =
+      # CMC-NIXOS-REMOVE-INTENT-V2: controlPlaneOut is REQUIRED.
+      # The renderer no longer runs compiler->NFM->CPM internally.
+      # Pipeline orchestration belongs in the host repo.
+      resolvedControlPlaneOut =
         if controlPlaneOut != null then
           controlPlaneOut
         else
-          trace.emit "host-build:${resolved.selectorValue}:control-plane" (builders.buildControlPlane {
-            forwardingOut = forwardingOutResolved;
-            inherit system;
-            inventory = resolved.globalInventory;
-          });
+          throw ''
+            s88/Unit/api/host-build.nix: 'controlPlaneOut' (pre-built CPM output) is required.
+            Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.
+            The pipeline (compiler -> NFM -> CPM) must run in the host repo, not inside the renderer.
+          '';
 
       runtimeTargets =
         trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
-          flattenRuntimeTargets controlPlaneOutResolved
+          flattenRuntimeTargets resolvedControlPlaneOut
         );
 
       renderedHost = trace.emit "host-build:${resolved.selectorValue}:render-host-network" (renderHostNetwork {
         hostName = resolved.selectorValue;
         hostContext = resolved.hostContext;
-        cpm = controlPlaneOutResolved;
+        cpm = resolvedControlPlaneOut;
         inventory = resolved.globalInventory;
       });
 
@@ -114,20 +94,17 @@ let
         hostContext = resolved.hostContext;
         intent = resolved.fabricInputs;
         globalInventory = resolved.globalInventory;
-        compilerOut = compilerOutResolved;
-        forwardingOut = forwardingOutResolved;
-        controlPlaneOut = controlPlaneOutResolved;
+        inherit compilerOut forwardingOut;
+        controlPlaneOut = resolvedControlPlaneOut;
         renderedHostNetwork = renderedHostWithSelectedContainers;
-        inherit intentPath inventoryPath;
       };
     in
     {
       inherit
         debugPayload
         ;
-      compilerOut = compilerOutResolved;
-      forwardingOut = forwardingOutResolved;
-      controlPlaneOut = controlPlaneOutResolved;
+      inherit compilerOut forwardingOut;
+      controlPlaneOut = resolvedControlPlaneOut;
 
       renderedHost = renderedHostWithSelectedContainers;
 
@@ -145,32 +122,8 @@ let
       runtimeTargetNames = builtins.attrNames runtimeTargets;
     };
 
-  buildHostFromPaths =
-    { intentPath
-    , inventoryPath
-    , selector ? null
-    , hostname ? null
-    , system ? currentSystem
-    , containerDefaults ? { }
-    , disabled ? { }
-    , containerSelection ? disabledSelectionFrom disabled
-    , file ? "s88/Unit/api/host-build.nix"
-    ,
-    }:
-    buildHost {
-      inherit
-        intentPath
-        inventoryPath
-        selector
-        hostname
-        system
-        containerDefaults
-        disabled
-        containerSelection
-        file
-        ;
-    };
-
+  # CMC-NIXOS-REMOVE-INTENT-V2: buildHostFromControlPlane is the primary entry point.
+  # It accepts pre-built CPM output and skips internal pipeline compilation.
   buildHostFromControlPlane =
     { controlPlaneOut
     , inventory
@@ -198,36 +151,10 @@ let
       intent = { };
     };
 
-  buildHostFromOutPath =
-    { outPath
-    , selector ? null
-    , hostname ? null
-    , fabricRoot ? null
-    , system ? currentSystem
-    , file ? "s88/Unit/api/host-build.nix"
-    ,
-    }:
-    let
-      paths = selectors.pathsFromOutPath {
-        inherit outPath fabricRoot;
-      };
-    in
-    buildHostFromPaths {
-      inherit
-        selector
-        hostname
-        system
-        file
-        ;
-      inherit (paths) intentPath inventoryPath;
-    };
-
 in
 {
   inherit
     buildHost
-    buildHostFromPaths
     buildHostFromControlPlane
-    buildHostFromOutPath
     ;
 }

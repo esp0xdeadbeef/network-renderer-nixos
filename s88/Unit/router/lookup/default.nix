@@ -4,22 +4,24 @@
 , selector ? null
 , hostContext ? { }
 , globalInventory ? { }
+, fabricInputs ? { }
 ,
 }:
+
+# NOTE: pathsFromOutPath usage removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
+# Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
+# Callers must provide already-loaded fabricInputs and globalInventory,
+# not filesystem paths to intent.nix/inventory.nix.
 
 let
   hostQuery = import ../../../ControlModule/lookup/host-query.nix { inherit lib; };
 
   hostSelector = if selector != null then selector else config.networking.hostName;
 
-  paths = hostQuery.pathsFromOutPath {
-    inherit outPath;
-  };
-
   queried = hostQuery.query {
     selector = hostSelector;
-    intentPath = paths.intentPath;
-    inventoryPath = paths.inventoryPath;
+    intent = fabricInputs;
+    inventory = globalInventory;
     file = "s88/Unit/router/lookup/default.nix";
   };
 
@@ -28,7 +30,6 @@ let
 in
 {
   inherit
-    paths
     queried
     hostSelector
     resolvedHostContext

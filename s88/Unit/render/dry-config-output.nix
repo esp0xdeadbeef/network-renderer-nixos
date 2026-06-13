@@ -4,7 +4,6 @@
 , cpm ? null
 , cpmPath ? null
 , inventory ? { }
-, inventoryPath ? null
 , exampleDir ? null
 , debug ? false
 ,
@@ -45,7 +44,7 @@ let
   renderInputs = import ../../ControlModule/lookup/render-inputs.nix {
     lib = resolvedLib;
     renderer = resolvedRenderer;
-    inherit repoRoot cpm cpmPath inventory inventoryPath exampleDir;
+    inherit repoRoot cpm cpmPath inventory exampleDir;
   };
 
   controlPlane = renderInputs.controlPlane;

@@ -1,7 +1,7 @@
 { lib
 , repoPath
 , selectors
-, buildHostFromPaths
+, buildHostFromControlPlane
 , currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
 ,
 }:
@@ -12,7 +12,7 @@ let
       lib
       repoPath
       selectors
-      buildHostFromPaths
+      buildHostFromControlPlane
       currentSystem
       ;
   };
