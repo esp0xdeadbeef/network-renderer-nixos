@@ -74,15 +74,6 @@
           mgmtHost = if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null;
           mgmtUplink = if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null;
           mgmtVlanId = if mgmtUplink != null && mgmtUplink ? vlan then mgmtUplink.vlan else null;
-          _mgmtDebug = {
-            text = ''
-              hostName=${hostName}
-              hasDeploymentHosts=${toString (effectiveCpm != null && effectiveCpm ? deploymentHosts)}
-              mgmtHost=${if mgmtHost != null then "FOUND" else "NULL"}
-              mgmtUplink=${if mgmtUplink != null then "FOUND" else "NULL"}
-              mgmtVlanId=${toString mgmtVlanId}
-            '';
-          };
           mgmtNetdevs = if mgmtVlanId != null then {
             "10-eth0.${toString mgmtVlanId}" = {
               netdevConfig = { Name = "eth0.${toString mgmtVlanId}"; Kind = "vlan"; };
@@ -123,18 +114,6 @@
           systemd.network.enable = true;
           networking.useDHCP = false;
           networking.useHostResolvConf = userLib.mkForce false;
-
-          environment.etc."vlan2-mgmt-debug".text = ''
-            hostName=${hostName}
-            hasDeploymentHosts=${toString (effectiveCpm != null && effectiveCpm ? deploymentHosts)}
-            mgmtHost=${if mgmtHost != null then "FOUND" else "NULL"}
-            mgmtUplink=${if mgmtUplink != null then "FOUND" else "NULL"}
-            mgmtVlanId=${toString mgmtVlanId}
-            netdevKeys=${toString (builtins.attrNames mgmtNetdevs)}
-            networkKeys=${toString (builtins.attrNames mgmtNetworks)}
-            renderedNetdevKeys=${toString (builtins.attrNames (rendered.netdevs or {}))}
-            renderedNetworkKeys=${toString (builtins.attrNames (rendered.networks or {}))}
-          '';
 
           systemd.network.netdevs = userLib.mkForce ((rendered.netdevs or { }) // mgmtNetdevs);
           systemd.network.networks = userLib.mkForce ((rendered.networks or { }) // mgmtNetworks);
