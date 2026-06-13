@@ -11,7 +11,7 @@ let
     { selector ? null
     , hostname ? null
     , intent ? null
-    , source ? null   # kept for backward compat, prefer 'source'
+    , inventory ? null   # kept for backward compat, prefer 'source'
     , source ? null
     , file ? "s88/ControlModule/lookup/host-query.nix"
     ,
@@ -35,8 +35,8 @@ let
       resolvedSource =
         if source != null then
           source
-        else if source != null then
-          source
+        else if inventory != null then
+          inventory
         else
           { };
     in
