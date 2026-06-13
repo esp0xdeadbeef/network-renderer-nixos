@@ -2,7 +2,7 @@
 , repoPath
 , hostPlan ? null
 , cpm ? null
-, inventory ? { }
+, source ? { }
 , debugEnabled ? false
 , containerModelsByHost ? null
 , containerModels ? null
@@ -37,7 +37,7 @@ let
       inherit
         lib
         cpm
-        inventory
+        source
         renderedModel
         ;
       uplinks = inputs.uplinks;

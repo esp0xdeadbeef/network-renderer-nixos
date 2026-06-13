@@ -4,7 +4,7 @@
 , deploymentHost
 , renderHostConfig
 , cpm
-, inventory ? { }
+, source ? { }
 , attachTargetsBase
 ,
 }:
@@ -16,7 +16,7 @@ let
       deploymentHostName
       deploymentHost
       cpm
-      inventory
+      source
       attachTargetsBase
       ;
   };

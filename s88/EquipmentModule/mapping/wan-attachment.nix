@@ -4,7 +4,7 @@ args@{ lib
 , deploymentHost
 , renderHostConfig
 , cpm
-, inventory ? { }
+, source ? { }
 , attachTargetsBase
 ,
 }:

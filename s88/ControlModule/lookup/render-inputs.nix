@@ -3,15 +3,15 @@
 , repoRoot
 , cpm ? null
 , cpmPath ? null
-, inventory ? { }
+, source ? { }
 , exampleDir ? null
 ,
 }:
 
 # NOTE: inventoryPath parameter removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
 # Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
-# Loading inventory.nix from disk is a violation. Inventory must come from
-# the 'inventory' parameter or be extracted from CPM output.
+# Loading inventory.nix from disk is a violation. Source data must come from
+# the 'source' parameter (CPM source data, formerly inventory) or be extracted from CPM output.
 
 let
   resolvedCpmPath = if cpmPath == null then null else builtins.toString cpmPath;
@@ -48,18 +48,18 @@ let
       builtins.isAttrs cpmValue
       && cpmValue ? control_plane_model
       && builtins.isAttrs cpmValue.control_plane_model
-      && cpmValue.control_plane_model ? inventory
+      && cpmValue.control_plane_model ? source
       && builtins.isAttrs cpmValue.control_plane_model.inventory
     then
       cpmValue.control_plane_model.inventory
     else
       { };
 
-  # Resolved inventory: use provided inventory, otherwise extract from CPM.
+  # Resolved source data: use provided source, otherwise extract from CPM.
   # No disk-based fallback to inventory.nix — SMS-100 violation removed.
   resolvedInventory =
-    if inventory != { } then
-      inventory
+    if source != { } then
+      source
     else
       inventoryFromCpm controlPlane;
 in

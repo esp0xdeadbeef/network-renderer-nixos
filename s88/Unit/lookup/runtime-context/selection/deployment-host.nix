@@ -5,7 +5,7 @@ let
 in
 rec {
   deploymentHostForUnit =
-    { cpm, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
       target = base.runtimeTargetForUnit { inherit cpm unitName file; };
       placement =
@@ -26,8 +26,8 @@ rec {
             runtime target:
             ${builtins.toJSON target}
           '';
-      runtimeTargetId = base.runtimeTargetIdForUnit { inherit cpm inventory unitName file; };
-      logicalNodeName = base.logicalNodeNameForUnit { inherit cpm inventory unitName file; };
+      runtimeTargetId = base.runtimeTargetIdForUnit { inherit cpm source unitName file; };
+      logicalNodeName = base.logicalNodeNameForUnit { inherit cpm source unitName file; };
       fallbackHost =
         if target ? runtimeTargetId && builtins.isString target.runtimeTargetId then
           target.runtimeTargetId
@@ -49,13 +49,13 @@ rec {
           '';
       resolveCandidate =
         candidate:
-        if candidate == null || !builtins.isString candidate || inventory == { } then
+        if candidate == null || !builtins.isString candidate || source == { } then
           null
         else
           let
             attempt = builtins.tryEval (
               hostQuery.resolveDeploymentHostName {
-                inherit inventory file;
+                inherit source file;
                 hostname = candidate;
               }
             );
@@ -79,7 +79,7 @@ rec {
               if fromUnitName != null || fromRuntimeTargetId != null || fromLogicalNodeName != null || fromFallbackHost != null then
                 null
               else
-                base.realizationHostForUnit { inherit cpm inventory unitName file; };
+                base.realizationHostForUnit { inherit cpm source unitName file; };
           in
           if fromUnitName != null then
             fromUnitName
@@ -95,20 +95,20 @@ rec {
     if placementHost != null then placementHost else if resolvedViaInventory != null then resolvedViaInventory else fallbackHost;
 
   unitNamesForDeploymentHost =
-    { cpm, inventory ? { }, deploymentHostName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, deploymentHostName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let targets = base.runtimeTargets cpm;
     in
     lib.filter
       (
-        unitName: deploymentHostForUnit { inherit cpm inventory unitName file; } == deploymentHostName
+        unitName: deploymentHostForUnit { inherit cpm source unitName file; } == deploymentHostName
       )
       (sortedAttrNames targets);
 
   requestedHostMatchesUnit =
-    { cpm, inventory ? { }, unitName, requestedHostName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, requestedHostName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
-      logicalNodeName = base.logicalNodeNameForUnit { inherit cpm inventory unitName file; };
-      runtimeTargetId = base.runtimeTargetIdForUnit { inherit cpm inventory unitName file; };
+      logicalNodeName = base.logicalNodeNameForUnit { inherit cpm source unitName file; };
+      runtimeTargetId = base.runtimeTargetIdForUnit { inherit cpm source unitName file; };
     in
     unitName == requestedHostName
     || runtimeTargetId == requestedHostName

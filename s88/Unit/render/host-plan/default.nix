@@ -2,7 +2,7 @@
 , repoPath
 , hostName
 , cpm
-, inventory ? { }
+, source ? { }
 , hostContext ? null
 ,
 }:
@@ -27,17 +27,6 @@ let
 
   # CMC-NIXOS-INTENT-CLEANUP: inventory.controlPlane.sites removed.
   # Renderers consume CPM output only. Sites come from CPM.data.
-  inventoryControlPlaneSites =
-    if
-      builtins.isAttrs inventory
-      && inventory ? controlPlane
-      && builtins.isAttrs inventory.controlPlane
-      && inventory.controlPlane ? sites
-      && builtins.isAttrs inventory.controlPlane.sites
-    then
-      inventory.controlPlane.sites
-    else
-      { };
 
   # Extract source data from CPM for realization-ports lookups.
   # CPM carries realization/deployment data that replaces raw inventory.
@@ -57,8 +46,8 @@ let
       cpm
       hostContext
       ;
-    # CMC-NIXOS-INTENT-CLEANUP: pass empty inventory; CPM provides all needed data.
-    inventory = { };
+    # CMC-NIXOS-INTENT-CLEANUP: pass empty source; CPM provides all needed data.
+    source = { };
   });
 
   attachTargetsRuntime = trace.emit "host-plan:${hostName}:attach-targets-all-host-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
@@ -97,8 +86,8 @@ let
       renderHostConfig
       ;
     inherit (bridgeModel) attachTargetsBase;
-    # CMC-NIXOS-INTENT-CLEANUP: inventory no longer passed; CPM provides wan data.
-    inventory = { };
+    # CMC-NIXOS-INTENT-CLEANUP: source no longer passed; CPM provides wan data.
+    source = { };
   });
 
   transitBridgeModel = trace.emit "host-plan:${hostName}:transit-bridges" (import ../../../EquipmentModule/physical/transit-bridges.nix {
@@ -140,7 +129,6 @@ in
     ;
 
   inherit sitesData;
-  inherit inventoryControlPlaneSites;
 
   inherit (effectiveBridgeModel)
     bridgeNamesRaw

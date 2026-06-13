@@ -25,7 +25,7 @@ let
 
   controlPlaneOut = renderer.buildControlPlane {
     inherit forwardingOut system;
-    inventory = globalInventory;
+    source = globalInventory;
   };
 
   requestedHostName =
@@ -38,12 +38,12 @@ let
     hostName = requestedHostName;
     inherit hostContext;
     cpm = controlPlaneOut;
-    inventory = globalInventory;
+    source = globalInventory;
   };
 
   _validatedRuntimeTargets = runtimeContext.validateAllRuntimeTargets {
     cpm = controlPlaneOut;
-    inventory = globalInventory;
+    source = globalInventory;
     file = "s88/Unit/pipeline/fabric-input-loader.nix";
   };
 in

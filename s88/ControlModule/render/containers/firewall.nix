@@ -1,6 +1,6 @@
 { lib
 , cpm ? null
-, inventory ? { }
+, source ? { }
 , uplinks ? { }
 , renderedModel
 ,
@@ -166,7 +166,7 @@ if cpm == null then
 else
   mkFirewallArg
     (firewall {
-      inherit cpm inventory uplinks;
+      inherit cpm source uplinks;
       inherit interfaceView endpointMap;
       communication = communication;
       forwardingIntent = routeForwardingIntent;

@@ -31,7 +31,7 @@ let
     { selector ? null
     , hostname ? null
     , intent ? null
-    , inventory ? null
+    , source ? null
     , file ? "s88/CM/network/lookup/host-build-inputs.nix"
     ,
     }:
@@ -41,7 +41,7 @@ let
           selector
           hostname
           intent
-          inventory
+          source
           file
           ;
       };

@@ -1,7 +1,7 @@
 { lib
 , hostName
 , cpm ? null
-, inventory ? { }
+, source ? { }
 , hostContext ? null
 , file ? "s88/Unit/lookup/host-runtime.nix"
 ,

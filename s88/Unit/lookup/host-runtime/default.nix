@@ -2,7 +2,7 @@
 , repoPath
 , hostName
 , cpm
-, inventory ? { }
+, source ? { }
 , hostContext ? null
 ,
 }:
@@ -13,14 +13,14 @@ let
       lib
       hostName
       cpm
-      inventory
+      source
       hostContext
       ;
     file = "s88/Unit/lookup/host-runtime.nix";
   };
 
   selection = import ./selection.nix {
-    inherit lib repoPath cpm inventory;
+    inherit lib repoPath cpm source;
     inherit context;
     file = "s88/Unit/lookup/host-runtime.nix";
   };
@@ -29,7 +29,7 @@ let
     inherit
       lib
       cpm
-      inventory
+      source
       ;
     inherit (selection)
       unitsOnDeploymentHost

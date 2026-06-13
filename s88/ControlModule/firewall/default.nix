@@ -1,7 +1,7 @@
 { lib }:
 
 args@{ cpm
-, inventory ? { }
+, source ? { }
 , flakeInputs ? null
 , runtimeTarget ? { }
 , unitKey ? null
@@ -99,7 +99,7 @@ let
           forwardingIntent = forwardingIntentResolved;
           communicationContract = communicationResolved.communicationContract;
           ownership = communicationResolved.ownership;
-          inherit inventory;
+          inherit source;
         }
       );
 in

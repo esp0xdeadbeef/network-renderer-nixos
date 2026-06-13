@@ -1,7 +1,6 @@
 { lib
 , pkgs ? null
 , controlPlane
-, inventory
 , hostName
 , runtimeFacts ? { }
 ,

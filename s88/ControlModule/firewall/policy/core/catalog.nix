@@ -1,6 +1,6 @@
 { communicationContract
 , ownership
-, inventory
+, source
 , common
 ,
 }:
@@ -37,7 +37,7 @@ in
       { };
 
   inventoryEndpoints =
-    if inventory ? endpoints && builtins.isAttrs inventory.endpoints then inventory.endpoints else { };
+    if source ? endpoints && builtins.isAttrs source.endpoints then source.endpoints else { };
 
   allowRelations =
     if communicationContract ? relations && builtins.isList communicationContract.relations then

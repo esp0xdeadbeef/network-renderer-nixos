@@ -1,6 +1,6 @@
 { lib
 , cpm
-, inventory ? { }
+, source ? { }
 , unitsOnDeploymentHost
 , selectedUnits
 , selectedRoleNames
@@ -19,7 +19,7 @@ let
         value = runtimeContext.roleForUnit {
           inherit
             cpm
-            inventory
+            source
             unitName
             file
             ;

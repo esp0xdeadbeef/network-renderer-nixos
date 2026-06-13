@@ -2,7 +2,7 @@
 , repoPath
 , hostName
 , cpm
-, inventory ? { }
+, source ? { }
 , hostContext ? null
 ,
 }:
@@ -51,7 +51,7 @@ let
       lib
       hostName
       cpm
-      inventory
+      source
       hostContext
       ;
   });
@@ -66,7 +66,7 @@ let
       lib
       hostPlan
       cpm
-      inventory
+      source
       ;
   });
 

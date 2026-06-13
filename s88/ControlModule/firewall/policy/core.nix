@@ -4,7 +4,7 @@
   forwardingIntent ? null,
   communicationContract ? { },
   ownership ? { },
-  inventory ? { },
+  source ? { },
   unitName ? null,
   runtimeTarget ? { },
   interfaces ? { },
@@ -32,7 +32,7 @@ let
     inherit
       communicationContract
       ownership
-      inventory
+      source
       common
       ;
   };

@@ -2,7 +2,7 @@
 
 let
   pathLookup = import ./paths.nix { inherit lib; };
-  sourceLookup = import ./inventory.nix { inherit lib; };
+  sourceLookup = import ./source.nix { inherit lib; };
 
   # NOTE: CMC-NIXOS-INTENT-CLEANUP: 'inventory' renamed to 'source'.
   # Per FS-310-HDS-010-SDS-010-SMS-100/101, renderers consume ONLY CPM-mediated data.
@@ -11,7 +11,7 @@ let
     { selector ? null
     , hostname ? null
     , intent ? null
-    , inventory ? null   # kept for backward compat, prefer 'source'
+    , source ? null   # kept for backward compat, prefer 'source'
     , source ? null
     , file ? "s88/ControlModule/lookup/host-query.nix"
     ,
@@ -35,8 +35,8 @@ let
       resolvedSource =
         if source != null then
           source
-        else if inventory != null then
-          inventory
+        else if source != null then
+          source
         else
           { };
     in

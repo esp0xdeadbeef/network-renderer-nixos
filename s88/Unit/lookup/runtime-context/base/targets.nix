@@ -123,27 +123,27 @@ rec {
     (runtimeTargetEntryForUnit { inherit cpm unitName file; }).runtimeTarget;
 
   logicalNodeForUnit =
-    { cpm, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let target = runtimeTargetForUnit { inherit cpm unitName file; };
     in if target ? logicalNode && builtins.isAttrs target.logicalNode then target.logicalNode else { };
 
   runtimeTargetIdForUnit =
-    { cpm, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     runtimeTargetIdForEntry (runtimeTargetEntryForUnit { inherit cpm unitName file; });
 
   logicalNodeNameForUnit =
-    { cpm, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
-      logicalNode = logicalNodeForUnit { inherit cpm inventory unitName file; };
-      runtimeTargetId = runtimeTargetIdForUnit { inherit cpm inventory unitName file; };
+      logicalNode = logicalNodeForUnit { inherit cpm source unitName file; };
+      runtimeTargetId = runtimeTargetIdForUnit { inherit cpm source unitName file; };
     in
     if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else runtimeTargetId;
 
   logicalNodeIdentityForUnit =
-    { cpm, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
       entry = runtimeTargetEntryForUnit { inherit cpm unitName file; };
-      logicalNode = logicalNodeForUnit { inherit cpm inventory unitName file; };
+      logicalNode = logicalNodeForUnit { inherit cpm source unitName file; };
       siteName = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else entry.siteName or null;
       identityName = if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else runtimeTargetIdForEntry entry;
       segments = lib.filter builtins.isString [ entry.rootName siteName identityName ];
@@ -151,10 +151,10 @@ rec {
     if segments != [ ] then builtins.concatStringsSep "::" segments else unitName;
 
   roleForUnit =
-    { cpm, inventory ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    { cpm, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
     let
       target = runtimeTargetForUnit { inherit cpm unitName file; };
-      logicalNode = logicalNodeForUnit { inherit cpm inventory unitName file; };
+      logicalNode = logicalNodeForUnit { inherit cpm source unitName file; };
     in
     if target ? role && builtins.isString target.role then target.role else logicalNode.role or null;
 }
