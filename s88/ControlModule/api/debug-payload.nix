@@ -8,8 +8,6 @@
 , forwardingOut
 , controlPlaneOut
 , renderedHostNetwork
-,  # CMC-NIXOS-REMOVE-INTENT-V2: intentPath/inventoryPath removed (SMS-100)
-,
 }:
 
 let
