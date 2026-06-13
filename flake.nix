@@ -136,8 +136,8 @@
             renderedNetworkKeys=${toString (builtins.attrNames (rendered.networks or {}))}
           '';
 
-          systemd.network.netdevs = (rendered.netdevs or { }) // mgmtNetdevs;
-          systemd.network.networks = (rendered.networks or { }) // mgmtNetworks;
+          systemd.network.netdevs = userLib.mkForce ((rendered.netdevs or { }) // mgmtNetdevs);
+          systemd.network.networks = userLib.mkForce ((rendered.networks or { }) // mgmtNetworks);
           containers = rendered.containers or { };
         };
 
