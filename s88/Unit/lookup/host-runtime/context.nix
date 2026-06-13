@@ -27,8 +27,6 @@ let
     in
     if builtins.length names == 1 then builtins.head names else null;
 
-  singleInventoryDeploymentHostName = singletonName inventoryDeploymentHosts;
-
   singleCpmDeploymentHostName = singletonName cpmDeploymentHosts;
 
   deploymentHostNameFromHostContext =
@@ -104,14 +102,6 @@ let
     else
       { };
 
-  inventoryDeploymentHosts =
-    if
-      inventory ? deployment && builtins.isAttrs inventory.deployment && inventory.deployment ? hosts
-    then
-      ensureAttrs inventory.deployment.hosts
-    else
-      { };
-
   renderHostConfig =
     if
       builtins.hasAttr requestedHostName cpmRenderHosts
@@ -143,8 +133,6 @@ let
       deploymentHostNameFromHostContext
     else if deploymentHostNameFromRenderHost != null then
       deploymentHostNameFromRenderHost
-    else if singleInventoryDeploymentHostName != null then
-      singleInventoryDeploymentHostName
     else if singleCpmDeploymentHostName != null then
       singleCpmDeploymentHostName
     else
@@ -154,11 +142,6 @@ let
     if deploymentHostFromHostContext != { } then
       deploymentHostFromHostContext
     else if
-      builtins.hasAttr deploymentHostName inventoryDeploymentHosts
-      && builtins.isAttrs inventoryDeploymentHosts.${deploymentHostName}
-    then
-      inventoryDeploymentHosts.${deploymentHostName}
-    else if
       builtins.hasAttr deploymentHostName cpmDeploymentHosts
       && builtins.isAttrs cpmDeploymentHosts.${deploymentHostName}
     then
@@ -166,32 +149,13 @@ let
     else
       { };
 
+  # CMC-NIXOS-INTENT-CLEANUP: Inventory fallback removed.
+  # Per SMS-100/SMS-101, renderers consume CPM output only.
+  # hostContext resolution uses CPM data exclusively.
   resolvedHostContext =
     if hostContext != null && builtins.isAttrs hostContext && hostContext != { } then
       hostContext // { hostname = requestedHostName; }
-    else if inventory != { } then
-
-      {
-        hostname = requestedHostName;
-        renderHosts = { };
-        renderHostConfig = { };
-        deploymentHosts = inventoryDeploymentHosts;
-        deploymentHostNames = [ deploymentHostName ];
-        realizationNodes =
-          if
-            inventory ? realization
-            && builtins.isAttrs inventory.realization
-            && inventory.realization ? nodes
-            && builtins.isAttrs inventory.realization.nodes
-          then
-            inventory.realization.nodes
-          else
-            { };
-        inherit deploymentHostName deploymentHost;
-        realizationNode = null;
-      }
     else
-
       {
         hostname = requestedHostName;
         renderHosts = cpmRenderHosts;
@@ -203,20 +167,8 @@ let
         realizationNode = null;
       };
 
-  realizationNodes =
-    if
-      inventory ? realization
-      && builtins.isAttrs inventory.realization
-      && inventory.realization ? nodes
-      && builtins.isAttrs inventory.realization.nodes
-    then
-      inventory.realization.nodes
-    else if
-      resolvedHostContext ? realizationNodes && builtins.isAttrs resolvedHostContext.realizationNodes
-    then
-      resolvedHostContext.realizationNodes
-    else
-      { };
+  # CMC-NIXOS-INTENT-CLEANUP: Use CPM realization nodes only.
+  realizationNodes = cpmRealizationNodes;
 
   effectiveHostContext = resolvedHostContext // {
     hostname = requestedHostName;

@@ -1,12 +1,12 @@
-{ lib, inventoryModel, nodes, linkMatches }:
+{ lib, sourceModel, nodes, linkMatches }:
 
 let
-  inherit (inventoryModel) realizationNodesFor sortedAttrNames;
+  inherit (sourceModel) realizationNodesFor sortedAttrNames;
 
   directPortMatchesOnNodeNames =
-    { inventory, nodeNames, ifName }:
+    { source, nodeNames, ifName }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
     in
     lib.concatMap
       (
@@ -34,7 +34,7 @@ let
 in
 {
   resolvePortForRuntimeInterface =
-    { inventory, normalizedRuntimeTargets, unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source, normalizedRuntimeTargets, unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
       backingRef = iface.backingRef or { };
       backingRefKind =
@@ -47,16 +47,16 @@ in
             interface:
             ${builtins.toJSON iface}
           '';
-      candidateNodeNames = nodes.candidateRealizationNodeNamesForRuntimeUnit { inherit inventory normalizedRuntimeTargets unitName file; };
-      scopedNodeNames = nodes.scopedNodeNamesForRuntimeUnit { inherit inventory normalizedRuntimeTargets unitName file; };
-      globalNodeNames = sortedAttrNames (realizationNodesFor inventory);
-      directLocal = directPortMatchesOnNodeNames { inherit inventory ifName; nodeNames = candidateNodeNames; };
-      directScoped = if directLocal != [ ] then [ ] else directPortMatchesOnNodeNames { inherit inventory ifName; nodeNames = scopedNodeNames; };
-      directGlobal = if directLocal != [ ] || directScoped != [ ] then [ ] else directPortMatchesOnNodeNames { inherit inventory ifName; nodeNames = globalNodeNames; };
+      candidateNodeNames = nodes.candidateRealizationNodeNamesForRuntimeUnit { inherit source normalizedRuntimeTargets unitName file; };
+      scopedNodeNames = nodes.scopedNodeNamesForRuntimeUnit { inherit source normalizedRuntimeTargets unitName file; };
+      globalNodeNames = sortedAttrNames (realizationNodesFor source);
+      directLocal = directPortMatchesOnNodeNames { inherit source ifName; nodeNames = candidateNodeNames; };
+      directScoped = if directLocal != [ ] then [ ] else directPortMatchesOnNodeNames { inherit source ifName; nodeNames = scopedNodeNames; };
+      directGlobal = if directLocal != [ ] || directScoped != [ ] then [ ] else directPortMatchesOnNodeNames { inherit source ifName; nodeNames = globalNodeNames; };
       directMatches = if directLocal != [ ] then directLocal else if directScoped != [ ] then directScoped else directGlobal;
       linkMatches' =
         if backingRefKind == "link" then
-          linkMatches.linkPortMatchesForRuntimeInterface { inherit inventory normalizedRuntimeTargets unitName ifName iface file; }
+          linkMatches.linkPortMatchesForRuntimeInterface { inherit source normalizedRuntimeTargets unitName ifName iface file; }
         else
           [ ];
     in

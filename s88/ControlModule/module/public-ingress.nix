@@ -24,8 +24,9 @@ let
     ;
 
   cpmRoot = cpmDataFrom controlPlane;
-  inventoryRoot = attrOr inventory;
-  host = attrOr (((attrOr (inventoryRoot.deployment or { })).hosts or { }).${hostName} or { });
+  # CMC-NIXOS-INTENT-CLEANUP: Extract host from CPM deployment, not raw inventory.
+  # Per SMS-100/SMS-101, renderers consume CPM output only.
+  host = attrOr (((attrOr (cpmRoot.deployment or { })).hosts or { }).${hostName} or { });
   publicIngressFacts = attrOr (runtimeFacts.publicIngress or { });
   enabled = publicIngressFacts != { };
 
@@ -33,7 +34,7 @@ let
     if builtins.isString (publicIngressFacts.bridgeInterface or null) then
       publicIngressFacts.bridgeInterface
     else
-      requiredString "inventory.deployment.hosts.${hostName}.wanUplink bridge" (
+      requiredString "cpm.deployment.hosts.${hostName}.wanUplink bridge" (
         let
           wanUplink = host.wanUplink or null;
           uplinks = attrOr (host.uplinks or { });

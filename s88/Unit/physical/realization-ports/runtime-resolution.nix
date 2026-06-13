@@ -1,23 +1,23 @@
 { lib }:
 
 let
-  inventoryModel = import ./inventory.nix { inherit lib; };
-  common = import ./runtime-resolution/common.nix { inherit lib inventoryModel; };
+  sourceModel = import ./source-model.nix { inherit lib; };
+  common = import ./runtime-resolution/common.nix { inherit lib sourceModel; };
 
   nodes = import ./runtime-resolution/nodes.nix {
-    inherit lib inventoryModel common;
+    inherit lib sourceModel common;
   };
 
   linkMatches = import ./runtime-resolution/link-matches.nix {
-    inherit lib inventoryModel common nodes;
+    inherit lib sourceModel common nodes;
   };
 
   portResolution = import ./runtime-resolution/port-resolution.nix {
-    inherit lib inventoryModel nodes linkMatches;
+    inherit lib sourceModel nodes linkMatches;
   };
 
   attachTargets = import ./runtime-resolution/attach-targets.nix {
-    inherit lib inventoryModel common portResolution;
+    inherit lib sourceModel common portResolution;
   };
 in
 {

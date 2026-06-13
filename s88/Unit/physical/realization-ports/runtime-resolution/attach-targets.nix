@@ -1,7 +1,7 @@
-{ lib, inventoryModel, common, portResolution }:
+{ lib, sourceModel, common, portResolution }:
 
 let
-  inherit (inventoryModel) attachForPort;
+  inherit (sourceModel) attachForPort;
   inherit (common) sortedAttrNames runtimeTargetForUnitFromNormalized;
 
   tryResolvePortForRuntimeInterface =
@@ -12,9 +12,9 @@ let
     if attempt.success then attempt.value else null;
 
   attachTargetForRuntimeInterface =
-    { inventory, normalizedRuntimeTargets, unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source, normalizedRuntimeTargets, unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
-      resolvedPort = tryResolvePortForRuntimeInterface { inherit inventory normalizedRuntimeTargets unitName ifName iface file; };
+      resolvedPort = tryResolvePortForRuntimeInterface { inherit source normalizedRuntimeTargets unitName ifName iface file; };
       attachTarget =
         if resolvedPort == null then
           null
@@ -71,7 +71,7 @@ let
 in
 {
   attachTargetsForUnitsFromRuntime =
-    { inventory ? { }, selectedUnits, normalizedRuntimeTargets, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source ? { }, selectedUnits, normalizedRuntimeTargets, file ? "s88/Unit/physical/realization-ports.nix" }:
     lib.concatMap
       (
         unitName:
@@ -89,10 +89,10 @@ in
             let
               iface = interfaces.${ifName};
               authoritativeTarget =
-                if inventory == { } then
+                if source == { } then
                   null
                 else
-                  attachTargetForRuntimeInterface { inherit inventory normalizedRuntimeTargets unitName ifName iface file; };
+                  attachTargetForRuntimeInterface { inherit source normalizedRuntimeTargets unitName ifName iface file; };
             in
             if authoritativeTarget != null then
               authoritativeTarget

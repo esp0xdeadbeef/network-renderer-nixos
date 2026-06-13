@@ -1,8 +1,8 @@
-{ lib, inventoryModel, common }:
+{ lib, sourceModel, common }:
 
 let
   inherit
-    (inventoryModel)
+    (sourceModel)
     realizationNodesFor
     logicalNodeForRealizationNode
     ;
@@ -39,9 +39,9 @@ let
 in
 {
   candidateRealizationNodeNamesForRuntimeUnit =
-    { inventory, normalizedRuntimeTargets, unitName, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source, normalizedRuntimeTargets, unitName, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
       logicalNode = runtimeLogicalNodeForUnitFromNormalized { inherit normalizedRuntimeTargets unitName file; };
       logicalName = if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else null;
       logicalSite = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
@@ -85,9 +85,9 @@ in
       [ ];
 
   scopedNodeNamesForRuntimeUnit =
-    { inventory, normalizedRuntimeTargets, unitName, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source, normalizedRuntimeTargets, unitName, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
       scopedNames = lib.filter
         (
           nodeName:

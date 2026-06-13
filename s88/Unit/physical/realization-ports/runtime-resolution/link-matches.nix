@@ -1,7 +1,7 @@
-{ lib, inventoryModel, common, nodes }:
+{ lib, sourceModel, common, nodes }:
 
 let
-  inherit (inventoryModel) realizationNodesFor;
+  inherit (sourceModel) realizationNodesFor;
   inherit (common) sortedAttrNames lastStringSegment collapseRepeatedTrailingDashSegment;
 
   linkRefsForInterface =
@@ -19,9 +19,9 @@ let
   portMatchesLinkRefs = { port, linkRefs }: builtins.elem (port.link or null) linkRefs;
 
   linkPortMatchesOnNodeNames =
-    { inventory, nodeNames, linkRefs, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source, nodeNames, linkRefs, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
     in
     lib.concatMap
       (
@@ -60,7 +60,7 @@ let
 in
 {
   linkPortMatchesForRuntimeInterface =
-    { inventory, normalizedRuntimeTargets, unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
+    { source, normalizedRuntimeTargets, unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
       backingRef =
         if iface ? backingRef && builtins.isAttrs iface.backingRef then
@@ -83,12 +83,12 @@ in
             ${builtins.toJSON iface}
           '';
       linkRefs = linkRefsForInterface { inherit backingRef; };
-      candidateNodeNames = nodes.candidateRealizationNodeNamesForRuntimeUnit { inherit inventory normalizedRuntimeTargets unitName file; };
-      scopedNodeNames = nodes.scopedNodeNamesForRuntimeUnit { inherit inventory normalizedRuntimeTargets unitName file; };
-      globalNodeNames = sortedAttrNames (realizationNodesFor inventory);
-      localMatches = linkPortMatchesOnNodeNames { inherit inventory file linkRefs; nodeNames = candidateNodeNames; };
-      scopedMatches = if localMatches != [ ] then [ ] else linkPortMatchesOnNodeNames { inherit inventory file linkRefs; nodeNames = scopedNodeNames; };
-      globalMatches = if localMatches != [ ] || scopedMatches != [ ] then [ ] else linkPortMatchesOnNodeNames { inherit inventory file linkRefs; nodeNames = globalNodeNames; };
+      candidateNodeNames = nodes.candidateRealizationNodeNamesForRuntimeUnit { inherit source normalizedRuntimeTargets unitName file; };
+      scopedNodeNames = nodes.scopedNodeNamesForRuntimeUnit { inherit source normalizedRuntimeTargets unitName file; };
+      globalNodeNames = sortedAttrNames (realizationNodesFor source);
+      localMatches = linkPortMatchesOnNodeNames { inherit source file linkRefs; nodeNames = candidateNodeNames; };
+      scopedMatches = if localMatches != [ ] then [ ] else linkPortMatchesOnNodeNames { inherit source file linkRefs; nodeNames = scopedNodeNames; };
+      globalMatches = if localMatches != [ ] || scopedMatches != [ ] then [ ] else linkPortMatchesOnNodeNames { inherit source file linkRefs; nodeNames = globalNodeNames; };
     in
     if backingRefKind != "link" then
       [ ]

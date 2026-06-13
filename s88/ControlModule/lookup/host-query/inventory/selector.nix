@@ -5,7 +5,7 @@
 
 { selector
 , intent
-, inventory
+, source
 , file ? "s88/ControlModule/lookup/host-query.nix"
 ,
 }:
@@ -25,9 +25,9 @@ let
   _selectorIsString =
     if builtins.isString selector then true else throw "${file}: selector must be a string";
 
-  realizationNodes = realizationNodesFor inventory;
-  deploymentHosts = deploymentHostsFor inventory;
-  renderHosts = renderHostsFor inventory;
+  realizationNodes = realizationNodesFor source;
+  deploymentHosts = deploymentHostsFor source;
+  renderHosts = renderHostsFor source;
 
   exactRealizationNode =
     if builtins.hasAttr selector realizationNodes then realizationNodes.${selector} else null;
@@ -64,14 +64,14 @@ let
     else
       null;
 
-  matchingSiteNodes = matchingNodesBy inventory (
+  matchingSiteNodes = matchingNodesBy source (
     _: node:
       node ? logicalNode
       && builtins.isAttrs node.logicalNode
       && (node.logicalNode.site or null) == selector
   );
 
-  matchingLogicalNameNodes = matchingNodesBy inventory (
+  matchingLogicalNameNodes = matchingNodesBy source (
     _: node:
       node ? logicalNode
       && builtins.isAttrs node.logicalNode
@@ -80,7 +80,7 @@ let
 
   nodesOnDeploymentHost =
     if exactDeploymentHost != null then
-      matchingNodesBy inventory (_: node: (node.host or null) == selector)
+      matchingNodesBy source (_: node: (node.host or null) == selector)
     else
       { };
 

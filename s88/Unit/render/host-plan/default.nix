@@ -25,6 +25,8 @@ let
     else
       { };
 
+  # CMC-NIXOS-INTENT-CLEANUP: inventory.controlPlane.sites removed.
+  # Renderers consume CPM output only. Sites come from CPM.data.
   inventoryControlPlaneSites =
     if
       builtins.isAttrs inventory
@@ -37,26 +39,37 @@ let
     else
       { };
 
+  # Extract source data from CPM for realization-ports lookups.
+  # CPM carries realization/deployment data that replaces raw inventory.
+  cpmSource =
+    if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
+      cpm.control_plane_model
+    else if builtins.isAttrs cpm then
+      cpm
+    else
+      { };
+
   hostRuntime = trace.emit "host-plan:${hostName}:host-runtime" (import ../../lookup/host-runtime.nix {
     inherit repoPath;
     inherit
       lib
       hostName
       cpm
-      inventory
       hostContext
       ;
+    # CMC-NIXOS-INTENT-CLEANUP: pass empty inventory; CPM provides all needed data.
+    inventory = { };
   });
 
   attachTargetsRuntime = trace.emit "host-plan:${hostName}:attach-targets-all-host-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
-    inherit inventory;
+    source = cpmSource;
     selectedUnits = hostRuntime.unitsOnDeploymentHost;
     normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
     file = "s88/Unit/render/host-plan.nix";
   });
 
   attachTargetsRuntimeSelected = trace.emit "host-plan:${hostName}:attach-targets-selected-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
-    inherit inventory;
+    source = cpmSource;
     selectedUnits = hostRuntime.selectedUnits;
     normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
     file = "s88/Unit/render/host-plan.nix";
@@ -77,7 +90,6 @@ let
       lib
       hostName
       cpm
-      inventory
       ;
     inherit (hostRuntime)
       deploymentHostName
@@ -85,6 +97,8 @@ let
       renderHostConfig
       ;
     inherit (bridgeModel) attachTargetsBase;
+    # CMC-NIXOS-INTENT-CLEANUP: inventory no longer passed; CPM provides wan data.
+    inventory = { };
   });
 
   transitBridgeModel = trace.emit "host-plan:${hostName}:transit-bridges" (import ../../../EquipmentModule/physical/transit-bridges.nix {

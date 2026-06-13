@@ -1,43 +1,47 @@
 { lib }:
 
+# NOTE: CMC-NIXOS-INTENT-CLEANUP: renamed from inventory tree walks to source-based lookups.
+# Per SMS-100/SMS-101, renderers consume CPM output. These helpers accept any source
+# container with .realization/.deployment/.render structures — whether from CPM or
+# CPM-preserved inventory. The parameter is now named 'source' instead of 'inventory'.
 rec {
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   isNonEmptyAttrs = value: builtins.isAttrs value && sortedAttrNames value != [ ];
 
   realizationNodesFor =
-    inventory:
+    source:
     if
-      inventory ? realization
-      && builtins.isAttrs inventory.realization
-      && inventory.realization ? nodes
-      && builtins.isAttrs inventory.realization.nodes
+      source ? realization
+      && builtins.isAttrs source.realization
+      && source.realization ? nodes
+      && builtins.isAttrs source.realization.nodes
     then
-      inventory.realization.nodes
+      source.realization.nodes
     else
       { };
 
   deploymentHostsFor =
-    inventory:
+    source:
     if
-      inventory ? deployment
-      && builtins.isAttrs inventory.deployment
-      && inventory.deployment ? hosts
-      && builtins.isAttrs inventory.deployment.hosts
+      source ? deployment
+      && builtins.isAttrs source.deployment
+      && source.deployment ? hosts
+      && builtins.isAttrs source.deployment.hosts
     then
-      inventory.deployment.hosts
+      source.deployment.hosts
     else
       { };
 
   renderHostsFor =
-    inventory:
+    source:
     if
-      inventory ? render
-      && builtins.isAttrs inventory.render
-      && inventory.render ? hosts
-      && builtins.isAttrs inventory.render.hosts
+      source ? render
+      && builtins.isAttrs source.render
+      && source.render ? hosts
+      && builtins.isAttrs source.render.hosts
     then
-      inventory.render.hosts
+      source.render.hosts
     else
       { };
 
@@ -53,9 +57,9 @@ rec {
     );
 
   matchingNodesBy =
-    inventory: predicate:
+    source: predicate:
     let
-      realizationNodes = realizationNodesFor inventory;
+      realizationNodes = realizationNodesFor source;
     in
     builtins.listToAttrs (
       map
