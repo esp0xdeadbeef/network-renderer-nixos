@@ -87,8 +87,7 @@ fi
 echo ""
 echo "--- P2: Permissive trace scan ---"
 
-p2_count=$(grep -c 'auto-resolving via uniquification' "${target_file}" 2>/dev/null || echo 0)
-p2_count=$(echo "${p2_count}" | tr -d '[:space:]')
+p2_count=$(safe_count 'auto-resolving via uniquification' "${target_file}")
 
 if [[ "${p2_count}" != "0" ]]; then
   echo "FAIL: 'auto-resolving via uniquification' permissive trace found ${p2_count} time(s)." >&2
@@ -137,11 +136,11 @@ echo "--- P4: Uniquification function scan ---"
 p4_violations=0
 for fn in ensureUniqueRenderedNames; do
   # Check if function is DEFINED (not just called) in active code
-  def_count=$(non_comment "${target_file}" | grep -c "${fn}" 2>/dev/null || echo 0)
+  def_count=$(non_comment "${target_file}" | { grep -c "${fn}" 2>/dev/null || true; })
   def_count=$(echo "${def_count}" | tr -d '[:space:]')
   if [[ "${def_count}" != "0" ]]; then
     # Count total references across repo
-    ref_count=$(grep -rlc "${fn}" "${repo_root}/s88" --include='*.nix' 2>/dev/null | grep -v ':0$' | wc -l || echo 0)
+    ref_count=$(grep -rlc "${fn}" "${repo_root}/s88" --include='*.nix' 2>/dev/null | grep -v ':0$' | { wc -l || true; })
     ref_count=$(echo "${ref_count}" | tr -d '[:space:]')
     echo "WARN: '${fn}' referenced in ${ref_count} file(s)."
     echo "  This function performs uniquification — SMS-040 prohibits."
