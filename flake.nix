@@ -84,6 +84,18 @@
           mgmtIpv4 = if mgmtUplink != null && mgmtUplink ? ipv4 then mgmtUplink.ipv4 else null;
           mgmtManageDhcp = mgmtIpv4 != null && (mgmtIpv4.enable or false) == true;
 
+          # Hard-fail on missing or inconsistent management configuration.
+          # Every host must have a management uplink with mode, parent, and DHCP config.
+          mgmtValidate = if mgmtManageDhcp then
+            if mgmtMode == null then
+              throw "network-renderer-nixos: host ${hostName} management uplink has ipv4.enable=true but no 'mode' field (must be 'vlan' or 'native')"
+            else if mgmtParent == null then
+              throw "network-renderer-nixos: host ${hostName} management uplink has ipv4.enable=true but no 'parent' field (must be the physical interface name, e.g. 'eth0' or 'enp1s0')"
+            else if mgmtMode == "vlan" && mgmtVlanId == null then
+              throw "network-renderer-nixos: host ${hostName} management uplink mode=vlan but no 'vlan' field"
+            else null
+          else null;
+
           # VLAN mode: create VLAN subinterface + bridge, DHCP on bridge
           mgmtNetdevs = if mgmtVlanId != null then {
             "10-${mgmtParent}.${toString mgmtVlanId}" = {
@@ -142,7 +154,8 @@
           systemd.network.netdevs = userLib.mkOverride 50 ((rendered.netdevs or { }) // mgmtNetdevs);
           systemd.network.networks = userLib.mkOverride 50 ((rendered.networks or { }) // mgmtNetworks);
           containers = rendered.containers or { };
-        };
+        }
+        // builtins.seq mgmtValidate { };
 
       # NOTE: buildVm previously used buildHostFromPaths with intentPath/inventoryPath.
       # Now requires CPM output. Pipeline orchestration belongs in the host repo.
