@@ -70,29 +70,41 @@
           rendered = hostBuild.renderedHost;
           userLib = rendererInput.lib or lib;
 
-          # Management VLAN2 from CPM deployment hosts (per URS: inventory → CPM → renderer)
+          # Management networking from CPM deployment hosts (per URS: inventory → CPM → renderer).
+          # Supports two modes:
+          #   mode=vlan: VLAN-tagged management (lab hosts) — creates VLAN subinterface + bridge + DHCP
+          #   mode=native: native DHCP on physical interface (cloud hosts) — DHCP directly on eth0
           mgmtHost = if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null;
           mgmtUplink = if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null;
-          mgmtVlanId = if mgmtUplink != null && mgmtUplink ? vlan then mgmtUplink.vlan else null;
+          mgmtMode = if mgmtUplink != null && mgmtUplink ? mode then mgmtUplink.mode else null;
+          mgmtParent = if mgmtUplink != null && mgmtUplink ? parent then mgmtUplink.parent else "eth0";
+          mgmtVlanId = if mgmtMode == "vlan" && mgmtUplink ? vlan then mgmtUplink.vlan else null;
+
+          # CPM-driven: does the management uplink request DHCP via the renderer?
+          mgmtIpv4 = if mgmtUplink != null && mgmtUplink ? ipv4 then mgmtUplink.ipv4 else null;
+          mgmtManageDhcp = mgmtIpv4 != null && (mgmtIpv4.enable or false) == true;
+
+          # VLAN mode: create VLAN subinterface + bridge, DHCP on bridge
           mgmtNetdevs = if mgmtVlanId != null then {
-            "10-eth0.${toString mgmtVlanId}" = {
-              netdevConfig = { Name = "eth0.${toString mgmtVlanId}"; Kind = "vlan"; };
+            "10-${mgmtParent}.${toString mgmtVlanId}" = {
+              netdevConfig = { Name = "${mgmtParent}.${toString mgmtVlanId}"; Kind = "vlan"; };
               vlanConfig = { Id = mgmtVlanId; };
             };
             "20-vlan${toString mgmtVlanId}" = {
               netdevConfig = { Name = "vlan${toString mgmtVlanId}"; Kind = "bridge"; };
             };
           } else { };
+
           mgmtNetworks = if mgmtVlanId != null then {
-            "10-eth0" = {
-              matchConfig.Name = "eth0";
+            "10-${mgmtParent}" = {
+              matchConfig.Name = mgmtParent;
               networkConfig = {
                 DHCP = "no"; LinkLocalAddressing = "no";
-                VLAN = [ "eth0.${toString mgmtVlanId}" ];
+                VLAN = [ "${mgmtParent}.${toString mgmtVlanId}" ];
               };
             };
-            "20-eth0.${toString mgmtVlanId}" = {
-              matchConfig.Name = "eth0.${toString mgmtVlanId}";
+            "20-${mgmtParent}.${toString mgmtVlanId}" = {
+              matchConfig.Name = "${mgmtParent}.${toString mgmtVlanId}";
               networkConfig = {
                 DHCP = "no"; LinkLocalAddressing = "no";
                 Bridge = "vlan${toString mgmtVlanId}";
@@ -105,14 +117,26 @@
                 IPv6AcceptRA = "no";
               };
             };
+          } else if mgmtManageDhcp && mgmtMode == "native" then {
+            # Native mode: DHCP directly on the physical interface
+            "10-${mgmtParent}" = {
+              matchConfig.Name = mgmtParent;
+              networkConfig = {
+                DHCP = "ipv4";
+                LinkLocalAddressing = "no";
+                IPv6AcceptRA = "no";
+              };
+            };
           } else { };
         in
         {
           imports = [ hostBuild.artifactModule ];
 
-          networking.useNetworkd = true;
-          systemd.network.enable = true;
-          networking.useDHCP = false;
+          # CPM-driven networking: only override host DHCP/networkd when
+          # management uplink requests it (ipv4.enable = true).
+          networking.useNetworkd = lib.mkIf mgmtManageDhcp true;
+          systemd.network.enable = lib.mkIf mgmtManageDhcp true;
+          networking.useDHCP = lib.mkIf mgmtManageDhcp false;
           networking.useHostResolvConf = userLib.mkForce false;
 
           systemd.network.netdevs = userLib.mkOverride 50 ((rendered.netdevs or { }) // mgmtNetdevs);
