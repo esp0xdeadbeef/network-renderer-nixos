@@ -31,7 +31,7 @@ eval_container_frr() {
           containerName = builtins.getEnv "CONTAINER_NAME";
           flake = builtins.getFlake repoRoot;
           system = "x86_64-linux";
-          hostBuild = flake.lib.renderer.buildHostFromPaths {
+          hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
             selector = "lab-host";
             inherit system intentPath inventoryPath;
           };

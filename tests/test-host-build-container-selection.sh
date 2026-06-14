@@ -14,7 +14,7 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
     --impure --expr '
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
-        host = flake.lib.renderer.buildHostFromPaths {
+        host = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";

@@ -18,7 +18,7 @@ let
   inventoryPath = builtins.getEnv "INVENTORY_PATH";
   flake = builtins.getFlake repoRoot;
   system = builtins.currentSystem;
-  hostBuild = flake.lib.renderer.buildHostFromPaths {
+  hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
     selector = "s-router-test";
     inherit system intentPath inventoryPath;
   };

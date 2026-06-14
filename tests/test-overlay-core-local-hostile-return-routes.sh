@@ -31,7 +31,7 @@ nix_eval_json_or_fail \
           flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
           lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
-          built = flake.lib.renderer.buildHostFromPaths {
+          built = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
             selector = "s-router-test";
             inherit system;
             intentPath = builtins.getEnv "INTENT_PATH";
