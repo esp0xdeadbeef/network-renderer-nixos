@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-380-HDS-010-SDS-010-SMS-080
+# GAMP-ID: FS-380-HDS-020-SDS-010-SMS-080
 # GAMP-SCOPE: software-module-test
 # Focused construction test: NixOS renderer NAT prefix consumption from CPM.
 #
@@ -24,7 +24,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 all_checks_passed=true
 src_dir="${repo_root}/s88"
 
-echo "--- FS-380-HDS-010-SDS-010-SMS-080: NAT prefix CPM consumption scan ---"
+echo "--- FS-380-HDS-020-SDS-010-SMS-080: NAT prefix CPM consumption scan ---"
 echo ""
 
 roles_file="${src_dir}/ControlModule/firewall/lookup/forwarding-intent/roles.nix"
@@ -218,9 +218,9 @@ fi
 # ============================================================
 echo ""
 if ${all_checks_passed}; then
-  echo "PASS: FS-380-HDS-010-SDS-010-SMS-080 — NixOS renderer consumes CPM masqueradeSourcePrefixes, no interface-address NAT derivation."
+  echo "PASS: FS-380-HDS-020-SDS-010-SMS-080 — NixOS renderer consumes CPM masqueradeSourcePrefixes, no interface-address NAT derivation."
   exit 0
 else
-  echo "FAIL: FS-380-HDS-010-SDS-010-SMS-080 — one or more predicates failed."
+  echo "FAIL: FS-380-HDS-020-SDS-010-SMS-080 — one or more predicates failed."
   exit 1
 fi

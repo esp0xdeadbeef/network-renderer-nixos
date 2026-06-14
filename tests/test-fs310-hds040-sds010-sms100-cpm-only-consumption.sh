@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-310-HDS-010-SDS-010-SMS-100
+# GAMP-ID: FS-310-HDS-040-SDS-010-SMS-100
 # GAMP-SCOPE: software-module-test
 # Focused construction test: Renderer CPM-only consumption source scan.
 #
@@ -17,7 +17,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 all_checks_passed=true
 src_dir="${repo_root}/s88"
 
-echo "--- FS-310-HDS-010-SDS-010-SMS-100: Renderer CPM-only consumption source scan ---"
+echo "--- FS-310-HDS-040-SDS-010-SMS-100: Renderer CPM-only consumption source scan ---"
 echo ""
 
 # ============================================================
@@ -117,7 +117,7 @@ echo ""
 # Report
 # ============================================================
 if [[ "${all_checks_passed}" == "true" ]]; then
-  echo "PASS: FS-310-HDS-010-SDS-010-SMS-100 CPM-only consumption scan complete."
+  echo "PASS: FS-310-HDS-040-SDS-010-SMS-100 CPM-only consumption scan complete."
   echo "Tracking ${total_known} known gaps across ${#KNOWN_FILE_PATTERNS[@]} file patterns + ${#KNOWN_REALIZATION_FILES[@]} realization files."
   exit 0
 else
