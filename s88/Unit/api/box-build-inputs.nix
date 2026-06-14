@@ -46,7 +46,7 @@ let
 
       builtHost = buildHostFromControlPlane {
         controlPlaneOut = resolvedCpm;
-        inherit inventory system file;
+        inherit system file;
         selector = selectorValue;
       };
 
