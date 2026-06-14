@@ -27,8 +27,6 @@ run_one() {
         let
           repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
           repoPath = builtins.getEnv "REPO_ROOT";
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
           exampleName = builtins.getEnv "EXAMPLE_NAME";
           flake = builtins.getFlake repoRoot;
           lib = flake.inputs.nixpkgs.lib;
@@ -60,7 +58,7 @@ run_one() {
                 hostEvaluated.systemd.services.s88-network-validation.script;
             in
             unit;
-          builtContainers = flake.lib.containers.buildForBox {
+          builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
             boxName = "lab-host";
             inherit system intentPath inventoryPath;
           };

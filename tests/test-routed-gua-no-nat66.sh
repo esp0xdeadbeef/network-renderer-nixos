@@ -28,11 +28,9 @@ nix_eval_json_or_fail \
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
         system = "x86_64-linux";
-        builtContainers = flake.lib.containers.buildForBox {
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-hetzner-anywhere";
           inherit system;
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         cfg = (lib.nixosSystem {
           inherit system;

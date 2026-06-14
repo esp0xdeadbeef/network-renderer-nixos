@@ -15,17 +15,13 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         system = "x86_64-linux";
-        builtB = flake.lib.containers.buildForBox {
+        builtB = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-test";
           inherit system;
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        builtC = flake.lib.containers.buildForBox {
+        builtC = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-hetzner-anywhere";
           inherit system;
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         evalContainer = container:
           (flake.inputs.nixpkgs.lib.nixosSystem {

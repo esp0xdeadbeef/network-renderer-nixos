@@ -17,17 +17,13 @@ INVENTORY_PATH="${inventory_path}" \
     --impure --expr '
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
-        builtContainers = flake.lib.containers.buildForBox {
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-test";
           system = "x86_64-linux";
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        hetznerContainers = flake.lib.containers.buildForBox {
+        hetznerContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-hetzner-anywhere";
           system = "x86_64-linux";
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         cfg =
           (flake.inputs.nixpkgs.lib.nixosSystem {
