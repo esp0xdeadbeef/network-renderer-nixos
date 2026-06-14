@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-310-HDS-010-SDS-010-SMS-110
+# GAMP-ID: FS-310-HDS-030-SDS-010-SMS-110
 # GAMP-SCOPE: software-module-test
 # Focused construction test: Renderer fail-closed contract — `or` fallback scan.
 #
@@ -18,7 +18,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 all_checks_passed=true
 src_dir="${repo_root}/s88"
 
-echo "--- FS-310-HDS-010-SDS-010-SMS-110: Renderer fail-closed contract scan ---"
+echo "--- FS-310-HDS-030-SDS-010-SMS-110: Renderer fail-closed contract scan ---"
 echo ""
 
 # ============================================================
@@ -102,7 +102,7 @@ echo "Total 'or' defaults: ${violation_count}"
 echo "Known patterns matched: ${detected_known}/${#KNOWN_DEFAULTS[@]}"
 
 if [[ "${violation_count}" -gt 0 ]]; then
-  echo "PASS: FS-310-HDS-010-SDS-010-SMS-110 fail-closed scan complete."
+  echo "PASS: FS-310-HDS-030-SDS-010-SMS-110 fail-closed scan complete."
   echo "  ${violation_count} 'or' defaults identified (tracked as known gaps)."
   echo "  Scanner proves ability to detect network-affecting defaults."
   exit 0
