@@ -31,6 +31,8 @@ run_one() {
           flake = builtins.getFlake repoRoot;
           lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
           hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
             selector = "lab-host";
             inherit system intentPath inventoryPath;

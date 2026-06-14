@@ -3,7 +3,7 @@
 , inventoryPath ? builtins.getEnv "INVENTORY_PATH"
 , system ? "x86_64-linux"
 , ...
-}:
+}@args:
 let
   repoRoot = builtins.getEnv "REPO_ROOT";
   flake = builtins.getFlake ("path:" + repoRoot);
@@ -21,6 +21,8 @@ let
   hostBuild = flake.lib.renderer.buildHostFromControlPlane {
     controlPlaneOut = cpmOut;
     inherit selector system;
+    containerDefaults = args.containerDefaults or { };
+    disabled = args.disabled or { };
   };
 in
 hostBuild

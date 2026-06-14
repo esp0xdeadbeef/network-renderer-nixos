@@ -45,12 +45,16 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
+        hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
+          selector = "s-router-test";
+          system = "x86_64-linux";
+          intentPath = builtins.getEnv "INTENT_PATH";
+          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        };
         module = flake.lib.renderer.hostModule {
           inherit lib;
-          system = "x86_64-linux";
-          outPath = builtins.getEnv "EXAMPLE_ROOT";
           hostName = "s-router-test";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
+          cpm = hostBuild.controlPlaneOut;
           selectorFile = "tests/test-host-build-artifact-module.sh";
           containerDefaults = {
             autoStart = true;

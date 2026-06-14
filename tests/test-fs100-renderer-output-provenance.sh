@@ -72,7 +72,6 @@ nix_eval_json_or_fail \
         };
         rendered = flake.lib.renderer.renderDryConfig {
           inherit cpm;
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
           exampleDir = builtins.dirOf (builtins.getEnv "CPM_PATH");
           debug = true;
         };

@@ -47,7 +47,6 @@ EOF
           in
           flake.lib.renderer.renderDryConfig {
             cpmPath = builtins.getEnv "CPM_PATH";
-            inventoryPath = builtins.getEnv "INVENTORY_PATH";
             exampleDir = builtins.dirOf (builtins.getEnv "CPM_PATH");
             debug = true;
           }

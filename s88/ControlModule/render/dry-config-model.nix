@@ -74,21 +74,21 @@ let
         value = {
           logicalNode = runtimeContext.logicalNodeForUnit {
             cpm = controlPlane;
-            inventory = resolvedInventory;
+            source = resolvedInventory;
             inherit unitName;
             file = "s88/CM/network/render/dry-config-model.nix";
           };
 
           deploymentHostName = runtimeContext.deploymentHostForUnit {
             cpm = controlPlane;
-            inventory = resolvedInventory;
+            source = resolvedInventory;
             inherit unitName;
             file = "s88/CM/network/render/dry-config-model.nix";
           };
 
           role = runtimeContext.roleForUnit {
             cpm = controlPlane;
-            inventory = resolvedInventory;
+            source = resolvedInventory;
             inherit unitName;
             file = "s88/CM/network/render/dry-config-model.nix";
           };
