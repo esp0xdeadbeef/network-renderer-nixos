@@ -151,8 +151,8 @@
           networking.useDHCP = lib.mkIf mgmtManageDhcp false;
           networking.useHostResolvConf = userLib.mkForce false;
 
-          systemd.network.netdevs = userLib.mkOverride 50 ((rendered.netdevs or { }) // mgmtNetdevs);
-          systemd.network.networks = userLib.mkOverride 50 ((rendered.networks or { }) // mgmtNetworks);
+          systemd.network.netdevs = (rendered.netdevs or { }) // mgmtNetdevs;
+          systemd.network.networks = (rendered.networks or { }) // mgmtNetworks;
           containers = rendered.containers or { };
         }
         // builtins.seq mgmtValidate { };
