@@ -77,7 +77,7 @@
           mgmtHost = if effectiveCpm != null && effectiveCpm ? deploymentHosts then effectiveCpm.deploymentHosts.${hostName} or null else null;
           mgmtUplink = if mgmtHost != null && mgmtHost ? uplinks then mgmtHost.uplinks.management or null else null;
           mgmtMode = if mgmtUplink != null && mgmtUplink ? mode then mgmtUplink.mode else null;
-          mgmtParent = if mgmtUplink != null && mgmtUplink ? parent then mgmtUplink.parent else "eth0";
+          mgmtParent = if mgmtUplink != null && mgmtUplink ? parent then mgmtUplink.parent else null;
           mgmtVlanId = if mgmtMode == "vlan" && mgmtUplink ? vlan then mgmtUplink.vlan else null;
 
           # CPM-driven: does the management uplink request DHCP via the renderer?
@@ -117,7 +117,7 @@
                 IPv6AcceptRA = "no";
               };
             };
-          } else if mgmtManageDhcp && mgmtMode == "native" then {
+          } else if mgmtManageDhcp && mgmtMode == "native" && mgmtParent != null then {
             # Native mode: DHCP directly on the physical interface
             "10-${mgmtParent}" = {
               matchConfig.Name = mgmtParent;
