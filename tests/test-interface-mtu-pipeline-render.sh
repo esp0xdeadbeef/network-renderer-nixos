@@ -53,7 +53,7 @@ nix_eval_json_or_fail \
             ;
           hostName = "lab-host";
           cpm = hostBuild.controlPlaneOut;
-          inventory = hostBuild.globalInventory;
+          source = hostBuild.globalInventory;
           hostContext = hostBuild.hostContext;
         };
         debugContainers = import (repoPath + "/s88/ControlModule/render/containers.nix") {
@@ -63,7 +63,7 @@ nix_eval_json_or_fail \
             hostPlan
             ;
           cpm = hostBuild.controlPlaneOut;
-          inventory = hostBuild.globalInventory;
+          source = hostBuild.globalInventory;
           debugEnabled = true;
         };
         debugModel = debugContainers.s-router-core-wan.specialArgs.s88Debug;

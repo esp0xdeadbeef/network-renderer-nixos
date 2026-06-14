@@ -4,11 +4,9 @@ let
   lib = flake.inputs.nixpkgs.lib;
   system = "x86_64-linux";
 
-  containers = flake.lib.containers.buildForBox {
+  containers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
     boxName = "s-router-hetzner-anywhere";
     inherit system;
-    intentPath = builtins.getEnv "INTENT_PATH";
-    inventoryPath = builtins.getEnv "INVENTORY_PATH";
   };
 
   cfg = (lib.nixosSystem {

@@ -5,10 +5,8 @@ let
   lib = flake.inputs.nixpkgs.lib;
   system = "x86_64-linux";
 
-  containers = flake.lib.containers.buildForBox {
+  containers = import (repoRoot + "/tests/nix/build-containers-from-paths.nix") {
     inherit boxName system;
-    intentPath = builtins.getEnv "INTENT_PATH";
-    inventoryPath = builtins.getEnv "INVENTORY_PATH";
   };
 
   isDefault =
