@@ -56,12 +56,22 @@ while IFS= read -r line; do
   [[ -z "${line}" ]] && continue
   file_path="$(echo "${line}" | cut -d: -f1)"
   rel_path="${file_path#${repo_root}/}"
-  content="$(echo "${line}" | cut -d: -f2-)"
+  raw_content="$(echo "${line}" | cut -d: -f2-)"
+  # Strip line-number prefix: grep -rn output is 'file:line:content'
+  # After cut -d: -f2-, we get 'line:content' — strip the line number
+  content="${raw_content#*:}"
   
-  # Skip local imports and parameter defaults
+  # Skip comment lines and local imports
   [[ "${content}" =~ ^[[:space:]]*# ]] && continue
   echo "${content}" | grep -qE 'import \./' && continue
   echo "${content}" | grep -qE 'file \? "s88/' && continue
+  
+  # Skip guard assertions that document the SMS-100 prohibition
+  echo "${content}" | grep -qF 'CMC-NIXOS-' && continue
+  echo "${content}" | grep -qF 'NOT discover intent.nix/inventory.nix from disk' && continue
+  echo "${content}" | grep -qF 'not discover intent.nix/inventory.nix from disk' && continue
+  echo "${content}" | grep -qF 'renderers must consume' && continue
+  echo "${content}" | grep -qF 'renderers must NOT' && continue
   
   # Classify: is this an upstream path reference or a realization.nodes walk?
   if echo "${content}" | grep -q 'inventory\.realization\.nodes'; then
