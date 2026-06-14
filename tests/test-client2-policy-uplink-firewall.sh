@@ -17,7 +17,7 @@ policy_rules="$(
         let
           flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
           system = "x86_64-linux";
-          hostBuild = flake.lib.renderer.buildHostFromPaths {
+          hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
             selector = "s-router-test";
             intentPath = builtins.getEnv "INTENT_PATH";
             inventoryPath = builtins.getEnv "INVENTORY_PATH";

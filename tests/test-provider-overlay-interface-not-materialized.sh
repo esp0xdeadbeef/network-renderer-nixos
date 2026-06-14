@@ -22,7 +22,7 @@ nix_eval_true_or_fail "provider-overlay-interface-not-materialized" env \
         flake = builtins.getFlake repoRoot;
         lib = flake.inputs.nixpkgs.lib;
         system = "x86_64-linux";
-        built = flake.lib.renderer.buildHostFromPaths {
+        built = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           inherit system intentPath inventoryPath;
         };

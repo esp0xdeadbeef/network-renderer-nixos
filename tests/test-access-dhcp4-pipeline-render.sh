@@ -69,7 +69,7 @@ nix_eval_json_or_fail \
         inventoryPath = builtins.getEnv "INVENTORY_PATH";
         flake = builtins.getFlake repoRoot;
         system = builtins.currentSystem;
-        hostBuild = flake.lib.renderer.buildHostFromPaths {
+        hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "lab-host";
           inherit system intentPath inventoryPath;
         };

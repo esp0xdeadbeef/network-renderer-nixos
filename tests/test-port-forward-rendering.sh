@@ -24,7 +24,7 @@ core_rules="$(
         inventoryPath = builtins.getEnv "INVENTORY_PATH";
         flake = builtins.getFlake repoRoot;
         system = "x86_64-linux";
-        hostBuild = flake.lib.renderer.buildHostFromPaths {
+        hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "lab-host";
           inherit system intentPath inventoryPath;
         };
@@ -51,7 +51,7 @@ policy_rules="$(
         inventoryPath = builtins.getEnv "INVENTORY_PATH";
         flake = builtins.getFlake repoRoot;
         system = "x86_64-linux";
-        hostBuild = flake.lib.renderer.buildHostFromPaths {
+        hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "lab-host";
           inherit system intentPath inventoryPath;
         };

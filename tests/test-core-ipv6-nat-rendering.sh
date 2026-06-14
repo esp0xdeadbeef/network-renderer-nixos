@@ -51,7 +51,7 @@ nix_eval_json_or_fail \
           repoRoot = ./.;
           flakeInputs = flake.inputs // { network-control-plane-model = cpmInput; };
         };
-        hostBuild = rendererApi.renderer.buildHostFromPaths {
+        hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           inherit system;
           intentPath = builtins.getEnv "INTENT_PATH";

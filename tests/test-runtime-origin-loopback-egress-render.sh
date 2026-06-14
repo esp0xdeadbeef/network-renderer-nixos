@@ -17,7 +17,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
         repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
         flake = builtins.getFlake repoRoot;
         system = "x86_64-linux";
-        built = flake.lib.renderer.buildHostFromPaths {
+        built = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";

@@ -22,13 +22,13 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
-        host = flake.lib.renderer.buildHostFromPaths {
+        host = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        clientHost = flake.lib.renderer.buildHostFromPaths {
+        clientHost = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test-clients";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";

@@ -22,7 +22,7 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:dual-wan" \
     --impure --expr '
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
-        host = flake.lib.renderer.buildHostFromPaths {
+        host = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "lab-host";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";
@@ -58,13 +58,13 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
     --impure --expr '
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
-        testHost = flake.lib.renderer.buildHostFromPaths {
+        testHost = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        hetznerHost = flake.lib.renderer.buildHostFromPaths {
+        hetznerHost = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-hetzner-anywhere";
           system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";
