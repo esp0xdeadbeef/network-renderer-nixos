@@ -154,6 +154,17 @@
           systemd.network.netdevs = (rendered.netdevs or { }) // mgmtNetdevs;
           systemd.network.networks = (rendered.networks or { }) // mgmtNetworks;
           containers = rendered.containers or { };
+
+          # GAMP: FS-840 — scoped runtime secret delivery: containers with
+          # bind mounts to /run/secrets/ must wait for sops-nix.service.
+          systemd.services = builtins.listToAttrs (map
+            (name: {
+              name = "container@${name}";
+              value = {
+                after = [ "sops-nix.service" ];
+              };
+            })
+            (builtins.attrNames (rendered.containers or { })));
         }
         // builtins.seq mgmtValidate { };
 
