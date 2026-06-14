@@ -31,17 +31,13 @@ nix_eval_json_or_fail \
       let
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
-        builtContainers = flake.lib.containers.buildForBox {
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-test";
           system = "x86_64-linux";
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        builtHetznerContainers = flake.lib.containers.buildForBox {
+        builtHetznerContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-hetzner-anywhere";
           system = "x86_64-linux";
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         mkCfgFrom = containers: containerName:
           (flake.inputs.nixpkgs.lib.nixosSystem {

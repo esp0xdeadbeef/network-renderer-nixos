@@ -54,14 +54,10 @@ nix_eval_json_or_fail \
         hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
           inherit system;
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
-        builtContainers = rendererApi.containers.buildForBox {
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = "s-router-test";
           inherit system;
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         cfg = (lib.nixosSystem {
           inherit system;

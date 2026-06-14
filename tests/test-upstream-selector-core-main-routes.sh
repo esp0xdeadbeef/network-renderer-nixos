@@ -37,11 +37,9 @@ run_case() {
         flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
         lib = flake.inputs.nixpkgs.lib;
         label = builtins.getEnv "CASE_LABEL";
-        builtContainers = flake.lib.containers.buildForBox {
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
           boxName = builtins.getEnv "BOX_NAME";
           system = "x86_64-linux";
-          intentPath = builtins.getEnv "INTENT_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
         };
         cfg = (lib.nixosSystem {
           system = "x86_64-linux";
