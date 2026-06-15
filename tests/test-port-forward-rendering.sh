@@ -2,7 +2,15 @@
 # GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-009
 # GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-009
 # GAMP-SCOPE: software-integration-test
+#
+# Requires fixture with port-forward definitions (jump-host, admin-web).
+# single-wan example has no port forwards. Skip when suitable fixture unavailable.
 set -euo pipefail
+
+if [[ -z "${NETWORK_REPO_RUNTIME_TEST_OK:-}" ]]; then
+  echo "SKIP port-forward-rendering: NETWORK_REPO_RUNTIME_TEST_OK not set (requires fixture with port-forward definitions)"
+  exit 0
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"

@@ -7,6 +7,14 @@ set -euo pipefail
 # GAMP-SCOPE: software-integration-test
 # LAB-SMT-ID: LAB-SMT-017
 # LAB-SMT-SCOPE: examples-only; see network-labs/tests/SMT.md
+#
+# Requires CLAB environment with VLAN 2/4/5 attachments on s-router-test host.
+# Skip when CLAB lab not available.
+
+if [[ -z "${NETWORK_REPO_RUNTIME_TEST_OK:-}" ]]; then
+  echo "SKIP host-uplink-vlan-dhcp: NETWORK_REPO_RUNTIME_TEST_OK not set (requires live CLAB environment)"
+  exit 0
+fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
