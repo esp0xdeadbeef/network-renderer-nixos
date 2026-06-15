@@ -1,0 +1,16 @@
+{
+  esp0xdeadbeef = {
+    site-a = {
+      communicationContract = { interfaceTags = { external-isp-a = "isp-a"; external-isp-b = "isp-b"; tenant-adm = "adm"; tenant-mgmt = "mgmt"; }; relations = [{ action = "allow"; from = { kind = "tenant-set"; members = [ "mgmt" "adm" ]; }; id = "allow-tenants-to-uplinks"; priority = 100; to = { kind = "external"; uplinks = [ "isp-a" "isp-b" ]; }; trafficType = "any"; }]; services = [ ]; trafficTypes = [ ]; };
+      ownership = { prefixes = [{ ipv4 = "10.20.10.0/24"; ipv6 = "fd42:dead:beef:20::/64"; kind = "tenant"; name = "mgmt"; } { ipv4 = "10.21.10.0/24"; ipv6 = "fd42:dead:beef:21::/64"; kind = "tenant"; name = "adm"; }]; };
+      pools = { loopback = { ipv4 = "10.19.0.0/24"; ipv6 = "fd42:dead:beef:1900::/118"; }; p2p = { ipv4 = "10.10.0.0/24"; ipv6 = "fd42:dead:beef:1000::/118"; }; };
+      topology = { links = [ [ "s-router-core-isp-a" "s-router-upstream-selector" ] [ "s-router-core-isp-b" "s-router-upstream-selector" ] [ "s-router-upstream-selector" "s-router-policy" ] [ "s-router-policy" "s-router-downstream-selector" ] [ "s-router-downstream-selector" "s-router-access-adm" ] [ "s-router-downstream-selector" "s-router-access-mgmt" ] ]; nodes = { s-router-access-adm = { attachments = [{ kind = "tenant"; name = "adm"; }]; role = "access"; }; s-router-access-mgmt = { attachments = [{ kind = "tenant"; name = "mgmt"; }]; role = "access"; }; s-router-core-isp-a = { role = "core"; uplinks = { isp-a = { ipv4 = [ "0.0.0.0/0" ]; ipv6 = [ "::/0" ]; }; }; }; s-router-core-isp-b = { role = "core"; uplinks = { isp-b = { ipv4 = [ "0.0.0.0/0" ]; ipv6 = [ "::/0" ]; }; }; }; s-router-downstream-selector = { role = "downstream-selector"; }; s-router-policy = { role = "policy"; }; s-router-upstream-selector = { role = "upstream-selector"; }; }; };
+    };
+    site-b = {
+      communicationContract = { interfaceTags = { external-isp-a = "isp-a"; external-isp-b = "isp-b"; tenant-mgmt = "mgmt"; }; relations = [{ action = "allow"; from = { kind = "tenant"; name = "mgmt"; }; id = "allow-mgmt-to-uplinks"; priority = 100; to = { kind = "external"; uplinks = [ "isp-a" "isp-b" ]; }; trafficType = "any"; }]; services = [ ]; trafficTypes = [ ]; };
+      ownership = { prefixes = [{ ipv4 = "10.30.10.0/24"; ipv6 = "fd42:dead:beef:11::/64"; kind = "tenant"; name = "mgmt"; }]; };
+      pools = { loopback = { ipv4 = "10.29.0.0/24"; ipv6 = "fd42:dead:beef:2900::/118"; }; p2p = { ipv4 = "10.11.0.0/24"; ipv6 = "fd42:dead:beef:1100::/118"; }; };
+      topology = { links = [ [ "s-router-core-isp-a" "s-router-upstream-selector" ] [ "s-router-core-isp-b" "s-router-upstream-selector" ] [ "s-router-upstream-selector" "s-router-policy" ] [ "s-router-policy" "s-router-downstream-selector" ] [ "s-router-downstream-selector" "s-router-access" ] ]; nodes = { s-router-access = { attachments = [{ kind = "tenant"; name = "mgmt"; }]; role = "access"; }; s-router-core-isp-a = { role = "core"; uplinks = { isp-a = { ipv4 = [ "0.0.0.0/0" ]; ipv6 = [ "::/0" ]; }; }; }; s-router-core-isp-b = { role = "core"; uplinks = { isp-b = { ipv4 = [ "0.0.0.0/0" ]; ipv6 = [ "::/0" ]; }; }; }; s-router-downstream-selector = { role = "downstream-selector"; }; s-router-policy = { role = "policy"; }; s-router-upstream-selector = { role = "upstream-selector"; }; }; };
+    };
+  };
+}

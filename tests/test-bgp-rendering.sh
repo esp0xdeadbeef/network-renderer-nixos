@@ -7,7 +7,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 labs_root="$(flake_input_path network-labs)"
-example_dir="${labs_root}/examples/single-wan-uplink-ebgp"
+example_dir="${labs_root}/examples/single-wan-bgp"
 intent_path="${example_dir}/intent.nix"
 inventory_path="${example_dir}/inventory-nixos.nix"
 

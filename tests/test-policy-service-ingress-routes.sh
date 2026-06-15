@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_root="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy"
+example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 result_json="$(mktemp)"
 eval_stderr="$(mktemp)"
 trap 'rm -f "${result_json}" "${eval_stderr}"' EXIT

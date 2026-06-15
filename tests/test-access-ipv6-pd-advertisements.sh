@@ -4,9 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-labs_root="$(flake_input_path network-labs)"
-intent_path="${labs_root}/examples/single-wan-ipv6-pd/intent.nix"
-inventory_path="${labs_root}/examples/single-wan-ipv6-pd/inventory-nixos.nix"
+intent_path="${repo_root}/tests/fixtures/single-wan-ipv6-pd/intent.nix"
+inventory_path="${repo_root}/tests/fixtures/single-wan-ipv6-pd/inventory-nixos.nix"
 
 [[ -f "${intent_path}" ]] || { echo "missing intent: ${intent_path}" >&2; exit 1; }
 [[ -f "${inventory_path}" ]] || { echo "missing inventory: ${inventory_path}" >&2; exit 1; }
