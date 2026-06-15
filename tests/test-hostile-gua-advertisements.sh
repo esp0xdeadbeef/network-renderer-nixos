@@ -50,7 +50,7 @@ INVENTORY_PATH="${inventory_path}" \
         hetznerServiceNames = builtins.attrNames hetznerCoreCfg.systemd.services;
         hasDelegatedRouteService =
           builtins.any
-            (name: builtins.match "s88-delegated-prefix-route-upstream-.*" name != null)
+            (name: builtins.match "s88-delegated-prefix-route-core-up-egress-.*" name != null)
             coreServiceNames;
         hetznerDelegatedRouteScripts =
           map
