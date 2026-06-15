@@ -52,11 +52,11 @@ nix_eval_json_or_fail \
           flakeInputs = flake.inputs // { network-control-plane-model = cpmInput; };
         };
         hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
-          selector = "s-router-test";
+          selector = "lab-host";
           inherit system;
         };
         builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
-          boxName = "s-router-test";
+          boxName = "lab-host";
           inherit system;
         };
         cfg = (lib.nixosSystem {
