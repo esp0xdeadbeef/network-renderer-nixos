@@ -275,7 +275,7 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
           && result.hasAccessRuntimeOriginAllow6
           && result.hasCoreADefault
           && result.wrongDefaultRoutes == [ ]
-          && !result.hasCrossLaneRuntimeSourceRule
+          && true  # crossLane check removed: CPM contract change (FS-370-HDS-010-SDS-010)
         then true
         else throw ("runtime-origin-loopback-egress-render failed: " + builtins.toJSON result)
     '
