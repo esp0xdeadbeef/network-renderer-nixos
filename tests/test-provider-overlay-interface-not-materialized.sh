@@ -48,8 +48,9 @@ nix_eval_true_or_fail "provider-overlay-interface-not-materialized" env \
         && !(networks ? "10-overlay-west")
         && !(networks ? "10-overlay-east-west")
         && (builtins.length (builtins.attrNames providerRouteServices)) >= 2
-        && lib.hasInfix "core-lan-to-overlay" nftRules
-        && lib.hasInfix "core-overlay-to-lan" nftRules
+        && lib.hasInfix "iifname \"nebula1\" accept" nftRules
+        && lib.hasInfix "iifname \"nebula1\" oifname \"upstream\" accept" nftRules
+        && lib.hasInfix "iifname \"upstream\" oifname \"nebula1\"" nftRules
     '
 
 echo "PASS provider-overlay-interface-not-materialized"
