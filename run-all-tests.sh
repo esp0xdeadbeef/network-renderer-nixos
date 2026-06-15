@@ -12,6 +12,7 @@
 #   TEST_TIMEOUT_SECONDS    Per-test timeout (default: 1800)
 
 set -euo pipefail
+exec > >(tee "/tmp/network-renderer-nixos-tests.out")
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 test_dir="${repo_root}/tests"
@@ -111,6 +112,7 @@ done
 # --- report ---
 total=$((passed + failures))
 printf '\n%s/%s tests passed\n' "${passed}" "${total}"
+printf 'PASS: %s, FAIL: %s, TOTAL: %s\n' "${passed}" "${failures}" "${total}" >&2
 
 if (( failures > 0 )); then
   printf 'FAIL network-renderer-nixos: %s test(s) failed\n' "${failures}" >&2
