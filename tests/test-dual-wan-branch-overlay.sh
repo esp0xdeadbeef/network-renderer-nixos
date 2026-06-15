@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 source "${repo_root}/tests/lib/test-common.sh"
 
-search_root="$(flake_input_path network-labs)/examples"
+search_root="${repo_root}/tests/fixtures"
 
 run_one() {
   local example_name="$1"

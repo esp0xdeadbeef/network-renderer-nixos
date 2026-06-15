@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_root="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy"
+example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 
 nix_eval_true_or_fail "provider-overlay-interface-not-materialized" env \
   REPO_ROOT="${repo_root}" \

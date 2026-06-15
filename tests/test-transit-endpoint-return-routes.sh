@@ -5,8 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 source "${repo_root}/tests/lib/test-common.sh"
 
-search_root="$(flake_input_path network-labs)/examples"
-example_root="${search_root}/dual-wan-branch-overlay-bgp"
+example_root="${repo_root}/tests/fixtures/dual-wan-branch-overlay-bgp"
 intent_path="${example_root}/intent.nix"
 inventory_path="${example_root}/inventory-nixos.nix"
 
@@ -51,8 +50,8 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:dual-wan" \
 
 nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
   env REPO_ROOT="${repo_root}" \
-    INTENT_PATH="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy/intent.nix" \
-    INVENTORY_PATH="$(flake_input_path network-labs)/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix" \
+    INTENT_PATH="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy/intent.nix" \
+    INVENTORY_PATH="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy/inventory-nixos.nix" \
     nix eval \
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr '

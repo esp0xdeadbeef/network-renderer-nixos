@@ -6,8 +6,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-labs_root="$(flake_input_path network-labs)"
-case_dir="${labs_root}/examples/ipv6-pd-downstream-delegation"
+case_dir="${repo_root}/tests/fixtures/ipv6-pd-downstream-delegation"
 intent_path="${case_dir}/intent.nix"
 inventory_path="${case_dir}/inventory-nixos.nix"
 

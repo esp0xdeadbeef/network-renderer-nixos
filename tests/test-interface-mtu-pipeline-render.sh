@@ -6,7 +6,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_dir="$(flake_input_path network-labs)/examples/single-wan-uplink-static-egress"
+example_dir="$(flake_input_path network-labs)/examples/single-wan"
 intent_path="${example_dir}/intent.nix"
 inventory_source="${example_dir}/inventory-nixos.nix"
 
@@ -18,7 +18,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 cp "${inventory_source}" "${tmp_dir}/inventory.nix"
 chmod u+w "${tmp_dir}/inventory.nix"
 
-perl -0pi -e 's/interface = \{ name = "ens4"; addr4 = "192\.0\.2\.2\/24"; \}; uplink = "wan";/interface = { name = "ens4"; addr4 = "192.0.2.2\/24"; mtu = 1492; }; uplink = "wan";/' "${tmp_dir}/inventory.nix"
+perl -0pi -e 's/interface = \{ name = "ens4"; \}; uplink = "wan";/interface = { name = "ens4"; mtu = 1492; }; uplink = "wan";/' "${tmp_dir}/inventory.nix"
 rg -q 'mtu = 1492' "${tmp_dir}/inventory.nix" \
   || fail "interface-mtu-pipeline-render: failed to inject explicit MTU into inventory fixture"
 

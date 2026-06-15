@@ -8,7 +8,6 @@ result_json="$(mktemp)"
 eval_stderr="$(mktemp)"
 trap 'rm -f "${result_json}" "${eval_stderr}"' EXIT
 
-labs_root="$(flake_input_path network-labs)"
 
 run_case() {
   local label="$1"
@@ -136,7 +135,7 @@ run_case \
   example \
   s-router-hetzner-anywhere \
   c-router-upstream-selector \
-  "${labs_root}/examples/s-router-overlay-dns-lane-policy/intent.nix" \
-  "${labs_root}/examples/s-router-overlay-dns-lane-policy/inventory-nixos.nix"
+  "${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy/intent.nix" \
+  "${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy/inventory-nixos.nix"
 
 echo "PASS upstream-selector-core-main-routes"
