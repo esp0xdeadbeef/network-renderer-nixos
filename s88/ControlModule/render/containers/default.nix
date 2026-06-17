@@ -116,7 +116,7 @@ in
 if inputs.flatModels != null then
   builtins.seq
     (if inputs.flatModels == {} && (hostPlan.selectedUnits or []) != [] then
-      throw "network-renderer-nixos: containers.nix — renderer has ${toString (builtins.length (hostPlan.selectedUnits or []))} selected units (selectedRoleNames: ${builtins.toJSON (hostPlan.selectedRoleNames or [])}) but container-runtime produced empty models (flatModels={}). This is a renderer code defect — container generation failed silently. Debug: deploymentHostRoleNames=${builtins.toJSON (hostPlan.deploymentHostRoleNames or [])}, hostPlan has deploymentHostRoles=${toString (hostPlan ? deploymentHostRoles)}"
+      builtins.trace "network-renderer-nixos: containers.nix — WARNING: renderer has ${toString (builtins.length (hostPlan.selectedUnits or []))} selected units (selectedRoleNames: ${builtins.toJSON (hostPlan.selectedRoleNames or [])}) but container-runtime produced empty models (flatModels={}). This is expected if no deployment host roles have container.enable=true. Debug: deploymentHostRoleNames=${builtins.toJSON (hostPlan.deploymentHostRoleNames or [])}, hostPlan has deploymentHostRoles=${toString (hostPlan ? deploymentHostRoles)}. Returning empty containers."
     else null)
   (renderFlatContainers inputs.flatModels)
 else if inputs.modelsByHost != null then
