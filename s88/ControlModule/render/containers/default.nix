@@ -111,8 +111,14 @@ let
       )
       nestedModels;
 in
+# Guard: if selectedUnits exist but container-runtime produced empty models,
+# fail loudly instead of silently deploying zero containers.
 if inputs.flatModels != null then
-  renderFlatContainers inputs.flatModels
+  builtins.seq
+    (if inputs.flatModels == {} && (hostPlan.selectedUnits or []) != [] then
+      throw "network-renderer-nixos: containers.nix — renderer has ${toString (builtins.length (hostPlan.selectedUnits or []))} selected units (selectedRoleNames: ${builtins.toJSON (hostPlan.selectedRoleNames or [])}) but container-runtime produced empty models (flatModels={}). This is a renderer code defect — container generation failed silently. Debug: deploymentHostRoleNames=${builtins.toJSON (hostPlan.deploymentHostRoleNames or [])}, hostPlan has deploymentHostRoles=${toString (hostPlan ? deploymentHostRoles)}"
+    else null)
+  (renderFlatContainers inputs.flatModels)
 else if inputs.modelsByHost != null then
   renderNestedContainers inputs.modelsByHost
 else
