@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-320-HDS-020-SDS-010-SMS-020
+# GAMP-ID: FS-320-HDS-040-SDS-010-SMS-060
 # GAMP-SCOPE: software-module-test
 # Focused construction test: NixOS renderer explicit role classification.
 #
-# SMS-020: The NixOS renderer must classify interfaces by CPM explicit
+# SMS-060: The NixOS renderer must classify interfaces by CPM explicit
 # role flags (explicitWan, explicitTransit, explicitLocalAdapter) rather
 # than falling back to sourceKind string tokens.
 #
@@ -23,7 +23,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 all_checks_passed=true
 src_dir="${repo_root}/s88"
 
-echo "--- FS-320-HDS-020-SDS-010-SMS-020: Explicit role classification scan ---"
+echo "--- FS-320-HDS-040-SDS-010-SMS-060: Explicit role classification scan ---"
 echo ""
 
 # ============================================================
@@ -198,9 +198,9 @@ fi
 # ============================================================
 echo ""
 if ${all_checks_passed}; then
-  echo "PASS: FS-320-HDS-020-SDS-010-SMS-020 — NixOS renderer uses CPM explicit role classification, no sourceKind fallback."
+  echo "PASS: FS-320-HDS-040-SDS-010-SMS-060 — NixOS renderer uses CPM explicit role classification, no sourceKind fallback."
   exit 0
 else
-  echo "FAIL: FS-320-HDS-020-SDS-010-SMS-020 — one or more predicates failed."
+  echo "FAIL: FS-320-HDS-040-SDS-010-SMS-060 — one or more predicates failed."
   exit 1
 fi
