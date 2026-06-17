@@ -14,7 +14,7 @@ let
       fromPlan = hostPlan.deploymentHostRoles or { };
     in
     if fromPlan != { } then fromPlan else selectedRoles;
-  # placeholder for next binding
+  unitRoles = hostPlan.deploymentHostUnitRoles or (hostPlan.unitRoles or { });
 
   deploymentHostContainerNamingUnits =
     hostPlan.deploymentHostContainerNamingUnits
