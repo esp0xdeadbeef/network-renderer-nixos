@@ -9,7 +9,11 @@ let
   normalizedRuntimeTargets = hostPlan.normalizedRuntimeTargets or { };
   selectedUnits = hostPlan.selectedUnits or [ ];
   selectedRoles = hostPlan.selectedRoles or { };
-  deploymentHostRoles = hostPlan.deploymentHostRoles or selectedRoles;
+  deploymentHostRoles =
+    let
+      fromPlan = hostPlan.deploymentHostRoles or { };
+    in
+    if fromPlan != { } then fromPlan else selectedRoles;
   unitRoles = hostPlan.deploymentHostUnitRoles or (hostPlan.unitRoles or { });
 
   deploymentHostContainerNamingUnits =
