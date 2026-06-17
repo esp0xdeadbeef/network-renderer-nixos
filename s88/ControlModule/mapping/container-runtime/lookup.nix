@@ -13,8 +13,8 @@ let
     let
       fromPlan = hostPlan.deploymentHostRoles or { };
     in
-    builtins.throw "DEBUG container-runtime lookup: deploymentHostRoleNames=${builtins.toJSON (hostPlan.deploymentHostRoleNames or [])}, selectedRoleNames=${builtins.toJSON (hostPlan.selectedRoleNames or [])}, selectedRoles keys=${builtins.toJSON (builtins.attrNames selectedRoles)}, fromPlan keys=${builtins.toJSON (builtins.attrNames fromPlan)}, selectedUnit count=${toString (builtins.length selectedUnits)}"
-  unitRoles = hostPlan.deploymentHostUnitRoles or (hostPlan.unitRoles or { });
+    if fromPlan != { } then fromPlan else selectedRoles;
+  # placeholder for next binding
 
   deploymentHostContainerNamingUnits =
     hostPlan.deploymentHostContainerNamingUnits
