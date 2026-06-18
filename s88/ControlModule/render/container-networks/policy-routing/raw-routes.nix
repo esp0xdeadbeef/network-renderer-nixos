@@ -149,6 +149,23 @@ let
       connectedP2pScopeRoutesForInterface sourceIfName
     else
       [ ];
+  policyConnectedRoutes =
+    if
+      isPolicy
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+    then
+      connectedP2pScopeRoutesForInterface sourceIfName
+    else
+      [ ];
+  upstreamCoreConnectedRoutes =
+    if
+      isUpstreamSelector
+      && isUpstreamSelectorCoreInterface interfaceName
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+    then
+      connectedP2pScopeRoutesForInterface sourceIfName
+    else
+      [ ];
   downstreamSelectorTenantReturnRoutes =
     if
       isSelector
@@ -185,6 +202,7 @@ let
     then
       (lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ]))
       ++ upstreamCoreReturnRoutes
+      ++ upstreamCoreConnectedRoutes
     else if
       isUpstreamSelector
       && isUpstreamSelectorPolicyInterface interfaceName
@@ -196,12 +214,14 @@ let
       (returnRoutes.forUpstreamCore interfaceName sourceIfName)
       ++ explicitAcceptedNonDefaultRoutes
       ++ explicitForwardTargetDefaultRoutes
+      ++ upstreamCoreConnectedRoutes
     else
       (interfaces.${sourceIfName}.routes or [ ])
       ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName)
       ++ explicitForwardTargetDefaultRoutes
       ++ policyDownstreamDefaultRoutes
       ++ policyUpstreamReturnRoutes
+      ++ policyConnectedRoutes
       ++ downstreamSelectorReturnConnectedRoutes
       ++ downstreamSelectorTenantReturnRoutes
       ++ downstreamSelectorAccessTableTenantReturnRoutes;

@@ -99,33 +99,47 @@ in
   connectedP2pRoutesForInterface =
     ifName:
     let
-      iface = interfaces.${ifName};
+      iface =
+        if interfaces ? ${ifName} then
+          interfaces.${ifName}
+        else
+          throw "connectedP2pRoutesForInterface: non-existent interface '${ifName}' — peer route references an interface that does not exist in the current layout.";
       peer4 = peers.ipv4PeerFor31 (peers.addressForFamily 4 iface);
       peer6 = peers.ipv6PeerFor127 (peers.addressForFamily 6 iface);
     in
     (lib.optional (peer4 != null) {
       dst = "${peer4}/31";
       via4 = peer4;
+      scope = "link";
+      proto = "kernel";
     })
     ++ (lib.optional (peer6 != null) {
       dst = "${peer6}/127";
       via6 = peer6;
+      scope = "link";
+      proto = "kernel";
     });
 
   connectedP2pScopeRoutesForInterface =
     ifName:
     let
-      iface = interfaces.${ifName};
+      iface =
+        if interfaces ? ${ifName} then
+          interfaces.${ifName}
+        else
+          throw "connectedP2pScopeRoutesForInterface: non-existent interface '${ifName}' — peer route references an interface that does not exist in the current layout.";
       peer4 = peers.ipv4PeerFor31 (peers.addressForFamily 4 iface);
       peer6 = peers.ipv6PeerFor127 (peers.addressForFamily 6 iface);
     in
     (lib.optional (peer4 != null) {
       dst = "${peer4}/31";
       scope = "link";
+      proto = "kernel";
     })
     ++ (lib.optional (peer6 != null) {
       dst = "${peer6}/127";
       scope = "link";
+      proto = "kernel";
     });
 
   connectedScopeRoutesForInterface =
