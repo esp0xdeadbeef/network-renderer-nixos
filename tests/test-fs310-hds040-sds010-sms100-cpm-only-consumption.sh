@@ -6,6 +6,10 @@
 # SMS-100: Renderers must consume all network data through CPM-mediated output.
 # Scans NixOS renderer source for upstream file access violations.
 #
+# Active seeded negatives (per SMS-100 Seeded Negative Requirement):
+#   N1 — direct intent.nix import via filesystem path → DIRECT_UPSTREAM_ACCESS
+#   N2 — raw inventory.realization.nodes walk → INVENTORY_TREE_WALK
+#
 # All currently-found violations are documented as KNOWN_GAPS.
 # When a gap is fixed, the test detects it as removed.
 # NEW violations beyond KNOWN_GAPS cause test failure.
@@ -110,15 +114,133 @@ echo "New violations: ${new_violations}"
 echo ""
 
 # ============================================================
-# Predicate 2: Seeded negative — verify known gaps exist
+# N1: Active seeded negative — direct intent.nix import via filesystem path
 # ============================================================
-echo "--- Seeded negative: verify known gaps are detectable ---"
-total_known=$((upstream_path_count + realization_node_count))
-echo "Total known gaps detected: ${total_known}"
-if [[ "${total_known}" -gt 0 ]]; then
-  echo "PASS: Known gaps present in source (scanner detects them)."
+echo "--- N1: Seeded negative — direct intent.nix import via filesystem path ---"
+
+n1_fixture="${tmp_dir}/n1-fixture"
+mkdir -p "${n1_fixture}/render"
+
+# Create a simulated production file that directly imports intent.nix via
+# a constructed filesystem path (e.g., "${outPath}/inputs/intent.nix").
+# Per SMS-100 Seeded Negative Requirement line 80-83, this must produce a
+# direct-upstream-access diagnostic, not silently consume intent data.
+cat > "${n1_fixture}/render/bad-intent-import.nix" << 'NIXEOF'
+{ outPath, lib }:
+
+# SMS-100 seeded negative: production render code importing intent.nix
+# via a constructed filesystem path bypasses CPM mediation.
+# This must trigger a DIRECT_UPSTREAM_ACCESS diagnostic.
+
+let
+  intentFile = "${outPath}/inputs/intent.nix";
+  intent = import intentFile;
+in
+{
+  tenants = intent.tenants or { };
+}
+NIXEOF
+
+# Scan the fixture using the same patterns as the main source scan
+n1_hits="$(grep -rn -E '(intent\.nix|inventory[^.]*\.nix)' "${n1_fixture}" --include='*.nix' 2>/dev/null || true)"
+n1_detected=false
+
+while IFS= read -r scan_line; do
+  [[ -z "${scan_line}" ]] && continue
+  scan_file="$(echo "${scan_line}" | cut -d: -f1)"
+  scan_content="$(echo "${scan_line}" | cut -d: -f2-)"
+  # Strip line number from grep output
+  scan_content="${scan_content#*:}"
+
+  # Skip comments
+  [[ "${scan_content}" =~ ^[[:space:]]*# ]] && continue
+
+  if echo "${scan_content}" | grep -qF 'intent.nix'; then
+    echo "  N1 HIT [DIRECT_UPSTREAM_ACCESS] ${scan_file}: $(echo "${scan_content}" | head -c 80)"
+    n1_detected=true
+  fi
+done <<< "${n1_hits}"
+
+if [[ "${n1_detected}" == "true" ]]; then
+  echo "  PASS: N1 — direct intent.nix import detected as DIRECT_UPSTREAM_ACCESS"
 else
-  echo "FAIL: No known gaps found — scanner may be broken."
+  echo "  FAIL: N1 — direct intent.nix import NOT detected; scanner may miss upstream path injection"
+  all_checks_passed=false
+fi
+
+# Recovery: remove the violating file and verify clean scan
+rm "${n1_fixture}/render/bad-intent-import.nix"
+n1_clean="$(grep -rn -E '(intent\.nix|inventory[^.]*\.nix)' "${n1_fixture}" --include='*.nix' 2>/dev/null || true)"
+if [[ -z "${n1_clean}" ]]; then
+  echo "  PASS: N1 recovery — clean fixture has no violations"
+else
+  echo "  FAIL: N1 recovery — fixture still shows violations after removal"
+  all_checks_passed=false
+fi
+echo ""
+
+# ============================================================
+# N2: Active seeded negative — raw inventory tree walk
+# ============================================================
+echo "--- N2: Seeded negative — raw inventory.realization.nodes walk ---"
+
+n2_fixture="${tmp_dir}/n2-fixture"
+mkdir -p "${n2_fixture}/render"
+
+# Create a simulated production file that walks raw inventory tree paths
+# (inventory.realization.nodes) instead of consuming CPM-mediated data.
+# Per SMS-100 Seeded Negative Requirement line 85-88, this must produce
+# an INVENTORY_TREE_WALK diagnostic, not silently resolve realization data.
+cat > "${n2_fixture}/render/bad-inventory-walk.nix" << 'NIXEOF'
+{ inventory, lib }:
+
+# SMS-100 seeded negative: production render code walking raw
+# inventory.realization.nodes to resolve realization data instead of
+# consuming CPM-mediated inventory structures.
+# This must trigger an INVENTORY_TREE_WALK diagnostic.
+
+let
+  nodes = inventory.realization.nodes or [ ];
+  resolvedNodes = map (n: n.host or n) nodes;
+in
+{
+  realized = resolvedNodes;
+}
+NIXEOF
+
+# Scan the fixture for inventory.realization.nodes references
+n2_hits="$(grep -rn 'inventory\.realization\.nodes' "${n2_fixture}" --include='*.nix' 2>/dev/null || true)"
+n2_detected=false
+
+while IFS= read -r scan_line; do
+  [[ -z "${scan_line}" ]] && continue
+  scan_file="$(echo "${scan_line}" | cut -d: -f1)"
+  scan_content="$(echo "${scan_line}" | cut -d: -f2-)"
+  scan_content="${scan_content#*:}"
+
+  # Skip comments
+  [[ "${scan_content}" =~ ^[[:space:]]*# ]] && continue
+
+  if echo "${scan_content}" | grep -q 'inventory\.realization\.nodes'; then
+    echo "  N2 HIT [INVENTORY_TREE_WALK] ${scan_file}: $(echo "${scan_content}" | head -c 80)"
+    n2_detected=true
+  fi
+done <<< "${n2_hits}"
+
+if [[ "${n2_detected}" == "true" ]]; then
+  echo "  PASS: N2 — raw inventory.realization.nodes walk detected as INVENTORY_TREE_WALK"
+else
+  echo "  FAIL: N2 — raw inventory.realization.nodes walk NOT detected; scanner may miss tree-walk injection"
+  all_checks_passed=false
+fi
+
+# Recovery: remove the violating file and verify clean scan
+rm "${n2_fixture}/render/bad-inventory-walk.nix"
+n2_clean="$(grep -rn 'inventory\.realization\.nodes' "${n2_fixture}" --include='*.nix' 2>/dev/null || true)"
+if [[ -z "${n2_clean}" ]]; then
+  echo "  PASS: N2 recovery — clean fixture has no violations"
+else
+  echo "  FAIL: N2 recovery — fixture still shows violations after removal"
   all_checks_passed=false
 fi
 echo ""
@@ -126,8 +248,12 @@ echo ""
 # ============================================================
 # Report
 # ============================================================
+total_known=$((upstream_path_count + realization_node_count))
 if [[ "${all_checks_passed}" == "true" ]]; then
   echo "PASS: FS-310-HDS-040-SDS-010-SMS-100 CPM-only consumption scan complete."
+  echo "Source scan: ${upstream_path_count} known paths, ${realization_node_count} known realization refs, ${new_violations} new violations."
+  echo "N1: DIRECT_UPSTREAM_ACCESS seeded negative — detected and recovered."
+  echo "N2: INVENTORY_TREE_WALK seeded negative — detected and recovered."
   echo "Tracking ${total_known} known gaps across ${#KNOWN_FILE_PATTERNS[@]} file patterns + ${#KNOWN_REALIZATION_FILES[@]} realization files."
   exit 0
 else
