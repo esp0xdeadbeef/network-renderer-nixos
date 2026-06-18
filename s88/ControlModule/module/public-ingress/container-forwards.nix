@@ -50,9 +50,9 @@ let
       );
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
       inputDports = listOr (container.inputDports or forward.inputDports or [ ]);
-      routeMetric = container.routeMetric or 5000;
-      routeTable = container.routeTable or 2200;
-      routePriority = container.routePriority or 9000;
+      routeMetric = container.routeMetric or (throw "FS-310-HDS-030-SDS-010-SMS-111: container.routeMetric required by CPM provider contract, cannot default to 5000");
+      routeTable = container.routeTable or (throw "FS-310-HDS-030-SDS-010-SMS-111: container.routeTable required by CPM provider contract, cannot default to 2200");
+      routePriority = container.routePriority or (throw "FS-310-HDS-030-SDS-010-SMS-111: container.routePriority required by CPM provider contract, cannot default to 9000");
       inputRules =
         if inputDports == [ ] then
           ""

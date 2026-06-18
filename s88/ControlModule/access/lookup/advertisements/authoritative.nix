@@ -25,7 +25,7 @@ let
         else
           [ ];
     in
-    lib.filter (entry: builtins.isAttrs entry && (entry.enabled or true) != false) raw;
+    lib.filter (entry: builtins.isAttrs entry && (entry.enabled or (throw "FS-310-HDS-030-SDS-010-SMS-111: entry.enabled required by CPM provider contract, cannot default to true")) != false) raw;
 
   authoritativeDhcp4 = enabledList "dhcp4";
   authoritativeDhcpv6 = enabledList "dhcpv6";
@@ -177,9 +177,9 @@ let
     if cpmRoutedPrefix != null then
       {
         uplink = if builtins.isString (cpmRoutedPrefix.uplink or null) && cpmRoutedPrefix.uplink != "" then cpmRoutedPrefix.uplink else throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide uplink name in advertisements.ipv6Ra[].delegatedPrefix.uplink, cannot default to 'routed-prefix'";
-        delegatedPrefixLength = cpmRoutedPrefix.delegatedPrefixLength or 64;
-        perTenantPrefixLength = cpmRoutedPrefix.perTenantPrefixLength or 64;
-        slot = cpmRoutedPrefix.slot or 0;
+        delegatedPrefixLength = cpmRoutedPrefix.delegatedPrefixLength or (throw "FS-310-HDS-030-SDS-010-SMS-111: cpmRoutedPrefix.delegatedPrefixLength required by CPM provider contract, cannot default to 64");
+        perTenantPrefixLength = cpmRoutedPrefix.perTenantPrefixLength or (throw "FS-310-HDS-030-SDS-010-SMS-111: cpmRoutedPrefix.perTenantPrefixLength required by CPM provider contract, cannot default to 64");
+        slot = cpmRoutedPrefix.slot or (throw "FS-310-HDS-030-SDS-010-SMS-111: cpmRoutedPrefix.slot required by CPM provider contract, cannot default to 0");
         sourceFile = cpmRoutedPrefix.sourceFile or null;
       }
     else if

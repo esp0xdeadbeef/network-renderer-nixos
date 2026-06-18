@@ -95,7 +95,7 @@ let
         (forward:
           lib.concatMap
             (match:
-              if (match.proto or "any") == proto then
+              if (match.proto or (throw "FS-310-HDS-030-SDS-010-SMS-111: match.proto required by CPM provider contract, cannot default to 'any'")) == proto then
                 listOr (match.dports or null)
               else
                 [ ])

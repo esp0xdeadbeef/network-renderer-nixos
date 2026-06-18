@@ -104,7 +104,10 @@ let
 
   isWanToServiceAllow =
     relation:
-    (relation.action or "allow") == "allow"
+    let
+      action = relation.action or (throw "FS-310-HDS-030-SDS-010-SMS-111: relation.action required by CPM provider contract, cannot default to 'allow'");
+    in
+    action == "allow"
     && builtins.isAttrs (relation.from or null)
     && (relation.from.kind or null) == "external"
     && builtins.isAttrs (relation.to or null)

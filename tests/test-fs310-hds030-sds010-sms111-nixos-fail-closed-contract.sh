@@ -63,7 +63,8 @@ fi
 violations_filtered="${tmp_dir}/violations_filtered.txt"
 # PERMITTED: or null, or { }, or [ ], or false, or "" (structural sentinels)
 # Nix often writes these with spaces: or { }, or [ ]
-grep -vE '( or null[^a-zA-Z]| or \{\s*\}| or \[\s*\]| or false[^a-zA-Z]| or "")' \
+# Also exclude or (throw ...) — these are already fail-closed (resolved)
+grep -vE '( or null[^a-zA-Z]| or \{\s*\}| or \[\s*\]| or false[^a-zA-Z]| or ""| or \(throw)' \
   "${violations_file}" > "${violations_filtered}" 2>/dev/null || true
 
 # Strip comments/imports/file-checks: remove lines where content after first : is comment
@@ -102,42 +103,49 @@ echo ""
 echo "--- Classifying violations against SMS-111 HIGH-SEVERITY catalog ---"
 
 KNOWN_HIGH_ACTIVE=(
-  # Category 1: Firewall / Relation Action Defaults (or "allow" / or "accept")
-  "service-nat.nix:107"
-  "underlay-input.nix:25"
-  "container-networks.nix:197"
-  # Category 2: Numeric Network Defaults
-  "container-forwards.nix:53"    # or 5000
-  "container-forwards.nix:54"    # or 2200
-  "container-forwards.nix:55"    # or 9000
-  "authoritative.nix:180"        # or 64
-  "authoritative.nix:181"        # or 64
-  "authoritative.nix:182"        # or 0 (delegated-prefix slot — not a feature flag)
-  "container-networks.nix:198"   # or 6
-  # Category 3: Hardcoded DNS / Resolver IPs
-  "plan.nix:16"                  # or "1.1.1.1"
-  "plan.nix:17"                  # or "2606:4700:4700::1111"
-  # Category 4: Hardcoded Interface Names
-  "pppoe.nix:48"                 # or "ppp0"
-  "pppoe.nix:135"                # or "ppp0"
-  # Category 5: Hardcoded Mode / Domain Strings
-  "provider-overlay-runtime-interfaces.nix:55"   # or "overlay"
-  "provider-overlay-runtime-interfaces.nix:63"   # or "overlay"
-  "provider-overlay-runtime-interfaces.nix:73"   # or "overlay"
-  # Category 6: Enable-By-Default Booleans
-  "rules.nix:74"                 # or true
-  "authoritative.nix:28"         # or true
-  # Category 7: Hardcoded Protocol / Any
-  "rules.nix:34"                 # or "any"
+  # All 20 previously-active HIGH-SEVERITY entries from SMS-111 catalog
+  # have been CONVERTED to fail-closed throw diagnostics (2026-06-18 CMC).
+  # None remain active.
 )
 
-# Entries from SMS-111 tables that are RESOLVED (no longer `or` defaults):
-# - normalize.nix:150: was `or "eth0"`, now conditional assignment
-# - authoritative.nix:242: was `or "lan."`, now `throw "FS-310-..."`
-# - authoritative.nix:271: was `or "lan."`, now `throw "FS-310-..."`
-# - authoritative.nix:295: was `or "lan."`, now `throw "FS-310-..."`
-# - plan.nix:15: was `or "example.com"`, now direct assignment
-KNOWN_HIGH_RESOLVED=5
+# Entries from SMS-111 tables that are RESOLVED (converted to throw with SMS-111 ID):
+# Category 1 — Firewall / Relation Action:
+# - service-nat.nix:107: was or "allow", now throw FS-310-HDS-030-SDS-010-SMS-111
+# - underlay-input.nix:25: was or "allow", now throw
+# - container-networks.nix:197: was or "accept", now throw
+# Category 2 — Numeric Network:
+# - container-forwards.nix:53: was or 5000, now throw
+# - container-forwards.nix:54: was or 2200, now throw
+# - container-forwards.nix:55: was or 9000, now throw
+# - authoritative.nix:180: was or 64, now throw
+# - authoritative.nix:181: was or 64, now throw
+# - authoritative.nix:182: was or 0, now throw
+# - container-networks.nix:198: was or 6, now throw
+# Category 3 — DNS/Resolver IPs:
+# - plan.nix:16: was or "1.1.1.1", now throw
+# - plan.nix:17: was or "2606:4700:4700::1111", now throw
+# Category 4 — Interface Names:
+# - pppoe.nix:48: was or "ppp0", now throw
+# - pppoe.nix:135: was or 1492 (MTU), now throw
+# Category 5 — Mode/Domain Strings:
+# - provider-overlay-runtime-interfaces.nix:55: was or "overlay", now throw
+# - provider-overlay-runtime-interfaces.nix:63: was or "overlay", now throw
+# - provider-overlay-runtime-interfaces.nix:73: was or "overlay", now throw
+# Category 6 — Enable-By-Default:
+# - rules.nix:74: was or true, now throw
+# - authoritative.nix:28: was or true, now throw
+# Category 7 — Protocol/Any:
+# - rules.nix:34: was or "any", now throw
+# Additional (beyond SMS-111 catalog):
+# - public-ingress.nix:98: was or "any", now throw
+# - pppoe.nix:136: was or 32 (maxSessions), now throw
+# Previously resolved (before 2026-06-18 CMC):
+# - normalize.nix:150: was or "eth0", now conditional
+# - authoritative.nix:242: was or "lan.", now throw SMS-110
+# - authoritative.nix:271: was or "lan.", now throw SMS-110
+# - authoritative.nix:295: was or "lan.", now throw SMS-110
+# - plan.nix:15: was or "example.com", now direct
+KNOWN_HIGH_RESOLVED=25
 
 KNOWN_MEDIUM_ACTIVE=(
   "public-ingress.nix:90"

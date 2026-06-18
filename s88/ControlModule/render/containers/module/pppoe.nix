@@ -45,7 +45,7 @@ let
         systemdUnitName = "pppd-${peerName}";
         runtimeOptions = "/run/pppd/${peerName}.options";
         credentials = clientConfig.credentials or { };
-        pppName = clientConfig.runtimeInterface or "ppp0";
+        pppName = clientConfig.runtimeInterface or (throw "FS-310-HDS-030-SDS-010-SMS-111: clientConfig.runtimeInterface required by CPM provider contract, cannot default to 'ppp0'");
         mtu = toString (clientConfig.mtu or 1492);
         defaultRouteLines =
           if clientConfig.defaultRoute or true then
@@ -132,8 +132,8 @@ let
         credentials = serverConfig.credentials or { };
         providerAddress = serverConfig.providerAddress;
         customerAddress = serverConfig.customerAddress;
-        mtu = toString (serverConfig.mtu or 1492);
-        maxSessions = toString (serverConfig.maxSessions or 32);
+        mtu = toString (serverConfig.mtu or (throw "FS-310-HDS-030-SDS-010-SMS-111: serverConfig.mtu required by CPM provider contract, cannot default to 1492"));
+        maxSessions = toString (serverConfig.maxSessions or (throw "FS-310-HDS-030-SDS-010-SMS-111: serverConfig.maxSessions required by CPM provider contract, cannot default to 32"));
         runtimeDirectory = "s88-pppoe-server";
         pidFile = "/run/${runtimeDirectory}/pppoe-server.pid";
       in
