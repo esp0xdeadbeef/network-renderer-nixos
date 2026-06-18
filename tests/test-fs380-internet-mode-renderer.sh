@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-380-HDS-010-SDS-010-SMS-050-CMC-001
+# GAMP-ID: FS-380-HDS-020-SDS-010-SMS-050-CMC-001
 # GAMP-ID: FS-400-HDS-010-SDS-010-SMS-060-CMC-001
 # GAMP-ID: FS-410-HDS-010-SDS-010-SMS-050-CMC-001
 # SMS-050/060: Renderer internet mode verification — module-level (mock CPM)
