@@ -52,7 +52,7 @@ let
     iface
     // {
       ifName = ifName;
-      sourceKind = iface.sourceKind or "overlay";
+      sourceKind = iface.sourceKind or (throw "FS-310-HDS-030-SDS-010-SMS-111: iface.sourceKind required by CPM provider contract, cannot default to 'overlay'");
       runtimeIfName = runtimeIfName;
       renderedIfName = runtimeIfName;
       containerInterfaceName = runtimeIfName;
@@ -60,7 +60,7 @@ let
       runtimeInterfaceAudit = {
         logicalInterfaceName = ifName;
         desiredInterfaceName = requestedRuntimeIfName;
-        sourceKind = iface.sourceKind or "overlay";
+        sourceKind = iface.sourceKind or (throw "FS-310-HDS-030-SDS-010-SMS-111: iface.sourceKind required by CPM provider contract, cannot default to 'overlay'");
         aliases = lib.unique (existingAliases ++ [ ifName requestedRuntimeIfName runtimeIfName ]);
         providerIdentity = {
           ifName = ifName;
@@ -70,7 +70,7 @@ let
       };
       backingRef = backingRef;
       connectivity = (attrsOrEmpty (iface.connectivity or null)) // {
-        sourceKind = iface.sourceKind or "overlay";
+        sourceKind = iface.sourceKind or (throw "FS-310-HDS-030-SDS-010-SMS-111: iface.sourceKind required by CPM provider contract, cannot default to 'overlay'");
         backingRef = backingRef;
       };
       providerCreated = true;

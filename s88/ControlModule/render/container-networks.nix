@@ -194,8 +194,8 @@ let
               inIf:
               map (outIf: {
                 inherit sourceFile inIf outIf;
-                action = pair.action or "accept";
-                family = pair.family or 6;
+                action = pair.action or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.action required by CPM provider contract, cannot default to 'accept'");
+                family = pair.family or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.family required by CPM provider contract, cannot default to 6");
                 comment = pair.comment or "runtime-routed-prefix-public-egress";
               }) (pair."out" or [ ])
             ) (pair."in" or [ ])

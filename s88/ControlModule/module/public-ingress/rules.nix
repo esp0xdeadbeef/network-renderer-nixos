@@ -31,7 +31,7 @@ let
 
   renderMatch = match:
     let
-      proto = match.proto or "any";
+      proto = match.proto or (throw "FS-310-HDS-030-SDS-010-SMS-111: match.proto required by CPM provider contract, cannot default to 'any'");
       dports = listOr (match.dports or null);
       dportSet = "{ ${lib.concatStringsSep ", " (map toString dports)} }";
       protoText = if proto == "any" then "" else " meta l4proto ${proto}";
@@ -71,7 +71,7 @@ let
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
       inputDports = listOr (forward.inputDports or null);
       exceptTcpDports = listOr (forward.exceptTcpDports or null);
-      protectServiceDports = forward.protectServiceDports or true;
+      protectServiceDports = forward.protectServiceDports or (throw "FS-310-HDS-030-SDS-010-SMS-111: forward.protectServiceDports required by CPM provider contract, cannot default to true");
       comment = forward.comment or "s88-public-runtime-forward";
     in
     lib.concatMapStringsSep "\n"
