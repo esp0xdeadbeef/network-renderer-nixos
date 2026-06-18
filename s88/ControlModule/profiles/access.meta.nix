@@ -1,5 +1,6 @@
 {
   container = {
+    enable = true;
     advertise = {
       dhcp4 = true;
       radvd = true;
