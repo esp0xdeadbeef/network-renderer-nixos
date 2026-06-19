@@ -24,7 +24,7 @@ let
       fileValue = credentials.${fileField} or null;
     in
     if builtins.isString fileValue && fileValue != "" then
-      "${pkgs.coreutils}/bin/cat ${lib.escapeShellArg fileValue}"
+      "${pkgs.coreutils}/bin/test -s ${lib.escapeShellArg fileValue} && ${pkgs.coreutils}/bin/cat ${lib.escapeShellArg fileValue} || { echo NixOS PPPoE renderer: credential file is empty >&2; exit 1; }"
     else
       throw "NixOS PPPoE renderer requires non-empty credentials.usernameFile and credentials.passwordFile paths";
 

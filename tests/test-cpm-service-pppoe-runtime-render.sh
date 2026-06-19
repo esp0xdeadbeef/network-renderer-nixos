@@ -154,6 +154,10 @@ nix_eval_json_or_fail \
             builtins.match ".*cat /run/secrets/provider-access-pppoe-password.*" clientPreStart != null;
           client_does_not_inline_secret_values =
             builtins.match ".*[/]bin[/]printf.*" clientPreStart == null;
+          client_credential_verifies_content_nonempty =
+            builtins.match ".*test -s.*cat.*" clientPreStart != null;
+          client_credential_empty_produces_diagnostic =
+            builtins.match ".*credential file is empty.*" clientPreStart != null;
           client_does_not_invent_hat_or_sat_secret_names =
             builtins.match ".*hat-pppoe.*" clientPreStart == null
             && builtins.match ".*sat-pppoe.*" clientPreStart == null;
@@ -221,6 +225,10 @@ nix_eval_json_or_fail \
             builtins.match ".*cat /run/secrets/provider-access-pppoe-password.*" serverScript != null;
           server_does_not_inline_secret_values =
             builtins.match ".*[/]bin[/]printf.*" serverScript == null;
+          server_credential_verifies_content_nonempty =
+            builtins.match ".*test -s.*cat.*" serverScript != null;
+          server_credential_empty_produces_diagnostic =
+            builtins.match ".*credential file is empty.*" serverScript != null;
           server_does_not_invent_hat_or_sat_secret_names =
             builtins.match ".*hat-pppoe.*" serverScript == null
             && builtins.match ".*sat-pppoe.*" serverScript == null;
