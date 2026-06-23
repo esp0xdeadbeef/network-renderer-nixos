@@ -1,21 +1,65 @@
-{ lib, pkgs, renderedModel }:
+{
+  lib,
+  pkgs,
+  renderedModel,
+}:
 
 let
-  services = if builtins.isAttrs (renderedModel.services or null) then renderedModel.services else { };
+  services =
+    if builtins.isAttrs (renderedModel.services or null) then renderedModel.services else { };
   pppoe = if builtins.isAttrs (services.pppoe or null) then services.pppoe else { };
-  unitName = if builtins.isString (renderedModel.unitName or null) then renderedModel.unitName else "";
+  unitName =
+    if builtins.isString (renderedModel.unitName or null) then renderedModel.unitName else "";
 
   ifaceNameFor =
     logicalName:
     let
       iface = (renderedModel.interfaces or { }).${logicalName} or { };
     in
-    if builtins.isString (iface.containerInterfaceName or null) && iface.containerInterfaceName != "" then
+    if
+      builtins.isString (iface.containerInterfaceName or null) && iface.containerInterfaceName != ""
+    then
       iface.containerInterfaceName
     else if builtins.isString (iface.hostInterfaceName or null) && iface.hostInterfaceName != "" then
       iface.hostInterfaceName
     else
       logicalName;
+
+  lowerInterfaceForPppoe =
+    role: serviceInterface:
+    let
+      interfaces =
+        if builtins.isAttrs (renderedModel.interfaces or null) then renderedModel.interfaces else { };
+      runtimeTarget =
+        if builtins.isAttrs (renderedModel.runtimeTarget or null) then renderedModel.runtimeTarget else { };
+      effective =
+        if builtins.isAttrs (runtimeTarget.effectiveRuntimeRealization or null) then
+          runtimeTarget.effectiveRuntimeRealization
+        else
+          { };
+      effectiveInterfaces =
+        if builtins.isAttrs (effective.interfaces or null) then effective.interfaces else { };
+      pppoeSessions = builtins.filter (
+        iface:
+        builtins.isAttrs (iface.pppoe or null)
+        && (iface.pppoe.serviceInterface or null) == serviceInterface
+        && (iface.pppoe.role or null) == role
+      ) (builtins.attrValues effectiveInterfaces);
+      preferredSourceKind = if role == "client" then "wan" else "p2p";
+      candidates = builtins.filter (
+        name:
+        let
+          iface = effectiveInterfaces.${name};
+        in
+        (iface.sourceKind or null) == preferredSourceKind
+      ) (builtins.attrNames effectiveInterfaces);
+    in
+    if builtins.hasAttr serviceInterface interfaces then
+      serviceInterface
+    else if pppoeSessions != [ ] && builtins.length candidates == 1 then
+      builtins.head candidates
+    else
+      serviceInterface;
 
   credentialReadCommand =
     credentials: field:
@@ -40,12 +84,15 @@ let
     else
       let
         logicalIf = clientConfig.interface;
-        interfaceName = ifaceNameFor logicalIf;
+        lowerLogicalIf = lowerInterfaceForPppoe "client" logicalIf;
+        interfaceName = ifaceNameFor lowerLogicalIf;
         peerName = "s88-pppoe-client-${sanitizeName logicalIf}";
         systemdUnitName = "pppd-${peerName}";
         runtimeOptions = "/run/pppd/${peerName}.options";
         credentials = clientConfig.credentials or { };
-        pppName = clientConfig.runtimeInterface or (throw "FS-310-HDS-030-SDS-010-SMS-111: clientConfig.runtimeInterface required by CPM provider contract, cannot default to 'ppp0'");
+        pppName =
+          clientConfig.runtimeInterface
+            or (throw "FS-310-HDS-030-SDS-010-SMS-111: clientConfig.runtimeInterface required by CPM provider contract, cannot default to 'ppp0'");
         mtu = toString (clientConfig.mtu or 1492);
         defaultRouteLines =
           if clientConfig.defaultRoute or true then
@@ -56,7 +103,15 @@ let
           else
             "";
         usePeerDns = clientConfig.usePeerDns or true;
-        peerDns = import ./pppoe/client-peer-dns.nix { inherit lib pkgs peerName usePeerDns; scriptSuffix = sanitizeName logicalIf; };
+        peerDns = import ./pppoe/client-peer-dns.nix {
+          inherit
+            lib
+            pkgs
+            peerName
+            usePeerDns
+            ;
+          scriptSuffix = sanitizeName logicalIf;
+        };
         ipUp = pkgs.writeShellScript "s88-pppoe-ip-up-${sanitizeName logicalIf}" ''
           set -eu
           if [ "$1" != ${lib.escapeShellArg pppName} ]; then
@@ -128,12 +183,19 @@ let
     else
       let
         logicalIf = serverConfig.interface;
-        interfaceName = ifaceNameFor logicalIf;
+        lowerLogicalIf = lowerInterfaceForPppoe "server" logicalIf;
+        interfaceName = ifaceNameFor lowerLogicalIf;
         credentials = serverConfig.credentials or { };
         providerAddress = serverConfig.providerAddress;
         customerAddress = serverConfig.customerAddress;
-        mtu = toString (serverConfig.mtu or (throw "FS-310-HDS-030-SDS-010-SMS-111: serverConfig.mtu required by CPM provider contract, cannot default to 1492"));
-        maxSessions = toString (serverConfig.maxSessions or (throw "FS-310-HDS-030-SDS-010-SMS-111: serverConfig.maxSessions required by CPM provider contract, cannot default to 32"));
+        mtu = toString (
+          serverConfig.mtu
+            or (throw "FS-310-HDS-030-SDS-010-SMS-111: serverConfig.mtu required by CPM provider contract, cannot default to 1492")
+        );
+        maxSessions = toString (
+          serverConfig.maxSessions
+            or (throw "FS-310-HDS-030-SDS-010-SMS-111: serverConfig.maxSessions required by CPM provider contract, cannot default to 32")
+        );
         runtimeDirectory = "s88-pppoe-server";
         pidFile = "/run/${runtimeDirectory}/pppoe-server.pid";
       in
@@ -213,13 +275,11 @@ in
   config = lib.mkIf (clientConfig != null || serverConfig != null) {
     assertions = [
       {
-        assertion =
-          validation.clientAssertion clientConfig;
+        assertion = validation.clientAssertion clientConfig;
         message = "NixOS PPPoE client service requires services.pppoe.client.interface to name a rendered interface, non-empty credentials.usernameFile and credentials.passwordFile paths with no inline username/password values, and supported implementation 'rp-pppoe'";
       }
       {
-        assertion =
-          validation.serverAssertion serverConfig;
+        assertion = validation.serverAssertion serverConfig;
         message = "NixOS PPPoE server service requires services.pppoe.server.interface to name a rendered interface, providerAddress, customerAddress, non-empty credentials.usernameFile and credentials.passwordFile paths with no inline username/password values, and supported implementation 'rp-pppoe'";
       }
     ];
