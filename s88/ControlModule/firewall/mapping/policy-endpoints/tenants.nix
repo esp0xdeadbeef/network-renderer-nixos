@@ -3,12 +3,15 @@
 , runtimeTarget
 , currentNodeName
 , firstHopInterfaceToUnit
+, firstHopInterfacesToUnit
 , resolveInterfaceAlias
 , common
 ,
 }:
 
 let
+  inherit (common) sortedStrings;
+
   tenantAttachments =
     if currentSite ? attachments && builtins.isList currentSite.attachments then
       lib.filter
@@ -38,7 +41,7 @@ let
     else
       { };
 
-  boundInterfaceForCurrentNodeTenant =
+  boundInterfacesForCurrentNodeTenant =
     tenantName:
     let
       tenantBinding =
@@ -73,32 +76,35 @@ let
           ];
       resolved = lib.filter (n: n != null) (map resolveInterfaceAlias candidates);
     in
-    if resolved == [ ] then null else builtins.head resolved;
+    sortedStrings resolved;
 in
-{
+rec {
   inherit tenantAttachments;
 
-  tenantInterfaceByName = builtins.listToAttrs (
+  tenantInterfacesByName = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
       map
         (
           attachment:
           let
-            interfaceName =
-              if currentNodeName != null && attachment.unit == currentNodeName then
-                boundInterfaceForCurrentNodeTenant attachment.name
+            boundInterfaces = boundInterfacesForCurrentNodeTenant attachment.name;
+            interfaceNames =
+              if boundInterfaces != [ ] then
+                boundInterfaces
               else
-                firstHopInterfaceToUnit attachment.unit;
+                firstHopInterfacesToUnit attachment.unit;
           in
-          if interfaceName != null then
+          if interfaceNames != [ ] then
             {
               name = attachment.name;
-              value = interfaceName;
+              value = interfaceNames;
             }
           else
             null
         )
-        tenantAttachments
+      tenantAttachments
     )
   );
+
+  tenantInterfaceByName = builtins.mapAttrs (_: interfaces: builtins.head interfaces) tenantInterfacesByName;
 }

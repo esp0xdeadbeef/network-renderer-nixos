@@ -2,6 +2,7 @@
 , currentSite
 , communicationContract
 , tenantInterfaceByName
+, tenantInterfacesByName
 , serviceInterfacesByName
 , servicePreferredUplinksByName
 , servicePreferredUplinksByRelation
@@ -43,7 +44,7 @@ let
       token;
 
   allKnownInterfaces = sortedStrings (
-    (builtins.attrValues tenantInterfaceByName) ++ upstreamInterfaceNames
+    (lib.concatLists (builtins.attrValues tenantInterfacesByName)) ++ (builtins.attrValues tenantInterfaceByName) ++ upstreamInterfaceNames
   );
 
   resolveStringEndpoint =
@@ -60,6 +61,8 @@ let
       upstreamInterfaceNames
     else if uplinkMatches != [ ] then
       uplinkMatches
+    else if builtins.hasAttr token tenantInterfacesByName then
+      tenantInterfacesByName.${token}
     else if builtins.hasAttr token tenantInterfaceByName then
       [ tenantInterfaceByName.${token} ]
     else if builtins.hasAttr token serviceInterfacesByName then
@@ -72,19 +75,23 @@ let
     let
       kind = endpoint.kind or null;
     in
-    if kind == "tenant" && endpoint ? name && builtins.hasAttr endpoint.name tenantInterfaceByName then
+    if kind == "tenant" && endpoint ? name && builtins.hasAttr endpoint.name tenantInterfacesByName then
+      tenantInterfacesByName.${endpoint.name}
+    else if kind == "tenant" && endpoint ? name && builtins.hasAttr endpoint.name tenantInterfaceByName then
       [ tenantInterfaceByName.${endpoint.name} ]
     else if kind == "tenant-set" && endpoint ? members && builtins.isList endpoint.members then
       sortedStrings
         (
           lib.concatMap
-            (
-              member:
-              if builtins.isString member && builtins.hasAttr member tenantInterfaceByName then
-                [ tenantInterfaceByName.${member} ]
-              else
-                [ ]
-            )
+                (
+                  member:
+                  if builtins.isString member && builtins.hasAttr member tenantInterfacesByName then
+                    tenantInterfacesByName.${member}
+                  else if builtins.isString member && builtins.hasAttr member tenantInterfaceByName then
+                    [ tenantInterfaceByName.${member} ]
+                  else
+                    [ ]
+                )
             endpoint.members
         )
     else if

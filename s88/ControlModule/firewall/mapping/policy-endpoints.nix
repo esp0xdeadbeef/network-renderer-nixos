@@ -58,12 +58,12 @@ let
       ;
     inherit (interfaces) resolveInterfaceAlias;
     inherit (node) currentNodeName;
-    inherit (transit) firstHopInterfaceToUnit;
+    inherit (transit) firstHopInterfaceToUnit firstHopInterfacesToUnit;
   };
 
   services = import ./policy-endpoints/services.nix {
     inherit lib currentSite communicationContract ownership common;
-    inherit (tenants) tenantInterfaceByName;
+    inherit (tenants) tenantInterfaceByName tenantInterfacesByName;
   };
 
   upstream = import ./policy-endpoints/upstream.nix {
@@ -81,7 +81,7 @@ let
 
   resolver = import ./policy-endpoints/resolver.nix {
     inherit lib currentSite communicationContract common;
-    inherit (tenants) tenantInterfaceByName;
+    inherit (tenants) tenantInterfaceByName tenantInterfacesByName;
     inherit (services) serviceInterfacesByName;
     inherit (upstream)
       upstreamInterfaceNames
