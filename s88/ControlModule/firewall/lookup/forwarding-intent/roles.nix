@@ -3,26 +3,31 @@
 let
   inherit (common) sortedStrings boolOrFalse stringListFromPaths;
 
-  explicitNames =
-    roots: paths: predicate:
-    sortedStrings (
-      resolveInterfaceTokens (stringListFromPaths { inherit roots paths; })
-      ++ map (entry: entry.name) (lib.filter predicate entries)
-    );
+  hasValueAtPath =
+    root: path:
+    common.attrPathOrNull root path != null;
 
-  explicitLocalAdapterNames = explicitNames [ runtimeTarget nodeForwarding ] [
+  hasAnyRolePath =
+    roots: paths:
+    builtins.any (path: builtins.any (root: hasValueAtPath root path) roots) paths;
+
+  localAdapterRolePaths = [
     [ "localInterfaces" ]
     [ "localAdapterInterfaces" ]
     [ "localAdapters" ]
+    [ "lanInterfaces" ]
+    [ "lans" ]
+    [ "forwarding" "localInterfaces" ]
     [ "forwarding" "localAdapterInterfaces" ]
     [ "forwarding" "localAdapters" ]
+    [ "forwarding" "lanInterfaces" ]
     [ "participation" "localAdapterInterfaces" ]
     [ "participation" "localAdapters" ]
     [ "interfaceRoles" "localAdapters" ]
-  ]
-    (entry: boolOrFalse entry.explicit.explicitLocalAdapter);
+    [ "interfaceRoles" "lanInterfaces" ]
+  ];
 
-  explicitUplinkNames = explicitNames [ runtimeTarget nodeForwarding nodeEgress ] [
+  uplinkRolePaths = [
     [ "uplinkInterfaces" ]
     [ "uplinkInterfaceNames" ]
     [ "uplinks" ]
@@ -34,10 +39,9 @@ let
     [ "egress" "upstreamSelectionInterfaces" ]
     [ "egress" "uplinkInterfaces" ]
     [ "interfaceRoles" "uplinks" ]
-  ]
-    (entry: boolOrFalse entry.explicit.explicitUplink || boolOrFalse entry.explicit.explicitExitEligible);
+  ];
 
-  explicitTransitNames = explicitNames [ runtimeTarget nodeForwarding ] [
+  transitRolePaths = [
     [ "transitInterfaces" ]
     [ "transits" ]
     [ "forwarding" "transitInterfaces" ]
@@ -45,14 +49,67 @@ let
     [ "participation" "transitInterfaces" ]
     [ "participation" "transits" ]
     [ "interfaceRoles" "transits" ]
-  ]
-    (entry: boolOrFalse entry.explicit.explicitTransit);
+  ];
 
-  explicitWanNames = explicitNames [ runtimeTarget nodeForwarding nodeEgress ] [
+  wanRolePaths = [
     [ "wanInterfaces" ]
     [ "wans" ]
     [ "egress" "wanInterfaces" ]
-  ]
+  ];
+
+  explicitRoleFieldNames = [
+    "explicitLocalAdapter"
+    "explicitUplink"
+    "explicitTransit"
+    "explicitWan"
+  ];
+
+  explicitNames =
+    roots: paths: predicate:
+    sortedStrings (
+      resolveInterfaceTokens (stringListFromPaths { inherit roots paths; })
+      ++ map (entry: entry.name) (lib.filter predicate entries)
+    );
+
+  explicitFieldValue =
+    entry: field:
+    if
+      entry ? explicit
+      && builtins.isAttrs entry.explicit
+      && builtins.hasAttr field entry.explicit
+    then
+      entry.explicit.${field}
+    else
+      null;
+
+  entryHasExplicitRoleContract =
+    entry:
+    builtins.all (field: builtins.isBool (explicitFieldValue entry field)) explicitRoleFieldNames;
+
+  missingExplicitRoleContractInterfaces = sortedStrings (
+    map (entry: entry.name or null) (lib.filter (entry: !(entryHasExplicitRoleContract entry)) entries)
+  );
+
+  namedRoleListContractPresent = hasAnyRolePath [ runtimeTarget nodeForwarding nodeEgress ] (
+    localAdapterRolePaths ++ uplinkRolePaths ++ transitRolePaths ++ wanRolePaths
+  );
+
+  explicitInterfaceFlagContractPresent =
+    entries != [ ] && missingExplicitRoleContractInterfaces == [ ];
+
+  explicitRoleContractPresent =
+    namedRoleListContractPresent || explicitInterfaceFlagContractPresent;
+
+  explicitLocalAdapterNames = explicitNames [ runtimeTarget nodeForwarding ] localAdapterRolePaths
+    (entry: boolOrFalse entry.explicit.explicitLocalAdapter);
+
+  explicitUplinkNames = explicitNames [ runtimeTarget nodeForwarding nodeEgress ] uplinkRolePaths
+    (entry: boolOrFalse entry.explicit.explicitUplink || boolOrFalse entry.explicit.explicitExitEligible);
+
+  explicitTransitNames = explicitNames [ runtimeTarget nodeForwarding ] transitRolePaths
+    (entry: boolOrFalse entry.explicit.explicitTransit);
+
+  explicitWanNames = explicitNames [ runtimeTarget nodeForwarding nodeEgress ] wanRolePaths
     (entry: boolOrFalse entry.explicit.explicitWan);
 
   explicitExitEligibleNames = explicitNames [ runtimeTarget nodeForwarding nodeEgress ] [
@@ -168,6 +225,7 @@ in
     explicitLocalAdapterNames explicitUplinkNames explicitTransitNames explicitWanNames
     explicitExitEligibleNames explicitNatInterfaces explicitNat4Interfaces explicitNat6Interfaces
     explicitNat4SourcePrefixes explicitNat6SourcePrefixes explicitClampMssInterfaces overlayInterfaceNames
+    explicitRoleContractPresent missingExplicitRoleContractInterfaces
     ;
   resolvedLocalAdapterNames = explicitLocalAdapterNames;
   resolvedWanNames = explicitWanNames;

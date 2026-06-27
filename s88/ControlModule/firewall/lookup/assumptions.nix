@@ -107,20 +107,6 @@ let
       lib.unique (lib.filter (value: builtins.isString value && value != "") values)
     );
 
-  sourceKindOf =
-    entry:
-    if entry ? sourceKind && builtins.isString entry.sourceKind then
-      entry.sourceKind
-    else if
-      entry ? iface
-      && builtins.isAttrs entry.iface
-      && entry.iface ? sourceKind
-      && builtins.isString entry.iface.sourceKind
-    then
-      entry.iface.sourceKind
-    else
-      null;
-
   interfaceEntries =
     if interfaceViewResolved ? interfaceEntries && builtins.isList interfaceViewResolved.interfaceEntries then
       interfaceViewResolved.interfaceEntries
@@ -129,73 +115,75 @@ let
 
   interfaceNames = sortedStrings (map (entry: entry.name or null) interfaceEntries);
 
-  fallbackWanNames =
-    if interfaceViewResolved ? wanNames && builtins.isList interfaceViewResolved.wanNames then
-      sortedStrings interfaceViewResolved.wanNames
+  roleListFields = [
+    "resolvedWanNames"
+    "resolvedLanNames"
+    "resolvedTransitNames"
+    "resolvedLocalAdapterNames"
+    "resolvedAccessUplinkNames"
+  ];
+
+  hasRoleListField =
+    field:
+    builtins.hasAttr field forwardingIntentResolved
+    && builtins.isList forwardingIntentResolved.${field};
+
+  explicitRoleContractPresent =
+    if builtins.hasAttr "explicitRoleContractPresent" forwardingIntentResolved then
+      forwardingIntentResolved.explicitRoleContractPresent
+    else
+      builtins.all hasRoleListField roleListFields;
+
+  missingRoleListFields = lib.filter (field: !(hasRoleListField field)) roleListFields;
+
+  missingRoleContractInterfaces =
+    if
+      forwardingIntentResolved ? missingExplicitRoleContractInterfaces
+      && builtins.isList forwardingIntentResolved.missingExplicitRoleContractInterfaces
+    then
+      forwardingIntentResolved.missingExplicitRoleContractInterfaces
     else
       [ ];
 
-  fallbackLanNames =
-    if interfaceViewResolved ? lanNames && builtins.isList interfaceViewResolved.lanNames then
-      sortedStrings interfaceViewResolved.lanNames
-    else
-      [ ];
+  roleContractDiagnostic =
+    builtins.concatStringsSep " " (
+      [
+        "FS-320-HDS-040-SDS-010-SMS-060: missing CPM explicit role contract for NixOS interface role classification;"
+        "renderer must not derive WAN, transit, LAN, local-adapter, or access-uplink roles from sourceKind tokens or interface names."
+      ]
+      ++ lib.optionals (missingRoleListFields != [ ]) [
+        "Missing forwardingIntent fields: ${builtins.concatStringsSep ", " missingRoleListFields}."
+      ]
+      ++ lib.optionals (missingRoleContractInterfaces != [ ]) [
+        "Interfaces without explicit role booleans: ${builtins.concatStringsSep ", " missingRoleContractInterfaces}."
+      ]
+    );
 
-  fallbackP2pNames = sortedStrings (
-    map (entry: entry.name or null) (lib.filter (entry: sourceKindOf entry == "p2p") interfaceEntries)
-  );
-
-  wanNames =
-    if forwardingIntentResolved ? resolvedWanNames && builtins.isList forwardingIntentResolved.resolvedWanNames then
-      sortedStrings forwardingIntentResolved.resolvedWanNames
+  requireExplicitRoleContract =
+    value:
+    if interfaceNames != [ ] && !explicitRoleContractPresent then
+      throw roleContractDiagnostic
     else
-      fallbackWanNames;
+      value;
 
-  lanNames =
-    if forwardingIntentResolved ? resolvedLanNames && builtins.isList forwardingIntentResolved.resolvedLanNames then
-      sortedStrings forwardingIntentResolved.resolvedLanNames
-    else
-      fallbackLanNames;
+  roleListOrThrow =
+    field:
+    requireExplicitRoleContract (
+      if hasRoleListField field then
+        sortedStrings forwardingIntentResolved.${field}
+      else
+        throw roleContractDiagnostic
+    );
 
-  p2pNames =
-    if
-      forwardingIntentResolved ? resolvedTransitNames && builtins.isList forwardingIntentResolved.resolvedTransitNames
-    then
-      sortedStrings forwardingIntentResolved.resolvedTransitNames
-    else
-      fallbackP2pNames;
+  wanNames = roleListOrThrow "resolvedWanNames";
 
-  localAdapterNames =
-    if
-      forwardingIntentResolved ? resolvedLocalAdapterNames
-      && builtins.isList forwardingIntentResolved.resolvedLocalAdapterNames
-    then
-      sortedStrings forwardingIntentResolved.resolvedLocalAdapterNames
-    else
-      sortedStrings (
-        map (entry: entry.name or null) (
-          lib.filter
-            (
-              entry:
-              let
-                sourceKind = sourceKindOf entry;
-              in
-              sourceKind != "wan" && sourceKind != "p2p"
-            )
-            interfaceEntries
-        )
-      );
+  lanNames = roleListOrThrow "resolvedLanNames";
 
-  accessUplinkNames =
-    if
-      forwardingIntentResolved ? resolvedAccessUplinkNames
-      && builtins.isList forwardingIntentResolved.resolvedAccessUplinkNames
-    then
-      sortedStrings forwardingIntentResolved.resolvedAccessUplinkNames
-    else if p2pNames != [ ] then
-      p2pNames
-    else
-      wanNames;
+  p2pNames = roleListOrThrow "resolvedTransitNames";
+
+  localAdapterNames = roleListOrThrow "resolvedLocalAdapterNames";
+
+  accessUplinkNames = roleListOrThrow "resolvedAccessUplinkNames";
 
   uplinkNames =
     if builtins.isAttrs uplinks then lib.sort builtins.lessThan (builtins.attrNames uplinks) else [ ];
