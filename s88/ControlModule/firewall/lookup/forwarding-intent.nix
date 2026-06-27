@@ -100,6 +100,8 @@ in
     resolvedTransitNames
     resolvedWanNames
     resolvedLanNames
+    explicitRoleContractPresent
+    missingExplicitRoleContractInterfaces
     ;
   inherit (final)
     accessForwardPairs

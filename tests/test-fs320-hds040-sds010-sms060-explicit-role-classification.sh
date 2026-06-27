@@ -11,7 +11,7 @@
 # NixOS commit b6e6bf5 removed the sourceKind fallback and uses explicit
 # flags exclusively.
 #
-# This test scans the NixOS renderer source for:
+# This test scans and evaluates the NixOS renderer source for:
 # - Absence of sourceKind-based role fallback (wan/p2p/transit string matching)
 # - Presence of explicitWan/explicitTransit/explicitLocalAdapter consumption
 # - Seeded negatives that detect if a fallback is reintroduced
@@ -32,6 +32,7 @@ echo ""
 echo "--- Predicate 1: No sourceKind role fallback in roles.nix ---"
 
 roles_file="${src_dir}/ControlModule/firewall/lookup/forwarding-intent/roles.nix"
+assumptions_file="${src_dir}/ControlModule/firewall/lookup/assumptions.nix"
 
 # Scan for sourceKind used as a ROLE CLASSIFICATION fallback.
 # This is different from metadata extraction (interfaces.nix extracts sourceKind as a
@@ -42,16 +43,18 @@ sourcekind_fallbacks_file="${tmp_dir}/sourcekind-fallbacks.txt"
 
 # Pattern: sourceKind equality comparison used for role assignment
 # e.g., entry.sourceKind == "wan", sourceKind == "p2p" for transit, etc.
-grep -n 'sourceKind\s*==\s*"wan"' "${roles_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
-grep -n 'sourceKind\s*==\s*"p2p"' "${roles_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
-grep -n 'sourceKind\s*==\s*"transit"' "${roles_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
+for scan_file in "${roles_file}" "${assumptions_file}"; do
+  grep -n 'sourceKind\s*==\s*"wan"' "${scan_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
+  grep -n 'sourceKind\s*==\s*"p2p"' "${scan_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
+  grep -n 'sourceKind\s*==\s*"transit"' "${scan_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
 
 # Pattern: fallback name lists derived from sourceKind (e.g., fallbackWanNames)
-grep -n 'fallback\(Wan\|P2p\|Transit\|Lan\|LocalAdapter\)' "${roles_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
+  grep -n 'fallback\(Wan\|P2p\|Transit\|Lan\|LocalAdapter\)' "${scan_file}" 2>/dev/null >> "${sourcekind_fallbacks_file}" || true
 
 # Pattern: filtering by sourceKind for role assignment (not overlay/pppoe)
 # Only flag sourceKind used with .name extraction (which means it's assigning names)
-grep -n 'filter.*sourceKind' "${roles_file}" 2>/dev/null | grep -v 'overlay\|pppoe' >> "${sourcekind_fallbacks_file}" || true
+  grep -n 'filter.*sourceKind' "${scan_file}" 2>/dev/null | grep -v 'overlay\|pppoe' >> "${sourcekind_fallbacks_file}" || true
+done
 
 fallback_count=$(wc -l < "${sourcekind_fallbacks_file}" 2>/dev/null || echo 0)
 
@@ -60,7 +63,7 @@ if [[ "${fallback_count}" -gt 0 ]]; then
   cat "${sourcekind_fallbacks_file}"
   all_checks_passed=false
 else
-  echo "PASS: No sourceKind-based role fallback detected in roles.nix"
+  echo "PASS: No sourceKind-based role fallback detected in roles.nix or assumptions.nix"
 fi
 
 # ============================================================
@@ -191,6 +194,153 @@ if ${all_paths_found}; then
 else
   echo "FAIL: Missing explicit role flag derivation in interfaces.nix"
   all_checks_passed=false
+fi
+
+# ============================================================
+# Predicate 5: assumptions.nix uses explicit role lists, not sourceKind
+# ============================================================
+echo ""
+echo "--- Predicate 5: assumptions.nix consumes explicit role lists ---"
+
+positive_out="${tmp_dir}/positive.out"
+positive_err="${tmp_dir}/positive.err"
+
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure --expr '
+    let
+      repoRoot = builtins.getEnv "REPO_ROOT";
+      flake = builtins.getFlake ("path:" + repoRoot);
+      lib = flake.inputs.nixpkgs.lib;
+      model = import (repoRoot + "/s88/ControlModule/firewall/lookup/assumptions.nix") {
+        inherit lib;
+        assumptionFamily = "egress";
+        roleName = "core";
+        unitName = "core-1";
+        interfaceView = {
+          interfaceEntries = [
+            { name = "sourcekind-wan"; sourceKind = "wan"; }
+            { name = "sourcekind-tenant"; sourceKind = "tenant"; }
+          ];
+          wanNames = [ "sourcekind-wan" ];
+          lanNames = [ "sourcekind-tenant" ];
+        };
+        forwardingIntent = {
+          explicitRoleContractPresent = true;
+          resolvedWanNames = [ "explicit-wan" ];
+          resolvedLanNames = [ "explicit-lan" ];
+          resolvedTransitNames = [ "explicit-transit" ];
+          resolvedLocalAdapterNames = [ "explicit-lan" ];
+          resolvedAccessUplinkNames = [ "explicit-uplink" ];
+          authoritativeCoreNat = false;
+        };
+      };
+      rendered = builtins.concatStringsSep "\n" model.warningMessages;
+    in
+      builtins.deepSeq model.warningMessages (
+        lib.hasInfix "explicit-wan" rendered
+        && lib.hasInfix "explicit-lan" rendered
+        && !(lib.hasInfix "sourcekind-wan" rendered)
+        && !(lib.hasInfix "sourcekind-tenant" rendered)
+      )
+  ' >"${positive_out}" 2>"${positive_err}"; then
+  if grep -qx 'true' "${positive_out}"; then
+    echo "PASS: assumptions.nix uses explicit role lists even with contradictory sourceKind data"
+  else
+    echo "FAIL: assumptions.nix did not prove explicit role-list precedence"
+    cat "${positive_out}" >&2
+    cat "${positive_err}" >&2
+    all_checks_passed=false
+  fi
+else
+  echo "FAIL: assumptions.nix explicit role-list eval crashed"
+  cat "${positive_err}" >&2
+  all_checks_passed=false
+fi
+
+# ============================================================
+# Seeded Negative: sourceKind data without explicit roles fails closed
+# ============================================================
+echo ""
+echo "--- Seeded Negative: Missing explicit role contract rejects sourceKind fallback ---"
+
+missing_contract_out="${tmp_dir}/missing-contract.out"
+missing_contract_err="${tmp_dir}/missing-contract.err"
+
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure --expr '
+    let
+      repoRoot = builtins.getEnv "REPO_ROOT";
+      flake = builtins.getFlake ("path:" + repoRoot);
+      lib = flake.inputs.nixpkgs.lib;
+      model = import (repoRoot + "/s88/ControlModule/firewall/lookup/assumptions.nix") {
+        inherit lib;
+        assumptionFamily = "egress";
+        roleName = "core";
+        forwardingIntent = {};
+        interfaces = {
+          wan = { interfaceName = "wan-from-sourcekind"; sourceKind = "wan"; };
+          lan = { interfaceName = "lan-from-sourcekind"; sourceKind = "tenant"; };
+        };
+      };
+    in builtins.deepSeq model.warnings true
+  ' >"${missing_contract_out}" 2>"${missing_contract_err}"; then
+  echo "FAIL: Missing explicit role contract was accepted and could derive roles from sourceKind"
+  cat "${missing_contract_out}" >&2
+  all_checks_passed=false
+else
+  if grep -Fq 'FS-320-HDS-040-SDS-010-SMS-060' "${missing_contract_err}" \
+    && grep -Fq 'missing CPM explicit role contract' "${missing_contract_err}" \
+    && grep -Fq 'sourceKind' "${missing_contract_err}"; then
+    echo "PASS: Missing explicit role contract fails closed with SMS diagnostic"
+  else
+    echo "FAIL: Missing-role diagnostic did not name the SMS and sourceKind fallback"
+    cat "${missing_contract_err}" >&2
+    all_checks_passed=false
+  fi
+fi
+
+# ============================================================
+# Seeded Negative: Interface naming cannot replace explicit roles
+# ============================================================
+echo ""
+echo "--- Seeded Negative: Naming patterns cannot replace explicit roles ---"
+
+naming_out="${tmp_dir}/naming.out"
+naming_err="${tmp_dir}/naming.err"
+
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure --expr '
+    let
+      repoRoot = builtins.getEnv "REPO_ROOT";
+      flake = builtins.getFlake ("path:" + repoRoot);
+      lib = flake.inputs.nixpkgs.lib;
+      model = import (repoRoot + "/s88/ControlModule/firewall/lookup/assumptions.nix") {
+        inherit lib;
+        assumptionFamily = "selector";
+        roleName = "upstream-selector";
+        forwardingIntent = {};
+        interfaces = {
+          eth0 = { interfaceName = "eth0"; };
+          ens3 = { interfaceName = "ens3"; };
+          wan0 = { interfaceName = "wan0"; };
+        };
+      };
+    in builtins.deepSeq model.warnings true
+  ' >"${naming_out}" 2>"${naming_err}"; then
+  echo "FAIL: Missing explicit role contract was accepted for naming-pattern inputs"
+  cat "${naming_out}" >&2
+  all_checks_passed=false
+else
+  if grep -Fq 'interface names' "${naming_err}"; then
+    echo "PASS: Naming-pattern inputs fail closed without explicit CPM role data"
+  else
+    echo "FAIL: Naming-pattern diagnostic did not reject name-derived classification"
+    cat "${naming_err}" >&2
+    all_checks_passed=false
+  fi
 fi
 
 # ============================================================
