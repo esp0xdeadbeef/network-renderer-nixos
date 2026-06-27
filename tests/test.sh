@@ -55,6 +55,7 @@ mapfile -d '' test_files < <(
   {
     find "${repo_root}/tests" -maxdepth 1 -type f -name 'test-*.sh' ! -name 'test-passing-fixtures.sh' -print0
     find "${repo_root}/tests" -maxdepth 1 -type f -name 'FS-*.sh' -print0
+    find "${repo_root}/tests" -maxdepth 1 -type f -name 'run-fs982-sms110.sh' -print0
     find "${repo_root}/tests/cases" -maxdepth 1 -type f -name '*.sh' -print0
   } | sort -z
 )
