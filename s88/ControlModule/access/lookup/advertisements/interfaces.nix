@@ -85,7 +85,7 @@ let
       semanticInterface = semanticInterfaceFor { inherit containerIface runtimeIface; };
       interfaceName = actualInterfaceNameFor containerIface;
       sourceKind = sourceKindFor { inherit containerIface runtimeIface semanticInterface; };
-      isLocalAdapter = sourceKind != "wan" && sourceKind != "p2p";
+      isLocalAdapter = sourceKind == "tenant";
       addresses = containerIface.addresses or (runtimeIface.addresses or [ ]);
       ipv4Cidrs = lib.filter (value: builtins.isString value && lib.hasInfix "." value && lib.hasInfix "/" value) addresses;
       ipv6Cidrs = lib.filter (value: builtins.isString value && lib.hasInfix ":" value && lib.hasInfix "/" value) addresses;

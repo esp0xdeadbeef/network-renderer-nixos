@@ -54,8 +54,22 @@ let
   derivedAlarms = [ ];
 
   alarms = derivedAlarms ++ incompleteDhcp4Alarms ++ incompleteRadvdAlarms;
+
+  failureMessages = isa.warningsFromAlarms alarms;
+
+  failClosedWarnings =
+    if failureMessages == [ ] then
+      [ ]
+    else
+      throw ''
+        FS-310-HDS-010-SDS-010-SMS-110: network-renderer-nixos fail-closed advertisement contract violation.
+        The renderer detected incomplete advertisement data that would require renderer-only assumptions.
+        CPM must provide authoritative DHCPv4/IPv6 RA advertisement interface binding, prefixes/subnets, and DNS data before emission.
+
+        ${lib.concatStringsSep "\n\n" failureMessages}
+      '';
 in
 {
   inherit alarms;
-  warnings = isa.warningsFromAlarms alarms;
+  warnings = failClosedWarnings;
 }
