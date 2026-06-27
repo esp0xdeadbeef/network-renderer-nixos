@@ -3,6 +3,7 @@
 , communicationContract
 , ownership
 , tenantInterfaceByName
+, tenantInterfacesByName
 , common
 ,
 }:
@@ -74,14 +75,17 @@ in
               lib.filter (tenant: tenant != null) (map providerTenantFor providers);
 
           interfaces = sortedStrings (
-            lib.filter (iface: iface != null) (
-              map
-                (
-                  tenant:
-                  if builtins.hasAttr tenant tenantInterfaceByName then tenantInterfaceByName.${tenant} else null
-                )
-                providerTenants
-            )
+            lib.concatMap
+              (
+                tenant:
+                if builtins.hasAttr tenant tenantInterfacesByName then
+                  tenantInterfacesByName.${tenant}
+                else if builtins.hasAttr tenant tenantInterfaceByName then
+                  [ tenantInterfaceByName.${tenant} ]
+                else
+                  [ ]
+              )
+              providerTenants
           );
         in
         {

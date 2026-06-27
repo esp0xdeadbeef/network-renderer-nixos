@@ -74,6 +74,58 @@ in
 {
   inherit findPath;
 
+  firstHopInterfacesToUnit =
+    targetUnit:
+    if currentNodeName == null || targetUnit == null then
+      [ ]
+    else
+      let
+        path = findPath { start = currentNodeName; goal = targetUnit; };
+        hop = if path != null && builtins.length path >= 2 then builtins.elemAt path 1 else null;
+        matchingAdjacencies =
+          if hop != null then
+            adjacenciesForPair
+              {
+                a = currentNodeName;
+                b = hop;
+              }
+          else
+            [ ];
+        matchedLinkNames = lib.filter (ln: ln != null) (
+          map
+            (
+              adjacency:
+              let
+                linkName = adjacencyLinkName adjacency;
+              in
+              if
+                linkName != null
+                && interfaceNameForLinkMatching linkName (interfaceLaneAccessMatches targetUnit) != null
+              then
+                linkName
+              else
+                null
+            )
+            matchingAdjacencies
+        );
+        fallbackLinkNames = lib.filter (ln: ln != null) (map adjacencyLinkName matchingAdjacencies);
+        interfaceForMatchedLink =
+          linkName:
+          let
+            matched = interfaceNameForLinkMatching linkName (interfaceLaneAccessMatches targetUnit);
+          in
+          if matched != null then matched else interfaceNameForLink linkName;
+        interfaceForFallbackLink = linkName: interfaceNameForLink linkName;
+      in
+      sortedStrings (
+        lib.filter (name: name != null) (
+          if matchedLinkNames != [ ] then
+            map interfaceForMatchedLink matchedLinkNames
+          else
+            map interfaceForFallbackLink fallbackLinkNames
+        )
+      );
+
   firstHopInterfaceToUnit =
     targetUnit:
     if currentNodeName == null || targetUnit == null then
