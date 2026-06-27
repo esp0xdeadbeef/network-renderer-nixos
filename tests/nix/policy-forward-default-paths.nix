@@ -15,6 +15,7 @@ let
     inherit boxName system;
     intentPath = builtins.getEnv "INTENT_PATH";
     inventoryPath = builtins.getEnv "INVENTORY_PATH";
+    inherit cpm;
   };
 
   isDefault =
@@ -190,6 +191,8 @@ let
         cpmTypedDenyRelationIds;
     in
     {
+      typedDenyRelationIds = cpmTypedDenyRelationIds;
+      downstreamUplinkAcceptCount = builtins.length downstreamUplinkAccepts;
       cpmParityViolations =
         (lib.optionals (!cpmHasUntypedDeny && bareDrops != [ ]) (
           map
@@ -237,13 +240,37 @@ let
   cpmParityViolations = lib.concatMap (result: result.cpmParityViolations) results;
   terminalConflicts = lib.concatMap (result: result.terminalConflicts) results;
   missingDefaultRoutes = lib.concatMap (result: result.missingDefaultRoutes) results;
+  typedDenyRelationIds = lib.unique (lib.concatMap (result: result.typedDenyRelationIds) results);
+  downstreamUplinkAcceptCount = builtins.foldl'
+    (total: result: total + result.downstreamUplinkAcceptCount)
+    0
+    results;
+  coverageViolations =
+    (lib.optionals (builtins.length results == 0) [
+      { reason = "renderer produced no policy containers to inspect"; }
+    ])
+    ++
+    (lib.optionals (typedDenyRelationIds == [ ]) [
+      { reason = "CPM fixture produced no typed deny relations"; }
+    ]);
 in
 {
-  ok = cpmParityViolations == [ ] && terminalConflicts == [ ] && missingDefaultRoutes == [ ];
+  ok =
+    coverageViolations == [ ]
+    && cpmParityViolations == [ ]
+    && terminalConflicts == [ ]
+    && missingDefaultRoutes == [ ];
   failed =
+    (lib.optionals (coverageViolations != [ ]) [ "policy_cpm_firewall_parity_inactive" ])
+    ++
     (lib.optionals (cpmParityViolations != [ ]) [ "cpm_renderer_policy_semantics_parity" ])
     ++
     (lib.optionals (terminalConflicts != [ ]) [ "policy_nft_terminal_conflicts" ])
     ++ (lib.optionals (missingDefaultRoutes != [ ]) [ "policy_downstream_uplink_default_routes" ]);
-  inherit cpmParityViolations terminalConflicts missingDefaultRoutes;
+  coverage = {
+    policyContainerCount = builtins.length results;
+    typedDenyRelationCount = builtins.length typedDenyRelationIds;
+    inherit typedDenyRelationIds downstreamUplinkAcceptCount;
+  };
+  inherit cpmParityViolations terminalConflicts missingDefaultRoutes coverageViolations;
 }
