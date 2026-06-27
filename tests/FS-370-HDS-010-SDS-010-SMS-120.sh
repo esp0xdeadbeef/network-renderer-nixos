@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-370-HDS-010-SDS-010-RDR-SMS-020
+# GAMP-ID: FS-370-HDS-010-SDS-010-SMS-120
 # GAMP-SCOPE: software-module-test
 # Focused construction test: NixOS renderer per-lane return-path routing.
 #
-# SMS-020: NixOS Materialization — FS-370 Per-Lane Return-Path Routing.
+# SMS-120: NixOS Materialization — FS-370 Per-Lane Return-Path Routing.
 # Verifies the NixOS renderer generates nixos-module attributes for:
-#   - nftables forward rules with per-lane path labels
+#   - nftables forward rules with per-lane path-label comments
 #   - ip route entries for return-path subnets
 #   - ip rule entries for policy routing on shared interfaces
 #
@@ -30,7 +30,7 @@ inventory_path="${fixture_dir}/inventory-nixos.nix"
 
 all_checks_passed=true
 
-echo "--- FS-370-HDS-010-SDS-010-RDR-SMS-020: NixOS per-lane return-path routing ---"
+echo "--- FS-370-HDS-010-SDS-010-SMS-120: NixOS per-lane return-path routing ---"
 echo ""
 
 # ============================================================
@@ -39,7 +39,7 @@ echo ""
 # ============================================================
 echo "--- Predicate 1: Per-lane ip rules with To=<tenant-subnet> ---"
 
-nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P1: per-lane ip rules" \
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P1: per-lane ip rules" \
   env REPO_ROOT="${repo_root}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
@@ -113,7 +113,7 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P1: per-lane ip rules"
         && hasAdminRules
         && hasClientRules
         && policyHasDestinationRules
-        && builtins.trace "FS-370-HDS-010-SDS-010-RDR-SMS-020 P1: ${toString (builtins.length destinationRules)} destination rules on DS, ${toString (builtins.length policyDestinationRules)} on policy" true
+        && builtins.trace "FS-370-HDS-010-SDS-010-SMS-120 P1: ${toString (builtins.length destinationRules)} destination rules on DS, ${toString (builtins.length policyDestinationRules)} on policy" true
     '
 
 echo "PASS P1: Per-lane ip rules with To=<tenant-subnet> exist"
@@ -125,7 +125,7 @@ echo "PASS P1: Per-lane ip rules with To=<tenant-subnet> exist"
 echo ""
 echo "--- Predicate 2: nftables forward chain with per-lane accept rules ---"
 
-nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P2: nftables forward rules" \
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P2: nftables forward rules" \
   env REPO_ROOT="${repo_root}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
@@ -172,15 +172,23 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P2: nftables forward r
 
         # Should have forward rules (access-facing -> policy-facing)
         hasForwardRules = builtins.match ".*iifname.*access-.*oifname.*policy-.*accept.*" ruleset != null;
+        hasForwardPathComment =
+          lib.hasInfix "comment \"selector-handoff-forward--s-router-access-client--access-to-selector-to-selector-to-policy--fabric\"" ruleset;
+        hasReversePathComment =
+          lib.hasInfix "comment \"selector-handoff-reverse--s-router-access-client--selector-to-policy-to-access-to-selector--fabric\"" ruleset;
+        noAmbiguousNoUplinkComment = !(lib.hasInfix "no-uplink" ruleset);
       in
         nftEnabled
         && hasForwardDrop
         && hasReverseRules
         && hasForwardRules
-        && builtins.trace "FS-370-HDS-010-SDS-010-RDR-SMS-020 P2: nftables enabled=${builtins.toJSON nftEnabled}, forwardDrop=${builtins.toJSON hasForwardDrop}, reverse=${builtins.toJSON hasReverseRules}" true
+        && hasForwardPathComment
+        && hasReversePathComment
+        && noAmbiguousNoUplinkComment
+        && builtins.trace "FS-370-HDS-010-SDS-010-SMS-120 P2: nftables enabled=${builtins.toJSON nftEnabled}, forwardDrop=${builtins.toJSON hasForwardDrop}, reverse=${builtins.toJSON hasReverseRules}, pathComments=${builtins.toJSON (hasForwardPathComment && hasReversePathComment)}" true
     '
 
-echo "PASS P2: nftables forward chain has per-lane accept rules with policy drop"
+echo "PASS P2: nftables forward chain has per-lane accept rules with policy drop and path-label comments"
 
 # ============================================================
 # Predicate 3: No "to 0.0.0.0/0" catch-all rules on shared
@@ -189,7 +197,7 @@ echo "PASS P2: nftables forward chain has per-lane accept rules with policy drop
 echo ""
 echo "--- Predicate 3: No default-route catch-all on shared interfaces ---"
 
-nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P3: no catch-all rules" \
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P3: no catch-all rules" \
   env REPO_ROOT="${repo_root}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
@@ -249,7 +257,7 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P3: no catch-all rules
         noCatchAll = builtins.length catchAllRules == 0;
       in
         noCatchAll
-        && builtins.trace "FS-370-HDS-010-SDS-010-RDR-SMS-020 P3: catch-all rules found: ${toString (builtins.length catchAllRules)}" true
+        && builtins.trace "FS-370-HDS-010-SDS-010-SMS-120 P3: catch-all rules found: ${toString (builtins.length catchAllRules)}" true
     '
 
 echo "PASS P3: No default-route catch-all rules on shared interfaces"
@@ -261,7 +269,7 @@ echo "PASS P3: No default-route catch-all rules on shared interfaces"
 echo ""
 echo "--- Predicate 4: Route entries for tenant subnets ---"
 
-nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P4: tenant subnet routes" \
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P4: tenant subnet routes" \
   env REPO_ROOT="${repo_root}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
@@ -301,11 +309,13 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P4: tenant subnet rout
           (map (n: (dsNetworks.${n}.routes or []))
             (builtins.attrNames dsNetworks));
 
-        # Should have routes for known tenant subnets
+        # Should have routes for known tenant subnets through their lane peer.
         hasAdminRoute = builtins.any
-          (r: (r.Destination or "") == "10.20.15.0/24") dsRoutes;
+          (r: (r.Destination or "") == "10.20.15.0/24" && (r.Gateway or "") == "10.10.0.0")
+          dsRoutes;
         hasClientRoute = builtins.any
-          (r: (r.Destination or "") == "10.20.20.0/24") dsRoutes;
+          (r: (r.Destination or "") == "10.20.20.0/24" && (r.Gateway or "") == "10.10.0.2")
+          dsRoutes;
 
         # Routes should have a non-null Gateway (pointing to DS interface)
         tenantRoutes = builtins.filter
@@ -317,10 +327,10 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-RDR-SMS-020 P4: tenant subnet rout
         && hasClientRoute
         && allHaveGateway
         && builtins.length tenantRoutes > 0
-        && builtins.trace "FS-370-HDS-010-SDS-010-RDR-SMS-020 P4: ${toString (builtins.length tenantRoutes)} tenant routes, allHaveGateway=${builtins.toJSON allHaveGateway}" true
+        && builtins.trace "FS-370-HDS-010-SDS-010-SMS-120 P4: ${toString (builtins.length tenantRoutes)} tenant routes, allHaveGateway=${builtins.toJSON allHaveGateway}" true
     '
 
-echo "PASS P4: Route entries point to DS-facing interfaces for tenant subnets"
+echo "PASS P4: Route entries point to correct DS-facing lane gateways for tenant subnets"
 
 # ============================================================
 # Seeded Negative 1: Missing per-lane ip rule on policy DS
@@ -328,24 +338,51 @@ echo "PASS P4: Route entries point to DS-facing interfaces for tenant subnets"
 echo ""
 echo "--- Seeded Negative 1: Missing per-lane ip rule detection ---"
 
-# Verify the source code has infrastructure to produce destination-scoped rules
-# If rules.nix were to stop producing To= rules, this would be detected
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 SN1: missing per-lane ip rule rejected" \
+  env REPO_ROOT="${repo_root}" \
+    INTENT_PATH="${intent_path}" \
+    INVENTORY_PATH="${inventory_path}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
+        intentPath = builtins.getEnv "INTENT_PATH";
+        inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        cpm = flake.inputs.network-control-plane-model.lib.x86_64-linux.compileAndBuildFromPaths {
+          inputPath = intentPath;
+          inherit inventoryPath;
+          validateForwardingModel = false;
+          validateRuntimeModel = false;
+        };
+        hostBuild = flake.lib.renderer.buildHostFromControlPlane {
+          controlPlaneOut = cpm;
+          selector = "s-router-test";
+          system = "x86_64-linux";
+        };
+        ds = hostBuild.renderedHost.containers."s-router-downstream-selector" or {};
+        dsCfg = (lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [ (ds.config or {}) ];
+        }).config;
+        dsNetworks = dsCfg.systemd.network.networks or {};
+        dsRules = builtins.concatLists
+          (map (n: (dsNetworks.${n}.routingPolicyRules or []))
+            (builtins.attrNames dsNetworks));
+        destinationRules = builtins.filter (r: builtins.hasAttr "To" r) dsRules;
+        hasClientRule = rules:
+          builtins.any (r: (r.To or "") == "10.20.20.0/24" && (r.IncomingInterface or "") == "policy-client") rules;
+        missingClientRule =
+          builtins.filter
+            (r: !((r.To or "") == "10.20.20.0/24" && (r.IncomingInterface or "") == "policy-client"))
+            destinationRules;
+      in
+        hasClientRule destinationRules
+        && !(hasClientRule missingClientRule)
+    '
 
-rules_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/rules.nix"
-if grep -q 'destinationScopeRule' "${rules_file}" 2>/dev/null; then
-  echo "  OK: rules.nix has destinationScopeRule function for To= rules"
-  # Verify it produces rules with To= prefix
-  if grep -q 'To = prefix.prefix' "${rules_file}" 2>/dev/null; then
-    echo "  OK: destinationScopeRule sets To= prefix"
-    echo "PASS SN1: Per-lane ip rule infrastructure would detect missing rules"
-  else
-    echo "FAIL SN1: destinationScopeRule missing To= prefix assignment"
-    all_checks_passed=false
-  fi
-else
-  echo "FAIL SN1: rules.nix missing destinationScopeRule function"
-  all_checks_passed=false
-fi
+echo "PASS SN1: Mutated artifact without client per-lane ip rule is rejected"
 
 # ============================================================
 # Seeded Negative 2: DS reverse forward rule absent
@@ -353,27 +390,44 @@ fi
 echo ""
 echo "--- Seeded Negative 2: DS reverse forward rule absence detection ---"
 
-# Verify the forwarding rules infrastructure handles reverse rules
-# The forwarding-rules.nix should handle reverse direction
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 SN2: missing reverse nft rule rejected" \
+  env REPO_ROOT="${repo_root}" \
+    INTENT_PATH="${intent_path}" \
+    INVENTORY_PATH="${inventory_path}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
+        intentPath = builtins.getEnv "INTENT_PATH";
+        inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        cpm = flake.inputs.network-control-plane-model.lib.x86_64-linux.compileAndBuildFromPaths {
+          inputPath = intentPath;
+          inherit inventoryPath;
+          validateForwardingModel = false;
+          validateRuntimeModel = false;
+        };
+        hostBuild = flake.lib.renderer.buildHostFromControlPlane {
+          controlPlaneOut = cpm;
+          selector = "s-router-test";
+          system = "x86_64-linux";
+        };
+        ds = hostBuild.renderedHost.containers."s-router-downstream-selector" or {};
+        dsCfg = (lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [ (ds.config or {}) ];
+        }).config;
+        ruleset = dsCfg.networking.nftables.ruleset or "";
+        reverseRule = "iifname \"policy-client\" oifname \"access-client\" accept comment \"selector-handoff-reverse--s-router-access-client--selector-to-policy-to-access-to-selector--fabric\"";
+        hasReverse = value: lib.hasInfix reverseRule value;
+        missingReverse = builtins.replaceStrings [ reverseRule ] [ "" ] ruleset;
+      in
+        hasReverse ruleset
+        && !(hasReverse missingReverse)
+    '
 
-fwd_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/forwarding-rules.nix"
-if grep -q 'hasAcceptForwardingRule' "${fwd_file}" 2>/dev/null; then
-  echo "  OK: forwarding-rules.nix has hasAcceptForwardingRule for rule presence checks"
-  
-  # hasAcceptForwardingRule is passed to raw-routes.nix which uses it for route scoping
-  # It flows: forwarding-rules.nix → policy-routing.nix → raw-routes.nix
-  raw_routes_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/raw-routes.nix"
-  if grep -q 'hasAcceptForwardingRule' "${raw_routes_file}" 2>/dev/null; then
-    echo "  OK: raw-routes.nix uses hasAcceptForwardingRule for route scoping"
-    echo "PASS SN2: Reverse forward rule infrastructure would detect absent rules"
-  else
-    echo "FAIL SN2: raw-routes.nix missing hasAcceptForwardingRule usage"
-    all_checks_passed=false
-  fi
-else
-  echo "FAIL SN2: forwarding-rules.nix missing hasAcceptForwardingRule"
-  all_checks_passed=false
-fi
+echo "PASS SN2: Mutated artifact without client reverse nft rule is rejected"
 
 # ============================================================
 # Seeded Negative 3: Default-route catch-all on shared interface
@@ -381,31 +435,53 @@ fi
 echo ""
 echo "--- Seeded Negative 3: Default-route catch-all prohibition ---"
 
-# Verify the rules module has the infrastructure to prohibit 0.0.0.0/0 To= rules
-# Check if there are guards against default-route catch-all
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 SN3: default-route catch-all rejected" \
+  env REPO_ROOT="${repo_root}" \
+    INTENT_PATH="${intent_path}" \
+    INVENTORY_PATH="${inventory_path}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
+        intentPath = builtins.getEnv "INTENT_PATH";
+        inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        cpm = flake.inputs.network-control-plane-model.lib.x86_64-linux.compileAndBuildFromPaths {
+          inputPath = intentPath;
+          inherit inventoryPath;
+          validateForwardingModel = false;
+          validateRuntimeModel = false;
+        };
+        hostBuild = flake.lib.renderer.buildHostFromControlPlane {
+          controlPlaneOut = cpm;
+          selector = "s-router-test";
+          system = "x86_64-linux";
+        };
+        containers = hostBuild.renderedHost.containers or {};
+        getAllRules = container:
+          let
+            cfg = (lib.nixosSystem {
+              system = "x86_64-linux";
+              modules = [ (container.config or {}) ];
+            }).config;
+            networks = cfg.systemd.network.networks or {};
+          in
+            builtins.concatLists
+              (map (n: (networks.${n}.routingPolicyRules or []))
+                (builtins.attrNames networks));
+        allContainerRules = builtins.concatLists
+          (map (name: getAllRules containers.${name}) (builtins.attrNames containers));
+        noCatchAll = rules:
+          builtins.length
+            (builtins.filter (r: (r.To or "") == "0.0.0.0/0" || (r.To or "") == "::/0") rules)
+          == 0;
+      in
+        noCatchAll allContainerRules
+        && !(noCatchAll (allContainerRules ++ [{ To = "0.0.0.0/0"; IncomingInterface = "policy-client"; }]))
+    '
 
-# Check for prohibited patterns in rules.nix or aggregate.nix
-raw_routes_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/raw-routes.nix"
-rules_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/rules.nix"
-
-# The rules.nix generates To= rules. Check if default routes are filtered out.
-if grep -q 'isDefaultRoute' "${raw_routes_file}" 2>/dev/null; then
-  echo "  OK: raw-routes.nix has isDefaultRoute for filtering default routes"
-  # Check if default routes are excluded from To= scoping
-  if grep -A2 'isDefaultRoute' "${raw_routes_file}" | grep -qE '(!\()|filter.*default' 2>/dev/null; then
-    echo "  OK: Default routes are filtered from policy table routing"
-  fi
-  echo "PASS SN3: Default-route catch-all infrastructure for prohibition"
-else
-  # Even without explicit isDefaultRoute, check if the rules are appropriately scoped
-  if grep -q 'destinationScoped' "${rules_file}" 2>/dev/null; then
-    echo "  OK: rules.nix has destination-scoped rule generation (non-default only)"
-    echo "PASS SN3: Destination-scoped rules would not generate 0.0.0.0/0 catch-all"
-  else
-    echo "INFO: No explicit default-route prohibition guard found — acceptable if To= rules never produce 0.0.0.0/0"
-    echo "PASS SN3: No catch-all rules observed in output (verified in Predicate 3)"
-  fi
-fi
+echo "PASS SN3: Mutated artifact with default-route catch-all is rejected"
 
 # ============================================================
 # Seeded Negative 4: Return-path route to wrong interface
@@ -413,28 +489,54 @@ fi
 echo ""
 echo "--- Seeded Negative 4: Wrong-interface route detection ---"
 
-# Verify the route generation uses interface lane matching for correctness
-raw_routes_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/raw-routes.nix"
-lane_match_file="${repo_root}/s88/ControlModule/render/container-networks/policy-routing/raw-routes/lane-match.nix"
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 SN4: wrong lane gateway rejected" \
+  env REPO_ROOT="${repo_root}" \
+    INTENT_PATH="${intent_path}" \
+    INVENTORY_PATH="${inventory_path}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
+        intentPath = builtins.getEnv "INTENT_PATH";
+        inventoryPath = builtins.getEnv "INVENTORY_PATH";
+        cpm = flake.inputs.network-control-plane-model.lib.x86_64-linux.compileAndBuildFromPaths {
+          inputPath = intentPath;
+          inherit inventoryPath;
+          validateForwardingModel = false;
+          validateRuntimeModel = false;
+        };
+        hostBuild = flake.lib.renderer.buildHostFromControlPlane {
+          controlPlaneOut = cpm;
+          selector = "s-router-test";
+          system = "x86_64-linux";
+        };
+        ds = hostBuild.renderedHost.containers."s-router-downstream-selector" or {};
+        dsCfg = (lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [ (ds.config or {}) ];
+        }).config;
+        dsNetworks = dsCfg.systemd.network.networks or {};
+        dsRoutes = builtins.concatLists
+          (map (n: (dsNetworks.${n}.routes or []))
+            (builtins.attrNames dsNetworks));
+        hasClientLaneGateway = routes:
+          builtins.any (r: (r.Destination or "") == "10.20.20.0/24" && (r.Gateway or "") == "10.10.0.2") routes;
+        wrongGatewayRoutes =
+          map
+            (r:
+              if (r.Destination or "") == "10.20.20.0/24" then
+                r // { Gateway = "10.10.0.4"; }
+              else
+                r)
+            dsRoutes;
+      in
+        hasClientLaneGateway dsRoutes
+        && !(hasClientLaneGateway wrongGatewayRoutes)
+    '
 
-if [[ -f "${lane_match_file}" ]]; then
-  if grep -q 'routeMatchesInterfaceLane' "${lane_match_file}" 2>/dev/null; then
-    echo "  OK: lane-match.nix has routeMatchesInterfaceLane for lane verification"
-    echo "PASS SN4: Lane-interface matching infrastructure would detect wrong-interface routes"
-  else
-    echo "INFO: lane-match.nix exists but routeMatchesInterfaceLane not found"
-    echo "PASS SN4: Lane matching present for interface correctness"
-  fi
-else
-  # Check if raw-routes.nix has other route-to-interface verification
-  if grep -q 'routeOutputInterface' "${raw_routes_file}" 2>/dev/null; then
-    echo "  OK: raw-routes.nix uses routeOutputInterface for correct interface routing"
-    echo "PASS SN4: Route-to-interface verification infrastructure present"
-  else
-    echo "INFO: No dedicated wrong-interface guard found — route correctness verified by output interface grouping"
-    echo "PASS SN4: Interface grouping infrastructure present for route correctness"
-  fi
-fi
+echo "PASS SN4: Mutated artifact with wrong client lane gateway is rejected"
 
 # ============================================================
 # Predicate 5: Source code completeness check
@@ -472,14 +574,14 @@ fi
 # ============================================================
 echo ""
 if ${all_checks_passed}; then
-  echo "PASS: FS-370-HDS-010-SDS-010-RDR-SMS-020 — NixOS renderer per-lane return-path routing predicates verified."
+  echo "PASS: FS-370-HDS-010-SDS-010-SMS-120 — NixOS renderer per-lane return-path routing predicates verified."
   echo "  - Per-lane ip rules with To=<tenant-subnet> on DS and policy nodes"
-  echo "  - nftables forward chain with policy drop and per-lane accept rules"
+  echo "  - nftables forward chain with policy drop and per-lane accept rules/comments"
   echo "  - No default-route catch-all rules on shared interfaces"
-  echo "  - Route entries point to correct DS-facing interfaces"
-  echo "  - 4 seeded negatives verified"
+  echo "  - Route entries point to correct DS-facing lane gateways"
+  echo "  - 4 active seeded negatives verified by artifact mutation"
   exit 0
 else
-  echo "FAIL: FS-370-HDS-010-SDS-010-RDR-SMS-020 — one or more predicates failed."
+  echo "FAIL: FS-370-HDS-010-SDS-010-SMS-120 — one or more predicates failed."
   exit 1
 fi
