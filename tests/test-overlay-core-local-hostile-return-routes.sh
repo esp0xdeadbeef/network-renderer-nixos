@@ -55,6 +55,21 @@ nix_eval_json_or_fail \
                 && (route.GatewayOnLink or false)
                 && ((route.Table or null) == table))
               allRoutes;
+          tablesForRoute = destination: gateway:
+            lib.unique (
+              map
+                (route: route.Table)
+                (
+                  builtins.filter
+                    (route:
+                      (route.networkName or null) == "10-upstream"
+                      && (route.Destination or null) == destination
+                      && (route.Gateway or null) == gateway
+                      && (route.GatewayOnLink or false)
+                      && builtins.isInt (route.Table or null))
+                    allRoutes
+                )
+            );
           readExecScript = service: builtins.readFile (lib.removeSuffix " " service.serviceConfig.ExecStart);
           routeServiceScripts =
             builtins.concatStringsSep "\n" (
@@ -70,29 +85,27 @@ nix_eval_json_or_fail \
             && lib.hasInfix "gateway=fd42:dead:beef:1000:0:0:0:11" routeServiceScripts
             && lib.hasInfix ("table=" + toString table) routeServiceScripts
             && lib.hasInfix "ip -6 route replace table \"$table\" \"$prefix\" via \"$gateway\" dev \"$interface\" proto static onlink" routeServiceScripts;
+          hostileV4Tables = tablesForRoute "10.20.70.0/24" "10.10.0.17";
+          hostileUlaTables = tablesForRoute "fd42:dead:beef:0070:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:11";
           checks = {
             main_hostile_v4_return =
               hasRoute "10.20.70.0/24" "10.10.0.17" null;
             main_hostile_ula_return =
               hasRoute "fd42:dead:beef:0070:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:11" null;
-            table_2000_hostile_v4_return =
-              hasRoute "10.20.70.0/24" "10.10.0.17" 2000;
-            table_2000_hostile_ula_return =
-              hasRoute "fd42:dead:beef:0070:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:11" 2000;
-            table_2001_hostile_v4_return =
-              hasRoute "10.20.70.0/24" "10.10.0.17" 2001;
-            table_2001_hostile_ula_return =
-              hasRoute "fd42:dead:beef:0070:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:11" 2001;
-            runtime_hostile_gua_return_table_2000 =
-              hasRuntimeSourceFileRoute 2000;
-            runtime_hostile_gua_return_table_2001 =
-              hasRuntimeSourceFileRoute 2001;
+            policy_hostile_v4_return_tables =
+              builtins.length hostileV4Tables >= 2;
+            policy_hostile_ula_return_tables =
+              builtins.length hostileUlaTables >= 2;
+            policy_hostile_return_tables_match =
+              lib.sort builtins.lessThan hostileV4Tables == lib.sort builtins.lessThan hostileUlaTables;
+            runtime_hostile_gua_return_tables =
+              builtins.all hasRuntimeSourceFileRoute hostileUlaTables;
           };
         in
         {
           ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);
           failed = builtins.filter (name: !(checks.${name})) (builtins.attrNames checks);
-          inherit checks allRoutes routeServiceScripts;
+          inherit checks allRoutes routeServiceScripts hostileV4Tables hostileUlaTables;
         }
       '
 

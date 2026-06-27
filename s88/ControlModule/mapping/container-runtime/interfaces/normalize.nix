@@ -152,6 +152,7 @@ let
         adapterName = if iface ? adapterName && builtins.isString iface.adapterName then iface.adapterName else null;
         addresses = addressListForInterface iface;
         routes = routeListForInterface iface;
+        policyRoutingAllocation = iface.policyRoutingAllocation or null;
         mtu = if builtins.isInt (iface.mtu or null) then iface.mtu else null;
         renderedHostBridgeName = attachTarget.renderedHostBridgeName;
         assignedUplinkName = attachTarget.assignedUplinkName or null;

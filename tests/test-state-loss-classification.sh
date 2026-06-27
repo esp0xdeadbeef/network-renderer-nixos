@@ -28,6 +28,7 @@ if env REPO_ROOT="${repo_root}" nix eval \
             runtimeTarget.advertisements.dhcp4 = [
               {
                 id = "client-v4";
+                enabled = true;
                 interface = "tenant-client";
                 subnet = "10.20.20.0/24";
                 pool = "10.20.20.100 - 10.20.20.199";
@@ -70,6 +71,7 @@ if env REPO_ROOT="${repo_root}" nix eval \
               advertisements.dhcp4 = [
                 {
                   id = "client-v4";
+                  enabled = true;
                   interface = "tenant-client";
                   subnet = "10.20.20.0/24";
                   pool = "10.20.20.100 - 10.20.20.199";

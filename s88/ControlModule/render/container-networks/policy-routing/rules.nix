@@ -7,7 +7,7 @@
 ,
 }:
 
-interfaceName: tableId: sourceIfNames: sourcePrefixes: destinationPrefixes:
+interfaceName: tableId: tableRulePriority: mainSuppressPriority: sourceIfNames: sourcePrefixes: destinationPrefixes:
 let
   ingressInterfaces =
     lib.unique (
@@ -18,13 +18,13 @@ let
   tableRuleFor = incomingInterface: {
     Family = "both";
     IncomingInterface = incomingInterface;
-    Priority = tableId;
+    Priority = tableRulePriority;
     Table = tableId;
   };
   mainFallbackRuleFor = incomingInterface: {
     Family = "both";
     IncomingInterface = incomingInterface;
-    Priority = 10000 + tableId;
+    Priority = mainSuppressPriority;
     Table = 254;
     SuppressPrefixLength = 0;
   };
