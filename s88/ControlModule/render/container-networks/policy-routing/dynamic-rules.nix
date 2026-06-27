@@ -7,7 +7,7 @@
   isUpstreamSelectorPolicyInterface,
 }:
 
-interfaceName: tableId: sourceIfNames: sourceFiles:
+interfaceName: tableId: dynamicRulePriority: mainSuppressPriority: sourceIfNames: sourceFiles:
 let
   ingressInterfaces =
     lib.unique (
@@ -20,12 +20,12 @@ let
     [
       {
         interfaceName = incomingInterface;
-        priority = 9000 + tableId;
+        priority = dynamicRulePriority;
         table = tableId;
       }
       {
         interfaceName = incomingInterface;
-        priority = 10000 + tableId;
+        priority = mainSuppressPriority;
         table = 254;
         suppressPrefixLength = 0;
       }

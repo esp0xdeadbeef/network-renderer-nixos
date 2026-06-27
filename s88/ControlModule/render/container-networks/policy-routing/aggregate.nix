@@ -16,6 +16,7 @@
 , serviceDnsRoutes
 , policyRulesFor
 , dynamicPolicyRulesFor
+, policyRoutingAllocations
 , forTarget
 , forTargetRules
 ,
@@ -31,6 +32,33 @@
 # into NixOS policy-routing artifacts. Source-scoped egress and
 # destination-scoped return selectors are independent selectors for the same
 # modeled table; target-side scope must not leak to unrelated ingress.
+let
+  positiveInt =
+    ifName: field: value:
+    if builtins.isInt value && value > 0 then
+      value
+    else
+      throw "FS-310-HDS-010-SDS-010-SMS-130: interface '${ifName}' policyRoutingAllocation.${field} must be a positive integer";
+
+  policyRoutingAllocationFor =
+    ifName:
+    let
+      allocation = policyRoutingAllocations.${ifName} or null;
+      source = if builtins.isAttrs allocation then allocation.source or null else null;
+    in
+    if !(builtins.isAttrs allocation) || allocation == { } then
+      throw "FS-310-HDS-010-SDS-010-SMS-130: interface '${ifName}' has NixOS policy-routing materialization but lacks CPM policyRoutingAllocation; renderer must not invent route table IDs or rule priorities"
+    else if source != "control-plane-model" && source != "provider-contract" then
+      throw "FS-310-HDS-010-SDS-010-SMS-130: interface '${ifName}' policyRoutingAllocation.source must be 'control-plane-model' or 'provider-contract'"
+    else
+      {
+        tableId = positiveInt ifName "tableId" (allocation.tableId or null);
+        priority = positiveInt ifName "priority" (allocation.priority or null);
+        tableRulePriority = positiveInt ifName "tableRulePriority" (allocation.tableRulePriority or null);
+        dynamicRulePriority = positiveInt ifName "dynamicRulePriority" (allocation.dynamicRulePriority or null);
+        mainSuppressPriority = positiveInt ifName "mainSuppressPriority" (allocation.mainSuppressPriority or null);
+      };
+in
 builtins.foldl'
   (
     acc: entry:
@@ -38,7 +66,8 @@ builtins.foldl'
       index = entry.index;
       ifName = entry.ifName;
       interfaceName = renderedInterfaceNames.${ifName};
-      tableId = 2000 + index;
+      policyRoutingAllocation = policyRoutingAllocationFor ifName;
+      tableId = policyRoutingAllocation.tableId;
       routeSourceIfNames = forTarget interfaceName;
       baseSourceIfNames = forTargetRules interfaceName;
       policyIngressLocalSourceIfNames = lib.optionals
@@ -154,9 +183,9 @@ builtins.foldl'
             destinationScope = if sourceIfName == ifName then [ ] else destinationScopeForIngress sourceIfName;
             sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
             destinationScopedRules =
-              policyRulesFor interfaceName tableId [ sourceIfName ] [ ] destinationScope;
+              policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] [ ] destinationScope;
             sourceScopedRules =
-              policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule [ ];
+              policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] sourceScopeForRule [ ];
           in
           if
             sourceIfName == ifName
@@ -167,7 +196,7 @@ builtins.foldl'
           else if destinationScope != [ ] && sourceScopeForRule != [ ] then
             destinationScopedRules ++ sourceScopedRules
           else
-            policyRulesFor interfaceName tableId [ sourceIfName ] sourceScopeForRule destinationScope
+            policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] sourceScopeForRule destinationScope
         )
         sourceIfNames;
       forwardingIngressRules =
@@ -176,14 +205,14 @@ builtins.foldl'
             Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
             From = prefix.prefix;
             IncomingInterface = interfaceName;
-            Priority = 9000 + tableId;
+            Priority = policyRoutingAllocation.dynamicRulePriority;
             Table = tableId;
           };
           mainFallbackRuleFor = prefix: {
             Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
             From = prefix.prefix;
             IncomingInterface = interfaceName;
-            Priority = 10000 + tableId;
+            Priority = policyRoutingAllocation.mainSuppressPriority;
             SuppressPrefixLength = 0;
             Table = 254;
           };
@@ -240,7 +269,7 @@ builtins.foldl'
         ++ lib.concatMap
           (
             sourceIfName:
-            dynamicPolicyRulesFor interfaceName tableId [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).sourceFiles
+            dynamicPolicyRulesFor interfaceName tableId policyRoutingAllocation.dynamicRulePriority policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] (ruleSourceScopeForIngress sourceIfName).sourceFiles
           )
           sourceIfNames;
     }

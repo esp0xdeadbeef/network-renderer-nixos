@@ -35,6 +35,7 @@ nix_eval_true_or_fail \
                   dhcpv6 = [
                     {
                       id = "client";
+                      enabled = true;
                       interface = "tenant-client";
                       tenant = "client";
                       subnet = "fd42:dead:beef:20::/64";

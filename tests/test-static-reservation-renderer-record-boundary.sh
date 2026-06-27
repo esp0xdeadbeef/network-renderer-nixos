@@ -33,6 +33,7 @@ nix_eval_true_or_fail \
                   dhcp4 = [
                     {
                       id = "client-v4";
+                      enabled = true;
                       interface = "tenant-client";
                       tenant = "client";
                       subnet = "10.20.20.0/24";
@@ -56,6 +57,7 @@ nix_eval_true_or_fail \
                   dhcpv6 = [
                     {
                       id = "client-v6";
+                      enabled = true;
                       interface = "tenant-client";
                       tenant = "client";
                       subnet = "fd42:dead:beef:20::/64";
@@ -170,21 +172,21 @@ EOF
 assert_rejects \
   reservations-not-list \
   "runtimeTarget.advertisements.dhcp4[0].reservations must be a list" \
-  "$(nix_expr_for '{ id = "client"; interface = "tenant-client"; subnet = "10.20.20.0/24"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = { mac = "02:10:20:00:00:10"; address = "10.20.20.10"; }; }')"
+  "$(nix_expr_for '{ id = "client"; enabled = true; interface = "tenant-client"; subnet = "10.20.20.0/24"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = { mac = "02:10:20:00:00:10"; address = "10.20.20.10"; }; }')"
 
 assert_rejects \
   missing-resolved-address \
   "runtimeTarget.advertisements.dhcp4[0].reservations[0].address must be a non-empty string" \
-  "$(nix_expr_for '{ id = "client"; interface = "tenant-client"; subnet = "10.20.20.0/24"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = [ { mac = "02:10:20:00:00:10"; } ]; }')"
+  "$(nix_expr_for '{ id = "client"; enabled = true; interface = "tenant-client"; subnet = "10.20.20.0/24"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = [ { mac = "02:10:20:00:00:10"; } ]; }')"
 
 assert_rejects \
   missing-served-scope \
   "runtimeTarget.advertisements.dhcp4[0].subnet must be a non-empty string" \
-  "$(nix_expr_for '{ id = "client"; interface = "tenant-client"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = [ { mac = "02:10:20:00:00:10"; address = "10.20.20.10"; } ]; }')"
+  "$(nix_expr_for '{ id = "client"; enabled = true; interface = "tenant-client"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = [ { mac = "02:10:20:00:00:10"; address = "10.20.20.10"; } ]; }')"
 
 assert_rejects \
   unrelated-network-authority \
   "must not carry unrelated network authority fields: routes, dnsRecursion, publicEgress" \
-  "$(nix_expr_for '{ id = "client"; interface = "tenant-client"; subnet = "10.20.20.0/24"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = [ { mac = "02:10:20:00:00:10"; address = "10.20.20.10"; dnsRecursion = true; publicEgress = true; routes = [ "0.0.0.0/0" ]; } ]; }')"
+  "$(nix_expr_for '{ id = "client"; enabled = true; interface = "tenant-client"; subnet = "10.20.20.0/24"; pool = "10.20.20.100 - 10.20.20.199"; router = "10.20.20.1"; reservations = [ { mac = "02:10:20:00:00:10"; address = "10.20.20.10"; dnsRecursion = true; publicEgress = true; routes = [ "0.0.0.0/0" ]; } ]; }')"
 
 echo "PASS static-reservation-renderer-record-boundary"

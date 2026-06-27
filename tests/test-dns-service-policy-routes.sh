@@ -134,7 +134,9 @@ nix_eval_json_or_fail \
         branchCoreNebulaRules = branchUpstreamNetworks."10-core-nebula".routingPolicyRules or [ ];
         branchHostileEwRules = branchUpstreamNetworks."10-pol-hostile-ew".routingPolicyRules or [ ];
         sitecClientRoutes = sitecNetworks."10-down-client".routes or [ ];
+        branchEwTable = policyTableFor branchNetworks "10-up-branch-ew";
         branchCoreNebulaTable = policyTableFor branchUpstreamNetworks "10-core-nebula";
+        branchCoreIspTable = policyTableFor branchUpstreamNetworks "10-core-isp";
         branchBranchEwTable = policyTableFor branchUpstreamNetworks "10-pol-branch-ew";
         branchHostileEwTable = policyTableFor branchUpstreamNetworks "10-pol-hostile-ew";
         siteaCoreNebulaTable = policyTableFor siteaUpstreamNetworks "10-core-nebula";
@@ -144,12 +146,14 @@ nix_eval_json_or_fail \
         siteaAdminEwTable = policyTableFor siteaUpstreamNetworks "10-pol-adm-ew";
         siteaAdminWanTable = policyTableFor siteaUpstreamNetworks "10-pol-admin-a";
         siteaMgmtWanTable = policyTableFor siteaUpstreamNetworks "10-pol-mgmt-a";
+        siteaMgmtDownstreamTable = policyTableFor siteaPolicyNetworks "10-downstream-mgmt";
         siteaPolicyClientEwTable = policyTableFor siteaPolicyNetworks "10-up-cli-ew";
+        sitecClientTable = policyTableFor sitecNetworks "10-down-client";
         checks = {
           branch_v4_dns_route =
-            hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.13" 2000;
+            hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.13" branchEwTable;
           branch_v6_dns_route =
-            hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:d" 2000;
+            hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:d" branchEwTable;
           branch_dns_service_udp_rule =
             lib.hasInfix "iifname \"down-branch\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-branch-dns-to-sitea-mgmt-dns\"" branchPolicyRules;
           branch_dns_service_tcp_rule =
@@ -181,13 +185,13 @@ nix_eval_json_or_fail \
           branch_upstream_core_nebula_hostile_return_v6 =
             hasPolicyRoute branchUpstreamNetworks "fd42:dead:feed:70::/64" "fd42:dead:feed:1000:0:0:0:10" branchCoreNebulaTable;
           branch_upstream_wrong_v4_absent =
-            missingRoute bUpstreamCoreIngressRoutes "10.50.0.0" "10.50.0.16" 2000;
+            missingRoute bUpstreamCoreIngressRoutes "10.50.0.0" "10.50.0.16" branchBranchEwTable;
           branch_upstream_wrong_v6_absent =
-            missingRoute bUpstreamCoreIngressRoutes "fd42:dead:feed:1000:0:0:0:0" "fd42:dead:feed:1000:0:0:0:10" 2000;
+            missingRoute bUpstreamCoreIngressRoutes "fd42:dead:feed:1000:0:0:0:0" "fd42:dead:feed:1000:0:0:0:10" branchBranchEwTable;
           branch_hostile_sitec_dns_uses_overlay =
             hasPolicyRoute branchUpstreamNetworks "10.90.10.0/24" "10.50.0.4" branchHostileEwTable;
           branch_hostile_sitec_dns_not_on_wan =
-            missingRoute branchHostileWanRoutes "10.90.10.1" "10.50.0.4" 2004;
+            missingRoute branchHostileWanRoutes "10.90.10.1" "10.50.0.4" branchCoreIspTable;
           branch_hostile_public_default_uses_overlay =
             hasPolicyRoute branchUpstreamNetworks "::/0" "fd42:dead:feed:1000:0:0:0:4" branchHostileEwTable;
           branch_hostile_public_default_not_on_isp =
@@ -197,7 +201,7 @@ nix_eval_json_or_fail \
           sitea_upstream_dns_route =
             hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.48" siteaCoreNebulaTable;
           sitea_upstream_wrong_lane_absent =
-            !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" 2001);
+            !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" siteaCoreATable);
           sitea_mgmt_wan_dns_v4 =
             hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.50" siteaCoreATable;
           sitea_mgmt_wan_p2p_v4 =
@@ -211,21 +215,21 @@ nix_eval_json_or_fail \
           sitea_admin_wan_return_v6 =
             hasPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:15::/64" "fd42:dead:beef:1000:0:0:0:1e" siteaCoreNebulaTable;
           sitea_mgmt_wan_admin_return_v4_absent =
-            missingRoute siteaMgmtWanReturnRoutes "10.20.15.0/24" "10.10.0.50" 2000;
+            missingRoute siteaMgmtWanReturnRoutes "10.20.15.0/24" "10.10.0.50" siteaMgmtWanTable;
           sitea_mgmt_wan_admin_return_v6_absent =
-            missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:15::/64" "fd42:dead:beef:1000:0:0:0:32" 2000;
+            missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:15::/64" "fd42:dead:beef:1000:0:0:0:32" siteaMgmtWanTable;
           sitea_mgmt_wan_client_return_v4_absent =
-            missingRoute siteaMgmtWanReturnRoutes "10.20.20.0/24" "10.10.0.50" 2000;
+            missingRoute siteaMgmtWanReturnRoutes "10.20.20.0/24" "10.10.0.50" siteaMgmtWanTable;
           sitea_mgmt_wan_client_return_v6_absent =
-            missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:20::/64" "fd42:dead:beef:1000:0:0:0:32" 2000;
+            missingRoute siteaMgmtWanReturnRoutes "fd42:dead:beef:20::/64" "fd42:dead:beef:1000:0:0:0:32" siteaMgmtWanTable;
           sitea_mgmt_ew_branch_reachability_v4 =
             hasMainOrPolicyRoute siteaUpstreamNetworks "10.60.10.0/24" "10.10.0.16" siteaCoreNebulaTable;
           sitea_mgmt_ew_branch_reachability_v6 =
             hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:feed:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:10" siteaCoreNebulaTable;
           sitea_mgmt_downstream_dns_v4 =
-            hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.26" 2004;
+            hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.26" siteaMgmtDownstreamTable;
           sitea_mgmt_downstream_dns_v6 =
-            hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:1a" 2004;
+            hasRoute siteaMgmtRoutes "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:1a" siteaMgmtDownstreamTable;
           sitea_policy_client_ew_mgmt_dns_v4_absent =
             !(hasPolicyRoute siteaPolicyNetworks "10.20.10.0/24" "10.10.0.37" siteaPolicyClientEwTable);
           sitea_policy_client_ew_mgmt_dns_v6_absent =
@@ -235,9 +239,9 @@ nix_eval_json_or_fail \
           sitea_dns_tcp_rule =
             lib.hasInfix "iifname \"down-client\" oifname \"downstream-mgmt\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitea-tenants-to-mgmt-dns\"" siteaPolicyRules;
           sitec_client_to_dmz_dns_v4 =
-            hasRoute sitecClientRoutes "10.90.20.0/24" "10.80.0.6" 2002;
+            hasRoute sitecClientRoutes "10.90.20.0/24" "10.80.0.6" sitecClientTable;
           sitec_client_to_dmz_dns_v6 =
-            hasRoute sitecClientRoutes "fd42:dead:cafe:0020:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:6" 2002;
+            hasRoute sitecClientRoutes "fd42:dead:cafe:0020:0000:0000:0000:0000/64" "fd42:dead:cafe:1000:0:0:0:6" sitecClientTable;
         };
       in
       {
