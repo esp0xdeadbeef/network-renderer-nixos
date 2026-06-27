@@ -86,7 +86,13 @@ let
     pair:
     let
       rawAction = if pair ? action && builtins.isString pair.action then pair.action else "accept";
-      action = if rawAction == "deny" then "drop" else rawAction;
+      action =
+        if rawAction == "deny" || rawAction == "drop" then
+          "drop"
+        else if rawAction == "allow" || rawAction == "accept" then
+          "accept"
+        else
+          rawAction;
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
           " comment \"${escapeComment pair.comment}\""

@@ -9,7 +9,14 @@
 let
   inherit (common) asList valuesFromPaths attrOr;
 
-  normalizeAction = raw: if raw == "deny" then "drop" else raw;
+  normalizeAction =
+    raw:
+    if raw == "deny" || raw == "drop" then
+      "drop"
+    else if raw == "allow" || raw == "accept" then
+      "accept"
+    else
+      raw;
 
   normalizeForwardPair =
     pair:
