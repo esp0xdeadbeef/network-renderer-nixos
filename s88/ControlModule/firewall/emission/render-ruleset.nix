@@ -34,7 +34,9 @@ let
       lib.unique (lib.filter (value: builtins.isString value && value != "") (asList values))
     );
 
+  nftCommentLimit = 128;
   escapeComment = value: builtins.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] value;
+  renderComment = value: escapeComment (builtins.substring 0 nftCommentLimit value);
 
   renderIfExpr =
     ifaces:
@@ -122,7 +124,7 @@ let
 
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
-          " comment \"${escapeComment pair.comment}\""
+          " comment \"${renderComment pair.comment}\""
         else
           "";
     in

@@ -21,6 +21,8 @@ let
     lib.sort builtins.lessThan (
       lib.unique (lib.filter (value: builtins.isString value && value != "") (asList values))
     );
+  nftCommentLimit = 128;
+  renderComment = value: escapeComment (builtins.substring 0 nftCommentLimit value);
 
   renderInterfaceExpr =
     ifaces:
@@ -95,7 +97,7 @@ let
           rawAction;
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
-          " comment \"${escapeComment pair.comment}\""
+          " comment \"${renderComment pair.comment}\""
         else
           "";
       trafficMatches =
