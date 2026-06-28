@@ -1,3 +1,6 @@
+# FS-310-HDS-030-SDS-010-SMS-110 and FS-984-HDS-010-SDS-010-SMS-010:
+# retained compatibility alias is trace-bound and delegates to the current
+# source-model path instead of preserving an unreviewed legacy surface.
 { lib }:
 
 let

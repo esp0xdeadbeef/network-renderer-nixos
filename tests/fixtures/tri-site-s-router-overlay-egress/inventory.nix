@@ -1,3 +1,6 @@
+# FS-320-HDS-010-SDS-010-SMS-030 and FS-460-HDS-010-SDS-010-SMS-050:
+# fixture uses platform eth0 names as explicit inventory/runtime interface facts
+# for delegated public-egress renderer tests.
 let
   publicResolverCidrs = [
     "1.1.1.1/32"
