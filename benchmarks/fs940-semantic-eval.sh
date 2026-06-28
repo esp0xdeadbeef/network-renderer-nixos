@@ -39,7 +39,6 @@ let
   cpm = builtins.fromJSON (builtins.readFile (builtins.getEnv "CPM_PATH"));
   rendered = api.renderer.renderDryConfig {
     cpmPath = builtins.getEnv "CPM_PATH";
-    inventoryPath = builtins.getEnv "INVENTORY_PATH";
     exampleDir = builtins.dirOf (builtins.getEnv "CPM_PATH");
     debug = true;
   };
@@ -72,15 +71,17 @@ in
 NIX
 
 examples=(
-  s-router-overlay-dns-lane-policy
-  tri-site-dual-wan-overlay-integration-static
+  "hat-emulated-isp-residential-testnet:${labs_root}/GAMP/HAT/emulated-isp-residential-testnet/intent.nix:${labs_root}/GAMP/HAT/emulated-isp-residential-testnet/inventory-nixos.nix"
+  "sat-controlled-baseline:${labs_root}/GAMP/SAT/intent.nix:${labs_root}/GAMP/SAT/inventory-nixos.nix"
 )
 
 failed=0
 
-for example in "${examples[@]}"; do
-  intent="${labs_root}/examples/${example}/intent.nix"
-  inventory="${labs_root}/examples/${example}/inventory-nixos.nix"
+for example_spec in "${examples[@]}"; do
+  example="${example_spec%%:*}"
+  rest="${example_spec#*:}"
+  intent="${rest%%:*}"
+  inventory="${rest#*:}"
   cpm_json="${tmp_dir}/${example}.cpm.json"
   if [[ ! -f "${intent}" || ! -f "${inventory}" ]]; then
     echo "FAIL fs940-semantic-eval ${example}: missing intent or inventory" >&2
