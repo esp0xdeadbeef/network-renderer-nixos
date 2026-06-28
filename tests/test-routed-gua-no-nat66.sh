@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# GAMP-ID: FS-410-HDS-010-SDS-010-SMS-010
 set -euo pipefail
 # LAB-SMT-ID: LAB-SMT-018
 # LAB-SMT-SCOPE: examples-only; see network-labs/tests/SMT.md

@@ -1,3 +1,5 @@
+# FS-320-HDS-010-SDS-010-SMS-030 and FS-370-HDS-010-SDS-010-SMS-120:
+# renders the CPM-selected primary host-bridge WAN as container-local eth0.
 { lib
 , containerModel
 , uplinks

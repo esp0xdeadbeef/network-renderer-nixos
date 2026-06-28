@@ -1,3 +1,5 @@
+# FS-320-HDS-010-SDS-010-SMS-030: fixture uses platform eth0 names as explicit
+# inventory/runtime interface facts, not renderer inference.
 {
   endpoints = {
     web01 = {

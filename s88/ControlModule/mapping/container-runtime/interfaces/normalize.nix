@@ -1,3 +1,7 @@
+# FS-320-HDS-010-SDS-010-SMS-030 and FS-310-HDS-020-SDS-010-SMS-040:
+# maps CPM logical/runtime interface identity to platform interface names;
+# eth0 below is the container-primary interface only when CPM binds one WAN
+# host bridge as the primary attachment.
 { lib
 , lookup
 , naming
