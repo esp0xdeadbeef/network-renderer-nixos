@@ -24,6 +24,11 @@ rec {
   deploymentHostsFor =
     source:
     if
+      source ? deploymentHosts
+      && builtins.isAttrs source.deploymentHosts
+    then
+      source.deploymentHosts
+    else if
       source ? deployment
       && builtins.isAttrs source.deployment
       && source.deployment ? hosts
