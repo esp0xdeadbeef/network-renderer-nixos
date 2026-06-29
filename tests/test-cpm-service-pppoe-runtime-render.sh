@@ -189,9 +189,11 @@ nix_eval_json_or_fail \
           client_service_emitted = clientServices ? "pppd-s88-pppoe-client-provider-handoff";
           client_service_wanted_by_multi_user =
             builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]);
-          client_service_waits_for_handoff_network =
-            builtins.elem "network-online.target" (clientServiceUnit.after or [ ])
-            && builtins.elem "network-online.target" (clientServiceUnit.wants or [ ]);
+          client_service_avoids_network_online_cycle =
+            !(builtins.elem "network-online.target" (clientServiceUnit.after or [ ]))
+            && !(builtins.elem "network-online.target" (clientServiceUnit.wants or [ ]));
+          client_service_keeps_pppd_before_network =
+            builtins.elem "network.target" (clientServiceUnit.before or [ ]);
           client_service_restarts =
             (clientServiceUnit.serviceConfig.Restart or null) == "always";
           client_handoff_interface_brought_up =

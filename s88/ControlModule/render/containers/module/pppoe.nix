@@ -131,8 +131,6 @@ let
         };
         service = {
           wantedBy = [ "multi-user.target" ];
-          after = [ "network-online.target" ];
-          wants = [ "network-online.target" ];
           path = [
             pkgs.coreutils
             pkgs.iproute2
