@@ -30,13 +30,32 @@ let
 
   # Extract source data from CPM for realization-ports lookups.
   # CPM carries realization/deployment data that replaces raw inventory.
-  cpmSource =
+  cpmSourceBase =
     if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
       cpm.control_plane_model
     else if builtins.isAttrs cpm then
       cpm
     else
       { };
+
+  cpmTopLevelSource =
+    if builtins.isAttrs cpm then
+      (lib.optionalAttrs (cpm ? deploymentHosts && builtins.isAttrs cpm.deploymentHosts) {
+        deploymentHosts = cpm.deploymentHosts;
+      })
+      // (lib.optionalAttrs (cpm ? deployment && builtins.isAttrs cpm.deployment) {
+        deployment = cpm.deployment;
+      })
+      // (lib.optionalAttrs (cpm ? realization && builtins.isAttrs cpm.realization) {
+        realization = cpm.realization;
+      })
+      // (lib.optionalAttrs (cpm ? render && builtins.isAttrs cpm.render) {
+        render = cpm.render;
+      })
+    else
+      { };
+
+  cpmSource = cpmSourceBase // cpmTopLevelSource;
 
   hostRuntime = trace.emit "host-plan:${hostName}:host-runtime" (import ../../lookup/host-runtime.nix {
     inherit repoPath;
@@ -46,8 +65,8 @@ let
       cpm
       hostContext
       ;
-    # CMC-NIXOS-INTENT-CLEANUP: pass empty source; CPM provides all needed data.
-    source = { };
+    # CMC-NIXOS-INTENT-CLEANUP: CPM provides all needed source data.
+    source = cpmSource;
   });
 
   attachTargetsRuntime = trace.emit "host-plan:${hostName}:attach-targets-all-host-units" (realizationPorts.attachTargetsForUnitsFromRuntime {

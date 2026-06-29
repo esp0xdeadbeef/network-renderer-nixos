@@ -51,7 +51,7 @@ let
     else
       { };
 
-  cpmRoot =
+  cpmRootBase =
     if cpm == null then
       { }
     else if
@@ -62,6 +62,25 @@ let
       cpm
     else
       { };
+
+  cpmTopLevel =
+    if builtins.isAttrs cpm then
+      (lib.optionalAttrs (cpm ? deploymentHosts && builtins.isAttrs cpm.deploymentHosts) {
+        deploymentHosts = cpm.deploymentHosts;
+      })
+      // (lib.optionalAttrs (cpm ? deployment && builtins.isAttrs cpm.deployment) {
+        deployment = cpm.deployment;
+      })
+      // (lib.optionalAttrs (cpm ? realization && builtins.isAttrs cpm.realization) {
+        realization = cpm.realization;
+      })
+      // (lib.optionalAttrs (cpm ? render && builtins.isAttrs cpm.render) {
+        render = cpm.render;
+      })
+    else
+      { };
+
+  cpmRoot = cpmRootBase // cpmTopLevel;
 
   cpmRenderHosts =
     if
@@ -78,6 +97,11 @@ let
 
   cpmDeploymentHosts =
     if
+      cpmRoot ? deploymentHosts
+      && builtins.isAttrs cpmRoot.deploymentHosts
+    then
+      cpmRoot.deploymentHosts
+    else if
       cpmRoot ? deployment
       && builtins.isAttrs cpmRoot.deployment
       && cpmRoot.deployment ? hosts
