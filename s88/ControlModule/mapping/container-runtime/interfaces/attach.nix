@@ -2,6 +2,32 @@
 
 let
   inherit (naming) validInterfaceName;
+
+  renderedHostBridgeNameForTarget =
+    target:
+    let
+      hostBridgeName = target.hostBridgeName or null;
+      renderedHostBridgeName = target.renderedHostBridgeName or null;
+    in
+    if builtins.isString hostBridgeName && builtins.hasAttr hostBridgeName lookup.bridgeNameMap then
+      lookup.bridgeNameMap.${hostBridgeName}
+    else if builtins.isString renderedHostBridgeName && builtins.hasAttr renderedHostBridgeName lookup.bridgeNameMap then
+      lookup.bridgeNameMap.${renderedHostBridgeName}
+    else if builtins.isString renderedHostBridgeName then
+      renderedHostBridgeName
+    else if builtins.isString hostBridgeName then
+      hostBridgeName
+    else
+      null;
+
+  normalizeAttachTargetBridge =
+    target:
+    let renderedHostBridgeName = renderedHostBridgeNameForTarget target;
+    in
+    target
+    // lib.optionalAttrs (renderedHostBridgeName != null) {
+      inherit renderedHostBridgeName;
+    };
 in
 {
   sourceKindForInterface =
@@ -30,9 +56,10 @@ in
         lookup.localAttachTargets;
     in
     if builtins.length matches == 1 then
-      builtins.head matches
+      normalizeAttachTargetBridge (builtins.head matches)
     else if builtins.hasAttr (iface.hostBridge or "") lookup.bridgeNameMap then
       {
+        hostBridgeName = iface.hostBridge;
         renderedHostBridgeName = lookup.bridgeNameMap.${iface.hostBridge};
         assignedUplinkName = null;
         identity = { };
@@ -47,9 +74,7 @@ in
           lookup.localAttachTargets;
       in
       if builtins.length fallbackMatches >= 1 then
-        (builtins.head fallbackMatches) // {
-          renderedHostBridgeName = (builtins.head fallbackMatches).hostBridgeName;
-        }
+        normalizeAttachTargetBridge (builtins.head fallbackMatches)
       else
         builtins.trace
           "WARNING: could not resolve rendered host bridge for '${unitName}/${ifName}' (hostBridge=${iface.hostBridge or "null"}) — skipping"
