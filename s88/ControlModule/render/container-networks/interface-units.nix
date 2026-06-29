@@ -162,6 +162,20 @@ let
     iface:
     (iface.sourceKind or null) == "overlay" && !nixosOwnsInterface iface;
 
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
+  isPppoeSessionInterface =
+    iface:
+    let
+      connectivity = attrsOrEmpty (iface.connectivity or null);
+      backingRef = attrsOrEmpty (iface.backingRef or null);
+      connectivityBackingRef = attrsOrEmpty (connectivity.backingRef or null);
+    in
+    (iface.sourceKind or null) == "pppoe-session"
+    || (connectivity.sourceKind or null) == "pppoe-session"
+    || (backingRef.kind or null) == "pppoe-session"
+    || (connectivityBackingRef.kind or null) == "pppoe-session";
+
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
       lib.imap0 (
@@ -204,7 +218,11 @@ let
             ++ (lib.filter (route: route != null) (map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])))
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
         in
-        if builtins.elem interfaceName networkManagerInterfaces || isProviderCreatedInterface iface then
+        if
+          builtins.elem interfaceName networkManagerInterfaces
+          || isProviderCreatedInterface iface
+          || isPppoeSessionInterface iface
+        then
           null
         else
           {
