@@ -64,6 +64,54 @@ nix_eval_json_or_fail \
           inherit lib;
           common = runtimeInterfaceCommon;
         };
+        pppoeVeths = (import (repoPath + "/s88/ControlModule/mapping/container-runtime/interfaces/veths.nix") {
+          inherit lib;
+          lookup.sortedAttrNames = attrs: builtins.sort builtins.lessThan (builtins.attrNames attrs);
+        }).vethsForInterfaces {
+          provider-handoff = {
+            sourceKind = "pppoe-handoff";
+            containerInterfaceName = "ens20";
+            hostVethName = "host-ens20";
+            renderedHostBridgeName = "br-pppoe";
+            usePrimaryHostBridge = false;
+          };
+          ppp0 = {
+            sourceKind = "pppoe-session";
+            containerInterfaceName = "ppp0";
+            hostVethName = "host-ppp0";
+            renderedHostBridgeName = "br-pppoe";
+            usePrimaryHostBridge = false;
+          };
+        };
+        pppoeContainerNetworks = import (repoPath + "/s88/ControlModule/render/container-networks.nix") {
+          inherit lib;
+          uplinks = {};
+          wanUplinkName = null;
+          containerModel = {
+            unitName = "nixos-core-testnet-host-isp";
+            interfaces = {
+              provider-handoff = {
+                containerInterfaceName = "ens20";
+                sourceKind = "pppoe-handoff";
+                addresses = [];
+                routes = [];
+                backingRef.kind = "service-interface";
+              };
+              ppp0 = {
+                containerInterfaceName = "ppp0";
+                sourceKind = "pppoe-session";
+                addresses = [ "203.0.113.4/32" ];
+                routes = [];
+                backingRef.kind = "pppoe-session";
+              };
+            };
+            services.pppoe.client = {
+              interface = "provider-handoff";
+              runtimeInterface = "ppp0";
+              inherit credentials;
+            };
+          };
+        };
         pppoeServiceInterfaceName = "p2p-nixos-core-testnet-host-isp-nixos-provider-handoff-access-a";
         pppoeClientBridgeIdentity = hostBridgeIdentity.hostBridgeIdentityForInterface {
           unitName = "nixos-core-testnet-host-isp";
@@ -213,6 +261,14 @@ nix_eval_json_or_fail \
             builtins.match ".*ip-up-script /nix/store/[^[:space:]]+s88-pppoe-ip-up-provider-handoff.*" clientPreStart != null;
           client_peer_dns_cleans_runtime_resolv =
             builtins.match ".*ip-down-script /nix/store/[^[:space:]]+s88-pppoe-ip-down-provider-handoff.*" clientPreStart != null;
+          pppoe_session_veth_not_emitted =
+            !(pppoeVeths ? "host-ppp0");
+          pppoe_handoff_veth_still_emitted =
+            (pppoeVeths."host-ens20".hostBridge or null) == "br-pppoe";
+          pppoe_session_networkd_not_emitted =
+            !(pppoeContainerNetworks.networks ? "10-ppp0");
+          pppoe_handoff_networkd_still_emitted =
+            pppoeContainerNetworks.networks ? "10-ens20";
           pppoe_handoff_endpoints_share_bridge_identity =
             pppoeClientBridgeIdentity == pppoeProviderBridgeIdentity;
           client_runtime_binds_ppp_device =
