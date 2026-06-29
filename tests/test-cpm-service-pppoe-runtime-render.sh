@@ -83,6 +83,27 @@ nix_eval_json_or_fail \
             usePrimaryHostBridge = false;
           };
         };
+        renameModule = import (repoPath + "/s88/ControlModule/render/containers/module/interface-renames.nix") {
+          inherit lib pkgs;
+          renderedModel.interfaces = {
+            provider-handoff = {
+              sourceKind = "pppoe-handoff";
+              hostVethName = "nixc-handoff";
+              containerInterfaceName = "ens20";
+            };
+            ppp0 = {
+              sourceKind = "pppoe-session";
+              hostVethName = "nixc-ppp0";
+              containerInterfaceName = "ppp0";
+              backingRef.kind = "pppoe-session";
+            };
+          };
+        };
+        renameEval = lib.nixosSystem {
+          inherit system;
+          modules = [ renameModule.config ];
+        };
+        renameScript = renameEval.config.systemd.services.s88-rename-interfaces.script;
         pppoeServiceInterfaceName = "p2p-nixos-core-testnet-host-isp-nixos-provider-handoff-access-a";
         pppoeClientBridgeIdentity = hostBridgeIdentity.hostBridgeIdentityForInterface {
           unitName = "nixos-core-testnet-host-isp";
@@ -249,6 +270,12 @@ nix_eval_json_or_fail \
             !(pppoeVeths ? "host-ppp0");
           pppoe_handoff_veth_still_emitted =
             (pppoeVeths."host-ens20".hostBridge or null) == "br-pppoe";
+          pppoe_session_rename_not_emitted =
+            builtins.match ".*ppp0.*" renameScript == null
+            && builtins.match ".*nixc-ppp0.*" renameScript == null;
+          pppoe_handoff_rename_still_emitted =
+            builtins.match ".*ens20.*" renameScript != null
+            && builtins.match ".*nixc-handoff.*" renameScript != null;
           pppoe_handoff_endpoints_share_bridge_identity =
             pppoeClientBridgeIdentity == pppoeProviderBridgeIdentity;
           client_runtime_binds_ppp_device =
