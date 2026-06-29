@@ -57,6 +57,42 @@ nix_eval_json_or_fail \
           scriptSuffix = "provider-handoff";
           usePeerDns = true;
         };
+        runtimeInterfaceCommon = import (repoPath + "/s88/Unit/mapping/runtime-targets/interfaces/common.nix") {
+          inherit lib;
+        };
+        hostBridgeIdentity = import (repoPath + "/s88/Unit/mapping/runtime-targets/interfaces/host-bridge.nix") {
+          inherit lib;
+          common = runtimeInterfaceCommon;
+        };
+        pppoeServiceInterfaceName = "p2p-nixos-core-testnet-host-isp-nixos-provider-handoff-access-a";
+        pppoeClientBridgeIdentity = hostBridgeIdentity.hostBridgeIdentityForInterface {
+          unitName = "nixos-core-testnet-host-isp";
+          ifName = pppoeServiceInterfaceName;
+          iface = {
+            sourceKind = "pppoe-handoff";
+            backingRef = {
+              kind = "service-interface";
+              id = "service-interface::nixos-core-testnet-host-isp::${pppoeServiceInterfaceName}";
+              name = pppoeServiceInterfaceName;
+              service = "pppoe";
+              serviceRole = "client";
+            };
+          };
+        };
+        pppoeProviderBridgeIdentity = hostBridgeIdentity.hostBridgeIdentityForInterface {
+          unitName = "nixos-provider-handoff-access-a";
+          ifName = pppoeServiceInterfaceName;
+          iface = {
+            sourceKind = "pppoe-handoff";
+            backingRef = {
+              kind = "service-interface";
+              id = "service-interface::nixos-provider-handoff-access-a::${pppoeServiceInterfaceName}";
+              name = pppoeServiceInterfaceName;
+              service = "pppoe";
+              serviceRole = "server";
+            };
+          };
+        };
         clientModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
           inherit lib pkgs;
           renderedModel = {
@@ -177,6 +213,8 @@ nix_eval_json_or_fail \
             builtins.match ".*ip-up-script /nix/store/[^[:space:]]+s88-pppoe-ip-up-provider-handoff.*" clientPreStart != null;
           client_peer_dns_cleans_runtime_resolv =
             builtins.match ".*ip-down-script /nix/store/[^[:space:]]+s88-pppoe-ip-down-provider-handoff.*" clientPreStart != null;
+          pppoe_handoff_endpoints_share_bridge_identity =
+            pppoeClientBridgeIdentity == pppoeProviderBridgeIdentity;
           client_runtime_binds_ppp_device =
             (clientRuntime.bindMounts."/dev/ppp".hostPath or null) == "/dev/ppp"
             && clientRuntime.bindMounts."/dev/ppp".isReadOnly == false;
