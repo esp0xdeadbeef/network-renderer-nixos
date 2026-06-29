@@ -39,25 +39,6 @@ let
     file = "s88/Unit/lookup/host-runtime.nix";
   };
 
-  _selectedUnitsNonEmpty =
-    if selection.selectedUnits != [ ] then
-      true
-    else
-      throw ''
-        s88/Unit/lookup/host-runtime.nix: no units matched deployment host '${context.deploymentHostName}'${
-          if selection.runtimeRole != null then " for runtimeRole '${selection.runtimeRole}'" else ""
-        }
-
-        requested host:
-        ${context.requestedHostName}
-
-        units on deployment host:
-        ${builtins.concatStringsSep "\n  " ([ "" ] ++ selection.unitsOnDeploymentHost)}
-
-        available runtime targets:
-        ${builtins.concatStringsSep "\n  " ([ "" ] ++ selection.allUnitNames)}
-      '';
-
   output = {
     hostName = context.requestedHostName;
 
@@ -88,4 +69,4 @@ let
       ;
   };
 in
-builtins.seq _selectedUnitsNonEmpty output
+output

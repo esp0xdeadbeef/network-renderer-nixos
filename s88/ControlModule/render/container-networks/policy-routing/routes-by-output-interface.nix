@@ -5,6 +5,7 @@
   rawRoutesForPolicyTable,
   sourceIfNames,
   tableId,
+  tableForOutputIfName ? (_outputIfName: tableId),
 }:
 let
   rawPolicyRoutes =
@@ -20,7 +21,8 @@ builtins.foldl' (
   let
     sourceIfName = rawRoute._s88PolicySourceIfName;
     outputIfName = routeOutputInterface sourceIfName rawRoute;
-    renderedRoute = mkRoute (builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]);
+    outputTableId = tableForOutputIfName outputIfName;
+    renderedRoute = mkRoute ((builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]) // { table = outputTableId; });
   in
   if renderedRoute == null then
     routesAcc
