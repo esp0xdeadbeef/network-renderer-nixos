@@ -193,10 +193,12 @@ nix_eval_json_or_fail \
         clientRuntime = (mkAssemblyFor clientService).mkContainerRuntime "nixos-core-testnet-host-isp";
         serverRuntime = (mkAssemblyFor serverService).mkContainerRuntime "nixos-provider-handoff-access-a";
         clientServices = clientEval.config.systemd.services;
+        clientTimers = clientEval.config.systemd.timers;
         clientPeers = clientEval.config.services.pppd.peers;
         clientPreStart = clientServices."pppd-s88-pppoe-client-provider-handoff".preStart;
         clientServiceUnit = clientServices."pppd-s88-pppoe-client-provider-handoff";
         clientStarterUnit = clientServices."s88-start-s88-pppoe-client-provider-handoff";
+        clientStarterTimerUnit = clientTimers."s88-start-s88-pppoe-client-provider-handoff";
         clientPeerConfig = clientPeers."s88-pppoe-client-provider-handoff".config;
         serverServices = serverEval.config.systemd.services;
         serverScript = serverServices.s88-pppoe-server.script;
@@ -213,8 +215,16 @@ nix_eval_json_or_fail \
             !(builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]));
           client_starter_service_emitted =
             clientServices ? "s88-start-s88-pppoe-client-provider-handoff";
-          client_starter_wanted_by_multi_user =
-            builtins.elem "multi-user.target" (clientStarterUnit.wantedBy or [ ]);
+          client_starter_not_wanted_by_multi_user =
+            !(builtins.elem "multi-user.target" (clientStarterUnit.wantedBy or [ ]));
+          client_starter_timer_emitted =
+            clientTimers ? "s88-start-s88-pppoe-client-provider-handoff";
+          client_starter_timer_wanted_by_timers_target =
+            builtins.elem "timers.target" (clientStarterTimerUnit.wantedBy or [ ]);
+          client_starter_timer_delays_until_container_post_start_can_attach_veths =
+            (clientStarterTimerUnit.timerConfig.OnBootSec or null) == "10s"
+            && (clientStarterTimerUnit.timerConfig.Unit or null)
+              == "s88-start-s88-pppoe-client-provider-handoff.service";
           client_starter_waits_for_network_online =
             builtins.elem "network-online.target" (clientStarterUnit.after or [ ])
             && builtins.elem "network-online.target" (clientStarterUnit.wants or [ ]);
