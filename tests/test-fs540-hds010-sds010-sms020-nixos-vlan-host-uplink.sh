@@ -26,6 +26,16 @@ nix_eval_true_or_fail "FS-540 NixOS VLAN host uplink materialization" \
               ipv6.method = "slaac";
             };
           };
+          context = import (repoRoot + "/s88/Unit/lookup/host-runtime/context.nix") {
+            inherit lib;
+            hostName = "s-router-nixos";
+            cpm = {
+              control_plane_model.data = { };
+              inherit (source) deploymentHosts;
+            };
+            source = { };
+            hostContext = null;
+          };
           selected = helpers.deploymentHostsFor source;
           hostPlan = {
             hostHasUplinks = true;
@@ -45,6 +55,8 @@ nix_eval_true_or_fail "FS-540 NixOS VLAN host uplink materialization" \
         in
           require (selected.s-router-nixos.uplinks.testnet-vlan4.mode == "vlan")
             "deploymentHostsFor must read top-level CPM deploymentHosts"
+          && require (context.deploymentHost.uplinks.testnet-vlan4.vlan == 4)
+            "host-runtime context must read top-level CPM deploymentHosts"
           && require (rendered.netdevs ? "11-eth0.4")
             "VLAN uplink must render eth0.4 netdev"
           && require (rendered.networks ? "21-eth0.4")
