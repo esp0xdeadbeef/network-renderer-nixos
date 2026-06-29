@@ -88,6 +88,7 @@ let
         interfaceName = ifaceNameFor lowerLogicalIf;
         peerName = "s88-pppoe-client-${sanitizeName logicalIf}";
         systemdUnitName = "pppd-${peerName}";
+        starterServiceName = "s88-start-${peerName}";
         runtimeOptions = "/run/pppd/${peerName}.options";
         credentials = clientConfig.credentials or { };
         pppName =
@@ -121,16 +122,15 @@ let
         '';
       in
       {
-        inherit peerName systemdUnitName;
+        inherit peerName systemdUnitName starterServiceName;
         peer = {
           enable = true;
-          autostart = true;
+          autostart = false;
           config = ''
             file ${runtimeOptions}
           '';
         };
         service = {
-          wantedBy = [ "multi-user.target" ];
           path = [
             pkgs.coreutils
             pkgs.iproute2
@@ -172,6 +172,17 @@ let
             ${peerDns.ipDownOption}
             EOF
           '';
+        };
+        starterService = {
+          description = "Start S88 PPPoE client ${peerName}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${pkgs.systemd}/bin/systemctl start ${systemdUnitName}.service";
+          };
         };
       };
 
@@ -267,6 +278,7 @@ let
     else
       {
         ${clientPeer.systemdUnitName} = clientPeer.service;
+        ${clientPeer.starterServiceName} = clientPeer.starterService;
       };
 in
 {

@@ -175,6 +175,7 @@ nix_eval_json_or_fail \
         clientPeers = clientEval.config.services.pppd.peers;
         clientPreStart = clientServices."pppd-s88-pppoe-client-provider-handoff".preStart;
         clientServiceUnit = clientServices."pppd-s88-pppoe-client-provider-handoff";
+        clientStarterUnit = clientServices."s88-start-s88-pppoe-client-provider-handoff";
         clientPeerConfig = clientPeers."s88-pppoe-client-provider-handoff".config;
         serverServices = serverEval.config.systemd.services;
         serverScript = serverServices.s88-pppoe-server.script;
@@ -185,10 +186,20 @@ nix_eval_json_or_fail \
           client_peer_emitted = clientPeers ? "s88-pppoe-client-provider-handoff";
           client_peer_autostarts =
             (clientPeers."s88-pppoe-client-provider-handoff".enable or false) == true
-            && (clientPeers."s88-pppoe-client-provider-handoff".autostart or false) == true;
+            && (clientPeers."s88-pppoe-client-provider-handoff".autostart or true) == false;
           client_service_emitted = clientServices ? "pppd-s88-pppoe-client-provider-handoff";
-          client_service_wanted_by_multi_user =
-            builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]);
+          client_service_not_directly_wanted_by_multi_user =
+            !(builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]));
+          client_starter_service_emitted =
+            clientServices ? "s88-start-s88-pppoe-client-provider-handoff";
+          client_starter_wanted_by_multi_user =
+            builtins.elem "multi-user.target" (clientStarterUnit.wantedBy or [ ]);
+          client_starter_waits_for_network_online =
+            builtins.elem "network-online.target" (clientStarterUnit.after or [ ])
+            && builtins.elem "network-online.target" (clientStarterUnit.wants or [ ]);
+          client_starter_starts_pppd_unit =
+            (clientStarterUnit.serviceConfig.ExecStart or null)
+              == "${pkgs.systemd}/bin/systemctl start pppd-s88-pppoe-client-provider-handoff.service";
           client_service_avoids_network_online_cycle =
             !(builtins.elem "network-online.target" (clientServiceUnit.after or [ ]))
             && !(builtins.elem "network-online.target" (clientServiceUnit.wants or [ ]));
