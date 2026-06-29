@@ -42,6 +42,8 @@ in
       bridgeBackingRefId =
         if sourceKind == "overlay" && builtins.isString (backingRef.name or null) && backingRef.name != "" then
           "overlay::${backingRef.name}"
+        else if sourceKind == "pppoe-handoff" && builtins.isString (backingRef.name or null) && backingRef.name != "" then
+          "pppoe-handoff::${backingRef.name}"
         else
           backingRefId;
       segments = lib.filter builtins.isString (
