@@ -68,6 +68,8 @@
             system = resolvedSystem;
           };
           rendered = hostBuild.renderedHost;
+          renderedNetdevs = rendered.netdevs or { };
+          renderedNetworks = rendered.networks or { };
           userLib = rendererInput.lib or lib;
 
           # Management networking from CPM deployment hosts (per URS: inventory → CPM → renderer).
@@ -96,8 +98,21 @@
             else null
           else null;
 
+          renderedHasMgmtVlan =
+            mgmtVlanId != null
+            && builtins.hasAttr "11-${mgmtParent}.${toString mgmtVlanId}" renderedNetdevs
+            && builtins.hasAttr "20-${mgmtParent}" renderedNetworks
+            && builtins.hasAttr "21-${mgmtParent}.${toString mgmtVlanId}" renderedNetworks
+            && builtins.hasAttr "30-vlan${toString mgmtVlanId}" renderedNetworks;
+
+          renderedHasNativeMgmt =
+            mgmtManageDhcp
+            && mgmtMode == "native"
+            && mgmtParent != null
+            && builtins.hasAttr "20-${mgmtParent}" renderedNetworks;
+
           # VLAN mode: create VLAN subinterface + bridge, DHCP on bridge
-          mgmtNetdevs = if mgmtVlanId != null then {
+          legacyMgmtNetdevs = if mgmtVlanId != null then {
             "10-${mgmtParent}.${toString mgmtVlanId}" = {
               netdevConfig = { Name = "${mgmtParent}.${toString mgmtVlanId}"; Kind = "vlan"; };
               vlanConfig = { Id = mgmtVlanId; };
@@ -107,7 +122,7 @@
             };
           } else { };
 
-          mgmtNetworks = if mgmtVlanId != null then {
+          legacyMgmtNetworks = if mgmtVlanId != null then {
             "10-${mgmtParent}" = {
               matchConfig.Name = mgmtParent;
               networkConfig = {
@@ -140,6 +155,18 @@
               };
             };
           } else { };
+
+          mgmtNetdevs =
+            if renderedHasMgmtVlan then
+              { }
+            else
+              legacyMgmtNetdevs;
+
+          mgmtNetworks =
+            if renderedHasMgmtVlan || renderedHasNativeMgmt then
+              { }
+            else
+              legacyMgmtNetworks;
         in
         {
           imports = [ hostBuild.artifactModule ];
@@ -151,8 +178,8 @@
           networking.useDHCP = lib.mkIf mgmtManageDhcp false;
           networking.useHostResolvConf = userLib.mkForce false;
 
-          systemd.network.netdevs = (rendered.netdevs or { }) // mgmtNetdevs;
-          systemd.network.networks = (rendered.networks or { }) // mgmtNetworks;
+          systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
+          systemd.network.networks = renderedNetworks // mgmtNetworks;
           containers = rendered.containers or { };
 
           # GAMP: FS-840 — scoped runtime secret delivery: containers with
