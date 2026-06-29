@@ -12,6 +12,7 @@
 let
   inherit
     (naming)
+    validInterfaceName
     semanticBaseInterfaceName
     semanticHostVethBaseName
     assignUniqueContainerInterfaceNames
@@ -69,6 +70,15 @@ let
     else
       [ ];
 
+  explicitRuntimeInterfaceName =
+    iface:
+    if validInterfaceName (iface.runtimeIfName or null) then
+      iface.runtimeIfName
+    else if validInterfaceName (iface.renderedIfName or null) then
+      iface.renderedIfName
+    else
+      null;
+
   effectiveInterfaceNameForInterface =
     { ifName, iface, attachTarget }:
     let
@@ -76,8 +86,11 @@ let
       sourceKind = sourceKindForInterface iface;
       upstreamName = interfaceNameFromUpstream iface;
       attachName = interfaceNameFromAttachTarget attachTarget;
+      explicitRuntimeName = explicitRuntimeInterfaceName iface;
     in
-    if sourceKind == "wan" && upstreamName != null then
+    if sourceKind == "wan" && explicitRuntimeName != null then
+      explicitRuntimeName
+    else if sourceKind == "wan" && upstreamName != null then
       upstreamName
     else if isKernelStyleInterfaceName renderedIfName && attachName != null then
       attachName
@@ -110,7 +123,9 @@ let
         )
         (lookup.sortedAttrNames interfaces);
       primaryHostBridgeIfName = if builtins.length bridgeEligibleWanIfNames == 1 then builtins.head bridgeEligibleWanIfNames else null;
-      usePrimaryHostBridge = primaryHostBridgeIfName == ifName;
+      usePrimaryHostBridge =
+        primaryHostBridgeIfName == ifName
+        && explicitRuntimeInterfaceName iface == null;
       realizationPortName =
         if attachTarget ? identity && builtins.isAttrs attachTarget.identity && builtins.isString (attachTarget.identity.portName or null) then
           attachTarget.identity.portName
