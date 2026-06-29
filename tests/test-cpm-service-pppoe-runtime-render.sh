@@ -220,7 +220,9 @@ nix_eval_json_or_fail \
             && builtins.elem "network-online.target" (clientStarterUnit.wants or [ ]);
           client_starter_starts_pppd_unit =
             (clientStarterUnit.serviceConfig.ExecStart or null)
-              == "${pkgs.systemd}/bin/systemctl start pppd-s88-pppoe-client-provider-handoff.service";
+              == "${pkgs.systemd}/bin/systemctl --no-block start pppd-s88-pppoe-client-provider-handoff.service";
+          client_starter_does_not_block_container_readiness =
+            builtins.match ".* --no-block start .*" (clientStarterUnit.serviceConfig.ExecStart or "") != null;
           client_service_avoids_network_online_cycle =
             !(builtins.elem "network-online.target" (clientServiceUnit.after or [ ]))
             && !(builtins.elem "network-online.target" (clientServiceUnit.wants or [ ]));
