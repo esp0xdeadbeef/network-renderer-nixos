@@ -89,6 +89,7 @@ let
         peerName = "s88-pppoe-client-${sanitizeName logicalIf}";
         systemdUnitName = "pppd-${peerName}";
         starterServiceName = "s88-start-${peerName}";
+        starterTimerName = "${starterServiceName}";
         runtimeOptions = "/run/pppd/${peerName}.options";
         credentials = clientConfig.credentials or { };
         pppName =
@@ -122,7 +123,7 @@ let
         '';
       in
       {
-        inherit peerName systemdUnitName starterServiceName;
+        inherit peerName systemdUnitName starterServiceName starterTimerName;
         peer = {
           enable = true;
           autostart = false;
@@ -175,13 +176,20 @@ let
         };
         starterService = {
           description = "Start S88 PPPoE client ${peerName}";
-          wantedBy = [ "multi-user.target" ];
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
             ExecStart = "${pkgs.systemd}/bin/systemctl --no-block start ${systemdUnitName}.service";
+          };
+        };
+        starterTimer = {
+          description = "Delay S88 PPPoE client ${peerName} until the container host has attached extra veths";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnBootSec = "10s";
+            Unit = "${starterServiceName}.service";
           };
         };
       };
@@ -280,6 +288,13 @@ let
         ${clientPeer.systemdUnitName} = clientPeer.service;
         ${clientPeer.starterServiceName} = clientPeer.starterService;
       };
+  clientTimers =
+    if clientPeer == null then
+      { }
+    else
+      {
+        ${clientPeer.starterTimerName} = clientPeer.starterTimer;
+      };
 in
 {
   config = lib.mkIf (clientConfig != null || serverConfig != null) {
@@ -303,6 +318,7 @@ in
       peers.${clientPeer.peerName} = clientPeer.peer;
     };
     systemd.services = clientServices // serverUnit;
+    systemd.timers = clientTimers;
     environment.etc = lib.optionalAttrs (serverConfig != null) {
       "s88/pppoe-tools".text = ''
         pppoe-server=${pkgs.rp-pppoe}/bin/pppoe-server
