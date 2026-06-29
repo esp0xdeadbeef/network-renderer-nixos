@@ -1,31 +1,31 @@
-{ lib
-, lookup
-, assignment
-, attachTargetsBase
-,
-}:
+{
+  lib,
+  lookup,
+  assignment,
+  attachTargetsBase,
+}: let
+  hostNaming = import ../../../../lib/host-naming.nix {inherit lib;};
 
-let
-  hostNaming = import ../../../../lib/host-naming.nix { inherit lib; };
-
-  normalizeIpv4 =
-    value:
-    let
-      ipv4 = if builtins.isAttrs value then value else { };
-      method = ipv4.method or null;
-    in
+  normalizeIpv4 = value: let
+    ipv4 =
+      if builtins.isAttrs value
+      then value
+      else {};
+    method = ipv4.method or null;
+  in
     ipv4
     // lib.optionalAttrs (method == "dhcp") {
       enable = true;
       dhcp = true;
     };
 
-  normalizeIpv6 =
-    value:
-    let
-      ipv6 = if builtins.isAttrs value then value else { };
-      method = ipv6.method or null;
-    in
+  normalizeIpv6 = value: let
+    ipv6 =
+      if builtins.isAttrs value
+      then value
+      else {};
+    method = ipv6.method or null;
+  in
     ipv6
     // lib.optionalAttrs (method == "dhcp" || method == "dhcp6") {
       enable = true;
@@ -44,59 +44,48 @@ let
 
   uplinkBridgeNameMap = hostNaming.ensureUnique uplinkBridgeNamesRaw;
 
-  renderedHostBridgeNameForWanGroup =
-    wanGroupName:
-    let
-      uplinkName = assignment.wanGroupToUplinkName.${wanGroupName};
-      uplink = lookup.uplinksRaw.${uplinkName};
+  renderedHostBridgeNameForUplink = uplinkName: let
+    uplink = lookup.uplinksRaw.${uplinkName};
 
-      originalBridge =
-        if uplink ? bridge && builtins.isString uplink.bridge then
-          uplink.bridge
-        else
-          throw ''
-            s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' assigned to WAN group '${wanGroupName}' is missing bridge
+    originalBridge =
+      if uplink ? bridge && builtins.isString uplink.bridge
+      then uplink.bridge
+      else
+        throw ''
+          s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' is missing bridge
 
-            uplink:
-            ${builtins.toJSON uplink}
-          '';
-    in
+          uplink:
+          ${builtins.toJSON uplink}
+        '';
+  in
     uplinkBridgeNameMap.${originalBridge};
 
   attachTargets = builtins.seq assignment.validateStrictWanRendering (
     map
-      (
-        target:
-        let
-          wanGroupName = lookup.wanGroupNameForTarget target;
-
-          assignedUplinkName =
-            if wanGroupName != null && builtins.hasAttr wanGroupName assignment.wanGroupToUplinkName then
-              assignment.wanGroupToUplinkName.${wanGroupName}
-            else
-              null;
-        in
+    (
+      target: let
+        assignedUplinkName = assignment.assignedUplinkNameForTarget target;
+      in
         target
         // {
           inherit assignedUplinkName;
           renderedHostBridgeName =
-            if assignedUplinkName != null then
-              renderedHostBridgeNameForWanGroup wanGroupName
-            else
-              target.baseRenderedHostBridgeName;
+            if assignedUplinkName != null
+            then renderedHostBridgeNameForUplink assignedUplinkName
+            else target.baseRenderedHostBridgeName;
         }
-      )
-      attachTargetsBase
+    )
+    attachTargetsBase
   );
 
   localAttachTargets = attachTargets;
 
-  maybePreferredAttachTarget =
-    predicate:
-    let
-      matches = lib.filter predicate localAttachTargets;
-    in
-    if builtins.length matches == 1 then builtins.head matches else null;
+  maybePreferredAttachTarget = predicate: let
+    matches = lib.filter predicate localAttachTargets;
+  in
+    if builtins.length matches == 1
+    then builtins.head matches
+    else null;
 
   wanAttachTarget = maybePreferredAttachTarget (target: lookup.sourceKindForTarget target == "wan");
 
@@ -104,17 +93,15 @@ let
     target: lookup.sourceKindForTarget target == "p2p"
   );
 
-  renderedHostBridgeNameForAssignedUplink =
-    uplinkName:
-    let
-      matches = lib.filter (target: (target.assignedUplinkName or null) == uplinkName) localAttachTargets;
+  renderedHostBridgeNameForAssignedUplink = uplinkName: let
+    matches = lib.filter (target: (target.assignedUplinkName or null) == uplinkName) localAttachTargets;
 
-      renderedNames = lib.unique (map (target: target.renderedHostBridgeName) matches);
-    in
-    if renderedNames == [ ] then
-      null
-    else if builtins.length renderedNames == 1 then
-      builtins.head renderedNames
+    renderedNames = lib.unique (map (target: target.renderedHostBridgeName) matches);
+  in
+    if renderedNames == []
+    then null
+    else if builtins.length renderedNames == 1
+    then builtins.head renderedNames
     else
       throw ''
         s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' resolved to multiple rendered WAN bridges
@@ -123,57 +110,54 @@ let
         ${builtins.toJSON matches}
       '';
 
-  uplinks = builtins.mapAttrs
+  uplinks =
+    builtins.mapAttrs
     (
-      uplinkName: uplink:
-        let
-          originalBridge =
-            if uplink ? bridge && builtins.isString uplink.bridge then
-              uplink.bridge
-            else
-              throw ''
-                s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' is missing bridge
+      uplinkName: uplink: let
+        originalBridge =
+          if uplink ? bridge && builtins.isString uplink.bridge
+          then uplink.bridge
+          else
+            throw ''
+              s88/EquipmentModule/mapping/wan-attachment.nix: uplink '${uplinkName}' is missing bridge
 
-                uplink:
-                ${builtins.toJSON uplink}
-              '';
+              uplink:
+              ${builtins.toJSON uplink}
+            '';
 
-          assignedWanRenderedBridge = renderedHostBridgeNameForAssignedUplink uplinkName;
+        assignedWanRenderedBridge = renderedHostBridgeNameForAssignedUplink uplinkName;
 
-          renderedBridge =
-            if assignedWanRenderedBridge != null then
-              assignedWanRenderedBridge
-            else if uplinkName == assignment.wanUplinkName && wanAttachTarget != null then
-              wanAttachTarget.renderedHostBridgeName
-            else if
-              assignment.fabricUplinkName != null
-              && uplinkName == assignment.fabricUplinkName
-              && fabricAttachTarget != null
-            then
-              fabricAttachTarget.renderedHostBridgeName
-            else
-              uplinkBridgeNameMap.${originalBridge};
+        renderedBridge =
+          if assignedWanRenderedBridge != null
+          then assignedWanRenderedBridge
+          else if uplinkName == assignment.wanUplinkName && wanAttachTarget != null
+          then wanAttachTarget.renderedHostBridgeName
+          else if
+            assignment.fabricUplinkName
+            != null
+            && uplinkName == assignment.fabricUplinkName
+            && fabricAttachTarget != null
+          then fabricAttachTarget.renderedHostBridgeName
+          else uplinkBridgeNameMap.${originalBridge};
 
-          mode =
-            if uplink ? mode && builtins.isString uplink.mode then
-              uplink.mode
-            else if uplink ? parent && builtins.isString uplink.parent && uplink ? vlan then
-              "vlan"
-            else
-              null;
-        in
+        mode =
+          if uplink ? mode && builtins.isString uplink.mode
+          then uplink.mode
+          else if uplink ? parent && builtins.isString uplink.parent && uplink ? vlan
+          then "vlan"
+          else null;
+      in
         uplink
         // {
           inherit originalBridge;
           bridge = renderedBridge;
-          ipv4 = normalizeIpv4 (uplink.ipv4 or { });
-          ipv6 = normalizeIpv6 (uplink.ipv6 or { });
+          ipv4 = normalizeIpv4 (uplink.ipv4 or {});
+          ipv6 = normalizeIpv6 (uplink.ipv6 or {});
         }
-        // lib.optionalAttrs (mode != null) { inherit mode; }
+        // lib.optionalAttrs (mode != null) {inherit mode;}
     )
     lookup.uplinksRaw;
-in
-{
+in {
   inherit
     attachTargets
     localAttachTargets
