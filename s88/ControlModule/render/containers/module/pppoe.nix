@@ -181,7 +181,7 @@ let
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
-            ExecStart = "${pkgs.systemd}/bin/systemctl start ${systemdUnitName}.service";
+            ExecStart = "${pkgs.systemd}/bin/systemctl --no-block start ${systemdUnitName}.service";
           };
         };
       };
