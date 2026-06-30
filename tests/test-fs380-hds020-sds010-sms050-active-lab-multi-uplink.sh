@@ -139,9 +139,19 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
           renderedClientHost = builtins.fromJSON clientsEvaluated.config.environment.etc."network-artifacts/rendered-host.json".text;
           testClientsHost = controlPlane.deploymentHosts."s-router-test-clients" or { };
           require = cond: msg: if cond then true else throw msg;
+          selected =
+            (
+              (metadata.layer or "") == "SIT"
+              && (metadata.selector or "") == "FS-380-HDS-020-SDS-010"
+            )
+            || (
+              (metadata.layer or "") == "SMT"
+              && (metadata.selector or "") == "internet-mode-verification"
+            )
+            || ((metadata.traceId or "") == "FS-380-HDS-020-SDS-010-SMS-050");
         in
-          require (metadata.layer == "SIT" && metadata.selector == "FS-380-HDS-020-SDS-010")
-            "network-labs current-lab must be selected to SIT FS-380-HDS-020-SDS-010"
+          require selected
+            "network-labs current-lab must be selected to SIT FS-380-HDS-020-SDS-010 or SMT internet-mode-verification"
           && require (builtins.hasAttr "11-eth0.4" netdevs)
             "s-router-nixos must emit VLAN4 netdev for the first explicit internet uplink"
           && require (builtins.hasAttr "11-eth0.5" netdevs)
