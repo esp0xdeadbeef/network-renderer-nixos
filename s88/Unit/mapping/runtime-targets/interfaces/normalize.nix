@@ -125,7 +125,12 @@ rec {
           else
             null;
       };
-      interfaceClass = classification { inherit sourceKind backingRef; };
+      explicitInterfaceClass = attrsOrEmpty (iface.interfaceClass or null);
+      interfaceClass =
+        if explicitInterfaceClass != { } then
+          explicitInterfaceClass
+        else
+          classification { inherit sourceKind backingRef; };
     in
     iface
     // {
