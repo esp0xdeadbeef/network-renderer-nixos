@@ -165,7 +165,12 @@ builtins.foldl'
           tableId
           ;
         sourceIfNames = routeSourceIfNames;
-        tableForOutputIfName = outputIfName: (policyRoutingAllocationFor outputIfName).tableId;
+        tableForOutputIfName =
+          outputIfName:
+          if isUpstreamSelectorCoreInterface interfaceName || isUpstreamSelectorPolicyInterface interfaceName then
+            tableId
+          else
+            (policyRoutingAllocationFor outputIfName).tableId;
       };
       routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
       destinationScopeForIngress =

@@ -59,6 +59,8 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
           };
           downstreamSelectorNetworks =
             nixosEvaluated.config.containers.downstream-selector.config.systemd.network.networks;
+          upstreamSelectorNetworks =
+            nixosEvaluated.config.containers.upstream-selector.config.systemd.network.networks;
           downstreamP1 = downstreamSelectorNetworks."10-p1" or { };
           downstreamP1Routes = downstreamP1.routes or [ ];
           downstreamP1Rules = downstreamP1.routingPolicyRules or [ ];
@@ -94,6 +96,41 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
                   && (rule.Table or null) != 254
               )
               downstreamClientIngressRules;
+          allUpstreamRoutes = lib.concatLists (
+            map (name: (upstreamSelectorNetworks.${name} or { }).routes or [ ])
+              (builtins.attrNames upstreamSelectorNetworks)
+          );
+          allUpstreamRules = lib.concatLists (
+            map (name: (upstreamSelectorNetworks.${name} or { }).routingPolicyRules or [ ])
+              (builtins.attrNames upstreamSelectorNetworks)
+          );
+          upstreamTableForIngress =
+            ifName:
+            let
+              matches = lib.filter
+                (
+                  rule:
+                    ((rule.Family or null) == "ipv4" || (rule.Family or null) == "both")
+                    && (rule.IncomingInterface or null) == ifName
+                    && builtins.isInt (rule.Table or null)
+                    && (rule.Table or null) != 254
+                )
+                allUpstreamRules;
+            in
+              if matches == [ ] then null else (builtins.head matches).Table;
+          upstreamP0Table = upstreamTableForIngress "p0";
+          upstreamP1Table = upstreamTableForIngress "p1";
+          upstreamP2Table = upstreamTableForIngress "p2";
+          upstreamHasRoute =
+            destination: gateway: table:
+            builtins.any
+              (
+                route:
+                  (route.Destination or null) == destination
+                  && (route.Gateway or null) == gateway
+                  && (route.Table or null) == table
+              )
+              allUpstreamRoutes;
           netdevs = nixosEvaluated.config.systemd.network.netdevs or { };
           networks = nixosEvaluated.config.systemd.network.networks or { };
           eth0Vlans = networks."20-eth0".networkConfig.VLAN or [ ];
@@ -125,6 +162,16 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             "downstream-selector traffic entering from client-edge on p0 must select the same table that contains the p1 internet default route"
           && require (!downstreamClientIngressUsesWrongTable)
             "downstream-selector must not send client-edge ingress traffic to a different non-main table than the p1 internet default route"
+          && require (upstreamP0Table != null && upstreamP1Table != null && upstreamP2Table != null)
+            "upstream-selector must emit policy tables for p0, p1, and p2"
+          && require (upstreamHasRoute "10.20.20.0/24" "10.10.0.6" upstreamP0Table)
+            "upstream-selector p0 policy table must return client tenant traffic via p1"
+          && require (upstreamHasRoute "10.20.20.0/24" "10.10.0.8" upstreamP0Table)
+            "upstream-selector p0 policy table must return client tenant traffic via p2"
+          && require (upstreamHasRoute "0.0.0.0/0" "10.10.0.4" upstreamP1Table)
+            "upstream-selector p1 policy table must forward client internet traffic via p0"
+          && require (upstreamHasRoute "0.0.0.0/0" "10.10.0.4" upstreamP2Table)
+            "upstream-selector p2 policy table must forward client internet traffic via p0"
       '
 
 echo "PASS FS-380 active-lab multi-uplink WAN attachment"
