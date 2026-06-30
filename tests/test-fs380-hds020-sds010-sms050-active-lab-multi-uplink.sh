@@ -137,7 +137,11 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
           clientHostContainers = builtins.attrNames (clientsEvaluated.config.containers or { });
           controlPlane = builtins.fromJSON clientsEvaluated.config.environment.etc."network-artifacts/control-plane.json".text;
           renderedClientHost = builtins.fromJSON clientsEvaluated.config.environment.etc."network-artifacts/rendered-host.json".text;
+          renderedNixosHost = builtins.fromJSON nixosEvaluated.config.environment.etc."network-artifacts/rendered-host.json".text;
           testClientsHost = controlPlane.deploymentHosts."s-router-test-clients" or { };
+          emulatedIspNetworks = nixosEvaluated.config.containers.emulated-isp.config.systemd.network.networks or { };
+          emulatedIspRendered = renderedNixosHost.containers."emulated-isp" or { };
+          emulatedIspVethNames = builtins.attrNames (emulatedIspRendered.extraVeths or { });
           require = cond: msg: if cond then true else throw msg;
           selected =
             (
@@ -166,6 +170,12 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             "s-router-test-clients must not render router fabric containers"
           && require (renderedClientHost.selectedUnits == [ ])
             "s-router-test-clients rendered artifact must preserve empty router unit selection"
+          && require (builtins.all (name: builtins.hasAttr name emulatedIspNetworks) [ "10-p0" "10-u0" "10-u1" ])
+            "emulated-isp must render the p0 fabric ingress and u0/u1 WAN uplink network units"
+          && require (!(builtins.hasAttr "10-core-up-egress" emulatedIspNetworks))
+            "emulated-isp must not materialize unnamed CPM core-egress audit surface as a networkd unit"
+          && require (builtins.length emulatedIspVethNames == 3)
+            "emulated-isp must only materialize p0 plus u0/u1 veths, not a synthetic core-egress veth"
           && require (downstreamInternetTable != null)
             "downstream-selector p1 must emit the explicit internet default route in a policy table"
           && require downstreamClientIngressUsesInternetTable
