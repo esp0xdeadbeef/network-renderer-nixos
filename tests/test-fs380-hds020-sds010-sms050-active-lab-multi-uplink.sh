@@ -174,4 +174,64 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             "upstream-selector p2 policy table must forward client internet traffic via p0"
       '
 
+missing_class_out="$(mktemp)"
+missing_class_err="$(mktemp)"
+trap 'rm -f "${missing_class_out}" "${missing_class_err}"' EXIT
+
+echo "--- Seeded negative: missing CPM interfaceClass fails closed ---"
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure --expr '
+    let
+      repoRoot = builtins.getEnv "REPO_ROOT";
+      flake = builtins.getFlake ("path:" + repoRoot);
+      lib = flake.inputs.nixpkgs.lib;
+      common = import (repoRoot + "/s88/Unit/mapping/runtime-targets/interfaces/common.nix") { inherit lib; };
+      normalize = import (repoRoot + "/s88/Unit/mapping/runtime-targets/interfaces/normalize.nix") {
+        inherit lib common;
+        runtimeContext = {
+          emittedInterfacesForUnit = _: { };
+          runtimeTargetForUnit = _: { };
+        };
+        forwarding = {
+          semanticInterfaceForUnit = _: {
+            kind = "p2p";
+          };
+        };
+        renderedNames = {
+          renderedInterfaceNamesForUnit = _: { p0 = "p0"; };
+        };
+        hostBridge = {
+          hostBridgeIdentityForInterface = _: null;
+        };
+      };
+      result = normalize.normalizedInterfaceForUnit {
+        cpm = { };
+        unitName = "upstream-selector";
+        ifName = "p0";
+        renderedIfName = "p0";
+        file = "tests/test-fs380-hds020-sds010-sms050-active-lab-multi-uplink.sh";
+        iface = {
+          sourceKind = "p2p";
+          backingRef = {
+            name = "p2p-policy-upstream-selector";
+            kind = "p2p";
+            uplinks = [ "internet-vlan4" "internet-vlan5" ];
+          };
+        };
+      };
+    in
+      builtins.deepSeq result true
+  ' >"${missing_class_out}" 2>"${missing_class_err}"; then
+  echo "FAIL: renderer accepted CPM interface data without interfaceClass" >&2
+  cat "${missing_class_out}" >&2
+  exit 1
+fi
+
+grep -Fq "missing CPM interfaceClass" "${missing_class_err}" \
+  || fail "FAIL: missing interfaceClass diagnostic did not name the CPM contract"
+grep -Fq "must not reconstruct interface" "${missing_class_err}" \
+  || fail "FAIL: missing interfaceClass diagnostic did not reject renderer inference"
+echo "PASS: missing CPM interfaceClass is rejected"
+
 echo "PASS FS-380 active-lab multi-uplink WAN attachment"
