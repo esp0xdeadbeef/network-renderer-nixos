@@ -5,7 +5,6 @@
   common,
   renderedNames,
   hostBridge,
-  classification,
 }:
 
 let
@@ -125,12 +124,19 @@ rec {
           else
             null;
       };
-      explicitInterfaceClass = attrsOrEmpty (iface.interfaceClass or null);
       interfaceClass =
-        if explicitInterfaceClass != { } then
-          explicitInterfaceClass
+        if iface ? interfaceClass && builtins.isAttrs iface.interfaceClass && iface.interfaceClass != { } then
+          iface.interfaceClass
         else
-          classification { inherit sourceKind backingRef; };
+          throw ''
+            FS-380-HDS-020-SDS-010-SMS-050: interface '${ifName}' for unit '${unitName}' is missing CPM interfaceClass
+
+            The NixOS renderer must consume explicit CPM interfaceClass data and must not reconstruct interface
+            role semantics from sourceKind, backingRef, lane names, role names, or inventory.
+
+            interface:
+            ${builtins.toJSON iface}
+          '';
     in
     iface
     // {
