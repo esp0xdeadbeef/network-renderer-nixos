@@ -102,14 +102,17 @@ let
     ifName:
     let
       iface = interfaces.${ifName};
+      sourceKind = sourceKindForInterface iface;
       attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
+      hasExplicitRuntimeName = explicitRuntimeInterfaceName iface != null;
     in
     # Skip interfaces whose hostBridge couldn't be resolved
     if attachTarget == null then
       builtins.trace "WARNING: skipping interface '${ifName}' for '${unitName}' — no attach target" null
+    else if sourceKind == "core-egress" && !hasExplicitRuntimeName then
+      null
     else
     let
-      sourceKind = sourceKindForInterface iface;
       desiredInterfaceName = effectiveInterfaceNameForInterface { inherit ifName iface attachTarget; };
       bridgeEligibleWanIfNames = lib.filter
         (
