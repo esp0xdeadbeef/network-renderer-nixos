@@ -77,7 +77,7 @@ in
           uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
           bridgeVlansOnParent = lib.filter (bridgeName: bridgeNetworkVlanParentFor bridgeName == parentIf) bridgeNetworkVlanNames;
           vlanChildren = lib.filter (name: name != null) (map vlanIfNameFor uplinksOnParent) ++ map bridgeNetworkVlanIfNameFor bridgeVlansOnParent;
-          directBridgeUplinks = lib.filter (uplinkName: (uplinks.${uplinkName}.mode or "") != "vlan" && (uplinks.${uplinkName} ? bridge)) uplinksOnParent;
+          directBridgeUplinks = lib.filter (uplinkName: (uplinks.${uplinkName}.mode or "") != "vlan" && (uplinks.${uplinkName} ? bridge) && (uplinks.${uplinkName} ? ipv4)) uplinksOnParent;
           _singleDirectBridge =
             if builtins.length directBridgeUplinks <= 1 then
               true
