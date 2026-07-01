@@ -127,6 +127,10 @@ rec {
       interfaceClass =
         if iface ? interfaceClass && builtins.isAttrs iface.interfaceClass && iface.interfaceClass != { } then
           iface.interfaceClass
+        else if backingRef ? service && backingRef.service == "pppoe" then
+          # PPPoE service interfaces do not carry interfaceClass; their
+          # role is determined by the PPPoE session, not interface topology.
+          { }
         else
           throw ''
             FS-380-HDS-020-SDS-010-SMS-050: interface '${ifName}' for unit '${unitName}' is missing CPM interfaceClass
