@@ -141,9 +141,17 @@
 
   candidateUplinkNameForTarget = target: let
     candidates = lookup.candidateUplinkNamesForTarget target;
+    upstream = target.connectivity.upstream or null;
+    # When multiple uplinks match (CPM auto-generated site uplink from
+    # realization port collides with explicit deployment host uplink),
+    # prefer the explicit deployment uplink (indirect match via upstream
+    # field) over the auto-generated one (direct name match).
+    indirect = builtins.filter (c: c != upstream) candidates;
   in
     if builtins.length candidates == 1
     then builtins.head candidates
+    else if indirect != []
+    then builtins.head indirect
     else null;
 
   assignedUplinkNameForTarget = target: let
