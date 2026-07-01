@@ -127,7 +127,9 @@ rec {
       interfaceClass =
         if iface ? interfaceClass && builtins.isAttrs iface.interfaceClass && iface.interfaceClass != { } then
           iface.interfaceClass
-        else if backingRef ? service && backingRef.service == "pppoe" then
+        else if (backingRef ? service && backingRef.service == "pppoe")
+             || (sourceKind == "pppoe-session")
+             || (backingRef ? kind && backingRef.kind == "pppoe-session") then
           # PPPoE service interfaces do not carry interfaceClass; their
           # role is determined by the PPPoE session, not interface topology.
           { }
