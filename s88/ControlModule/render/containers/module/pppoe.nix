@@ -176,11 +176,11 @@ let
         };
         starterService = {
           description = "Start S88 PPPoE client ${peerName}";
-          after = [ "network-online.target" ];
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" "s88-rename-interfaces.service" ];
           wants = [ "network-online.target" ];
           serviceConfig = {
             Type = "oneshot";
-            RemainAfterExit = true;
             ExecStart = "${pkgs.systemd}/bin/systemctl --no-block start ${systemdUnitName}.service";
           };
         };

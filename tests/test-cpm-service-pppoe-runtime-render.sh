@@ -215,8 +215,10 @@ nix_eval_json_or_fail \
             !(builtins.elem "multi-user.target" (clientServiceUnit.wantedBy or [ ]));
           client_starter_service_emitted =
             clientServices ? "s88-start-s88-pppoe-client-provider-handoff";
-          client_starter_not_wanted_by_multi_user =
-            !(builtins.elem "multi-user.target" (clientStarterUnit.wantedBy or [ ]));
+          client_starter_wanted_by_multi_user =
+            builtins.elem "multi-user.target" (clientStarterUnit.wantedBy or [ ]);
+          client_starter_can_be_rerun_by_timer =
+            (clientStarterUnit.serviceConfig.RemainAfterExit or false) == false;
           client_starter_timer_emitted =
             clientTimers ? "s88-start-s88-pppoe-client-provider-handoff";
           client_starter_timer_wanted_by_timers_target =
@@ -228,6 +230,8 @@ nix_eval_json_or_fail \
           client_starter_waits_for_network_online =
             builtins.elem "network-online.target" (clientStarterUnit.after or [ ])
             && builtins.elem "network-online.target" (clientStarterUnit.wants or [ ]);
+          client_starter_orders_after_interface_rename =
+            builtins.elem "s88-rename-interfaces.service" (clientStarterUnit.after or [ ]);
           client_starter_starts_pppd_unit =
             (clientStarterUnit.serviceConfig.ExecStart or null)
               == "${pkgs.systemd}/bin/systemctl --no-block start pppd-s88-pppoe-client-provider-handoff.service";

@@ -82,6 +82,7 @@ let
   interfaceView = import ./container-networks/interface-view.nix {
     inherit lib interfaces common;
   };
+  renderedInterfaceNames = interfaceView.renderedInterfaceNames;
 
   networkManagerInterfaces =
     if
@@ -157,6 +158,24 @@ let
     inherit (routeRender) isExternalValidationDelegatedPrefixRoute;
   };
 
+  fs370Validation = import ./container-networks/policy-routing/fs370-validation.nix {
+    inherit lib common;
+  };
+
+  fs370MaterializationValidation = fs370Validation.validateContainer {
+    inherit
+      containerModel
+      interfaces
+      renderedInterfaceNames
+      forwardingIntent
+      firewallRuleset
+      ;
+    nodeName = containerModel.unitName or containerModel.containerName or "unknown";
+    policyRoutingByInterface = policyRouting.policyRoutingByInterface;
+    isExpectedPolicyInterface = classes.isDownstreamSelectorPolicyInterface;
+    isExpectedAccessInterface = classes.isDownstreamSelectorAccessInterface;
+  };
+
   loopback = import ./container-networks/loopback.nix {
     inherit lib containerModel;
   };
@@ -202,15 +221,16 @@ let
           ) pair.sourceFiles
       )
       (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+  output = {
+    networks = loopback.loopbackUnit // hostBridgeWan.networks // interfaceUnits.interfaceUnits;
+    ipv6AcceptRAInterfaces = lib.unique (
+      hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
+    );
+    inherit (interfaceUnits) dynamicDelegatedRoutes;
+    inherit (interfaceUnits) staticProviderRoutes;
+    inherit (interfaceUnits) staticProviderPolicyRules;
+    inherit dynamicSourceForwardRules;
+    dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
+  };
 in
-{
-  networks = loopback.loopbackUnit // hostBridgeWan.networks // interfaceUnits.interfaceUnits;
-  ipv6AcceptRAInterfaces = lib.unique (
-    hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
-  );
-  inherit (interfaceUnits) dynamicDelegatedRoutes;
-  inherit (interfaceUnits) staticProviderRoutes;
-  inherit (interfaceUnits) staticProviderPolicyRules;
-  inherit dynamicSourceForwardRules;
-  dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
-}
+builtins.seq fs370MaterializationValidation output

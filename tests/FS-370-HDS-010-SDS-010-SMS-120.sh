@@ -539,13 +539,119 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 SN4: wrong lane gateway re
 echo "PASS SN4: Mutated artifact with wrong client lane gateway is rejected"
 
 # ============================================================
-# Predicate 5: Source code completeness check
+# Predicate 5: Renderer CMC validator rejects seeded negatives.
 # ============================================================
 echo ""
-echo "--- Predicate 5: Source code completeness ---"
+echo "--- Predicate 5: Renderer CMC validator seeded negatives ---"
+
+nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P5: validator rejects seeded negatives" \
+  env REPO_ROOT="${repo_root}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
+        common = import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/render/container-networks/common.nix") { inherit lib; };
+        validator = import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/render/container-networks/policy-routing/fs370-validation.nix") {
+          inherit lib common;
+        };
+        comment = "selector-handoff-reverse--s-router-access-client--selector-to-policy-to-access-to-selector--fabric";
+        expectedLanes = [
+          {
+            lane = "s-router-access-client";
+            policyInterface = "policy-client";
+            accessInterface = "access-client";
+            inherit comment;
+            prefixes = [
+              {
+                family = 4;
+                prefix = "10.20.20.0/24";
+                gateway = "10.10.0.2";
+              }
+            ];
+          }
+        ];
+        base = {
+          nodeName = "mock-ds";
+          inherit expectedLanes;
+          ruleset = "chain forward { type filter hook forward priority filter; policy drop; iifname \"policy-client\" oifname \"access-client\" accept comment \"${comment}\"; }";
+          rulesByInterface = {
+            "policy-client" = [
+              {
+                Family = "ipv4";
+                IncomingInterface = "policy-client";
+                Priority = 1002;
+                Table = 1002;
+                To = "10.20.20.0/24";
+              }
+            ];
+          };
+          routesByInterface = {
+            "access-client" = [
+              {
+                Destination = "10.20.20.0/24";
+                Gateway = "10.10.0.2";
+                Table = 1002;
+              }
+            ];
+          };
+        };
+        fails =
+          args:
+          let result = builtins.tryEval (builtins.deepSeq (validator.validateMaterializedArtifacts args) true);
+          in !result.success;
+        positive = validator.validateMaterializedArtifacts base;
+        missingRule = base // {
+          rulesByInterface = { "policy-client" = [ ]; };
+        };
+        missingReverse = base // {
+          ruleset = "chain forward { type filter hook forward priority filter; policy drop; }";
+        };
+        defaultCatchAll = base // {
+          rulesByInterface = {
+            "policy-client" = base.rulesByInterface."policy-client" ++ [
+              {
+                Family = "ipv4";
+                IncomingInterface = "policy-client";
+                Priority = 1002;
+                Table = 1002;
+                To = "0.0.0.0/0";
+              }
+            ];
+          };
+        };
+        wrongInterfaceRoute = base // {
+          routesByInterface = {
+            "access-admin" = [
+              {
+                Destination = "10.20.20.0/24";
+                Gateway = "10.10.0.4";
+                Table = 1002;
+              }
+            ];
+          };
+        };
+      in
+        builtins.deepSeq positive (
+          fails missingRule
+          && fails missingReverse
+          && fails defaultCatchAll
+          && fails wrongInterfaceRoute
+        )
+    '
+
+echo "PASS P5: Renderer CMC validator rejects missing ip rule, missing reverse nft rule, catch-all, and wrong-interface route"
+
+# ============================================================
+# Predicate 6: Source code completeness check
+# ============================================================
+echo ""
+echo "--- Predicate 6: Source code completeness ---"
 
 # Verify the key implementation files exist
 declare -A required_files=(
+  ["policy-routing/fs370-validation.nix"]="FS-370 CMC materialization validator"
   ["policy-routing/rules.nix"]="ip rule generation"
   ["policy-routing/raw-routes.nix"]="route candidate assembly"
   ["policy-routing/return-routes.nix"]="tenant return destinations"
@@ -579,7 +685,7 @@ if ${all_checks_passed}; then
   echo "  - nftables forward chain with policy drop and per-lane accept rules/comments"
   echo "  - No default-route catch-all rules on shared interfaces"
   echo "  - Route entries point to correct DS-facing lane gateways"
-  echo "  - 4 active seeded negatives verified by artifact mutation"
+  echo "  - 4 active seeded negatives verified by artifact mutation and renderer CMC validator"
   exit 0
 else
   echo "FAIL: FS-370-HDS-010-SDS-010-SMS-120 — one or more predicates failed."
