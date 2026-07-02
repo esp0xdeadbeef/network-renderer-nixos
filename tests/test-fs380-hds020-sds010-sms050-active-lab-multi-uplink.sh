@@ -68,7 +68,7 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             (
               route:
                 (route.Destination or null) == "0.0.0.0/0"
-                && (route.Gateway or null) == "10.10.0.3"
+                && (route.Gateway or null) == "10.1.255.3"
                 && builtins.isInt (route.Table or null)
             )
             null
@@ -82,7 +82,7 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
               rule:
                 (rule.Family or null) == "ipv4"
                 && (rule.IncomingInterface or null) == "p0"
-                && (rule.From or null) == "10.20.20.0/24"
+                && (rule.From or null) == "10.1.124.0/24"
             )
             downstreamP1Rules;
           downstreamClientIngressUsesInternetTable =
@@ -170,12 +170,12 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             "s-router-test-clients must not render router fabric containers"
           && require (renderedClientHost.selectedUnits == [ ])
             "s-router-test-clients rendered artifact must preserve empty router unit selection"
-          && require (builtins.all (name: builtins.hasAttr name emulatedIspNetworks) [ "10-p0" "10-u0" "10-u1" ])
-            "emulated-isp must render the p0 fabric ingress and u0/u1 WAN uplink network units"
+          && require (builtins.all (name: builtins.hasAttr name emulatedIspNetworks) [ "10-p0" "10-ppp0" "10-pppoe0" "10-u0" "10-u1" ])
+            "emulated-isp must render p0 fabric ingress, PPPoE service, and u0/u1 WAN uplink network units"
           && require (!(builtins.hasAttr "10-core-up-egress" emulatedIspNetworks))
             "emulated-isp must not materialize unnamed CPM core-egress audit surface as a networkd unit"
-          && require (builtins.length emulatedIspVethNames == 3)
-            "emulated-isp must only materialize p0 plus u0/u1 veths, not a synthetic core-egress veth"
+          && require (builtins.length emulatedIspVethNames == 4)
+            "emulated-isp must only materialize p0, PPPoE handoff, and u0/u1 veths, not a synthetic core-egress veth"
           && require (downstreamInternetTable != null)
             "downstream-selector p1 must emit the explicit internet default route in a policy table"
           && require downstreamClientIngressUsesInternetTable
@@ -184,13 +184,13 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             "downstream-selector must not send client-edge ingress traffic to a different non-main table than the p1 internet default route"
           && require (upstreamP0Table != null && upstreamP1Table != null && upstreamP2Table != null)
             "upstream-selector must emit policy tables for p0, p1, and p2"
-          && require (upstreamHasRoute "10.20.20.0/24" "10.10.0.6" upstreamP0Table)
+          && require (upstreamHasRoute "10.1.124.0/24" "10.1.255.6" upstreamP0Table)
             "upstream-selector p0 policy table must return client tenant traffic via p1"
-          && require (upstreamHasRoute "10.20.20.0/24" "10.10.0.8" upstreamP0Table)
+          && require (upstreamHasRoute "10.1.124.0/24" "10.1.255.8" upstreamP0Table)
             "upstream-selector p0 policy table must return client tenant traffic via p2"
-          && require (upstreamHasRoute "0.0.0.0/0" "10.10.0.4" upstreamP1Table)
+          && require (upstreamHasRoute "0.0.0.0/0" "10.1.255.4" upstreamP1Table)
             "upstream-selector p1 policy table must forward client internet traffic via p0"
-          && require (upstreamHasRoute "0.0.0.0/0" "10.10.0.4" upstreamP2Table)
+          && require (upstreamHasRoute "0.0.0.0/0" "10.1.255.4" upstreamP2Table)
             "upstream-selector p2 policy table must forward client internet traffic via p0"
       '
 
