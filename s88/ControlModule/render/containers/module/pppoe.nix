@@ -138,6 +138,7 @@ let
             pkgs.ppp
           ];
           serviceConfig = {
+            Type = lib.mkForce "simple";
             Restart = lib.mkDefault "always";
             RestartSec = lib.mkDefault 5;
           };
