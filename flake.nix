@@ -70,6 +70,7 @@
           rendered = hostBuild.renderedHost;
           renderedNetdevs = rendered.netdevs or { };
           renderedNetworks = rendered.networks or { };
+          renderedContainers = rendered.containers or { };
           userLib = rendererInput.lib or lib;
 
           # Management networking from CPM deployment hosts (per URS: inventory → CPM → renderer).
@@ -167,20 +168,54 @@
               { }
             else
               legacyMgmtNetworks;
+
+          containerHasHostBridge =
+            container:
+            let
+              extraVeths =
+                if builtins.isAttrs container && container ? extraVeths && builtins.isAttrs container.extraVeths then
+                  container.extraVeths
+                else
+                  { };
+              hasPrimaryBridge =
+                builtins.isAttrs container
+                && container ? hostBridge
+                && builtins.isString container.hostBridge
+                && container.hostBridge != "";
+              hasExtraVethBridge =
+                builtins.any
+                  (
+                    veth:
+                    builtins.isAttrs veth
+                    && veth ? hostBridge
+                    && builtins.isString veth.hostBridge
+                    && veth.hostBridge != ""
+                  )
+                  (builtins.attrValues extraVeths);
+            in
+            hasPrimaryBridge || hasExtraVethBridge;
+
+          rendersHostNetwork =
+            builtins.attrNames renderedNetdevs != [ ]
+            || builtins.attrNames renderedNetworks != [ ]
+            || builtins.any containerHasHostBridge (builtins.attrValues renderedContainers);
+
+          hostRequiresNetworkd = mgmtManageDhcp || rendersHostNetwork;
         in
         {
           imports = [ hostBuild.artifactModule ];
 
-          # CPM-driven networking: only override host DHCP/networkd when
-          # management uplink requests it (ipv4.enable = true).
-          networking.useNetworkd = lib.mkIf mgmtManageDhcp true;
-          systemd.network.enable = lib.mkIf mgmtManageDhcp true;
-          networking.useDHCP = lib.mkIf mgmtManageDhcp false;
+          # CPM-driven networking: rendered host bridges/network files and
+          # container hostBridge attachments require systemd-networkd even when
+          # the host has no management DHCP uplink.
+          networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
+          systemd.network.enable = lib.mkIf hostRequiresNetworkd true;
+          networking.useDHCP = lib.mkIf hostRequiresNetworkd false;
           networking.useHostResolvConf = userLib.mkForce false;
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
           systemd.network.networks = renderedNetworks // mgmtNetworks;
-          containers = rendered.containers or { };
+          containers = renderedContainers;
 
           # GAMP: FS-840 — scoped runtime secret delivery: containers with
           # bind mounts to /run/secrets/ must wait for sops-nix.service.
