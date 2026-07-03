@@ -59,6 +59,14 @@ nix_eval_true_or_fail "FS-982 host with no router runtime units renders no route
             "client-only deployment host must preserve empty selectedUnits in rendered artifact"
           && require (builtins.attrNames (renderedHost.containers or { }) == [ ])
             "client-only rendered artifact must report zero router containers"
+          && require (builtins.attrNames (renderedHost.netdevs or { }) == [ ])
+            "client-only rendered artifact must report zero host netdevs"
+          && require (builtins.attrNames (renderedHost.networks or { }) == [ ])
+            "client-only rendered artifact must report zero host networks"
+          && require (evaluated.config.networking.useNetworkd == false)
+            "client-only deployment host must not be reclassified as a rendered networkd host"
+          && require (evaluated.config.systemd.network.enable == false)
+            "client-only deployment host must not enable systemd-networkd without rendered host networks"
           && require ((controlPlane.deploymentHosts.s-router-test-clients.accessHandoff.kind or null) == "pppoe")
             "client-only deployment host must preserve explicit accessHandoff data"
       '
