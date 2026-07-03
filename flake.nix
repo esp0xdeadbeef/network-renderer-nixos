@@ -71,6 +71,7 @@
           renderedNetdevs = rendered.netdevs or { };
           renderedNetworks = rendered.networks or { };
           renderedContainers = rendered.containers or { };
+          requiresNetworkd = import ./s88/ControlModule/render/host-networkd-requirement.nix { };
           userLib = rendererInput.lib or lib;
 
           # Management networking from CPM deployment hosts (per URS: inventory → CPM → renderer).
@@ -169,38 +170,14 @@
             else
               legacyMgmtNetworks;
 
-          containerHasHostBridge =
-            container:
-            let
-              extraVeths =
-                if builtins.isAttrs container && container ? extraVeths && builtins.isAttrs container.extraVeths then
-                  container.extraVeths
-                else
-                  { };
-              hasPrimaryBridge =
-                builtins.isAttrs container
-                && container ? hostBridge
-                && builtins.isString container.hostBridge
-                && container.hostBridge != "";
-              hasExtraVethBridge =
-                builtins.any
-                  (
-                    veth:
-                    builtins.isAttrs veth
-                    && veth ? hostBridge
-                    && builtins.isString veth.hostBridge
-                    && veth.hostBridge != ""
-                  )
-                  (builtins.attrValues extraVeths);
-            in
-            hasPrimaryBridge || hasExtraVethBridge;
-
-          rendersHostNetwork =
-            builtins.attrNames renderedNetdevs != [ ]
-            || builtins.attrNames renderedNetworks != [ ]
-            || builtins.any containerHasHostBridge (builtins.attrValues renderedContainers);
-
-          hostRequiresNetworkd = mgmtManageDhcp || rendersHostNetwork;
+          hostRequiresNetworkd = requiresNetworkd {
+            inherit
+              renderedNetdevs
+              renderedNetworks
+              renderedContainers
+              mgmtManageDhcp
+              ;
+          };
         in
         {
           imports = [ hostBuild.artifactModule ];
