@@ -99,9 +99,15 @@ let
     builtins.isList (rule.sourcePrefixes or null) && rule.sourcePrefixes != [ ]
     || builtins.isList (rule.sourceFiles or null) && rule.sourceFiles != [ ];
 
+  hasSpecificTrafficType =
+    rule:
+    builtins.isString (rule.trafficType or null)
+    && rule.trafficType != ""
+    && rule.trafficType != "any";
+
   hasLayer4Scope =
     rule:
-    (builtins.isString (rule.trafficType or null) && rule.trafficType != "")
+    hasSpecificTrafficType rule
     || (builtins.isList (rule.match or null) && rule.match != [ ]);
 
   routeSelectableForwardingRule =
