@@ -60,12 +60,28 @@
         let
           resolvedSystem = if system != null then system else pkgs.stdenv.hostPlatform.system;
           effectiveCpm = if cpm != null then cpm else controlPlane;
+          artifactCompilerOut =
+            if rendererInput ? compilerOut then
+              rendererInput.compilerOut
+            else if effectiveCpm != null && builtins.isAttrs effectiveCpm && effectiveCpm ? compilerOut then
+              effectiveCpm.compilerOut
+            else
+              null;
+          artifactForwardingOut =
+            if rendererInput ? forwardingOut then
+              rendererInput.forwardingOut
+            else if effectiveCpm != null && builtins.isAttrs effectiveCpm && effectiveCpm ? forwardingOut then
+              effectiveCpm.forwardingOut
+            else
+              null;
           hostBuild = api.renderer.buildHostFromControlPlane {
             controlPlaneOut =
               if effectiveCpm != null then effectiveCpm
               else throw "network-renderer-nixos hostModule: 'cpm' or 'controlPlane' (control plane model) is required. Per FS-310-HDS-010-SDS-010-SMS-100, renderers consume ONLY CPM output.";
             selector = hostName;
             system = resolvedSystem;
+            compilerOut = artifactCompilerOut;
+            forwardingOut = artifactForwardingOut;
           };
           rendered = hostBuild.renderedHost;
           renderedNetdevs = rendered.netdevs or { };

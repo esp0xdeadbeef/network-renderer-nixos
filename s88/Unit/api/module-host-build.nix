@@ -18,6 +18,8 @@
 , hostName
 , cpm ? null
 , controlPlane ? null
+, compilerOut ? null
+, forwardingOut ? null
 , source ? { }
 , selectorFile ? "s88/Unit/api/module-host-build.nix"
 , containerDefaults ? { }
@@ -49,8 +51,26 @@ let
         Provide pre-built CPM output via the 'cpm' or 'controlPlane' parameter.
       '';
 
+  resolvedCompilerOut =
+    if compilerOut != null then
+      compilerOut
+    else if builtins.isAttrs resolvedCpm && resolvedCpm ? compilerOut then
+      resolvedCpm.compilerOut
+    else
+      { };
+
+  resolvedForwardingOut =
+    if forwardingOut != null then
+      forwardingOut
+    else if builtins.isAttrs resolvedCpm && resolvedCpm ? forwardingOut then
+      resolvedCpm.forwardingOut
+    else
+      { };
+
   builtHost = buildHostFromControlPlane {
     controlPlaneOut = resolvedCpm;
+    compilerOut = resolvedCompilerOut;
+    forwardingOut = resolvedForwardingOut;
     inherit source;
     selector = hostName;
     inherit
