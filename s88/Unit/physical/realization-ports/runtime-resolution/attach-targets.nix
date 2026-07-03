@@ -42,8 +42,16 @@ let
   fallbackAttachTargetForRuntimeInterface =
     { unitName, ifName, iface, file ? "s88/Unit/physical/realization-ports.nix" }:
     let
+      attach = if iface ? attach && builtins.isAttrs iface.attach then iface.attach else { };
+      hasExplicitBridgeAttach =
+        (attach.kind or null) == "bridge"
+        && attach ? bridge
+        && builtins.isString attach.bridge
+        && attach.bridge != "";
       hostBridgeName =
-        if iface ? hostBridge && builtins.isString iface.hostBridge then
+        if hasExplicitBridgeAttach then
+          attach.bridge
+        else if iface ? hostBridge && builtins.isString iface.hostBridge then
           iface.hostBridge
         else
           throw ''
@@ -59,13 +67,13 @@ let
       interface = iface;
       connectivity = iface.connectivity or { };
       backingRef = iface.backingRef or { };
-      kind = "synthetic";
+      kind = if hasExplicitBridgeAttach then "bridge" else "synthetic";
       name = hostBridgeName;
       originalName = hostBridgeName;
       identity = {
         unitName = unitName;
         portName = ifName;
-        attachmentKind = "synthetic";
+        attachmentKind = if hasExplicitBridgeAttach then "bridge" else "synthetic";
       };
     };
 in
