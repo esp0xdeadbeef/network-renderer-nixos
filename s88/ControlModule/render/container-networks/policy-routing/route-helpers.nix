@@ -62,6 +62,8 @@ let
           null;
 in
 {
+  inherit addressNetworkPrefix;
+
   routeOutputInterface =
     sourceIfName: route:
     let

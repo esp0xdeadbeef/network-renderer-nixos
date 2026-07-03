@@ -81,6 +81,10 @@ let
   serviceDnsRoutes = import ./policy-routing/service-dns-routes.nix {
     inherit lib routeHelpers;
   };
+  localOriginDns = import ./policy-routing/local-origin-dns.nix {
+    inherit lib interfaces routeHelpers;
+    services = containerModel.services or { };
+  };
   explicitReturnRoutes = import ./policy-routing/explicit-return-routes.nix {
     inherit
       lib
@@ -181,6 +185,7 @@ let
       routesByOutputInterface
       rawRoutesForPolicyTable
       serviceDnsRoutes
+      localOriginDns
       policyRulesFor
       dynamicPolicyRulesFor
       ;
