@@ -180,6 +180,16 @@ let
     inherit lib containerModel;
   };
 
+  pppoeVlanBridge = import ./container-networks/pppoe-vlan-bridge.nix {
+    inherit
+      lib
+      interfaces
+      uplinks
+      wanUplinkName
+      ;
+    inherit (interfaceView) interfaceNames renderedInterfaceNames;
+  };
+
   interfaceUnits = import ./container-networks/interface-units.nix {
     inherit
       lib
@@ -189,6 +199,7 @@ let
       common
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
+    skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
       mkRoute
       isExternalValidationDelegatedPrefixRoute
@@ -222,7 +233,12 @@ let
       )
       (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
   output = {
-    networks = loopback.loopbackUnit // hostBridgeWan.networks // interfaceUnits.interfaceUnits;
+    netdevs = pppoeVlanBridge.netdevs or { };
+    networks =
+      loopback.loopbackUnit
+      // hostBridgeWan.networks
+      // (pppoeVlanBridge.networks or { })
+      // interfaceUnits.interfaceUnits;
     ipv6AcceptRAInterfaces = lib.unique (
       hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
     );

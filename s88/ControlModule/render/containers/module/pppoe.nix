@@ -2,6 +2,8 @@
   lib,
   pkgs,
   renderedModel,
+  uplinks ? { },
+  wanUplinkName ? null,
 }:
 
 let
@@ -24,6 +26,42 @@ let
       iface.hostInterfaceName
     else
       logicalName;
+
+  attrsOrEmpty = value: if builtins.isAttrs value then value else { };
+
+  assignedUplinkFor =
+    logicalName:
+    let
+      iface = attrsOrEmpty ((renderedModel.interfaces or { }).${logicalName} or null);
+    in
+    if
+      builtins.isString (iface.assignedUplinkName or null)
+      && builtins.hasAttr iface.assignedUplinkName uplinks
+    then
+      uplinks.${iface.assignedUplinkName}
+    else if
+      (iface.sourceKind or null) == "wan"
+      && builtins.isString wanUplinkName
+      && builtins.hasAttr wanUplinkName uplinks
+    then
+      uplinks.${wanUplinkName}
+    else
+      { };
+
+  pppoeNicInterfaceFor =
+    logicalName:
+    let
+      uplink = assignedUplinkFor logicalName;
+    in
+    if
+      (uplink.mode or null) == "pppoe"
+      && builtins.isInt (uplink.vlan or null)
+      && builtins.isString (uplink.bridge or null)
+      && uplink.bridge != ""
+    then
+      uplink.bridge
+    else
+      ifaceNameFor logicalName;
 
   lowerInterfaceForPppoe =
     role: serviceInterface:
@@ -86,6 +124,7 @@ let
         logicalIf = clientConfig.interface;
         lowerLogicalIf = lowerInterfaceForPppoe "client" logicalIf;
         interfaceName = ifaceNameFor lowerLogicalIf;
+        pppoeNicInterface = pppoeNicInterfaceFor lowerLogicalIf;
         peerName = "s88-pppoe-client-${sanitizeName logicalIf}";
         systemdUnitName = "pppd-${peerName}";
         starterServiceName = "s88-start-${peerName}";
@@ -146,12 +185,15 @@ let
             set -eu
             ${pkgs.coreutils}/bin/mkdir -p /run/pppd
             ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg interfaceName} up
+            ${lib.optionalString (pppoeNicInterface != interfaceName) ''
+              ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg pppoeNicInterface} up
+            ''}
             user="$(${credentialReadCommand credentials "username"})"
             pass="$(${credentialReadCommand credentials "password"})"
             ${pkgs.coreutils}/bin/install -m 0600 /dev/null ${runtimeOptions}
             cat > ${runtimeOptions} <<EOF
             plugin pppoe.so
-            nic-${interfaceName}
+            nic-${pppoeNicInterface}
             user "$user"
             password "$pass"
             noauth
@@ -203,6 +245,7 @@ let
         logicalIf = serverConfig.interface;
         lowerLogicalIf = lowerInterfaceForPppoe "server" logicalIf;
         interfaceName = ifaceNameFor lowerLogicalIf;
+        pppoeNicInterface = pppoeNicInterfaceFor lowerLogicalIf;
         credentials = serverConfig.credentials or { };
         providerAddress = serverConfig.providerAddress;
         customerAddress = serverConfig.customerAddress;
@@ -239,6 +282,9 @@ let
           script = ''
             set -eu
             ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg interfaceName} up
+            ${lib.optionalString (pppoeNicInterface != interfaceName) ''
+              ${pkgs.iproute2}/bin/ip link set ${lib.escapeShellArg pppoeNicInterface} up
+            ''}
             ${pkgs.coreutils}/bin/mkdir -p /etc/ppp
             user="$(${credentialReadCommand credentials "username"})"
             pass="$(${credentialReadCommand credentials "password"})"
@@ -269,7 +315,7 @@ let
             ms-dns ${providerAddress}
             EOF
             exec ${pkgs.rp-pppoe}/bin/pppoe-server \
-              -I ${lib.escapeShellArg interfaceName} \
+              -I ${lib.escapeShellArg pppoeNicInterface} \
               -L ${lib.escapeShellArg providerAddress} \
               -R ${lib.escapeShellArg customerAddress} \
               -O /etc/ppp/s88-pppoe-server-options \

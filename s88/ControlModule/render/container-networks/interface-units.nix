@@ -15,6 +15,7 @@
   mkDynamicWanNetworkConfig,
   needsIpv6AcceptRA,
   common,
+  skipInterfaceNames ? [ ],
 }:
 
 let
@@ -204,7 +205,7 @@ let
             ++ (lib.filter (route: route != null) (map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])))
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
         in
-        if builtins.elem interfaceName networkManagerInterfaces || isProviderCreatedInterface iface then
+        if builtins.elem ifName skipInterfaceNames || builtins.elem interfaceName networkManagerInterfaces || isProviderCreatedInterface iface then
           null
         else
           {
