@@ -14,6 +14,10 @@
 , routesByOutputInterface
 , rawRoutesForPolicyTable
 , serviceDnsRoutes
+, localOriginDns ? {
+    routesByInterface = _tableId: _sourceIfNames: { };
+    rules = _tableId: _priority: _sourceIfNames: [ ];
+  }
 , policyRulesFor
 , dynamicPolicyRulesFor
 , policyRoutingAllocations
@@ -173,6 +177,11 @@ builtins.foldl'
             (policyRoutingAllocationFor outputIfName).tableId;
       };
       routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
+      localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
+      localOriginRoutesByInterface =
+        localOriginDns.routesByInterface tableId localOriginSourceIfNames;
+      localOriginRules =
+        localOriginDns.rules tableId policyRoutingAllocation.tableRulePriority localOriginSourceIfNames;
       destinationScopeForIngress =
         sourceIfName:
         let
@@ -229,7 +238,7 @@ builtins.foldl'
             (mainFallbackRuleFor prefix)
           ])
           forwardingMainScope.staticPrefixes;
-      allRulesForThisInterface = lib.unique (rulesForThisInterface ++ forwardingIngressRules);
+      allRulesForThisInterface = lib.unique (rulesForThisInterface ++ forwardingIngressRules ++ localOriginRules);
       hasMainLookupRuleForSource =
         source:
         builtins.any
@@ -253,17 +262,31 @@ builtins.foldl'
       );
     in
     {
-      routes = builtins.foldl'
-        (
-          routesAcc: outputIfName:
-            routesAcc
-            // {
-              ${outputIfName} =
-                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfacePreferred.${outputIfName} or [ ]);
-            }
-        )
-        acc.routes
-        (builtins.attrNames routesByInterfacePreferred);
+      routes =
+        let
+          routesWithPolicyTables = builtins.foldl'
+            (
+              routesAcc: outputIfName:
+                routesAcc
+                // {
+                  ${outputIfName} =
+                    (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfacePreferred.${outputIfName} or [ ]);
+                }
+            )
+            acc.routes
+            (builtins.attrNames routesByInterfacePreferred);
+        in
+        builtins.foldl'
+          (
+            routesAcc: outputIfName:
+              routesAcc
+              // {
+                ${outputIfName} =
+                  (routesAcc.${outputIfName} or [ ]) ++ (localOriginRoutesByInterface.${outputIfName} or [ ]);
+              }
+          )
+          routesWithPolicyTables
+          (builtins.attrNames localOriginRoutesByInterface);
       mainRoutes = acc.mainRoutes // {
         ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
       };
