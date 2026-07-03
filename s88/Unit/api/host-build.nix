@@ -31,8 +31,8 @@ let
     , intent ? null
     , source ? null
     , controlPlaneOut ? null
-    , compilerOut ? { }
-    , forwardingOut ? { }
+    , compilerOut ? null
+    , forwardingOut ? null
     , system ? currentSystem
     , containerDefaults ? { }
     , disabled ? { }
@@ -64,6 +64,22 @@ let
             The pipeline (compiler -> NFM -> CPM) must run in the host repo, not inside the renderer.
           '';
 
+      resolvedCompilerOut =
+        if compilerOut != null then
+          compilerOut
+        else if builtins.isAttrs resolvedControlPlaneOut && resolvedControlPlaneOut ? compilerOut then
+          resolvedControlPlaneOut.compilerOut
+        else
+          { };
+
+      resolvedForwardingOut =
+        if forwardingOut != null then
+          forwardingOut
+        else if builtins.isAttrs resolvedControlPlaneOut && resolvedControlPlaneOut ? forwardingOut then
+          resolvedControlPlaneOut.forwardingOut
+        else
+          { };
+
       runtimeTargets =
         trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
           flattenRuntimeTargets resolvedControlPlaneOut
@@ -94,7 +110,8 @@ let
         hostContext = resolved.hostContext;
         intent = resolved.fabricInputs;
         globalInventory = resolved.globalInventory;
-        inherit compilerOut forwardingOut;
+        compilerOut = resolvedCompilerOut;
+        forwardingOut = resolvedForwardingOut;
         controlPlaneOut = resolvedControlPlaneOut;
         renderedHostNetwork = renderedHostWithSelectedContainers;
       };
@@ -103,7 +120,8 @@ let
       inherit
         debugPayload
         ;
-      inherit compilerOut forwardingOut;
+      compilerOut = resolvedCompilerOut;
+      forwardingOut = resolvedForwardingOut;
       controlPlaneOut = resolvedControlPlaneOut;
 
       renderedHost = renderedHostWithSelectedContainers;
@@ -129,6 +147,9 @@ let
     { controlPlaneOut
     , selector ? null
     , hostname ? null
+    , source ? { }
+    , compilerOut ? null
+    , forwardingOut ? null
     , system ? currentSystem
     , containerDefaults ? { }
     , disabled ? { }
@@ -141,6 +162,9 @@ let
         controlPlaneOut
         selector
         hostname
+        source
+        compilerOut
+        forwardingOut
         system
         containerDefaults
         disabled
