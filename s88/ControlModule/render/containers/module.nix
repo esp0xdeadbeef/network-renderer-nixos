@@ -78,7 +78,15 @@ let
   };
   mdnsServices = import ./mdns-services.nix { inherit lib pkgs renderedModel; };
   bgpServices = import ./bgp-services.nix { inherit lib renderedModel; };
-  pppoeServices = import ./module/pppoe.nix { inherit lib pkgs renderedModel; };
+  pppoeServices = import ./module/pppoe.nix {
+    inherit
+      lib
+      pkgs
+      renderedModel
+      uplinks
+      wanUplinkName
+      ;
+  };
 in
 {
   imports = base.imports;
@@ -87,6 +95,7 @@ in
     base.commonRouterConfig
     {
       networking.hostName = base.resolvedHostName;
+      systemd.network.netdevs = containerNetworkRender.netdevs or { };
       systemd.network.networks = containerNetworkRender.networks;
       warnings = base.warningMessages;
     }

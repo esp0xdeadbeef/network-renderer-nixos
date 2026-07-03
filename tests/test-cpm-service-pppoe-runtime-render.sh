@@ -157,6 +157,44 @@ nix_eval_json_or_fail \
           inherit system;
           modules = [ serverModule.config ];
         };
+        vlanPppoeUplinks.provider = {
+          mode = "pppoe";
+          vlan = 6;
+          bridge = "br-wan6";
+          ipv4.method = "pppoe";
+          ipv6.method = "pppoe";
+        };
+        vlanPppoeRenderedModel = {
+          unitName = "prod-core";
+          interfaces.provider-handoff = {
+            containerInterfaceName = "wan";
+            sourceKind = "wan";
+            assignedUplinkName = "provider";
+          };
+          services.pppoe = clientService;
+        };
+        vlanPppoeClientModule = import (repoPath + "/s88/ControlModule/render/containers/module/pppoe.nix") {
+          inherit lib pkgs;
+          renderedModel = vlanPppoeRenderedModel;
+          uplinks = vlanPppoeUplinks;
+          wanUplinkName = "provider";
+        };
+        vlanPppoeClientEval = lib.nixosSystem {
+          inherit system;
+          modules = [ vlanPppoeClientModule.config ];
+        };
+        vlanPppoePreStart =
+          vlanPppoeClientEval.config.systemd.services."pppd-s88-pppoe-client-provider-handoff".preStart;
+        vlanPppoeBridge = import (repoPath + "/s88/ControlModule/render/container-networks/pppoe-vlan-bridge.nix") {
+          inherit lib;
+          interfaces.provider-handoff = vlanPppoeRenderedModel.interfaces.provider-handoff // {
+            _s88PppoeOwned = true;
+          };
+          interfaceNames = [ "provider-handoff" ];
+          renderedInterfaceNames.provider-handoff = "wan";
+          uplinks = vlanPppoeUplinks;
+          wanUplinkName = "provider";
+        };
         mkAssemblyFor =
           pppoeService:
           import (repoPath + "/s88/ControlModule/mapping/container-runtime/model/container-assembly.nix") {
@@ -359,6 +397,24 @@ nix_eval_json_or_fail \
             builtins.match ".*pppoe-sniff=.*[/]bin[/]pppoe-sniff.*" serverToolsText != null;
           server_debug_tools_include_pppd =
             builtins.match ".*pppd=.*[/]bin[/]pppd.*" serverToolsText != null;
+          vlan_pppoe_renders_container_vlan_netdev =
+            (vlanPppoeBridge.netdevs."10-wan.6".netdevConfig.Name or null) == "wan.6"
+            && (vlanPppoeBridge.netdevs."10-wan.6".netdevConfig.Kind or null) == "vlan"
+            && (vlanPppoeBridge.netdevs."10-wan.6".vlanConfig.Id or null) == 6;
+          vlan_pppoe_renders_container_bridge_netdev =
+            (vlanPppoeBridge.netdevs."20-br-wan6".netdevConfig.Name or null) == "br-wan6"
+            && (vlanPppoeBridge.netdevs."20-br-wan6".netdevConfig.Kind or null) == "bridge";
+          vlan_pppoe_parent_interface_carries_vlan_only =
+            (vlanPppoeBridge.networks."05-wan".networkConfig.DHCP or null) == "no"
+            && (vlanPppoeBridge.networks."05-wan".networkConfig.VLAN or [ ]) == [ "wan.6" ];
+          vlan_pppoe_vlan_subinterface_attaches_to_bridge =
+            (vlanPppoeBridge.networks."50-wan.6".networkConfig.Bridge or null) == "br-wan6";
+          vlan_pppoe_bridge_has_no_dhcp_fallback =
+            (vlanPppoeBridge.networks."60-br-wan6".networkConfig.DHCP or null) == "no";
+          vlan_pppoe_client_uses_bridge_as_pppoe_nic =
+            builtins.match ".*plugin pppoe[.]so.*nic-br-wan6.*" vlanPppoePreStart != null;
+          vlan_pppoe_client_does_not_use_raw_lower_nic =
+            builtins.match ".*plugin pppoe[.]so.*nic-wan.*" vlanPppoePreStart == null;
         };
       in
       {
