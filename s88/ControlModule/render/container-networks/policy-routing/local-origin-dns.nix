@@ -7,8 +7,23 @@
 
 let
   dns = if builtins.isAttrs (services.dns or null) then services.dns else { };
+  dnsRoles = if builtins.isAttrs (dns.roles or null) then dns.roles else { };
+  recursionRole = if builtins.isAttrs (dnsRoles.recursion or null) then dnsRoles.recursion else { };
+  stringList = value: if builtins.isList value then builtins.filter builtins.isString value else [ ];
   outgoingInterfaces =
-    if builtins.isList (dns.outgoingInterfaces or null) then dns.outgoingInterfaces else [ ];
+    let
+      roleOutgoing = stringList (recursionRole.outgoingInterfaces or [ ]);
+      serviceOutgoing = stringList (dns.outgoingInterfaces or [ ]);
+      listenAddresses = stringList (dns.listen or [ ]);
+    in
+    lib.unique (
+      if roleOutgoing != [ ] then
+        roleOutgoing
+      else if serviceOutgoing != [ ] then
+        serviceOutgoing
+      else
+        listenAddresses
+    );
 
   stripCidr =
     address:
