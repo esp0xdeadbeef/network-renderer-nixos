@@ -188,6 +188,7 @@ let
       localOriginDns
       policyRulesFor
       dynamicPolicyRulesFor
+      hasAcceptForwardingRule
       ;
     policyRoutingAllocations =
       lib.mapAttrs (_: iface: if iface ? policyRoutingAllocation then iface.policyRoutingAllocation else null) interfaces;
