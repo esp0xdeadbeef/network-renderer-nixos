@@ -20,6 +20,7 @@
   }
 , policyRulesFor
 , dynamicPolicyRulesFor
+, hasAcceptForwardingRule
 , policyRoutingAllocations
 , forTarget
 , forTargetRules
@@ -78,7 +79,15 @@ builtins.foldl'
         (
           isPolicy && isPolicyUpstreamInterface interfaceName
         )
-        (lib.filter (name: isPolicyDownstreamInterface renderedInterfaceNames.${name}) interfaceNames);
+        (
+          lib.filter
+            (
+              name:
+              isPolicyDownstreamInterface renderedInterfaceNames.${name}
+              && hasAcceptForwardingRule renderedInterfaceNames.${name} interfaceName
+            )
+            interfaceNames
+        );
       sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
       sourceScope = sourcePrefixes.forInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
@@ -111,6 +120,7 @@ builtins.foldl'
         );
       isReturnSideSelfIngress =
         (isDownstreamSelectorPolicyInterface interfaceName && !(isPolicy || isUpstreamSelectorCoreInterface interfaceName))
+        || (isPolicy && isPolicyDownstreamInterface interfaceName)
         || (isPolicy && isPolicyUpstreamInterface interfaceName)
         || (isUpstreamSelectorCoreInterface interfaceName && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName));
       effectiveMainSourceScope = sourceScope // {
@@ -203,6 +213,11 @@ builtins.foldl'
               policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] sourceScopeForRule [ ];
           in
           if
+            sourceIfName == ifName
+            && isReturnSideSelfIngress
+          then
+            [ ]
+          else if
             sourceIfName == ifName
             && isUpstreamSelectorPolicyInterface interfaceName
             && scopeHasEntries forwardingMainScope
