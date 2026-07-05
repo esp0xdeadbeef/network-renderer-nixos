@@ -191,11 +191,17 @@
           mgmtDhcpOverride =
             if renderedHasMgmtVlan && mgmtManageDhcp then
               {
-                "30-vlan${toString mgmtVlanId}" = {
-                  networkConfig.DHCP = "ipv4";
-                  networkConfig.LinkLocalAddressing = "no";
-                  networkConfig.IPv6AcceptRA = "no";
-                };
+                "30-vlan${toString mgmtVlanId}" =
+                  let
+                    existing = renderedNetworks."30-vlan${toString mgmtVlanId}" or { };
+                  in
+                  existing // {
+                    networkConfig = (existing.networkConfig or { }) // {
+                      DHCP = "ipv4";
+                      LinkLocalAddressing = "no";
+                      IPv6AcceptRA = "no";
+                    };
+                  };
               }
             else
               { };
