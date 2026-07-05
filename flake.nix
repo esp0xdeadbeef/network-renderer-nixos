@@ -186,6 +186,20 @@
             else
               legacyMgmtNetworks;
 
+          # When rendered already has the vlan2 structure but DHCP=no,
+          # override the bridge to DHCP=ipv4 as required by the management uplink.
+          mgmtDhcpOverride =
+            if renderedHasMgmtVlan && mgmtManageDhcp then
+              {
+                "30-vlan${toString mgmtVlanId}" = {
+                  networkConfig.DHCP = "ipv4";
+                  networkConfig.LinkLocalAddressing = "no";
+                  networkConfig.IPv6AcceptRA = "no";
+                };
+              }
+            else
+              { };
+
           hostRequiresNetworkd = requiresNetworkd {
             inherit
               renderedNetdevs
@@ -207,7 +221,7 @@
           networking.useHostResolvConf = userLib.mkForce false;
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
-          systemd.network.networks = renderedNetworks // mgmtNetworks;
+          systemd.network.networks = renderedNetworks // mgmtNetworks // mgmtDhcpOverride;
           containers = renderedContainers;
 
           # GAMP: FS-840 — scoped runtime secret delivery: containers with
