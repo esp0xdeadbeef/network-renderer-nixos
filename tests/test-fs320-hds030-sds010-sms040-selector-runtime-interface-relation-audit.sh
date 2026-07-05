@@ -54,19 +54,20 @@ echo "--- Predicate 2: isSelectorRelationRule fail-closed gate ---"
 if grep -qF 'isSelectorRelationRule' "${interfaces_file}" 2>/dev/null; then
   echo "  OK: isSelectorRelationRule predicate found"
 
-  # Verify it matches selector-* relationId patterns (fail-closed: only explicit selector relations)
-  if grep -q 'selector-' "${interfaces_file}" 2>/dev/null; then
-    echo "  OK: isSelectorRelationRule matches selector-* relationId pattern (fail-closed)"
+  # Verify it matches selector-forwarding-rule cardinality (SMS-120: explicit metadata only, no name matching)
+  if grep -q 'selector-forwarding-rule' "${interfaces_file}" 2>/dev/null; then
+    echo "  OK: isSelectorRelationRule uses selector-forwarding-rule cardinality (explicit metadata)"
   else
-    echo "  FAIL: isSelectorRelationRule does not reference selector-* relationId pattern"
+    echo "  FAIL: isSelectorRelationRule does not check selector-forwarding-rule cardinality"
     all_checks_passed=false
   fi
 
-  # Verify it also matches selector-forwarding-rule cardinality (alternate match path)
-  if grep -q 'selector-forwarding-rule' "${interfaces_file}" 2>/dev/null; then
-    echo "  OK: isSelectorRelationRule also matches selector-forwarding-rule cardinality"
+  # SMS-120: Verify no naming-inference via selector-* name matching
+  if grep -q 'builtins.match.*selector-' "${interfaces_file}" 2>/dev/null; then
+    echo "  FAIL: SMS-120 violation — isSelectorRelationRule uses selector-* name matching (naming inference)"
+    all_checks_passed=false
   else
-    echo "  WARN: isSelectorRelationRule does not check selector-forwarding-rule cardinality"
+    echo "  OK: isSelectorRelationRule does not use selector-* name patterns (SMS-120 compliant)"
   fi
 
   echo "PASS: isSelectorRelationRule gate present"
@@ -175,14 +176,13 @@ echo "--- Seeded Negative: Would detect unmapped selector runtime interface ---"
 fake_rule_check="${tmp_dir}/fake-rule-check.txt"
 > "${fake_rule_check}"
 
-# Check that isSelectorRelationRule ONLY matches selector patterns
-# (not any relation with runtimeInterface)
-# The function body contains: builtins.match "selector-.*" relationId
+# SMS-120: Verify isSelectorRelationRule uses explicit metadata only (no naming inference).
+# The correct post-SMS-120 behavior uses only relationCardinality.unit, not name patterns.
 if grep -q 'builtins.match.*selector-' "${interfaces_file}" 2>/dev/null; then
-  echo "  OK: Seeded negative — isSelectorRelationRule only matches selector-* relationId via builtins.match"
-else
-  echo "  FAIL: Seeded negative — isSelectorRelationRule may match non-selector relations"
+  echo "  FAIL: SMS-120 violation — isSelectorRelationRule uses selector-* name matching (naming inference)"
   all_checks_passed=false
+else
+  echo "  OK: SMS-120 — isSelectorRelationRule uses explicit metadata only (no selector-* name matching)"
 fi
 
 # Second seeded negative: verify runtimeInterface is required for audit match.
