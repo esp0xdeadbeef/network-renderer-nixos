@@ -18,8 +18,7 @@ let
       relationId = rule.relationId or "";
       relationCardinality = attrsOrEmpty (rule.relationCardinality or null);
     in
-    (builtins.isString relationId && builtins.match "selector-.*" relationId != null)
-    || (relationCardinality.unit or null) == "selector-forwarding-rule";
+    (relationCardinality.unit or null) == "selector-forwarding-rule";
 
   selectorRelationAuditForEndpoint =
     { unitName
