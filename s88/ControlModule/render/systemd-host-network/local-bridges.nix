@@ -1,7 +1,7 @@
 { lib, common }:
 
 let
-  inherit (common) sortedAttrNames bridges;
+  inherit (common) sortedAttrNames bridges bridgeNetworks;
 in
 {
   localBridgeNetdevs = builtins.listToAttrs (
@@ -18,10 +18,20 @@ in
 
   localBridgeNetworks = builtins.listToAttrs (
     map
-      (bridgeName: {
-        name = "30-${bridges.${bridgeName}.renderedName}";
+      (bridgeName: let
+        renderedName = bridges.${bridgeName}.renderedName;
+        originalName = bridges.${bridgeName}.originalName or bridgeName;
+        bridgeNetConfig = if builtins.hasAttr originalName bridgeNetworks
+          then bridgeNetworks.${originalName}
+          else {};
+        hostAddresses =
+          if builtins.isList (bridgeNetConfig.hostAddresses or null)
+          then lib.filter builtins.isString bridgeNetConfig.hostAddresses
+          else [];
+      in {
+        name = "30-${renderedName}";
         value = {
-          matchConfig.Name = bridges.${bridgeName}.renderedName;
+          matchConfig.Name = renderedName;
           linkConfig = {
             ActivationPolicy = "always-up";
             RequiredForOnline = "no";
@@ -32,6 +42,7 @@ in
             IPv6AcceptRA = false;
             LinkLocalAddressing = "no";
           };
+          address = hostAddresses;
         };
       })
       (sortedAttrNames bridges)
