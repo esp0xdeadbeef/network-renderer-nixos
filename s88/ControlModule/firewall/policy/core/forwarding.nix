@@ -31,6 +31,8 @@ let
     if ipv4 == null then true else if ipv4 ? enable then (ipv4.enable or false) else true;
 in
 {
+  fallbackNatEnabled = wanNames != [ ] && (uplinkNames == [ ] || lib.any uplinkHasIpv4 uplinkNames);
+
   forwardPairs =
     if useExplicitForwarding then
       forwardingIntent.coreForwardPairs or [ ]
@@ -63,7 +65,6 @@ in
   clampMssInterfaces =
     if useExplicitNat || useExplicitForwarding then forwardingIntent.coreClampMssInterfaces or [ ] else wanNames;
 
-  fallbackNatEnabled = wanNames != [ ] && (uplinkNames == [ ] || lib.any uplinkHasIpv4 uplinkNames);
   coreInputOverlayNames = overlayIngressNames;
   inherit adapterNames;
 }
