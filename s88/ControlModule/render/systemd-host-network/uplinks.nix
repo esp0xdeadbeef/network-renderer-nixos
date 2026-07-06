@@ -191,6 +191,9 @@ in
             // baseBridgeNetworkConfig
             // lib.optionalAttrs ((uplink.mode or "") == "trunk" && transitNamesOnUplink != [ ]) {
               VLAN = map (transitName: "${uplink.bridge}.${toString transitBridges.${transitName}.vlan}") transitNamesOnUplink;
+            }
+            // lib.optionalAttrs (hostAddresses != [ ] && !isManagementUplink) {
+              DHCPServer = true;
             };
             address = hostAddresses;
             dhcpV4Config = lib.optionalAttrs hostIpv4Dhcp { UseDNS = false; };
