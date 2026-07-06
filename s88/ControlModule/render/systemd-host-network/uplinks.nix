@@ -158,7 +158,7 @@ in
           ipv4Dhcp = uplink ? ipv4 && builtins.isAttrs uplink.ipv4 && ((uplink.ipv4.dhcp or false) || (uplink.ipv4.method or null) == "dhcp");
           ipv6Dhcp = uplink ? ipv6 && builtins.isAttrs uplink.ipv6 && ((uplink.ipv6.dhcp or false) || (uplink.ipv6.method or null) == "dhcp" || (uplink.ipv6.method or null) == "dhcp6");
           ipv6AcceptRA = uplink ? ipv6 && builtins.isAttrs uplink.ipv6 && ((uplink.ipv6.acceptRA or false) || (uplink.ipv6.method or null) == "slaac");
-          isManagementUplink = (uplink.management or false) || (uplink.role or null) == "management";
+          isManagementUplink = (uplink.management or false) || (uplink.role or null) == "management" || uplinkName == "management";
           hostIpv4Dhcp = isManagementUplink && ipv4Dhcp;
           hostIpv6Dhcp = isManagementUplink && ipv6Dhcp;
           hostIpv6AcceptRA = isManagementUplink && ipv6AcceptRA;
