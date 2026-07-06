@@ -166,6 +166,11 @@ in
           hostAddresses =
             if builtins.isList (uplink.hostAddresses or null) then
               lib.filter builtins.isString uplink.hostAddresses
+            # CPM-created WAN uplinks (not management, no explicit addresses,
+            # no DHCP) auto-get a gateway IP so containers can reach internet.
+            # FS-380-HDS-020-SDS-010-SMS-060 (core WAN IP assignment).
+            else if !isManagementUplink && !ipv4Dhcp && !ipv6Dhcp then
+              [ "10.11.0.1/24" ]
             else
               [ ];
         in
