@@ -245,6 +245,19 @@
           # so containers on testnet/WAN bridges can reach the internet through
           # the host's management interface (vlan2).
           boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkDefault true;
+
+          # Host-level NAT for container WAN subnets. Without this, containers
+          # on the testnet bridge can reach the gateway but upstream routers
+          # don't know how to route back to 10.11.0.0/24.
+          networking.nftables.enable = true;
+          networking.nftables.ruleset = ''
+            table ip host-wan-nat {
+              chain postrouting {
+                type nat hook postrouting priority srcnat; policy accept;
+                oifname vlan2 ip saddr 10.11.0.0/24 masquerade
+              }
+            }
+          '';
         }
         // builtins.seq mgmtValidate { };
 
