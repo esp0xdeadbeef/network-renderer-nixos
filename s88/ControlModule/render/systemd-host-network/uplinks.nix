@@ -158,7 +158,7 @@ in
           ipv4Dhcp = uplink ? ipv4 && builtins.isAttrs uplink.ipv4 && ((uplink.ipv4.dhcp or false) || (uplink.ipv4.method or null) == "dhcp");
           ipv6Dhcp = uplink ? ipv6 && builtins.isAttrs uplink.ipv6 && ((uplink.ipv6.dhcp or false) || (uplink.ipv6.method or null) == "dhcp" || (uplink.ipv6.method or null) == "dhcp6");
           ipv6AcceptRA = uplink ? ipv6 && builtins.isAttrs uplink.ipv6 && ((uplink.ipv6.acceptRA or false) || (uplink.ipv6.method or null) == "slaac");
-          isManagementUplink = (uplink.management or false) || (uplink.role or null) == "management" || uplinkName == "management";
+          isManagementUplink = (uplink.management or false) || (uplink.role or null) == "management";
           hostIpv4Dhcp = isManagementUplink && ipv4Dhcp;
           hostIpv6Dhcp = isManagementUplink && ipv6Dhcp;
           hostIpv6AcceptRA = isManagementUplink && ipv6AcceptRA;
@@ -166,11 +166,6 @@ in
           hostAddresses =
             if builtins.isList (uplink.hostAddresses or null) then
               lib.filter builtins.isString uplink.hostAddresses
-            # CPM-created WAN uplinks (not management, no explicit addresses)
-            # auto-get a gateway IP so containers can reach internet.
-            # FS-380-HDS-020-SDS-010-SMS-060 (core WAN IP assignment).
-            else if !isManagementUplink then
-              [ "10.11.0.1/24" ]
             else
               [ ];
         in
@@ -191,18 +186,9 @@ in
             // baseBridgeNetworkConfig
             // lib.optionalAttrs ((uplink.mode or "") == "trunk" && transitNamesOnUplink != [ ]) {
               VLAN = map (transitName: "${uplink.bridge}.${toString transitBridges.${transitName}.vlan}") transitNamesOnUplink;
-            }
-            // lib.optionalAttrs (hostAddresses != [ ] && !isManagementUplink) {
-              DHCPServer = true;
             };
             address = hostAddresses;
             dhcpV4Config = lib.optionalAttrs hostIpv4Dhcp { UseDNS = false; };
-            dhcpServerConfig = lib.optionalAttrs (hostAddresses != [ ] && !isManagementUplink) {
-              PoolOffset = 10;
-              PoolSize = 190;
-              EmitDNS = false;
-              EmitRouter = true;
-            };
           };
         }
       )
