@@ -29,10 +29,10 @@ let
       ipv4 = if uplink ? ipv4 && builtins.isAttrs uplink.ipv4 then uplink.ipv4 else null;
     in
     if ipv4 == null then true else if ipv4 ? enable then (ipv4.enable or false) else true;
+
+  fallbackNatEnabled = wanNames != [ ] && (uplinkNames == [ ] || lib.any uplinkHasIpv4 uplinkNames);
 in
 {
-  fallbackNatEnabled = wanNames != [ ] && (uplinkNames == [ ] || lib.any uplinkHasIpv4 uplinkNames);
-
   forwardPairs =
     if useExplicitForwarding then
       forwardingIntent.coreForwardPairs or [ ]
