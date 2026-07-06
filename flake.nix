@@ -240,6 +240,11 @@
               };
             })
             (builtins.attrNames (rendered.containers or { })));
+
+          # FS-380-HDS-020-SDS-010-SMS-060: enable IPv4 forwarding on the host
+          # so containers on testnet/WAN bridges can reach the internet through
+          # the host's management interface (vlan2).
+          boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkDefault true;
         }
         // builtins.seq mgmtValidate { };
 
