@@ -194,6 +194,12 @@ in
             };
             address = hostAddresses;
             dhcpV4Config = lib.optionalAttrs hostIpv4Dhcp { UseDNS = false; };
+            dhcpServerConfig = lib.optionalAttrs (hostAddresses != [ ] && !isManagementUplink) {
+              PoolOffset = 10;
+              PoolSize = 190;
+              EmitDNS = false;
+              EmitRouter = true;
+            };
           };
         }
       )
