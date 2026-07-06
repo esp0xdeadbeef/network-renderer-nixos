@@ -27,6 +27,11 @@ in
         hostAddresses =
           if builtins.isList (bridgeNetConfig.hostAddresses or null)
           then lib.filter builtins.isString bridgeNetConfig.hostAddresses
+          # CPM-created WAN bridges (not in inventory bridgeNetworks) auto-get
+          # a gateway IP so containers can reach the internet through the host.
+          # FS-380-HDS-020-SDS-010-SMS-060 (core WAN IP assignment).
+          else if !(builtins.hasAttr originalName bridgeNetworks) && originalName != "lo"
+          then [ "10.11.0.1/24" ]
           else [];
       in {
         name = "30-${renderedName}";
