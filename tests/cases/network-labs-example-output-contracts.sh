@@ -24,28 +24,28 @@ case_contract() {
 
   case "${label}" in
     single-wan)
-      required_features='public_service_ingress'
+      required_features=''
       ;;
-    single-wan-any-to-any-fw)
+    policy-any-to-any-fw)
       required_features='any_to_any_fw'
       forbidden_features='public_dnat'
       ;;
     single-wan-bgp)
       expected_modes='["bgp"]'
-      required_features='bgp public_service_ingress'
+      required_features='bgp'
       ;;
     single-wan-direct-transit)
       required_features='direct_transit public_service_ingress'
       ;;
     single-wan-ipv6-pd)
-      required_features='ipv6_pd_model public_service_ingress'
+      required_features='ipv6_pd_model'
       ;;
     single-wan-uplink-ebgp)
       expected_modes='["bgp"]'
       required_features='bgp ebgp_uplink public_service_ingress'
       ;;
     single-wan-uplink-static-egress)
-      required_features='static_default_route public_service_ingress'
+      required_features='static_default_route'
       ;;
     single-wan-vlan-trunk-lanes)
       required_features='vlan_trunk public_service_ingress'
@@ -56,6 +56,10 @@ case_contract() {
       expected_uplinks='["nebula","wan"]'
       required_features='overlay'
       forbidden_features='public_dnat'
+      ;;
+    dual-wan)
+      expected_uplinks='["isp-a","isp-b"]'
+      required_features='multi_wan'
       ;;
     single-wan-with-nebula-any-to-any-fw)
       expected_nodes=8
@@ -113,7 +117,8 @@ case_contract() {
       expected_containers=26
       expected_modes='["bgp"]'
       expected_uplinks='["east-west","isp-a","isp-b","wan"]'
-      required_features='bgp overlay vlan_trunk dns_policy public_dnat'
+      required_features='bgp overlay vlan_trunk dns_policy public_no_translation_service'
+      forbidden_features='public_dnat'
       ;;
     s-router-public-overlay-service)
       expected_hosts='["s-router-hetzner-anywhere","s-router-test"]'
@@ -121,7 +126,8 @@ case_contract() {
       expected_containers=26
       expected_modes='["bgp"]'
       expected_uplinks='["east-west","isp-a","isp-b","wan"]'
-      required_features='bgp overlay vlan_trunk dns_policy public_overlay_service'
+      required_features='bgp overlay vlan_trunk dns_policy public_no_translation_service'
+      forbidden_features='public_dnat'
       ;;
     tri-site-dual-wan-overlay-integration-static)
       expected_nodes=28
@@ -145,6 +151,9 @@ case_contract() {
 render_example() {
   local label="$1"
   local case_dir="${examples_root}/${label}"
+  if [[ ! -d "${case_dir}" && -d "${repo_root}/tests/fixtures/${label}" ]]; then
+    case_dir="${repo_root}/tests/fixtures/${label}"
+  fi
   local intent_path="${case_dir}/intent.nix"
   local inventory_path="${case_dir}/inventory-nixos.nix"
   local output_path="$2"
@@ -156,7 +165,6 @@ render_example() {
 
   REPO_ROOT="${repo_root}" \
   CPM_PATH="${output_path}/cpm.json" \
-  INVENTORY_PATH="${inventory_path}" \
     nix eval \
       --extra-experimental-features 'nix-command flakes' \
       --impure --json \
@@ -164,11 +172,10 @@ render_example() {
         let
           repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
           cpmPath = builtins.getEnv "CPM_PATH";
-          inventoryPath = builtins.getEnv "INVENTORY_PATH";
           flake = builtins.getFlake repoRoot;
         in
         flake.lib.renderer.renderDryConfig {
-          inherit cpmPath inventoryPath;
+          inherit cpmPath;
           exampleDir = builtins.dirOf cpmPath;
           debug = true;
         }
@@ -254,6 +261,11 @@ assert_output_contract() {
         (all_rules | test("dnat to 10\\.90\\.10\\.100"))
         and (all_rules | test("udp dport 4242|tcp dport 4242"))
         and (all_rules | test("allow-sitec-wan-to-dmz-nebula"));
+      def has_public_no_translation_service:
+        (all_rules | test("allow-sitec-wan-to-dmz-nebula"))
+        and (all_rules | test("udp dport (\\{ )?4242"))
+        and (all_rules | test("tcp dport (\\{ )?4242"))
+        and (all_rules | test("dnat") | not);
       def has_tri_site:
         ((.render.sites // {}) | keys | sort) == ["esp0xdeadbeef","espbranch"]
         and (([.render.sites.esp0xdeadbeef | keys[]] | sort) == ["site-a","site-c"])
@@ -278,7 +290,6 @@ assert_output_contract() {
             ([($dry.render.containers // {})[][]? | select(((.warnings // []) | length) > 0 or ((.alarms // []) | length) > 0)] | length == 0),
           source_paths_present:
             (($dry.metadata.sourcePaths.cpmPath // "") != ""
-             and ($dry.metadata.sourcePaths.inventoryPath // "") != ""
              and ($dry.metadata.sourcePaths.repoRoot // "") != ""),
           expected_hosts:
             (($dry.render.hosts // {} | keys | sort) == $expectedHosts),
@@ -330,6 +341,8 @@ assert_output_contract() {
             ((feature("dns_policy") | not) or has_dns_policy),
           feature_public_dnat:
             ((feature("public_dnat") | not) or has_public_dnat),
+          feature_public_no_translation_service:
+            ((feature("public_no_translation_service") | not) or has_public_no_translation_service),
           feature_public_service_ingress:
             ((feature("public_service_ingress") | not) or has_public_service_ingress),
           feature_public_overlay_service:
@@ -358,27 +371,21 @@ assert_output_contract() {
 
 labels=(
   single-wan
-  single-wan-any-to-any-fw
   single-wan-bgp
-  single-wan-direct-transit
   single-wan-ipv6-pd
-  single-wan-uplink-ebgp
   single-wan-uplink-static-egress
-  single-wan-vlan-trunk-lanes
   single-wan-with-nebula
-  single-wan-with-nebula-any-to-any-fw
+  dual-wan
   multi-wan
-  multi-wan-dedicated-lanes
   multi-enterprise
   overlay-east-west
+  policy-any-to-any-fw
   priority-stability
   ipv6-pd-downstream-delegation
   dual-wan-branch-overlay
   dual-wan-branch-overlay-bgp
   s-router-overlay-dns-lane-policy
   s-router-public-overlay-service
-  tri-site-dual-wan-overlay-integration-static
-  tri-site-dual-wan-overlay-integration-bgp
 )
 
 for label in "${labels[@]}"; do

@@ -4,13 +4,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-labs_root="$(flake_input_path network-labs)"
-
 run_case() {
   local example_name="$1"
   local jq_expr="$2"
 
-  local case_dir="${labs_root}/examples/${example_name}"
+  local case_dir="${repo_root}/tests/fixtures/${example_name}"
+  if [[ ! -d "${case_dir}" ]]; then
+    case_dir="$(flake_input_path network-labs)/examples/${example_name}"
+  fi
   local intent_path="${case_dir}/intent.nix"
   local inventory_path="${case_dir}/inventory-nixos.nix"
 
@@ -53,7 +54,7 @@ run_case "single-wan-ipv6-pd" '
 '
 
 # Uplink egress routing policy is site-scoped and inventory-driven.
-run_case "single-wan-uplink-ebgp" '
+run_case "single-wan-bgp" '
   .sites.esp0xdeadbeef["site-a"].routing.uplinks.wan.mode == "bgp"
 '
 

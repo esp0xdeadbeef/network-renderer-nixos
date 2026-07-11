@@ -135,6 +135,25 @@
 
       relations = [
         {
+          id = "allow-tenants-to-site-dns";
+          priority = 5;
+          from = {
+            kind = "tenant-set";
+            members = [
+              "mgmt"
+              "admin"
+              "client"
+            ];
+          };
+          to = {
+            kind = "service";
+            name = "site-dns";
+          };
+          trafficType = "dns";
+          action = "allow";
+        }
+
+        {
           id = "allow-mgmt-internal";
           priority = 10;
           from = {

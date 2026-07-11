@@ -7,27 +7,33 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 labs_repo="${NETWORK_LABS_PATH:-${repo_root}/../network-labs}"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs540-sms020.XXXXXX")"
+trap 'rm -rf "${tmp_dir}"' EXIT
+ln -s "${labs_repo}/GAMP" "${tmp_dir}/GAMP"
+current_lab_dir="${tmp_dir}/current-lab"
+NETWORK_LABS_CURRENT_LAB_DIR="${current_lab_dir}" \
+  bash "${labs_repo}/scripts/select-current-lab.sh" SIT FS-540-HDS-010-SDS-010 >/dev/null
 
-if [[ ! -f "${labs_repo}/current-lab/metadata.nix" ]]; then
-  echo "FAIL FS-540 hostModule uplink shadow regression: missing network-labs current-lab at ${labs_repo}" >&2
+if [[ ! -f "${current_lab_dir}/metadata.nix" ]]; then
+  echo "FAIL FS-540 hostModule uplink shadow regression: missing selected network-labs current-lab at ${current_lab_dir}" >&2
   exit 1
 fi
 
 nix_eval_true_or_fail "FS-540 hostModule uplink parent network is not shadowed" \
-  env REPO_ROOT="${repo_root}" NETWORK_LABS_PATH="${labs_repo}" \
+  env REPO_ROOT="${repo_root}" CURRENT_LAB_DIR="${current_lab_dir}" \
     nix eval \
       --extra-experimental-features 'nix-command flakes' \
       --impure --expr '
         let
           repoRoot = builtins.getEnv "REPO_ROOT";
-          labsRepo = builtins.getEnv "NETWORK_LABS_PATH";
           flake = builtins.getFlake ("path:" + repoRoot);
           lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
-          metadata = import (labsRepo + "/current-lab/metadata.nix");
+          currentLabDir = builtins.getEnv "CURRENT_LAB_DIR";
+          metadata = import (currentLabDir + "/metadata.nix");
           cpmOut = flake.inputs.network-control-plane-model.lib.${system}.compileAndBuildFromPaths {
-            inputPath = labsRepo + "/current-lab/intent.nix";
-            inventoryPath = labsRepo + "/current-lab/inventory-nixos.nix";
+            inputPath = currentLabDir + "/intent.nix";
+            inventoryPath = currentLabDir + "/inventory-nixos.nix";
             validateForwardingModel = false;
             validateRuntimeModel = false;
           };

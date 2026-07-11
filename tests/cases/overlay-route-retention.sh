@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_dir="$(flake_input_path network-labs)/examples/dual-wan-branch-overlay"
+example_dir="${repo_root}/tests/fixtures/dual-wan-branch-overlay"
 intent_path="${example_dir}/intent.nix"
 inventory_path="${example_dir}/inventory-nixos.nix"
 
@@ -20,7 +20,6 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 
   REPO_ROOT="${repo_root}" \
   CPM_PATH="${tmp_dir}/cpm.json" \
-  INVENTORY_PATH="${inventory_path}" \
     nix eval \
     --extra-experimental-features 'nix-command flakes' \
     --impure --json \
@@ -28,11 +27,10 @@ trap 'rm -rf "${tmp_dir}"' EXIT
       let
         repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
         cpmPath = builtins.getEnv "CPM_PATH";
-        inventoryPath = builtins.getEnv "INVENTORY_PATH";
         flake = builtins.getFlake repoRoot;
       in
       flake.lib.renderer.renderDryConfig {
-        inherit cpmPath inventoryPath;
+        inherit cpmPath;
         exampleDir = builtins.dirOf cpmPath;
         debug = true;
       }

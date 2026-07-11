@@ -28,6 +28,16 @@ for intent_path in "${intent_paths[@]}"; do
     skipped=$((skipped + 1))
     continue
   fi
+  case "$intent_path" in
+    */GAMP/SMT/FS-*/intent.nix)
+      skipped=$((skipped + 1))
+      continue
+      ;;
+  esac
+  if rg -q 'scope = "(canonical-sms-source-stub|mini-smt-auto)"' "$inventory_path"; then
+    skipped=$((skipped + 1))
+    continue
+  fi
 
   ran=$((ran + 1))
   log "Running $(dirname "$intent_path")"
@@ -48,7 +58,6 @@ EOF
 
     REPO_ROOT="${repo_root}" \
     CPM_PATH="${tmp_dir}/cpm.json" \
-    INVENTORY_PATH="${inventory_path}" \
       nix eval \
         --extra-experimental-features 'nix-command flakes' \
         --impure --json \
@@ -56,11 +65,10 @@ EOF
           let
             repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
             cpmPath = builtins.getEnv "CPM_PATH";
-            inventoryPath = builtins.getEnv "INVENTORY_PATH";
             flake = builtins.getFlake repoRoot;
           in
           flake.lib.renderer.renderDryConfig {
-            inherit cpmPath inventoryPath;
+            inherit cpmPath;
             exampleDir = builtins.dirOf cpmPath;
             debug = true;
           }

@@ -231,29 +231,47 @@ let
       route: !(isExternalValidationDelegatedPrefixRoute route)
     )
     sourceRoutesWithConnectedReturns;
-  explicitAcceptedOutputRoutes = lib.filter
-    (
-      route:
-      let
-        outputIfName = routeOutputInterface sourceIfName route;
+	  explicitAcceptedOutputRoutes = lib.filter
+	    (
+	      route:
+	      let
+	        outputIfName = routeOutputInterface sourceIfName route;
         outputRenderedName = if outputIfName == null then null else renderedInterfaceNames.${outputIfName};
         targetUplink = if targetIfName == null then null else (((interfaces.${targetIfName}.backingRef or { }).lane or { }).uplink or null);
         outputUplink = if outputIfName == null then null else (((interfaces.${outputIfName}.backingRef or { }).lane or { }).uplink or null);
       in
-        !(
-          isUpstreamSelector
-          && isUpstreamSelectorCoreInterface interfaceName
-          && targetUplink == "east-west"
-          && outputUplink != "east-west"
+	        !(
+	          isUpstreamSelector
+	          && isUpstreamSelectorCoreInterface interfaceName
+	          && targetUplink == "east-west"
+	          && outputUplink != "east-west"
           && outputRenderedName != null
-          && isUpstreamSelectorPolicyInterface outputRenderedName
-          && !(hasAcceptForwardingRule interfaceName outputRenderedName)
-        )
-    )
-    staticPolicyRoutes;
-  scopedSourceRoutes =
-    if sourceIfName == targetIfName then
-      explicitAcceptedOutputRoutes
+	          && isUpstreamSelectorPolicyInterface outputRenderedName
+	          && !(hasAcceptForwardingRule interfaceName outputRenderedName)
+	        )
+	        && (!(isPolicyOnlyRoute route) || routeMatchesInterfaceLane interfaceName route)
+	    )
+	    staticPolicyRoutes;
+	  routeSelectableAcceptedOutputRoutes = lib.filter
+	    (
+	      route: hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
+	    )
+	    explicitAcceptedOutputRoutes;
+	  serviceDnsAcceptedOutputRoutes = lib.filter
+	    (
+	      route:
+	      isServiceDnsReachabilityRoute route
+	      && routeMatchesInterfaceLane interfaceName route
+	    )
+	    explicitAcceptedOutputRoutes;
+	  acceptedForwardOutputRoutes =
+	    if routeSelectableAcceptedOutputRoutes != [ ] then
+	      explicitAcceptedOutputRoutes
+	    else
+	      serviceDnsAcceptedOutputRoutes;
+	  scopedSourceRoutes =
+	    if sourceIfName == targetIfName then
+	      explicitAcceptedOutputRoutes
     else if
       isPolicy
       && isPolicyDownstreamInterface interfaceName
@@ -262,10 +280,10 @@ let
         interfaces.${sourceIfName}.routes or [ ]
       )
     then
-      explicitAcceptedOutputRoutes
-    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
-      explicitAcceptedOutputRoutes
-    else if
+	      explicitAcceptedOutputRoutes
+	    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
+	      acceptedForwardOutputRoutes
+	    else if
       policyOnlyProjection.mayProject interfaceName sourceIfName
       && isUpstreamSelector
       && isUpstreamSelectorPolicyInterface interfaceName

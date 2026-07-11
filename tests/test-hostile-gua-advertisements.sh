@@ -49,10 +49,12 @@ INVENTORY_PATH="${inventory_path}" \
         coreUpstreamRoutes = coreCfg.systemd.network.networks."10-upstream".routes or [ ];
         coreServiceNames = builtins.attrNames coreCfg.systemd.services;
         hetznerServiceNames = builtins.attrNames hetznerCoreCfg.systemd.services;
-        hasDelegatedRouteService =
-          builtins.any
-            (name: builtins.match "s88-delegated-prefix-route-core-up-egress-.*" name != null)
-            coreServiceNames;
+        coreRouteServiceScripts =
+          map
+            (name: builtins.readFile coreCfg.systemd.services.${name}.serviceConfig.ExecStart)
+            (builtins.filter
+              (name: builtins.match "s88-.*route.*" name != null)
+              coreServiceNames);
         hetznerDelegatedRouteScripts =
           map
             (name: builtins.readFile hetznerCoreCfg.systemd.services.${name}.serviceConfig.ExecStart)
@@ -79,6 +81,16 @@ INVENTORY_PATH="${inventory_path}" \
           builtins.match ".*2a01:4f8:1c17:b337::/64.*" script != null;
         hasDynamicHostilePrefix =
           builtins.match ".*?/run/secrets/access-node-ipv6-prefix-espbranch-site-b-b-router-access-hostile.*" script != null;
+        hasDelegatedRouteService =
+          builtins.any
+            (
+              script:
+                flake.inputs.nixpkgs.lib.hasInfix hostileSourceFile script
+                && flake.inputs.nixpkgs.lib.hasInfix "interface=upstream" script
+                && flake.inputs.nixpkgs.lib.hasInfix "ip -6 route replace" script
+                && flake.inputs.nixpkgs.lib.hasInfix "via \"$gateway\" dev \"$interface\"" script
+            )
+            coreRouteServiceScripts;
         hasStaleCoreMainRoute =
           builtins.any (
             route:
