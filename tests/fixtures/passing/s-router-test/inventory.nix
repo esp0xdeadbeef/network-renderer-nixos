@@ -250,6 +250,8 @@
             };
           };
         };
+
+        services.dns = { };
       };
 
       esp0xdeadbeef-site-a-s-router-access-client = {
@@ -314,6 +316,8 @@
             };
           };
         };
+
+        services.dns = { };
       };
 
       esp0xdeadbeef-site-a-s-router-access-mgmt = {
@@ -378,6 +382,8 @@
             };
           };
         };
+
+        services.dns = { };
       };
 
       esp0xdeadbeef-site-a-s-router-downstream-selector = {

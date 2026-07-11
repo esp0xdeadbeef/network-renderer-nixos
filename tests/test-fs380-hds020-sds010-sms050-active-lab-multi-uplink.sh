@@ -7,33 +7,51 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 labs_repo="${NETWORK_LABS_PATH:-${repo_root}/../network-labs}"
+trace_id="FS-380-HDS-020-SDS-010-SMS-050"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs380-sms050.XXXXXX")"
+trap 'rm -rf "${tmp_dir}"' EXIT
+ln -s "${labs_repo}/GAMP" "${tmp_dir}/GAMP"
+current_lab_dir="${tmp_dir}/current-lab"
+NETWORK_LABS_CURRENT_LAB_DIR="${current_lab_dir}" \
+  bash "${labs_repo}/scripts/select-current-lab.sh" SMT "${trace_id}" >/dev/null
 
-if [[ ! -f "${labs_repo}/current-lab/metadata.nix" ]]; then
-  echo "FAIL FS-380 active-lab multi-uplink regression: missing network-labs current-lab at ${labs_repo}" >&2
-  exit 1
-fi
+metadata_path="${current_lab_dir}/metadata.nix"
+intent_nixos_path="${current_lab_dir}/intent-s-router-nixos.nix"
+inventory_nixos_path="${current_lab_dir}/inventory-s-router-nixos.nix"
+intent_clients_path="${current_lab_dir}/intent-s-router-test-clients.nix"
+inventory_clients_path="${current_lab_dir}/inventory-s-router-test-clients.nix"
+
+[[ -f "${metadata_path}" ]] || fail "missing selected network-labs current-lab metadata: ${metadata_path}"
+[[ -f "${intent_nixos_path}" ]] || fail "missing current-lab NixOS intent fixture: ${intent_nixos_path}"
+[[ -f "${inventory_nixos_path}" ]] || fail "missing current-lab NixOS inventory fixture: ${inventory_nixos_path}"
+[[ -f "${intent_clients_path}" ]] || fail "missing current-lab test-clients intent fixture: ${intent_clients_path}"
+[[ -f "${inventory_clients_path}" ]] || fail "missing current-lab test-clients inventory fixture: ${inventory_clients_path}"
 
 nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
-  env REPO_ROOT="${repo_root}" NETWORK_LABS_PATH="${labs_repo}" \
+  env REPO_ROOT="${repo_root}" \
+    CURRENT_LAB_DIR="${current_lab_dir}" \
+    INTENT_NIXOS_PATH="${intent_nixos_path}" \
+    INVENTORY_NIXOS_PATH="${inventory_nixos_path}" \
+    INTENT_CLIENTS_PATH="${intent_clients_path}" \
+    INVENTORY_CLIENTS_PATH="${inventory_clients_path}" \
     nix eval \
       --extra-experimental-features 'nix-command flakes' \
       --impure --expr '
         let
           repoRoot = builtins.getEnv "REPO_ROOT";
-          labsRepo = builtins.getEnv "NETWORK_LABS_PATH";
           flake = builtins.getFlake ("path:" + repoRoot);
           lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
-          metadata = import (labsRepo + "/current-lab/metadata.nix");
+          metadata = import (builtins.getEnv "CURRENT_LAB_DIR" + "/metadata.nix");
           cpmNixosOut = flake.inputs.network-control-plane-model.lib.${system}.compileAndBuildFromPaths {
-            inputPath = labsRepo + "/current-lab/intent-s-router-nixos.nix";
-            inventoryPath = labsRepo + "/current-lab/inventory-s-router-nixos.nix";
+            inputPath = builtins.getEnv "INTENT_NIXOS_PATH";
+            inventoryPath = builtins.getEnv "INVENTORY_NIXOS_PATH";
             validateForwardingModel = false;
             validateRuntimeModel = false;
           };
           cpmClientsOut = flake.inputs.network-control-plane-model.lib.${system}.compileAndBuildFromPaths {
-            inputPath = labsRepo + "/current-lab/intent-s-router-test-clients.nix";
-            inventoryPath = labsRepo + "/current-lab/inventory-s-router-test-clients.nix";
+            inputPath = builtins.getEnv "INTENT_CLIENTS_PATH";
+            inventoryPath = builtins.getEnv "INVENTORY_CLIENTS_PATH";
             validateForwardingModel = false;
             validateRuntimeModel = false;
           };

@@ -181,7 +181,11 @@ builtins.foldl'
         sourceIfNames = routeSourceIfNames;
         tableForOutputIfName =
           outputIfName:
-          if isUpstreamSelectorCoreInterface interfaceName || isUpstreamSelectorPolicyInterface interfaceName then
+          if
+            isPolicy
+            || isUpstreamSelectorCoreInterface interfaceName
+            || isUpstreamSelectorPolicyInterface interfaceName
+          then
             tableId
           else
             (policyRoutingAllocationFor outputIfName).tableId;
@@ -215,6 +219,7 @@ builtins.foldl'
           if
             sourceIfName == ifName
             && isReturnSideSelfIngress
+            && !(isUpstreamSelectorCoreInterface interfaceName)
           then
             [ ]
           else if

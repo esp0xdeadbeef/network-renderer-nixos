@@ -4,8 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-labs_root="$(flake_input_path network-labs)"
-case_dir="${labs_root}/examples/single-wan-vlan-trunk-lanes"
+case_dir="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 
 intent_path="${case_dir}/intent.nix"
 inventory_path="${case_dir}/inventory-nixos.nix"
@@ -34,12 +33,16 @@ trap 'rm -rf "${tmp_dir}"' EXIT
     "${tmp_dir}/cpm.json" \
     >/dev/null
 
-  # Expect VLAN netdevs synthesized on the host trunk bridge, without booting a VM.
+  # Expect VLAN netdevs synthesized from the host trunk inventory, without booting a VM.
   _jq -e '
-    .hosts["lab-host"].network.netdevs
+    .hosts["s-router-test"].network.netdevs
     | to_entries
     | map(.value.netdevConfig.Name)
-    | (index("br-trunk.100") != null and index("br-trunk.200") != null)
+    | (
+      index("eth0.301") != null
+      and index("eth0.305") != null
+      and index("eth0.306") != null
+    )
   ' ./90-render.json >/dev/null
 )
 

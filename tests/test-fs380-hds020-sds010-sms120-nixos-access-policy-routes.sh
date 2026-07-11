@@ -7,21 +7,29 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 labs_repo="${NETWORK_LABS_PATH:-${repo_root}/../network-labs}"
-metadata_path="${labs_repo}/current-lab/metadata.nix"
-intent_path="${labs_repo}/current-lab/intent-s-router-nixos.nix"
-inventory_path="${labs_repo}/current-lab/inventory-s-router-nixos.nix"
+trace_id="FS-380-HDS-020-SDS-010-SMS-120"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs380-sms120.XXXXXX")"
+trap 'rm -rf "${tmp_dir}"' EXIT
+ln -s "${labs_repo}/GAMP" "${tmp_dir}/GAMP"
+current_lab_dir="${tmp_dir}/current-lab"
+NETWORK_LABS_CURRENT_LAB_DIR="${current_lab_dir}" \
+  bash "${labs_repo}/scripts/select-current-lab.sh" SMT "${trace_id}" >/dev/null
+
+metadata_path="${current_lab_dir}/metadata.nix"
+intent_path="${current_lab_dir}/intent-s-router-nixos.nix"
+inventory_path="${current_lab_dir}/inventory-s-router-nixos.nix"
 cpm_repo="${NETWORK_CONTROL_PLANE_MODEL_PATH:-${repo_root}/../network-control-plane-model}"
 if [[ ! -f "${cpm_repo}/flake.nix" ]]; then
   cpm_repo=""
 fi
 
-[[ -f "${metadata_path}" ]] || fail "missing network-labs current-lab metadata: ${metadata_path}"
+[[ -f "${metadata_path}" ]] || fail "missing selected network-labs current-lab metadata: ${metadata_path}"
 [[ -f "${intent_path}" ]] || fail "missing current-lab NixOS intent fixture: ${intent_path}"
 [[ -f "${inventory_path}" ]] || fail "missing current-lab NixOS inventory fixture: ${inventory_path}"
 
 nix_eval_true_or_fail "FS-380 SMS-120 NixOS access IPv4 policy routing" \
   env REPO_ROOT="${repo_root}" \
-    NETWORK_LABS_PATH="${labs_repo}" \
+    CURRENT_LAB_DIR="${current_lab_dir}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
     nix eval \
@@ -32,7 +40,7 @@ nix_eval_true_or_fail "FS-380 SMS-120 NixOS access IPv4 policy routing" \
           flake = builtins.getFlake ("path:" + repoRoot);
           lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
-          metadata = import (builtins.getEnv "NETWORK_LABS_PATH" + "/current-lab/metadata.nix");
+          metadata = import (builtins.getEnv "CURRENT_LAB_DIR" + "/metadata.nix");
           cpm = flake.inputs.network-control-plane-model.lib.${system}.compileAndBuildFromPaths {
             inputPath = builtins.getEnv "INTENT_PATH";
             inventoryPath = builtins.getEnv "INVENTORY_PATH";
@@ -130,7 +138,7 @@ nix_eval_true_or_fail "FS-380 SMS-120 NixOS access IPv4 policy routing" \
 
 nix_eval_true_or_fail "FS-380 SMS-120 NixOS prod-like access runtime-name policy routing" \
   env REPO_ROOT="${repo_root}" \
-    NETWORK_LABS_PATH="${labs_repo}" \
+    CURRENT_LAB_DIR="${current_lab_dir}" \
     INTENT_PATH="${intent_path}" \
     INVENTORY_PATH="${inventory_path}" \
     CPM_REPO="${cpm_repo}" \
@@ -149,10 +157,23 @@ nix_eval_true_or_fail "FS-380 SMS-120 NixOS prod-like access runtime-name policy
               flake.inputs.network-control-plane-model;
           lib = flake.inputs.nixpkgs.lib;
           system = "x86_64-linux";
-          metadata = import (builtins.getEnv "NETWORK_LABS_PATH" + "/current-lab/metadata.nix");
+          metadata = import (builtins.getEnv "CURRENT_LAB_DIR" + "/metadata.nix");
           input = import (builtins.getEnv "INTENT_PATH");
           baseInventory = import (builtins.getEnv "INVENTORY_PATH");
-          accessNodeKey = "mini-smt-${traceId}-access-vlan2";
+          accessNodeMatches =
+            lib.filterAttrs
+              (
+                _: node:
+                  ((node.logicalNode or { }).name or "") == "access-vlan2"
+                  && ((node.logicalNode or { }).site or "") == traceId
+              )
+              (baseInventory.realization.nodes or { });
+          accessNodeKeys = builtins.attrNames accessNodeMatches;
+          accessNodeKey =
+            if builtins.length accessNodeKeys == 1 then
+              builtins.elemAt accessNodeKeys 0
+            else
+              throw "${traceId}: expected exactly one access-vlan2 realization node, got ${toString (builtins.length accessNodeKeys)}";
           p2pIfName = "p2p-access-vlan2-downstream-selector";
           tenantIfName = "tenant-client";
           accessNode = baseInventory.realization.nodes.${accessNodeKey};

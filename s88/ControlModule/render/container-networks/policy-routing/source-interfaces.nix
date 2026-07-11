@@ -50,6 +50,55 @@ let
   interfaceKeysForRenderedName =
     renderedName: lib.filter (name: renderedNameFor name == renderedName) interfaceNames;
 
+  routeList =
+    routes:
+    if builtins.isList routes then
+      routes
+    else if builtins.isAttrs routes then
+      (routes.ipv4 or [ ]) ++ (routes.ipv6 or [ ])
+    else
+      [ ];
+
+  isServiceDnsReachabilityRoute =
+    route:
+    builtins.isAttrs route
+    && (((route.intent or { }).kind or null) == "service-dns-reachability");
+
+  laneForInterface =
+    name:
+    let
+      lane = ((interfaces.${name} or { }).backingRef or { }).lane or { };
+    in
+    if builtins.isAttrs lane then lane else { };
+
+  laneAccess = lane: lane.access or null;
+  laneUplink = lane: lane.uplink or null;
+  laneUplinks = lane: if builtins.isList (lane.uplinks or null) then lane.uplinks else [ ];
+
+  serviceRouteMatchesTargetLane =
+    targetName: route:
+    let
+      targetLane = laneForInterface (interfaceKeyFor targetName);
+      routeLane = route.lane or { };
+      targetAccess = laneAccess targetLane;
+      routeAccess = laneAccess routeLane;
+      targetUplink = laneUplink targetLane;
+      routeUplink = laneUplink routeLane;
+    in
+    (targetAccess == null || routeAccess == targetAccess)
+    && (
+      targetUplink == null
+      || routeUplink == null
+      || routeUplink == targetUplink
+      || builtins.elem targetUplink (laneUplinks routeLane)
+    );
+
+  interfaceHasServiceDnsRouteFor =
+    targetName: sourceName:
+    builtins.any
+      (route: isServiceDnsReachabilityRoute route && serviceRouteMatchesTargetLane targetName route)
+      (routeList ((interfaces.${sourceName} or { }).routes or [ ]));
+
   interfaceKeyFor =
     name:
     if builtins.hasAttr name renderedInterfaceNames then
@@ -70,6 +119,19 @@ let
         builtins.isAttrs rule
         && (rule.action or null) == "accept"
         && routeSelectableForwardingRule rule
+        && builtins.elem (rule.fromInterface or null) fromNames
+        && builtins.elem (rule.toInterface or null) toNames
+      )
+      forwardingRules;
+
+  hasServiceDnsForwardingRule =
+    fromNames: toNames:
+    builtins.any
+      (
+        rule:
+        builtins.isAttrs rule
+        && (rule.action or null) == "accept"
+        && (rule.trafficType or null) == "dns"
         && builtins.elem (rule.fromInterface or null) fromNames
         && builtins.elem (rule.toInterface or null) toNames
       )
@@ -112,6 +174,19 @@ let
       sourceNames = lib.unique ([ targetName ] ++ interfaceKeysForRenderedName targetName);
     in
     lib.filter (name: hasAcceptForwardingRule sourceNames (namesFor name)) interfaceNames;
+
+  serviceDnsForwardTargetsFor =
+    targetName:
+    let
+      sourceNames = lib.unique ([ targetName ] ++ interfaceKeysForRenderedName targetName);
+    in
+    lib.filter
+      (
+        name:
+        hasServiceDnsForwardingRule sourceNames (namesFor name)
+        && interfaceHasServiceDnsRouteFor targetName name
+      )
+      interfaceNames;
 in
 {
   forTarget =
@@ -122,11 +197,12 @@ in
       selfSources = lib.filter (name: renderedNameFor name == targetName) interfaceNames;
       acceptedForwardSources = acceptedForwardSourcesFor targetName;
       acceptedForwardTargets = acceptedForwardTargetsFor targetName;
+      serviceDnsForwardTargets = serviceDnsForwardTargetsFor targetName;
     in
     if unitSources != null then
-      lib.unique (unitSources ++ acceptedForwardSources ++ acceptedForwardTargets)
+      lib.unique (unitSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets)
     else
-      lib.unique (selfSources ++ acceptedForwardSources ++ acceptedForwardTargets);
+      lib.unique (selfSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets);
 
   forTargetRules =
     targetName:

@@ -73,21 +73,21 @@ nix_eval_json_or_fail \
 
 _jq -r '.rules' "${result_json}" >"${rules_file}"
 
-if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "eth0".*ip saddr .*masquerade' "${rules_file}"; then
-  echo "FAIL core-ipv6-nat-rendering: expected source-scoped IPv4 NAT on rendered WAN eth0" >&2
+if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "[^"]+" ip saddr .*10\.20\.10\.0/24.*masquerade' "${rules_file}"; then
+  echo "FAIL core-ipv6-nat-rendering: expected source-scoped IPv4 NAT on the inventory-derived rendered WAN interface" >&2
   rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
   exit 1
 fi
 
 nat6_expected="$(_jq -r '.coreNatIntent.families.ipv6 // false' "${result_json}")"
 if [[ "${nat6_expected}" == "true" ]]; then
-  if ! rg -q 'table ip6 nat' "${rules_file}" || ! rg -q 'oifname "eth0" masquerade' "${rules_file}"; then
-    echo "FAIL core-ipv6-nat-rendering: expected IPv6 NAT on rendered WAN eth0 when CPM natIntent.families.ipv6 is true" >&2
+  if ! rg -q 'table ip6 nat' "${rules_file}" || ! rg -q 'oifname "[^"]+"( ip6 saddr .*)? masquerade' "${rules_file}"; then
+    echo "FAIL core-ipv6-nat-rendering: expected IPv6 NAT on the inventory-derived rendered WAN interface when CPM natIntent.families.ipv6 is true" >&2
     rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
     exit 1
   fi
 else
-  if rg -q 'oifname "eth0" ip6 saddr .*masquerade|oifname "eth0" masquerade' "${rules_file}"; then
+  if rg -q 'oifname "[^"]+" ip6 saddr .*masquerade|oifname "[^"]+" masquerade' "${rules_file}"; then
     echo "FAIL core-ipv6-nat-rendering: CPM disabled IPv6 NAT but renderer emitted WAN masquerade" >&2
     rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
     exit 1
