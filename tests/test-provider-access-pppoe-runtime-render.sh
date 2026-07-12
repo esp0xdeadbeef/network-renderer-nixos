@@ -32,6 +32,13 @@ nix_eval_json_or_fail \
         dynamicWanInterface = {
           containerInterfaceName = "ens20";
           sourceKind = "wan";
+          policyRoutingAllocation = {
+            source = "control-plane-model";
+            tableId = 1002;
+            tableRulePriority = 1002;
+            mainSuppressPriority = 11002;
+            dynamicRulePriority = 10002;
+          };
           dynamicAddressing = {
             ipv4 = {
               enable = true;
@@ -132,6 +139,9 @@ nix_eval_json_or_fail \
         clientNetwork = clientConfig.systemd.network.networks."10-ens20".networkConfig;
         serverNetwork = serverConfig.systemd.network.networks."10-ens20".networkConfig;
         nonPppoeNetwork = nonPppoeConfig.systemd.network.networks."10-ens20".networkConfig;
+        clientDhcpV4 = clientConfig.systemd.network.networks."10-ens20".dhcpV4Config or { };
+        serverDhcpV4 = serverConfig.systemd.network.networks."10-ens20".dhcpV4Config or { };
+        nonPppoeDhcpV4 = nonPppoeConfig.systemd.network.networks."10-ens20".dhcpV4Config or { };
         sideChannelClientOnly = sideChannelConfig "client";
         sideChannelServerOnly = sideChannelConfig "server";
         checks = {
@@ -151,6 +161,12 @@ nix_eval_json_or_fail \
             nonPppoeNetwork.DHCP == "ipv4"
             && (nonPppoeNetwork.IPv6AcceptRA or false) == true
             && nonPppoeNetwork.LinkLocalAddressing == "ipv6";
+          non_pppoe_wan_dhcp_routes_use_cpm_policy_table =
+            (nonPppoeDhcpV4.RouteTable or null) == 1002;
+          client_pppoe_owned_interface_does_not_route_dhcp =
+            !(clientDhcpV4 ? RouteTable);
+          server_pppoe_owned_interface_does_not_route_dhcp =
+            !(serverDhcpV4 ? RouteTable);
           legacy_provider_only_side_channel_does_not_render_server =
             !(sideChannelServerOnly.systemd.services ? s88-pppoe-server)
             && !(sideChannelServerOnly.environment.etc ? "s88/pppoe-tools");

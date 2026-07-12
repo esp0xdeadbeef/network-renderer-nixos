@@ -205,7 +205,7 @@ let
       isExternalValidationDelegatedPrefixRoute
       delegatedPrefixSourceForRoute
       ;
-    inherit (dynamicWan) mkDynamicWanNetworkConfig needsIpv6AcceptRA;
+    inherit (dynamicWan) mkDynamicWanNetworkConfig mkDynamicWanDhcpV4Config needsIpv6AcceptRA;
     inherit (advertisements) advertisedOnlinkRoutesByInterface;
     inherit (policyRouting) policyRoutingByInterface;
     inherit (classes) keepInterfaceRoutesInMain isUpstreamSelectorCoreInterface;
