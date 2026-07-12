@@ -13,6 +13,7 @@
   isExternalValidationDelegatedPrefixRoute,
   delegatedPrefixSourceForRoute,
   mkDynamicWanNetworkConfig,
+  mkDynamicWanDhcpV4Config,
   needsIpv6AcceptRA,
   common,
   skipInterfaceNames ? [ ],
@@ -98,6 +99,30 @@ let
     || (route.Destination or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
 
   isMainTableDefaultRoute = route: isMainTableRoute route && isDefaultRoute route;
+
+  policyRuleDhcpTableForInterface =
+    ifName: interfaceName:
+    let
+      tables =
+        lib.unique (
+          lib.filter builtins.isInt (
+            map
+              (
+                rule:
+                if
+                  (rule.IncomingInterface or null) == interfaceName
+                  && builtins.isInt (rule.Table or null)
+                  && rule.Table != 254
+                then
+                  rule.Table
+                else
+                  null
+              )
+              (policyRoutingByInterface.rules.${ifName} or [ ])
+          )
+        );
+    in
+    if builtins.length tables == 1 then builtins.head tables else null;
 
   stripRouteMetadata =
     route:
@@ -216,6 +241,7 @@ let
                 ConfigureWithoutCarrier = true;
               }
               // mkDynamicWanNetworkConfig iface;
+              dhcpV4Config = mkDynamicWanDhcpV4Config iface (policyRuleDhcpTableForInterface ifName interfaceName);
               linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
                 MTUBytes = iface.mtu;
               };

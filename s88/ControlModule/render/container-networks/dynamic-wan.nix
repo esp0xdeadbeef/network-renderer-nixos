@@ -29,6 +29,14 @@ let
       uplinks.${wanUplinkName}
     else
       { };
+
+  policyTableFor =
+    iface:
+    let
+      allocation = iface.policyRoutingAllocation or { };
+      tableId = allocation.tableId or null;
+    in
+    if builtins.isInt tableId && tableId > 0 then tableId else null;
 in
 {
   mkDynamicWanNetworkConfig =
@@ -84,6 +92,34 @@ in
         IPv6AcceptRA = false;
         LinkLocalAddressing = if hasStaticIpv6 then "ipv6" else "no";
       };
+
+  mkDynamicWanDhcpV4Config =
+    iface: fallbackTableId:
+    let
+      isWan = (iface.sourceKind or null) == "wan";
+      addresses = iface.addresses or [ ];
+      pppoeOwned = (iface._s88PppoeOwned or false) == true;
+      hasStaticIpv4 = lib.any hasIpv4Address addresses;
+      assignedUplink = assignedUplinkFor iface;
+      dynamicAddressing = attrsOrEmpty (iface.dynamicAddressing or null);
+      explicitIpv4 = attrsOrEmpty (dynamicAddressing.ipv4 or null);
+      hasExplicitDynamic = dynamicAddressing ? ipv4;
+      ipv4Contract = if hasExplicitDynamic then explicitIpv4 else attrsOrEmpty (assignedUplink.ipv4 or null);
+      ipv4Enabled = ipv4Contract ? enable && (ipv4Contract.enable or false);
+      ipv4Dhcp =
+        ipv4Enabled
+        && !pppoeOwned
+        && !hasStaticIpv4
+        && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp");
+      ifaceTableId = policyTableFor iface;
+      tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
+    in
+    if isWan && ipv4Dhcp && tableId != null then
+      {
+        RouteTable = tableId;
+      }
+    else
+      { };
 
   needsIpv6AcceptRA =
     iface:
