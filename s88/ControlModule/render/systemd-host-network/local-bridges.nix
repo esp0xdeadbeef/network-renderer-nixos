@@ -24,14 +24,33 @@ in
         bridgeNetConfig = if builtins.hasAttr originalName bridgeNetworks
           then bridgeNetworks.${originalName}
           else {};
+        ipv4Config =
+          if builtins.isAttrs (bridgeNetConfig.ipv4 or null)
+          then bridgeNetConfig.ipv4
+          else {};
+        ipv6Config =
+          if builtins.isAttrs (bridgeNetConfig.ipv6 or null)
+          then bridgeNetConfig.ipv6
+          else {};
+        ipv4Enabled = (ipv4Config.enable or true) != false;
+        ipv6Enabled = (ipv6Config.enable or true) != false;
+        ipv4Dhcp =
+          ipv4Enabled
+          && ((ipv4Config.dhcp or false) || (ipv4Config.method or null) == "dhcp");
+        ipv6Dhcp =
+          ipv6Enabled
+          && ((ipv6Config.dhcp or false) || (ipv6Config.method or null) == "dhcp" || (ipv6Config.method or null) == "dhcp6");
+        ipv6AcceptRA =
+          ipv6Enabled
+          && ((ipv6Config.acceptRA or false) || (ipv6Config.method or null) == "slaac");
+        dhcpMode =
+          if ipv4Dhcp && ipv6Dhcp then "yes"
+          else if ipv4Dhcp then "ipv4"
+          else if ipv6Dhcp then "ipv6"
+          else "no";
         hostAddresses =
           if builtins.isList (bridgeNetConfig.hostAddresses or null)
           then lib.filter builtins.isString bridgeNetConfig.hostAddresses
-          # CPM-created WAN bridges (not in inventory bridgeNetworks) auto-get
-          # a gateway IP so containers can reach the internet through the host.
-          # FS-380-HDS-020-SDS-010-SMS-060 (core WAN IP assignment).
-          else if !(builtins.hasAttr originalName bridgeNetworks) && originalName != "lo"
-          then [ "10.11.0.1/24" ]
           else [];
       in {
         name = "30-${renderedName}";
@@ -43,11 +62,12 @@ in
           };
           networkConfig = {
             ConfigureWithoutCarrier = true;
-            DHCP = "no";
-            IPv6AcceptRA = false;
-            LinkLocalAddressing = "no";
+            DHCP = dhcpMode;
+            IPv6AcceptRA = ipv6AcceptRA;
+            LinkLocalAddressing = if ipv6Dhcp || ipv6AcceptRA then "ipv6" else "no";
           };
           address = hostAddresses;
+          dhcpV4Config = lib.optionalAttrs ipv4Dhcp { UseDNS = false; };
         };
       })
       (sortedAttrNames bridges)
