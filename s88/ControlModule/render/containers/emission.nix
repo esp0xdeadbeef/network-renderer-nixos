@@ -92,12 +92,57 @@ let
     in
     uniqueStrings (lib.mapAttrsToList sourceFileFor owners);
 
+  # Runtime-secret DHCPv4/DHCPv6 reservation identity source files
+  # (FS-970-HDS-010-SDS-020-SMS-040). Each reservation whose CPM record
+  # carries identitySource.sourceFile under /run/secrets/ must have that
+  # protected source file bind-mounted read-only into the container that
+  # runs Kea, so runtime materialization can read it. The protected MAC and
+  # private hostname are never emitted here; only the source file path is.
+  reservationRuntimeSourceFiles =
+    let
+      advertisements =
+        if
+          builtins.isAttrs (renderedModel.runtimeTarget or null)
+          && builtins.isAttrs (renderedModel.runtimeTarget.advertisements or null)
+        then
+          renderedModel.runtimeTarget.advertisements
+        else
+          { };
+      reservationsFor =
+        name:
+        if builtins.isList (advertisements.${name} or null) then advertisements.${name} else [ ];
+      allReservations =
+        lib.concatLists (
+          map
+            (adv: if builtins.isAttrs adv && builtins.isList (adv.reservations or null) then adv.reservations else [ ])
+            (reservationsFor "dhcp4" ++ reservationsFor "dhcpv6")
+        );
+      sourceFileFor =
+        reservation:
+        if
+          builtins.isAttrs reservation
+          && builtins.isAttrs (reservation.identitySource or null)
+          && builtins.isString (reservation.identitySource.sourceFile or null)
+        then
+          reservation.identitySource.sourceFile
+        else
+          "";
+    in
+    uniqueStrings (
+      lib.filter (path: lib.hasPrefix "/run/secrets/" path) (map sourceFileFor allReservations)
+    );
+
   runtimeRouteSourceFileMounts = lib.genAttrs runtimeRouteSourceFiles (sourceFile: {
     hostPath = sourceFile;
     isReadOnly = true;
   });
 
   tenantPrefixSourceFileMounts = lib.genAttrs tenantPrefixSourceFiles (sourceFile: {
+    hostPath = sourceFile;
+    isReadOnly = true;
+  });
+
+  reservationRuntimeSourceFileMounts = lib.genAttrs reservationRuntimeSourceFiles (sourceFile: {
     hostPath = sourceFile;
     isReadOnly = true;
   });
@@ -161,7 +206,8 @@ in
         { }
     )
     // runtimeRouteSourceFileMounts
-    // tenantPrefixSourceFileMounts;
+    // tenantPrefixSourceFileMounts
+    // reservationRuntimeSourceFileMounts;
 
   extraVeths = renderedModel.veths or { };
 
