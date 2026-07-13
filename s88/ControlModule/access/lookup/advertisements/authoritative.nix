@@ -93,6 +93,17 @@ let
     else
       throw "CPM renderer contract update required: ${path} must not carry unrelated network authority fields: ${lib.concatStringsSep ", " present}";
 
+  reservationRuntimeSourceFile =
+    reservation:
+    if
+      builtins.isAttrs (reservation.identitySource or null)
+      && builtins.isString (reservation.identitySource.sourceFile or null)
+      && reservation.identitySource.sourceFile != ""
+    then
+      reservation.identitySource.sourceFile
+    else
+      null;
+
   validateReservationAddressFamily =
     path: family: address:
     if family == "dhcp4" && builtins.match ".*:.*" address != null then
@@ -109,6 +120,14 @@ let
     else
       let
         address = requireNonEmptyString "${path}.address" (reservation.address or null);
+        runtimeSourceFile = reservationRuntimeSourceFile reservation;
+        _runtimeSourceFileBoundary =
+          if runtimeSourceFile == null then
+            true
+          else if lib.hasPrefix "/run/secrets/" runtimeSourceFile then
+            true
+          else
+            throw "diagnostic.runtime-reservation-source-path-invalid: ${path}.identitySource.sourceFile must be delivered from the renderer-approved /run/secrets/ runtime secret boundary for runtime DHCP reservation materialization";
         _family = validateReservationAddressFamily path family address;
         _identity =
           if family == "dhcpv6" then
@@ -120,10 +139,15 @@ let
             else
               throw "CPM renderer contract update required: ${path} must carry explicit mac or duid identity"
           else
-            builtins.seq (requireNonEmptyString "${path}.mac" (reservation.mac or null)) true;
+            if builtins.isString (reservation.mac or null) && reservation.mac != "" then
+              true
+            else if runtimeSourceFile != null then
+              true
+            else
+              throw "CPM renderer contract update required: ${path} must carry explicit mac or identitySource.sourceFile";
         _authority = rejectReservationAuthority path reservation;
       in
-      builtins.seq _family (builtins.seq _identity (builtins.seq _authority reservation));
+      builtins.seq _runtimeSourceFileBoundary (builtins.seq _family (builtins.seq _identity (builtins.seq _authority reservation)));
 
   reservationsFor =
     family: entryPath: adv:

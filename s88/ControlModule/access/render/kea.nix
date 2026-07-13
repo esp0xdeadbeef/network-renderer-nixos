@@ -33,6 +33,34 @@ let
     else
       throw "NixOS DHCPv4 renderer requires scope.leaseDns to be an explicit owner/requester namespace contract";
   syncEnabled = leaseDns != null;
+  reservationRuntimeSourceFile =
+    reservation:
+    if
+      builtins.isAttrs (reservation.identitySource or null)
+      && builtins.isString (reservation.identitySource.sourceFile or null)
+      && reservation.identitySource.sourceFile != ""
+    then
+      reservation.identitySource.sourceFile
+    else
+      null;
+  staticReservationRecords =
+    lib.filter (reservation: reservationRuntimeSourceFile reservation == null) (scope.reservations or [ ]);
+  runtimeReservationRecords =
+    lib.filter (reservation: reservationRuntimeSourceFile reservation != null) (scope.reservations or [ ]);
+  runtimeReservationDescriptors =
+    map
+      (reservation: {
+        id =
+          if builtins.isString (reservation.id or null) && reservation.id != "" then
+            reservation.id
+          else
+            throw "NixOS DHCPv4 renderer requires runtime-secret reservations to carry a reservation id";
+        address = reservation.address;
+        sourceFile = reservationRuntimeSourceFile reservation;
+      })
+      runtimeReservationRecords;
+  runtimeReservationsEnabled = runtimeReservationDescriptors != [ ];
+  runtimeReservationsJson = builtins.toJSON runtimeReservationDescriptors;
   reservations =
     map
       (reservation:
@@ -43,7 +71,7 @@ let
         // lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "") {
           hostname = reservation.hostname;
         })
-      (scope.reservations or [ ]);
+      staticReservationRecords;
 
   # Do not use Kea libdhcp_run_script for this runtime script. Kea restricts
   # that hook to its own packaged script directory, so a /run script makes DHCP
@@ -96,6 +124,102 @@ let
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
     ${configJson}
     EOF
+
+    ${lib.optionalString runtimeReservationsEnabled ''
+    runtime_descriptors=${lib.escapeShellArg runtimeReservationsJson}
+    runtime_reservations_tmp="$(${pkgs.coreutils}/bin/mktemp ${lib.escapeShellArg "${cfgFile}.runtime-reservations.XXXXXX"})"
+    ${pkgs.coreutils}/bin/printf '[]' > "$runtime_reservations_tmp"
+
+    ${pkgs.coreutils}/bin/printf '%s\n' "$runtime_descriptors" | ${pkgs.jq}/bin/jq -c '.[]' |
+    while IFS= read -r descriptor; do
+      reservation_id="$(${pkgs.coreutils}/bin/printf '%s\n' "$descriptor" | ${pkgs.jq}/bin/jq -r '.id')"
+      reservation_address="$(${pkgs.coreutils}/bin/printf '%s\n' "$descriptor" | ${pkgs.jq}/bin/jq -r '.address')"
+      reservation_source_file="$(${pkgs.coreutils}/bin/printf '%s\n' "$descriptor" | ${pkgs.jq}/bin/jq -r '.sourceFile')"
+
+      if [ ! -r "$reservation_source_file" ]; then
+        echo "[kea] diagnostic.runtime-reservation-secret-record-invalid: runtime reservation source $reservation_source_file missing or unreadable for $reservation_id" >&2
+        exit 1
+      fi
+
+      if ! ${pkgs.jq}/bin/jq -e 'type' "$reservation_source_file" >/dev/null 2>&1; then
+        echo "[kea] diagnostic.runtime-reservation-secret-record-invalid: runtime reservation source $reservation_source_file is not valid JSON for $reservation_id" >&2
+        exit 1
+      fi
+
+      matched_tmp="$(${pkgs.coreutils}/bin/mktemp ${lib.escapeShellArg "${cfgFile}.runtime-reservation.XXXXXX"})"
+      if ! ${pkgs.jq}/bin/jq \
+        --arg id "$reservation_id" \
+        --arg address "$reservation_address" \
+        --arg sourceFile "$reservation_source_file" \
+        -e '
+          def reservation_objects:
+            ..
+            | objects
+            | select((."hw-address"? | type == "string") and (."ip-address"? | type == "string"));
+
+          def valid_mac:
+            test("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$");
+
+          [
+            reservation_objects
+            | select(."ip-address" == $address)
+          ] as $byAddress
+          | (
+              if ($byAddress | length) == 1 then
+                $byAddress
+              else
+                [ $byAddress[] | select((.id? == $id) or (.name? == $id)) ]
+              end
+            ) as $matches
+          | if ($matches | length) != 1 then
+              error("diagnostic.runtime-reservation-secret-record-invalid: runtime reservation source " + $sourceFile + " must contain exactly one record for " + $id + " at " + $address)
+            else
+              $matches[0] as $record
+              | if (($record."hw-address" | valid_mac) | not) then
+                  error("diagnostic.runtime-reservation-secret-record-invalid: runtime reservation source " + $sourceFile + " has invalid hw-address for " + $id)
+                else
+                  {
+                    "hw-address": $record."hw-address",
+                    "ip-address": $address
+                  }
+                  + (
+                    if (($record.hostname? // null) | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$")) then
+                      { hostname: $record.hostname }
+                    else
+                      {}
+                    end
+                  )
+                end
+            end
+        ' "$reservation_source_file" > "$matched_tmp"; then
+        echo "[kea] diagnostic.runtime-reservation-secret-record-invalid: runtime reservation materialization failed for $reservation_id at $reservation_address from $reservation_source_file" >&2
+        exit 1
+      fi
+
+      next_runtime_tmp="$(${pkgs.coreutils}/bin/mktemp ${lib.escapeShellArg "${cfgFile}.runtime-reservations-next.XXXXXX"})"
+      ${pkgs.jq}/bin/jq --slurpfile entry "$matched_tmp" '. + [$entry[0]]' "$runtime_reservations_tmp" > "$next_runtime_tmp"
+      ${pkgs.coreutils}/bin/mv "$next_runtime_tmp" "$runtime_reservations_tmp"
+      ${pkgs.coreutils}/bin/rm -f "$matched_tmp"
+    done
+
+    tmp="$(${pkgs.coreutils}/bin/mktemp ${lib.escapeShellArg "${cfgFile}.XXXXXX"})"
+    ${pkgs.jq}/bin/jq --slurpfile runtime "$runtime_reservations_tmp" '
+      .Dhcp4.subnet4[0].reservations = ((.Dhcp4.subnet4[0].reservations // []) + $runtime[0])
+      | .Dhcp4.subnet4[0].reservations as $reservations
+      | if (($reservations | map(."ip-address") | unique | length) != ($reservations | length)) then
+          error("diagnostic.runtime-reservation-secret-record-invalid: duplicate DHCPv4 reservation ip-address after runtime materialization")
+        else
+          .
+        end
+      | if (($reservations | map(."hw-address") | unique | length) != ($reservations | length)) then
+          error("diagnostic.runtime-reservation-secret-record-invalid: duplicate DHCPv4 reservation hw-address after runtime materialization")
+        else
+          .
+        end
+    ' ${lib.escapeShellArg cfgFile} > "$tmp"
+    ${pkgs.coreutils}/bin/mv "$tmp" ${lib.escapeShellArg cfgFile}
+    ${pkgs.coreutils}/bin/rm -f "$runtime_reservations_tmp"
+    ''}
 
     ${lib.optionalString syncEnabled ''
     cat > ${lib.escapeShellArg syncScript} <<'EOF'
@@ -186,7 +310,8 @@ in
     pkgs.gnugrep
     pkgs.gawk
     pkgs.coreutils
-  ] ++ lib.optional syncEnabled pkgs.unbound;
+  ] ++ lib.optional syncEnabled pkgs.unbound
+    ++ lib.optional runtimeReservationsEnabled pkgs.jq;
 
   systemd.services = {
     "gen-kea-${scope.fileStem}" = {
