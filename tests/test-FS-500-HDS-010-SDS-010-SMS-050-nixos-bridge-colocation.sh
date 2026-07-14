@@ -256,4 +256,197 @@ assert_json_checks_ok \
   "${trace} NixOS bridge co-location" \
   "${result_json}"
 
+runtime_result_json="$(mktemp)"
+runtime_stderr_file="$(mktemp)"
+trap 'rm -f "${result_json}" "${stderr_file}" "${runtime_result_json}" "${runtime_stderr_file}"' EXIT
+
+nix_eval_json_or_fail \
+  "${trace} NixOS runtime attach-target co-location" \
+  "${runtime_result_json}" \
+  "${runtime_stderr_file}" \
+  env REPO_ROOT="${repo_root}" \
+    nix eval \
+      --extra-experimental-features 'nix-command flakes' \
+      --impure --json --expr '
+        let
+          repoRoot = builtins.getEnv "REPO_ROOT";
+          flake = builtins.getFlake ("path:" + repoRoot);
+          lib = flake.inputs.nixpkgs.lib;
+          realizationPorts = import (repoRoot + "/s88/Unit/physical/realization-ports.nix") {
+            inherit lib;
+          };
+
+          file = "'"${trace}"'";
+
+          linkId = "link::esp.site-a::p2p-core-upstream-selector";
+
+          # Positive case: the live defect shape. Core endpoint carries an
+          # explicit inventory bridge attach; the selector-fabric endpoint has
+          # no attach and only a synthetic hostBridge. Both share one modeled
+          # backingRef link id, so the selector endpoint must co-locate onto
+          # the explicit inventory bridge.
+          colocationTargets = realizationPorts.attachTargetsForUnitsFromRuntime {
+            source = { };
+            selectedUnits = [ "core-upstream" "upstream-selector" ];
+            normalizedRuntimeTargets = {
+              core-upstream.interfaces.p2p-core-upstream-selector = {
+                renderedIfName = "ens20";
+                hostBridge = "rt--p2p--link--" + linkId;
+                attach = {
+                  kind = "bridge";
+                  bridge = "br-site-a-p2p-core-upstream-selector";
+                };
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = linkId;
+                  name = "p2p-core-upstream-selector";
+                };
+              };
+              upstream-selector.interfaces.p2p-core-upstream-selector = {
+                renderedIfName = "p2p-core-upstream-selector";
+                hostBridge = "rt--p2p--link--" + linkId;
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = linkId;
+                  name = "p2p-core-upstream-selector";
+                };
+              };
+            };
+            inherit file;
+          };
+          byUnit = builtins.listToAttrs (
+            map (target: {
+              name = target.unitName;
+              value = target;
+            }) colocationTargets
+          );
+          coreTarget = byUnit.core-upstream;
+          selectorTarget = byUnit.upstream-selector;
+
+          # Negative case: peers of one modeled link expose two different
+          # explicit runtime attachments. Forcing the synthetic endpoint must
+          # fail with a split-attachment diagnostic instead of picking one.
+          splitTargets = realizationPorts.attachTargetsForUnitsFromRuntime {
+            source = { };
+            selectedUnits = [ "core-a" "core-b" "upstream-selector" ];
+            normalizedRuntimeTargets = {
+              core-a.interfaces.p2p-split = {
+                renderedIfName = "ens20";
+                hostBridge = "rt--p2p--link--link::esp.site-a::p2p-split";
+                attach = {
+                  kind = "bridge";
+                  bridge = "br-split-a";
+                };
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = "link::esp.site-a::p2p-split";
+                  name = "p2p-split";
+                };
+              };
+              core-b.interfaces.p2p-split = {
+                renderedIfName = "ens21";
+                hostBridge = "rt--p2p--link--link::esp.site-a::p2p-split";
+                attach = {
+                  kind = "bridge";
+                  bridge = "br-split-b";
+                };
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = "link::esp.site-a::p2p-split";
+                  name = "p2p-split";
+                };
+              };
+              upstream-selector.interfaces.p2p-split = {
+                renderedIfName = "p2p-split";
+                hostBridge = "rt--p2p--link--link::esp.site-a::p2p-split";
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = "link::esp.site-a::p2p-split";
+                  name = "p2p-split";
+                };
+              };
+            };
+            inherit file;
+          };
+          splitAttempt = builtins.tryEval (builtins.deepSeq splitTargets true);
+
+          # Name-derived repair rejection: a peer with a similar but different
+          # modeled link id must not attract the synthetic endpoint.
+          impostorTargets = realizationPorts.attachTargetsForUnitsFromRuntime {
+            source = { };
+            selectedUnits = [ "core-impostor" "upstream-selector" ];
+            normalizedRuntimeTargets = {
+              core-impostor.interfaces.p2p-real-impostor = {
+                renderedIfName = "ens20";
+                hostBridge = "rt--p2p--link--link::esp.site-a::p2p-real-impostor";
+                attach = {
+                  kind = "bridge";
+                  bridge = "br-impostor";
+                };
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = "link::esp.site-a::p2p-real-impostor";
+                  name = "p2p-real-impostor";
+                };
+              };
+              upstream-selector.interfaces.p2p-real = {
+                renderedIfName = "p2p-real";
+                hostBridge = "rt--p2p--link--link::esp.site-a::p2p-real";
+                connectivity.sourceKind = "p2p";
+                backingRef = {
+                  kind = "link";
+                  id = "link::esp.site-a::p2p-real";
+                  name = "p2p-real";
+                };
+              };
+            };
+            inherit file;
+          };
+          impostorByUnit = builtins.listToAttrs (
+            map (target: {
+              name = target.unitName;
+              value = target;
+            }) impostorTargets
+          );
+
+          checks = {
+            selectorColocatedOntoExplicitBridge =
+              selectorTarget.hostBridgeName == "br-site-a-p2p-core-upstream-selector"
+              && selectorTarget.kind == "bridge"
+              && selectorTarget.identity.colocatedByModeledLink or null == linkId;
+            coreKeepsExplicitBridge =
+              coreTarget.hostBridgeName == "br-site-a-p2p-core-upstream-selector"
+              && coreTarget.kind == "bridge";
+            bothEndpointsShareOneBridge =
+              coreTarget.hostBridgeName == selectorTarget.hostBridgeName;
+            splitAttachmentRejected = !splitAttempt.success;
+            impostorLinkDoesNotAttract =
+              impostorByUnit.upstream-selector.kind == "synthetic"
+              && impostorByUnit.upstream-selector.hostBridgeName
+                 == "rt--p2p--link--link::esp.site-a::p2p-real";
+          };
+
+          failed = builtins.filter (name: !(checks.${name})) (builtins.attrNames checks);
+        in
+        {
+          ok = failed == [ ];
+          inherit checks failed;
+          observed = {
+            coreBridge = coreTarget.hostBridgeName;
+            selectorBridge = selectorTarget.hostBridgeName;
+            selectorKind = selectorTarget.kind;
+          };
+        }
+      '
+
+assert_json_checks_ok \
+  "${trace} NixOS runtime attach-target co-location" \
+  "${runtime_result_json}"
+
 echo "PASS ${trace} NixOS bridge co-location"
