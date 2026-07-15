@@ -46,6 +46,13 @@ let
           comment = pair.comment;
         };
 
+  # FS-230-HDS-010-SDS-010-SMS-030: return authorization is stateful return
+  # for the owned forward tuple. A reverse-direction return rule must carry a
+  # recognized connection-state restriction; a state-unqualified reverse rule
+  # is reverse-new-flow authority invention and fails closed here instead of
+  # rendering an unconditional reverse interface-pair accept.
+  recognizedConnectionStates = [ "established,related" ];
+
   normalizeForwardRule =
     rule:
     if !builtins.isAttrs rule then
@@ -64,14 +71,34 @@ let
             rule.comment
           else
             null;
+        ruleName = if comment != null && comment != "" then comment else builtins.toJSON rule;
+        isReturnRule = (rule.returnRule or null) == true || (rule.direction or null) == "relation-reverse";
+        connectionState =
+          if builtins.isString (rule.connectionState or null) && rule.connectionState != "" then
+            rule.connectionState
+          else
+            null;
+        _validateReturnRule =
+          if isReturnRule && connectionState == null then
+            throw "FS-230-HDS-010-SDS-010-SMS-030: reverse return rule '${ruleName}' carries no connection-state restriction (reverse-new-flow authority invention); encode stateful return via connectionState or model a distinct, independently authorized reverse relation"
+          else if connectionState != null && !(builtins.elem connectionState recognizedConnectionStates) then
+            throw "FS-230-HDS-010-SDS-010-SMS-030: rule '${ruleName}' carries an unrecognized connectionState '${connectionState}'; recognized values: ${builtins.concatStringsSep ", " recognizedConnectionStates}"
+          else
+            true;
       in
       if inIfs == [ ] || outIfs == [ ] then
         null
       else
-        {
+        builtins.seq _validateReturnRule {
           "in" = inIfs;
           "out" = outIfs;
           inherit action;
+        }
+        // lib.optionalAttrs (connectionState != null) {
+          inherit connectionState;
+        }
+        // lib.optionalAttrs isReturnRule {
+          returnRule = true;
         }
         // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
           trafficType = rule.trafficType;
