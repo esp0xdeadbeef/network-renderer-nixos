@@ -44,6 +44,11 @@ nix_eval_true_or_fail "FS-230-HDS-010-SDS-010-SMS-020 renderer no-translation de
 
           noneForward = forwardFor "none";
           naptForward = forwardFor "napt";
+          # SMS Negative case 1 (missing mode field): a service forward whose
+          # owning authority never declared translationMode must fail closed
+          # instead of materializing legacy DNAT/SNAT.
+          missingModeForward =
+            builtins.removeAttrs (forwardFor "none") [ "translationMode" ];
 
           noneDnat = rules.renderServiceForward "br-wan" noneForward;
           noneSnat = rules.renderServiceSnat noneForward;
@@ -67,6 +72,13 @@ nix_eval_true_or_fail "FS-230-HDS-010-SDS-010-SMS-020 renderer no-translation de
               && lib.hasInfix "tcp dport 4242" naptDnat;
             naptEmitsMasquerade =
               lib.hasInfix "ct status dnat masquerade" naptSnat;
+            # 3. Missing translationMode: renderServiceForward and
+            #    renderServiceSnat refuse legacy DNAT/SNAT materialization
+            #    (fail closed) instead of defaulting to a permissive mode.
+            missingModeDnatFailsClosed =
+              !(builtins.tryEval (rules.renderServiceForward "br-wan" missingModeForward)).success;
+            missingModeSnatFailsClosed =
+              !(builtins.tryEval (rules.renderServiceSnat missingModeForward)).success;
           };
           failed = builtins.filter (name: !checks.${name}) (builtins.attrNames checks);
         in
@@ -77,3 +89,59 @@ nix_eval_true_or_fail "FS-230-HDS-010-SDS-010-SMS-020 renderer no-translation de
       '
 
 echo "PASS FS-230-HDS-010-SDS-010-SMS-020: renderer no-translation decision materialization"
+
+# SMS Negative case 1 (missing mode field), ingress-path diagnostic: a modeled
+# service tuple whose owning external allow relation carries returnBehavior and
+# sourcePreservation but no translationMode must fail closed at service-ingress
+# derivation with a diagnostic naming the service tuple and the missing mode
+# field — never fall through to legacy DNAT materialization.
+missing_mode_stderr="$(mktemp)"
+trap 'rm -f "${missing_mode_stderr}"' EXIT
+set +e
+env REPO_ROOT="${repo_root}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --json --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        facts = import (repoRoot + "/s88/ControlModule/module/public-ingress/facts.nix") { inherit lib; };
+        cpmRoot = {
+          ent.site1 = {
+            policy.endpointBindings.services.dmz-nebula.providers = [ "isp-a" ];
+            communicationContract.relations = [
+              {
+                action = "allow";
+                id = "allow-wan-to-dmz-nebula";
+                from = { kind = "external"; name = "wan"; };
+                to = { kind = "service"; name = "dmz-nebula"; };
+                match = [ { proto = "udp"; dports = [ 4242 ]; } ];
+                publicIngressTupleAuthority = {
+                  returnBehavior = "stateful-return";
+                  sourcePreservation = "preserve-source";
+                };
+              }
+            ];
+            services = [
+              { name = "dmz-nebula"; providerEndpoints = [ { ipv4 = [ "10.90.10.100" ]; } ]; }
+            ];
+          };
+        };
+        publicIngressFacts.services.ent.site1.dmz-nebula = { publicIPv4 = "203.0.113.10"; };
+        ingresses = facts.serviceIngressesFor { inherit cpmRoot publicIngressFacts; };
+      in
+        map (forward: forward.translationMode) ingresses
+    ' >/dev/null 2>"${missing_mode_stderr}"
+missing_mode_status=$?
+set -e
+if [[ "${missing_mode_status}" -eq 0 ]]; then
+  echo "FAIL FS-230-HDS-010-SDS-010-SMS-020: missing translationMode was accepted at service-ingress derivation (legacy DNAT path still open)" >&2
+  exit 1
+fi
+grep -Fq "FS-230-HDS-010-SDS-010-SMS-020: public-ingress service tuple 'dmz-nebula' has no owning relation declaring publicIngressTupleAuthority.translationMode" "${missing_mode_stderr}" || {
+  echo "FAIL FS-230-HDS-010-SDS-010-SMS-020: missing-mode rejection lacked the ingress-path diagnostic" >&2
+  cat "${missing_mode_stderr}" >&2
+  exit 1
+}
+echo "PASS FS-230-HDS-010-SDS-010-SMS-020: missing translationMode fails closed at service-ingress derivation with ingress-path diagnostic"
