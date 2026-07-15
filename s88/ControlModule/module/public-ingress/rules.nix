@@ -43,13 +43,22 @@ let
     in
     "${protoText}${dportText}";
 
+  # FS-230-HDS-010-SDS-010-SMS-020: translationMode = "none" is an explicit
+  # no-translation decision — emit no DNAT for that service tuple. A
+  # translation-capable mode (or an absent decision, legacy behavior) keeps the
+  # DNAT contract.
+  noTranslationDecision = forward: (forward.translationMode or null) == "none";
+
   renderServiceForward = bridgeInterface: forward:
-    lib.concatMapStringsSep "\n"
-      (match:
-        ''
-          ${publicIPv4Match forward}${renderMatch match} dnat to ${forward.targetIPv4} comment ${nftString forward.comment}
-        '')
-      forward.matches;
+    if noTranslationDecision forward then
+      ""
+    else
+      lib.concatMapStringsSep "\n"
+        (match:
+          ''
+            ${publicIPv4Match forward}${renderMatch match} dnat to ${forward.targetIPv4} comment ${nftString forward.comment}
+          '')
+        forward.matches;
 
   renderServiceAccept = bridgeInterface: forward:
     lib.concatMapStringsSep "\n"
@@ -61,9 +70,12 @@ let
       forward.matches;
 
   renderServiceSnat = forward:
-    ''
-      ip saddr ${forward.targetIPv4} ct status dnat masquerade comment ${nftString "${forward.comment}-snat"}
-    '';
+    if noTranslationDecision forward then
+      ""
+    else
+      ''
+        ip saddr ${forward.targetIPv4} ct status dnat masquerade comment ${nftString "${forward.comment}-snat"}
+      '';
 
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
     let
