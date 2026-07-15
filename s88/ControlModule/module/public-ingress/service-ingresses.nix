@@ -43,8 +43,11 @@ lib.concatMap
       # translation decision carried by the owning external allow relations.
       # translationMode = "none" is an explicit no-translation decision and
       # must suppress DNAT/SNAT materialization for this service tuple. A
-      # translation-capable mode keeps the DNAT contract. Conflicting decisions
-      # across the owning relations fail closed rather than guessing.
+      # translation-capable mode keeps the DNAT contract. An absent decision
+      # (no owning relation declares translationMode) is an ambiguous
+      # translation binding and fails closed instead of materializing legacy
+      # DNAT. Conflicting decisions across the owning relations also fail
+      # closed rather than guessing.
       translationModes =
         lib.unique (
           builtins.filter (mode: mode != null)
@@ -56,7 +59,7 @@ lib.concatMap
         );
       translationMode =
         if translationModes == [ ] then
-          null
+          fail "FS-230-HDS-010-SDS-010-SMS-020: public-ingress service tuple '${serviceName}' has no owning relation declaring publicIngressTupleAuthority.translationMode (missing translation mode field; ambiguous translation binding) — refusing legacy DNAT materialization"
         else if builtins.length translationModes == 1 then
           builtins.head translationModes
         else

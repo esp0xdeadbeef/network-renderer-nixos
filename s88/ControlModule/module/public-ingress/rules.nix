@@ -44,13 +44,20 @@ let
     "${protoText}${dportText}";
 
   # FS-230-HDS-010-SDS-010-SMS-020: translationMode = "none" is an explicit
-  # no-translation decision — emit no DNAT for that service tuple. A
-  # translation-capable mode (or an absent decision, legacy behavior) keeps the
-  # DNAT contract.
+  # no-translation decision — emit no DNAT for that service tuple. Only an
+  # explicit translation-capable mode keeps the DNAT contract; an absent
+  # decision (missing translationMode) is an ambiguous translation binding and
+  # fails closed instead of materializing legacy DNAT.
   noTranslationDecision = forward: (forward.translationMode or null) == "none";
 
+  requireTranslationDecision = forward:
+    if (forward.translationMode or null) == null then
+      throw "FS-230-HDS-010-SDS-010-SMS-020: public-ingress service tuple '${forward.serviceName or forward.comment or "<unknown>"}' has no publicIngressTupleAuthority.translationMode (missing translation mode field; ambiguous translation binding) — refusing legacy DNAT materialization"
+    else
+      forward;
+
   renderServiceForward = bridgeInterface: forward:
-    if noTranslationDecision forward then
+    if noTranslationDecision (requireTranslationDecision forward) then
       ""
     else
       lib.concatMapStringsSep "\n"
@@ -70,7 +77,7 @@ let
       forward.matches;
 
   renderServiceSnat = forward:
-    if noTranslationDecision forward then
+    if noTranslationDecision (requireTranslationDecision forward) then
       ""
     else
       ''
