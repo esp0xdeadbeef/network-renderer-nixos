@@ -95,6 +95,14 @@ let
           "accept"
         else
           rawAction;
+      # FS-230-HDS-010-SDS-010-SMS-030: a return pair carries a connection-state
+      # restriction; realize it as a `ct state` match so the emitted rule is a
+      # stateful return instead of an unconditional reverse interface-pair accept.
+      connectionStateExpr =
+        if pair ? connectionState && builtins.isString pair.connectionState && pair.connectionState != "" then
+          " ct state ${pair.connectionState}"
+        else
+          "";
       commentExpr =
         if pair ? comment && builtins.isString pair.comment && pair.comment != "" then
           " comment \"${renderComment pair.comment}\""
@@ -127,7 +135,7 @@ let
       else
         "iifname ${renderInterfaceExpr (pair."in" or [ ])} oifname ${
           renderInterfaceExpr (pair."out" or [ ])
-        }${matchPart} ${action}${commentExpr}"
+        }${matchPart}${connectionStateExpr} ${action}${commentExpr}"
     ) trafficMatches;
 in
 lib.filter (rule: rule != "") (
