@@ -101,7 +101,7 @@ let
       || !(builtins.isString (authority.translationMode or null))
       || authority.translationMode == ""
     then
-      throw "FS-310-HDS-010-SDS-010-SMS-130: runtime forward '${forward.comment or "<unknown>"}' invoked without a CPM-artifact public-ingress authority record (direct helper invocation on caller-supplied synthetic runtime facts) — refusing DNAT materialization (diagnostic.synthetic-core-ingress-authority, FS-310-HDS-020-SDS-010-SMS-075 negative case 3)"
+      throw "FS-310-HDS-010-SDS-010-SMS-130: runtime forward '${forward.comment or "<unknown>"}' invoked without a CPM-artifact public-ingress authority record (direct helper invocation on caller-supplied synthetic runtime facts) — refusing DNAT materialization (diagnostic.synthetic-core-ingress-authority, FS-310-HDS-020-SDS-010-SMS-075 negative case 3; RENDERER_LOCAL_POLICY_AUTHORITY, FS-310-HDS-040-SDS-010-SMS-101: direct helper arguments cannot create policy output absent from the CPM artifact)"
     else
       forward;
 

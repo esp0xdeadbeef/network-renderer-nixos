@@ -21,9 +21,22 @@
 #        expect detection with DIRECT_UPSTREAM_ACCESS_NIXOS diagnostic
 #   N2 — inject path construction for inventory-nixos.nix in ControlModule/lookup/
 #        expect detection with DIRECT_UPSTREAM_PATH_CONSTRUCTION_NIXOS diagnostic
+#   N3 — CPM without core-ingress authority + complete synthetic DNAT tuple:
+#        (a) through the integrated production host module (renderer.hostModule)
+#        (b) through direct renderer-helper import (public-ingress.nix)
+#        expect rejection with RENDERER_LOCAL_POLICY_AUTHORITY diagnostic
+#
+# Integrated CPM-only authority proof (SMS-101 construction handoff point 5):
+#   I1 — a CPM artifact carrying the public-ingress authority tuple renders the
+#        source-bound DNAT rule through the production host module entry
+#   I2 — removing the authoritative tuple from the CPM artifact removes the
+#        rule (same integrated entry, clean render, no DNAT)
+#   N3a proves injecting the same values only through renderer-local
+#        runtimeFacts/helper arguments cannot restore the removed rule
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${repo_root}/tests/lib/test-common.sh"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 all_checks_passed=true
@@ -38,6 +51,7 @@ echo ""
 DIAGNOSTICS=(
   "DIRECT_UPSTREAM_ACCESS_NIXOS"
   "DIRECT_UPSTREAM_PATH_CONSTRUCTION_NIXOS"
+  "RENDERER_LOCAL_POLICY_AUTHORITY"
 )
 
 # ============================================================
@@ -404,16 +418,245 @@ fi
 echo ""
 
 # ============================================================
+# Integrated CPM-only authority proof (construction handoff 5)
+# Production host module entry: flake.lib.renderer.hostModule.
+# Policy-bearing output must be a function of the supplied CPM
+# artifact, not of renderer-local runtimeFacts or helper args.
+# ============================================================
+echo "--- Integrated: CPM-only public-ingress authority through renderer.hostModule ---"
+
+integrated_expr="${tmp_dir}/sms101-integrated.nix"
+cat > "${integrated_expr}" << 'NIXEOF'
+# FS-310-HDS-040-SDS-010-SMS-101 integrated fixture.
+# WITH_AUTHORITY toggles the public-ingress authority tuple in the CPM
+# artifact; WITH_FORWARD toggles the renderer-local runtime forward facts.
+# The ONLY renderer entry exercised here is the production host module
+# (flake.lib.renderer.hostModule) — no direct helper import.
+let
+  repoRoot = builtins.getEnv "REPO_ROOT";
+  withAuthority = builtins.getEnv "WITH_AUTHORITY" == "1";
+  withForward = builtins.getEnv "WITH_FORWARD" == "1";
+  flake = builtins.getFlake ("path:" + repoRoot);
+  lib = flake.inputs.nixpkgs.lib;
+  system = "x86_64-linux";
+  cpm = rec {
+    control_plane_model = {
+      meta.traceId = "FS-310-HDS-040-SDS-010-SMS-101-integrated";
+      deployment.hosts.s-router-sms101 = {
+        uplinks = { };
+      };
+      render.hosts.s-router-sms101.deploymentHost = "s-router-sms101";
+      realization.nodes = { };
+      data.esp.site-a = {
+        runtimeTargets = { };
+        endpointAssignment = { };
+        policy.endpointBindings.services.core-nebula.providers = [ "isp-a" ];
+        communicationContract.relations = lib.optionals withAuthority [
+          {
+            action = "allow";
+            id = "allow-wan-to-core-nebula";
+            from = { kind = "external"; name = "wan"; };
+            to = { kind = "service"; name = "core-nebula"; };
+            match = [
+              { proto = "udp"; dports = [ 4242 ]; }
+              { proto = "tcp"; dports = [ 4242 ]; }
+            ];
+            publicIngressTupleAuthority = {
+              translationMode = "napt";
+              returnBehavior = "stateful-return";
+            };
+          }
+        ];
+        services = [
+          {
+            name = "core-nebula";
+            providerEndpoints = [ { ipv4 = [ "192.168.3.10" ]; } ];
+          }
+        ];
+      };
+    };
+    deploymentHosts = control_plane_model.deployment.hosts;
+    realization = control_plane_model.realization;
+    render = control_plane_model.render;
+  };
+  runtimeFacts = {
+    publicIngress = {
+      bridgeInterface = "ppp0";
+      snatSourceCidr4 = "192.168.3.0/24";
+      runtimeForwards = lib.optionals withForward [
+        {
+          publicIPv4 = "217.148.134.173";
+          targetIPv4 = "192.168.3.10";
+          protocols = [ "udp" "tcp" ];
+          inputDports = [ 4242 ];
+          protectServiceDports = false;
+          comment = "fs310-sms101-integrated-4242";
+        }
+      ];
+    };
+  };
+  module = flake.lib.renderer.hostModule {
+    inherit lib system cpm runtimeFacts;
+    hostName = "s-router-sms101";
+    selectorFile = "tests/test-fs310-hds040-sds010-sms101-nixos-cpm-only-consumption.sh";
+  };
+  evaluated = lib.nixosSystem {
+    inherit system;
+    modules = [ module ];
+  };
+  ruleset = evaluated.config.networking.nftables.ruleset;
+  preroutingBody =
+    let
+      afterHead = lib.last (lib.splitString "chain prerouting {" ruleset);
+    in
+    builtins.head (lib.splitString "}" afterHead);
+  udpDnatRule = "ip daddr 217.148.134.173 meta l4proto udp udp dport 4242 dnat to 192.168.3.10";
+  tcpDnatRule = "ip daddr 217.148.134.173 meta l4proto tcp tcp dport 4242 dnat to 192.168.3.10";
+in
+{
+  hookIsDstnat = lib.hasInfix "type nat hook prerouting priority dstnat" ruleset;
+  udpDnatPresent = lib.hasInfix udpDnatRule preroutingBody;
+  tcpDnatPresent = lib.hasInfix tcpDnatRule preroutingBody;
+  anyDnatPresent = lib.hasInfix "dnat to" preroutingBody;
+  snatStillPresent = lib.hasInfix "masquerade comment \"s88-host-public-ingress-snat\"" ruleset;
+}
+NIXEOF
+
+# ------------------------------------------------------------
+# I1: CPM authority tuple present -> integrated host render
+#     materializes the source-bound DNAT rule (recovery target).
+# ------------------------------------------------------------
+echo "--- I1: CPM-authority tuple renders DNAT through production host module ---"
+nix_eval_true_or_fail "FS-310-HDS-040-SDS-010-SMS-101 I1 integrated CPM-authority DNAT render" \
+  env REPO_ROOT="${repo_root}" WITH_AUTHORITY=1 WITH_FORWARD=1 \
+    nix eval \
+      --extra-experimental-features 'nix-command flakes' \
+      --impure --expr "
+        let r = import ${integrated_expr}; in
+        if r.hookIsDstnat && r.udpDnatPresent && r.tcpDnatPresent && r.snatStillPresent then
+          true
+        else
+          builtins.trace (builtins.toJSON r) false
+      "
+echo "  PASS: I1 integrated render carries udp+tcp 4242 DNAT to 192.168.3.10 from CPM authority"
+echo ""
+
+# ------------------------------------------------------------
+# I2: removing the authoritative tuple from the CPM artifact
+#     removes the corresponding rule (clean render, no DNAT).
+# ------------------------------------------------------------
+echo "--- I2: removing the CPM authority tuple removes the DNAT rule ---"
+nix_eval_true_or_fail "FS-310-HDS-040-SDS-010-SMS-101 I2 CPM-tuple removal removes rule" \
+  env REPO_ROOT="${repo_root}" WITH_AUTHORITY=0 WITH_FORWARD=0 \
+    nix eval \
+      --extra-experimental-features 'nix-command flakes' \
+      --impure --expr "
+        let r = import ${integrated_expr}; in
+        if r.hookIsDstnat && !r.anyDnatPresent && r.snatStillPresent then
+          true
+        else
+          builtins.trace (builtins.toJSON r) false
+      "
+echo "  PASS: I2 integrated render without CPM authority tuple emits no DNAT rule"
+echo ""
+
+# ------------------------------------------------------------
+# N3a: seeded negative — CPM without authority + the same values
+#      injected only through renderer-local runtimeFacts must NOT
+#      restore the rule; the integrated gate rejects with
+#      RENDERER_LOCAL_POLICY_AUTHORITY.
+# ------------------------------------------------------------
+echo "--- N3a: renderer-local runtimeFacts cannot restore a rule removed from CPM ---"
+n3a_stderr="${tmp_dir}/n3a-stderr"
+set +e
+env REPO_ROOT="${repo_root}" WITH_AUTHORITY=0 WITH_FORWARD=1 \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr "(import ${integrated_expr}).anyDnatPresent" \
+  >/dev/null 2>"${n3a_stderr}"
+n3a_status=$?
+set -e
+if [[ "${n3a_status}" -eq 0 ]]; then
+  echo "  FAIL: N3a — integrated host module materialized DNAT from renderer-local runtimeFacts without CPM authority"
+  all_checks_passed=false
+elif grep -Fq "RENDERER_LOCAL_POLICY_AUTHORITY" "${n3a_stderr}"; then
+  echo "  PASS: N3a integrated gate rejected renderer-local policy injection (RENDERER_LOCAL_POLICY_AUTHORITY)"
+else
+  echo "  FAIL: N3a — rejection lacked RENDERER_LOCAL_POLICY_AUTHORITY diagnostic"
+  cat "${n3a_stderr}"
+  all_checks_passed=false
+fi
+echo ""
+
+# ------------------------------------------------------------
+# N3b: seeded negative — direct renderer-helper import with a
+#      complete synthetic DNAT tuple and no CPM authority must be
+#      rejected with RENDERER_LOCAL_POLICY_AUTHORITY. Recovery is
+#      I1: the tuple present in CPM and consumed through the
+#      production host module.
+# ------------------------------------------------------------
+echo "--- N3b: direct helper import with synthetic DNAT tuple rejected ---"
+n3b_stderr="${tmp_dir}/n3b-stderr"
+set +e
+env REPO_ROOT="${repo_root}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+      in
+      (import (repoRoot + "/s88/ControlModule/module/public-ingress.nix") {
+        inherit lib;
+        hostName = "s-router-sms101";
+        controlPlane = { data = { }; };
+        runtimeFacts.publicIngress = {
+          bridgeInterface = "ppp0";
+          snatSourceCidr4 = "192.168.3.0/24";
+          runtimeForwards = [
+            {
+              publicIPv4 = "217.148.134.173";
+              targetIPv4 = "192.168.3.10";
+              protocols = [ "udp" "tcp" ];
+              inputDports = [ 4242 ];
+              protectServiceDports = false;
+              comment = "fs310-sms101-direct-helper-synthetic";
+            }
+          ];
+        };
+      }).networking.nftables.ruleset
+    ' \
+  >/dev/null 2>"${n3b_stderr}"
+n3b_status=$?
+set -e
+if [[ "${n3b_status}" -eq 0 ]]; then
+  echo "  FAIL: N3b — direct helper import materialized DNAT from synthetic tuple without CPM authority"
+  all_checks_passed=false
+elif grep -Fq "RENDERER_LOCAL_POLICY_AUTHORITY" "${n3b_stderr}"; then
+  echo "  PASS: N3b direct helper import rejected (RENDERER_LOCAL_POLICY_AUTHORITY)"
+else
+  echo "  FAIL: N3b — rejection lacked RENDERER_LOCAL_POLICY_AUTHORITY diagnostic"
+  cat "${n3b_stderr}"
+  all_checks_passed=false
+fi
+echo ""
+
+# ============================================================
 # Report
 # ============================================================
 if [[ "${all_checks_passed}" == "true" ]]; then
   echo "PASS: FS-310-HDS-040-SDS-010-SMS-101 NixOS renderer CPM-only consumption scan complete."
   echo "  P1 source scan: clean (${upstream_count} hits, ${new_violations} new, ${known_gap_count} known gaps)"
   echo "  P2 readFile: clean (${readfile_violations} violations)"
-  echo "  P3 diagnostics: ${diag_present}/${#DIAGNOSTICS[@]} in source, both proven in seeded negatives"
+  echo "  P3 diagnostics: ${diag_present}/${#DIAGNOSTICS[@]} in source, all proven in seeded negatives"
   echo "  N1: DIRECT_UPSTREAM_ACCESS_NIXOS — detected and recovered"
   echo "  N2: DIRECT_UPSTREAM_PATH_CONSTRUCTION_NIXOS — detected and recovered"
   echo "  P4 hostModule audit: clean"
+  echo "  I1: CPM authority tuple renders DNAT through production host module"
+  echo "  I2: removing the CPM tuple removes the rule"
+  echo "  N3a: integrated renderer-local runtimeFacts injection rejected (RENDERER_LOCAL_POLICY_AUTHORITY)"
+  echo "  N3b: direct helper import with synthetic tuple rejected (RENDERER_LOCAL_POLICY_AUTHORITY)"
   exit 0
 else
   echo "FAIL: FS-310-HDS-040-SDS-010-SMS-101 — violations found."
