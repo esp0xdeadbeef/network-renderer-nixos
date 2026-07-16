@@ -25,6 +25,13 @@
 , containerDefaults ? { }
 , disabled ? { }
 , containerSelection ? { }
+  # FS-310-HDS-040-SDS-010-SMS-101: runtimeFacts carry NON-AUTHORITATIVE
+  # runtime facts only (e.g. publicIngress bridge interface, SNAT source
+  # CIDR, runtime forward facts). Policy authority — which public-ingress
+  # tuples may materialize firewall/DNAT output — comes exclusively from the
+  # CPM artifact. A policy-bearing runtime fact with no corresponding CPM
+  # authority fails closed (RENDERER_LOCAL_POLICY_AUTHORITY).
+, runtimeFacts ? { }
 ,
 }:
 
@@ -111,6 +118,21 @@ let
 
   artifactModule = import ../../ControlModule/api/artifact-module.nix { inherit debugPayload; };
 
+  # FS-310-HDS-040-SDS-010-SMS-101: the production host entry is the CPM-only
+  # consumption boundary for policy-bearing public-ingress output. The
+  # public-ingress module receives the resolved CPM artifact as its sole
+  # policy authority; runtimeFacts supply runtime facts only. Rendering
+  # public-ingress output outside this entry (direct helper import with
+  # synthetic facts) is renderer-local policy injection and is rejected by
+  # the module itself (RENDERER_LOCAL_POLICY_AUTHORITY).
+  publicIngressModule =
+    { pkgs, ... }:
+    import ../../ControlModule/module/public-ingress.nix {
+      lib = effectiveLib;
+      inherit pkgs hostName runtimeFacts;
+      controlPlane = resolvedCpm;
+    };
+
   moduleArgs = {
     globalInventory = builtHost.globalInventory;
     hostContext = builtHost.hostContext;
@@ -128,7 +150,10 @@ in
   inherit artifactModule moduleArgs;
 
   nixosModule = {
-    imports = [ artifactModule ];
+    imports = [
+      artifactModule
+      publicIngressModule
+    ];
 
     _module.args = moduleArgs;
 

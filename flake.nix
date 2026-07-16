@@ -214,9 +214,27 @@
               mgmtManageDhcp
               ;
           };
+
+          # FS-310-HDS-040-SDS-010-SMS-101: the production host module is the
+          # CPM-only consumption boundary for policy-bearing public-ingress
+          # output. The public-ingress module receives the CPM artifact as its
+          # sole policy authority; rendererInput.runtimeFacts supplies
+          # NON-AUTHORITATIVE runtime facts only (bridge interface, SNAT source
+          # CIDR, runtime forward facts). A policy-bearing runtime fact whose
+          # tuple is absent from the CPM artifact fails closed
+          # (RENDERER_LOCAL_POLICY_AUTHORITY).
+          publicIngressConfig = import ./s88/ControlModule/module/public-ingress.nix {
+            lib = userLib;
+            inherit pkgs hostName;
+            controlPlane = effectiveCpm;
+            runtimeFacts = rendererInput.runtimeFacts or { };
+          };
         in
         {
-          imports = [ hostBuild.artifactModule ];
+          imports = [
+            hostBuild.artifactModule
+            publicIngressConfig
+          ];
 
           # CPM-driven networking: rendered host bridges/network files and
           # container hostBridge attachments require systemd-networkd even when

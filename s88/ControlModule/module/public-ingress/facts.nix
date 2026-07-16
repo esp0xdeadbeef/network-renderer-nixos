@@ -258,7 +258,7 @@ let
       publicIngressAuthority = runtimeForwardAuthorityFor cpmRoot targetIPv4;
       _requireAuthority =
         if publicIngressAuthority == null then
-          throw "FS-310-HDS-010-SDS-010-SMS-130: ${runtimePath} (target ${toString targetIPv4}) is a caller-supplied synthetic runtime fact with no corresponding public-ingress authority in the CPM artifact (no external allow service relation carrying publicIngressTupleAuthority owns this target endpoint) — refusing DNAT materialization from runtime facts (diagnostic.synthetic-core-ingress-authority, FS-310-HDS-020-SDS-010-SMS-075 negative case 3)"
+          throw "FS-310-HDS-010-SDS-010-SMS-130: ${runtimePath} (target ${toString targetIPv4}) is a caller-supplied synthetic runtime fact with no corresponding public-ingress authority in the CPM artifact (no external allow service relation carrying publicIngressTupleAuthority owns this target endpoint) — refusing DNAT materialization from runtime facts (diagnostic.synthetic-core-ingress-authority, FS-310-HDS-020-SDS-010-SMS-075 negative case 3; RENDERER_LOCAL_POLICY_AUTHORITY, FS-310-HDS-040-SDS-010-SMS-101 seeded negative 3: renderer-local policy injection cannot restore a tuple absent from CPM — recovery requires the tuple in the CPM artifact consumed through the production host module)"
         else
           true;
     in
