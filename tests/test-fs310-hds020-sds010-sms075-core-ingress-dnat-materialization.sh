@@ -284,3 +284,69 @@ nix_eval_true_or_fail "FS-310-HDS-020-SDS-010-SMS-075 negative case 5: translati
       '
 
 pass "FS-310-HDS-020-SDS-010-SMS-075 negative case 5: translationMode=none emits no DNAT for the tuple"
+
+# --- Seeded negative case 1: source lacks core-ingress tuple ----------------
+# A CPM artifact with an external allow service relation that carries NO
+# publicIngressTupleAuthority.translationMode shall fail closed with
+# diagnostic.core-ingress-tuple-missing (routed through the service-ingresses
+# path, FS-230-HDS-010-SDS-010-SMS-020). An empty prerouting chain is NOT
+# valid output for a declared public-ingress service — the module must reject.
+n1_stderr="$(mktemp)"
+trap 'rm -f "${n3_stderr}" "${n1_stderr}"' EXIT
+set +e
+env REPO_ROOT="${repo_root}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --json --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+      in
+      (import (repoRoot + "/s88/ControlModule/module/public-ingress.nix") {
+        inherit lib;
+        hostName = "s-router";
+        controlPlane = {
+          data = {
+            esp.site-a = {
+              policy.endpointBindings.services.core-nebula.providers = [ "isp-a" ];
+              communicationContract.relations = [
+                {
+                  action = "allow";
+                  id = "allow-wan-to-core-nebula-no-translation-decision";
+                  from = { kind = "external"; name = "wan"; };
+                  to = { kind = "service"; name = "core-nebula"; };
+                  match = [ { proto = "udp"; dports = [ 4242 ]; } ];
+                  # NO publicIngressTupleAuthority — source lacks core-ingress tuple
+                }
+              ];
+              services = [
+                {
+                  name = "core-nebula";
+                  providerEndpoints = [ { ipv4 = [ "192.168.3.10" ]; } ];
+                }
+              ];
+            };
+          };
+        };
+        runtimeFacts.publicIngress = {
+          bridgeInterface = "ppp0";
+          snatSourceCidr4 = "192.168.3.0/24";
+          services.esp.site-a.core-nebula = {
+            publicIPv4 = "217.148.134.173";
+          };
+        };
+      }).networking.nftables.ruleset
+    ' >/dev/null 2>"${n1_stderr}"
+n1_status=$?
+set -e
+if [[ "${n1_status}" -eq 0 ]]; then
+  echo "FAIL FS-310-HDS-020-SDS-010-SMS-075: negative case 1 — service-ingresses path materialized output without core-ingress tuple authority" >&2
+  exit 1
+fi
+grep -Fq "no owning relation declaring publicIngressTupleAuthority.translationMode" "${n1_stderr}" || {
+  echo "FAIL FS-310-HDS-020-SDS-010-SMS-075: negative case 1 — rejection lacked core-ingress-tuple-missing diagnostic" >&2
+  cat "${n1_stderr}" >&2
+  exit 1
+}
+pass "FS-310-HDS-020-SDS-010-SMS-075 negative case 1: missing core-ingress tuple rejected (no owning relation declaring translationMode)"
