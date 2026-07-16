@@ -195,6 +195,54 @@ let
         (siteItemsFrom cpmRoot)
     );
 
+  # FS-310-HDS-010-SDS-010-SMS-130: a runtime forward is a caller-supplied
+  # runtime FACT, never policy authority. DNAT materialization requires a
+  # corresponding public-ingress authority in the CPM artifact: an external
+  # allow relation to a modeled service that carries a
+  # publicIngressTupleAuthority translation decision and whose provider
+  # endpoint (the integrated production host entry) owns the forward target
+  # address. A synthetic-only runtime fact — one with no such CPM authority —
+  # fails closed here instead of materializing DNAT.
+  runtimeForwardAuthorityFor = cpmRoot: targetIPv4:
+    let
+      candidates = lib.concatMap
+        (item:
+          lib.concatMap
+            (service:
+              let
+                serviceName = strOrNull ((attrOr service).name or null);
+                endpointAddresses = lib.concatMap
+                  (endpoint: map stripMask (listOr ((attrOr endpoint).ipv4 or null)))
+                  (listOr ((attrOr service).providerEndpoints or null));
+                authorityRelations =
+                  if serviceName == null then
+                    [ ]
+                  else
+                    builtins.filter
+                      (relation:
+                        strOrNull
+                          ((attrOr (relation.publicIngressTupleAuthority or null)).translationMode
+                            or null) != null)
+                      (externalAllowServiceRelations item.site serviceName);
+              in
+              if builtins.elem targetIPv4 endpointAddresses && authorityRelations != [ ] then
+                map
+                  (relation: {
+                    source = "cpm-artifact";
+                    inherit (item) enterpriseName siteName;
+                    inherit serviceName;
+                    relationId = strOrNull (relation.id or relation.name or null);
+                    translationMode =
+                      (attrOr (relation.publicIngressTupleAuthority or null)).translationMode;
+                  })
+                  authorityRelations
+              else
+                [ ])
+            (listOr (item.site.services or null)))
+        (siteItemsFrom cpmRoot);
+    in
+    if candidates == [ ] then null else builtins.head candidates;
+
   normalizeRuntimeForward =
     cpmRoot: derivedInputDports: index: forward:
     let
@@ -202,26 +250,35 @@ let
       container = attrOr (forward.containerInterface or { });
       hasForwardInputDports = forward ? inputDports;
       hasContainerInputDports = container ? inputDports;
-    in
-    (builtins.removeAttrs forward [ "publicIPv4" "publicIPv4SecretPath" ])
-    // publicIPv4Binding {
-      path = runtimePath;
-      value = forward;
-      setName = "s88_public_runtime_${toString index}";
-    }
-    // {
       targetIPv4 =
         if strOrNull (forward.targetIPv4 or null) != null then
           forward.targetIPv4
         else
           runtimeTargetAddress4 cpmRoot (attrOr (forward.target or null));
-    }
-    // {
-      comment = forward.comment or "s88-public-runtime-forward-${toString index}";
-    }
-    // lib.optionalAttrs (!hasForwardInputDports && !hasContainerInputDports && derivedInputDports != [ ]) {
-      inputDports = derivedInputDports;
-    };
+      publicIngressAuthority = runtimeForwardAuthorityFor cpmRoot targetIPv4;
+      _requireAuthority =
+        if publicIngressAuthority == null then
+          throw "FS-310-HDS-010-SDS-010-SMS-130: ${runtimePath} (target ${toString targetIPv4}) is a caller-supplied synthetic runtime fact with no corresponding public-ingress authority in the CPM artifact (no external allow service relation carrying publicIngressTupleAuthority owns this target endpoint) — refusing DNAT materialization from runtime facts (diagnostic.synthetic-core-ingress-authority, FS-310-HDS-020-SDS-010-SMS-075 negative case 3)"
+        else
+          true;
+    in
+    builtins.seq _requireAuthority (
+      (builtins.removeAttrs forward [ "publicIPv4" "publicIPv4SecretPath" ])
+      // publicIPv4Binding {
+        path = runtimePath;
+        value = forward;
+        setName = "s88_public_runtime_${toString index}";
+      }
+      // {
+        inherit targetIPv4 publicIngressAuthority;
+      }
+      // {
+        comment = forward.comment or "s88-public-runtime-forward-${toString index}";
+      }
+      // lib.optionalAttrs (!hasForwardInputDports && !hasContainerInputDports && derivedInputDports != [ ]) {
+        inputDports = derivedInputDports;
+      }
+    );
 
   runtimeForwardsFor =
     { cpmRoot, publicIngressFacts }:

@@ -10,6 +10,13 @@
 #   3. TCP and UDP legs are checked independently.
 #   4. Postrouting masquerade or generic forward rules cannot satisfy DNAT
 #      materialization.
+#   5. Seeded negative case 3 (synthetic-only DNAT proof): runtime forwards
+#      with NO corresponding public-ingress authority in the CPM artifact are
+#      rejected with diagnostic.synthetic-core-ingress-authority instead of
+#      materializing DNAT; recovery is the CPM-authority-backed fixture above.
+#   6. Seeded negative case 5 (no-translation mode): the same complete
+#      authority tuple with translationMode = "none" emits no DNAT rule;
+#      restoring the napt mode recovers the DNAT materialization.
 #
 # Fixture models the 2026-07-13 live observation: core-owned ingress address
 # 217.148.134.173, ingress surface ppp0, protocol udp/tcp, ingress port 4242,
@@ -33,7 +40,40 @@ nix_eval_true_or_fail "FS-310-HDS-020-SDS-010-SMS-075 core-ingress DNAT material
             (import (repoRoot + "/s88/ControlModule/module/public-ingress.nix") {
               inherit lib;
               hostName = "s-router";
-              controlPlane = { data = { }; };
+              # FS-310-HDS-010-SDS-010-SMS-130: runtime forwards are runtime
+              # facts, not authority. The CPM artifact must carry the owning
+              # public-ingress authority (external allow service relation with
+              # publicIngressTupleAuthority whose provider endpoint owns the
+              # target address); a synthetic-only forward fails closed.
+              controlPlane = {
+                data = {
+                  esp.site-a = {
+                    policy.endpointBindings.services.core-nebula.providers = [ "isp-a" ];
+                    communicationContract.relations = [
+                      {
+                        action = "allow";
+                        id = "allow-wan-to-core-nebula";
+                        from = { kind = "external"; name = "wan"; };
+                        to = { kind = "service"; name = "core-nebula"; };
+                        match = [
+                          { proto = "udp"; dports = [ 4242 ]; }
+                          { proto = "tcp"; dports = [ 4242 ]; }
+                        ];
+                        publicIngressTupleAuthority = {
+                          translationMode = "napt";
+                          returnBehavior = "stateful-return";
+                        };
+                      }
+                    ];
+                    services = [
+                      {
+                        name = "core-nebula";
+                        providerEndpoints = [ { ipv4 = [ "192.168.3.10" ]; } ];
+                      }
+                    ];
+                  };
+                };
+              };
               runtimeFacts.publicIngress = {
                 bridgeInterface = "ppp0";
                 snatSourceCidr4 = "192.168.3.0/24";
@@ -117,3 +157,130 @@ nix_eval_true_or_fail "FS-310-HDS-020-SDS-010-SMS-075 core-ingress DNAT material
       '
 
 pass "FS-310-HDS-020-SDS-010-SMS-075 core-ingress DNAT materialization"
+
+# --- Seeded negative case 3: synthetic-only DNAT proof -----------------------
+# A caller-created public address / ingress interface / target / protocol /
+# port runtime forward with NO corresponding core-ingress authority tuple in
+# the CPM artifact must be rejected as diagnostic.synthetic-core-ingress-authority.
+# Helper output alone is not an integrated renderer result. The recovery
+# assertion is the CPM-authority-backed fixture proven in the stanza above:
+# the same tuple carried by the CPM artifact renders the source-bound DNAT.
+n3_stderr="$(mktemp)"
+trap 'rm -f "${n3_stderr}"' EXIT
+set +e
+env REPO_ROOT="${repo_root}" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --json --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+      in
+      (import (repoRoot + "/s88/ControlModule/module/public-ingress.nix") {
+        inherit lib;
+        hostName = "s-router";
+        controlPlane = { data = { }; };
+        runtimeFacts.publicIngress = {
+          bridgeInterface = "ppp0";
+          snatSourceCidr4 = "192.168.3.0/24";
+          runtimeForwards = [
+            {
+              publicIPv4 = "217.148.134.173";
+              targetIPv4 = "192.168.3.10";
+              protocols = [ "udp" "tcp" ];
+              inputDports = [ 4242 ];
+              protectServiceDports = false;
+              comment = "fs310-sms075-synthetic-only";
+            }
+          ];
+        };
+      }).networking.nftables.ruleset
+    ' >/dev/null 2>"${n3_stderr}"
+n3_status=$?
+set -e
+if [[ "${n3_status}" -eq 0 ]]; then
+  echo "FAIL FS-310-HDS-020-SDS-010-SMS-075: negative case 3 — synthetic-only runtime forward materialized DNAT without CPM authority" >&2
+  exit 1
+fi
+grep -Fq "diagnostic.synthetic-core-ingress-authority" "${n3_stderr}" || {
+  echo "FAIL FS-310-HDS-020-SDS-010-SMS-075: negative case 3 — rejection lacked diagnostic.synthetic-core-ingress-authority" >&2
+  cat "${n3_stderr}" >&2
+  exit 1
+}
+pass "FS-310-HDS-020-SDS-010-SMS-075 negative case 3: synthetic-only DNAT proof rejected (diagnostic.synthetic-core-ingress-authority)"
+
+# --- Seeded negative case 5: no-translation mode ------------------------------
+# The complete authority tuple with translationMode = "none" shall emit no DNAT
+# for that tuple. The napt-mode stanza above is the explicit recovery: the same
+# tuple with a DNAT-capable mode materializes the source-bound DNAT rule.
+nix_eval_true_or_fail "FS-310-HDS-020-SDS-010-SMS-075 negative case 5: translationMode=none emits no DNAT" \
+  env REPO_ROOT="${repo_root}" \
+    nix eval \
+      --extra-experimental-features 'nix-command flakes' \
+      --impure --expr '
+        let
+          repoRoot = builtins.getEnv "REPO_ROOT";
+          flake = builtins.getFlake ("path:" + repoRoot);
+          lib = flake.inputs.nixpkgs.lib;
+          ruleset =
+            (import (repoRoot + "/s88/ControlModule/module/public-ingress.nix") {
+              inherit lib;
+              hostName = "s-router";
+              controlPlane = {
+                data = {
+                  esp.site-a = {
+                    policy.endpointBindings.services.core-nebula.providers = [ "isp-a" ];
+                    communicationContract.relations = [
+                      {
+                        action = "allow";
+                        id = "allow-wan-to-core-nebula";
+                        from = { kind = "external"; name = "wan"; };
+                        to = { kind = "service"; name = "core-nebula"; };
+                        match = [
+                          { proto = "udp"; dports = [ 4242 ]; }
+                          { proto = "tcp"; dports = [ 4242 ]; }
+                        ];
+                        publicIngressTupleAuthority = {
+                          translationMode = "none";
+                          returnBehavior = "stateful-return";
+                        };
+                      }
+                    ];
+                    services = [
+                      {
+                        name = "core-nebula";
+                        providerEndpoints = [ { ipv4 = [ "192.168.3.10" ] ; } ];
+                      }
+                    ];
+                  };
+                };
+              };
+              runtimeFacts.publicIngress = {
+                bridgeInterface = "ppp0";
+                snatSourceCidr4 = "192.168.3.0/24";
+                runtimeForwards = [
+                  {
+                    publicIPv4 = "217.148.134.173";
+                    targetIPv4 = "192.168.3.10";
+                    protocols = [ "udp" "tcp" ];
+                    inputDports = [ 4242 ];
+                    protectServiceDports = false;
+                    comment = "fs310-sms075-no-translation";
+                  }
+                ];
+              };
+            }).networking.nftables.ruleset;
+          checks = {
+            noDnatForTuple = !lib.hasInfix "dnat to 192.168.3.10" ruleset;
+            rulesetStillRenders = lib.hasInfix "type nat hook prerouting priority dstnat" ruleset;
+          };
+          failed = builtins.filter (name: !checks.${name}) (builtins.attrNames checks);
+        in
+        if failed == [ ] then
+          true
+        else
+          builtins.trace ("failed checks: " + builtins.concatStringsSep ", " failed) false
+      '
+
+pass "FS-310-HDS-020-SDS-010-SMS-075 negative case 5: translationMode=none emits no DNAT for the tuple"
