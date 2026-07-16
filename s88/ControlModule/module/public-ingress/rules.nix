@@ -84,7 +84,34 @@ let
         ip saddr ${forward.targetIPv4} ct status dnat masquerade comment ${nftString "${forward.comment}-snat"}
       '';
 
+  # FS-310-HDS-010-SDS-010-SMS-130: renderRuntimeForward is a DNAT helper, and
+  # a direct invocation on synthetic runtime facts must never materialize DNAT.
+  # The forward must carry the CPM-artifact public-ingress authority record
+  # that the runtime-forward normalization attaches after cross-checking the
+  # CPM artifact (external allow service relation with
+  # publicIngressTupleAuthority owning the target endpoint / production host
+  # entry). A forward without that record fails closed here.
+  requireRuntimeForwardAuthority = forward:
+    let
+      authority = forward.publicIngressAuthority or null;
+    in
+    if
+      !(builtins.isAttrs authority)
+      || (authority.source or null) != "cpm-artifact"
+      || !(builtins.isString (authority.translationMode or null))
+      || authority.translationMode == ""
+    then
+      throw "FS-310-HDS-010-SDS-010-SMS-130: runtime forward '${forward.comment or "<unknown>"}' invoked without a CPM-artifact public-ingress authority record (direct helper invocation on caller-supplied synthetic runtime facts) — refusing DNAT materialization (diagnostic.synthetic-core-ingress-authority, FS-310-HDS-020-SDS-010-SMS-075 negative case 3)"
+    else
+      forward;
+
+  runtimeNoTranslationDecision = forward:
+    (requireRuntimeForwardAuthority forward).publicIngressAuthority.translationMode == "none";
+
   renderRuntimeForward = bridgeInterface: requiredString: protectedDportsByProto: forward:
+    if runtimeNoTranslationDecision forward then
+      ""
+    else
     let
       targetIPv4 = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].targetIPv4" (forward.targetIPv4 or null);
       protocols = if listOr (forward.protocols or null) == [ ] then [ "tcp" "udp" ] else forward.protocols;
