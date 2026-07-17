@@ -77,6 +77,12 @@ nix_eval_true_or_fail \
           && builtins.elem "gen-kea-dhcp6-client.service" service.after
           && builtins.elem "gen-kea-dhcp6-client.service" service.requires
           && service.serviceConfig.StateDirectory == "kea"
+          && builtins.any
+            (command: builtins.match ".*wait-interface-ready[.]sh.*" command != null)
+            service.serviceConfig.ExecStartPre
+          && builtins.any
+            (command: builtins.match ".*kea-listener-ready[.]sh 547.*" command != null)
+            service.serviceConfig.ExecStartPost
           && builtins.match ".*kea-dhcp6.*" service.serviceConfig.ExecStart != null
         ) then
           throw "kea-dhcpv6 render contract failed"
