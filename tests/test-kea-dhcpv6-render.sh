@@ -68,6 +68,7 @@ nix_eval_true_or_fail \
           };
         service = kea.systemd.services."kea-dhcp6-client";
         genService = kea.systemd.services."gen-kea-dhcp6-client";
+        firewallService = kea.systemd.services."nft-allow-dhcp6-client";
       in
         if !(
           builtins.length advertisementModel.dhcpv6Scopes == 1
@@ -76,6 +77,12 @@ nix_eval_true_or_fail \
           && genService.serviceConfig.Type == "oneshot"
           && builtins.elem "gen-kea-dhcp6-client.service" service.after
           && builtins.elem "gen-kea-dhcp6-client.service" service.requires
+          && builtins.elem "nft-allow-dhcp6-client.service" service.after
+          && builtins.elem "nft-allow-dhcp6-client.service" service.requires
+          && builtins.elem "nftables.service" firewallService.after
+          && builtins.elem "nftables.service" firewallService.requires
+          && builtins.match ".*allow-dhcp-service[.]sh.*ipv6.*tenant-client.*547.*allow-dhcp6-service-client.*"
+            firewallService.serviceConfig.ExecStart != null
           && service.serviceConfig.StateDirectory == "kea"
           && builtins.any
             (command: builtins.match ".*wait-interface-ready[.]sh.*" command != null)

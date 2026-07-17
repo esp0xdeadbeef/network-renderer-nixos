@@ -116,6 +116,16 @@ let
 
   waitIface = "${pkgs.runtimeShell} ${./wait-interface-ready.sh}";
   postCheck = "${pkgs.runtimeShell} ${./kea-listener-ready.sh}";
+  firewallService = "nft-allow-dhcp6-${scope.fileStem}";
+  firewallComment = "allow-dhcp6-service-${scope.fileStem}";
+  firewallCommand = "${pkgs.runtimeShell} ${./allow-dhcp-service.sh} ${
+    lib.escapeShellArgs [
+      "ipv6"
+      scope.interfaceName
+      "547"
+      firewallComment
+    ]
+  }";
 in
 {
   environment.systemPackages = [
@@ -135,16 +145,36 @@ in
     };
   };
 
+  systemd.services."${firewallService}" = {
+    description = "Allow DHCPv6 service traffic on ${scope.interfaceName}";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "kea-dhcp6-${scope.fileStem}.service" ];
+    after = [ "nftables.service" ];
+    requires = [ "nftables.service" ];
+    path = [
+      pkgs.coreutils
+      pkgs.gnugrep
+      pkgs.nftables
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = firewallCommand;
+      RemainAfterExit = true;
+    };
+  };
+
   systemd.services."kea-dhcp6-${scope.fileStem}" = {
     description = "Kea DHCPv6 on ${scope.interfaceName}";
     wantedBy = [ "multi-user.target" ];
     after = [
       "systemd-networkd.service"
       "gen-kea-dhcp6-${scope.fileStem}.service"
+      "${firewallService}.service"
     ];
     requires = [
       "systemd-networkd.service"
       "gen-kea-dhcp6-${scope.fileStem}.service"
+      "${firewallService}.service"
     ];
 
     path = [

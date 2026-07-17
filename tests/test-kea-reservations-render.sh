@@ -61,6 +61,50 @@ kea4_command="$(
     '
 )"
 
+kea4_firewall_contract="$(
+  env REPO_ROOT="${repo_root}" nix eval --json \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+        kea = import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
+          inherit lib pkgs;
+          scope = {
+            fileStem = "client-v4";
+            interfaceName = "tenant-client";
+            subnetId = 1;
+            subnet = "10.20.20.0/24";
+            pool = "10.20.20.100 - 10.20.20.199";
+            router = "10.20.20.1";
+            dnsServers = [ "10.20.20.1" ];
+            domain = "lan.";
+            leaseState = null;
+          };
+        };
+        service = kea.systemd.services."kea-dhcp4-client-v4";
+        firewall = kea.systemd.services."nft-allow-dhcp4-client-v4";
+      in {
+        command = firewall.serviceConfig.ExecStart;
+        serviceAfter = service.after;
+        serviceRequires = service.requires;
+        firewallAfter = firewall.after;
+        firewallRequires = firewall.requires;
+      }
+    '
+)"
+
+jq -e '
+  (.command | test("allow-dhcp-service[.]sh.*ipv4.*tenant-client.*67.*allow-dhcp4-service-client-v4"))
+  and (.serviceAfter | index("nft-allow-dhcp4-client-v4.service") != null)
+  and (.serviceRequires | index("nft-allow-dhcp4-client-v4.service") != null)
+  and (.firewallAfter | index("nftables.service") != null)
+  and (.firewallRequires | index("nftables.service") != null)
+' <<<"${kea4_firewall_contract}" >/dev/null \
+  || fail "FAIL kea-reservations-render: interface-scoped DHCPv4 firewall contract missing"
+
 kea6_command="$(
   env REPO_ROOT="${repo_root}" nix eval --raw \
     --extra-experimental-features 'nix-command flakes' \

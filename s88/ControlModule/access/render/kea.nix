@@ -137,6 +137,16 @@ let
 
   waitIface = "${pkgs.runtimeShell} ${./wait-interface-ready.sh}";
   postCheck = "${pkgs.runtimeShell} ${./kea-listener-ready.sh}";
+  firewallService = "nft-allow-dhcp4-${scope.fileStem}";
+  firewallComment = "allow-dhcp4-service-${scope.fileStem}";
+  firewallCommand = "${pkgs.runtimeShell} ${./allow-dhcp-service.sh} ${
+    lib.escapeShellArgs [
+      "ipv4"
+      scope.interfaceName
+      "67"
+      firewallComment
+    ]
+  }";
 in
 {
   environment.systemPackages = [
@@ -159,17 +169,37 @@ in
       };
     };
 
+    "${firewallService}" = {
+      description = "Allow DHCPv4 service traffic on ${scope.interfaceName}";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "kea-dhcp4-${scope.fileStem}.service" ];
+      after = [ "nftables.service" ];
+      requires = [ "nftables.service" ];
+      path = [
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.nftables
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = firewallCommand;
+        RemainAfterExit = true;
+      };
+    };
+
     "kea-dhcp4-${scope.fileStem}" = {
       description = "Kea DHCPv4 on ${scope.interfaceName}";
       wantedBy = [ "multi-user.target" ];
       after = [
         "systemd-networkd.service"
         "gen-kea-${scope.fileStem}.service"
+        "${firewallService}.service"
       ]
       ++ lib.optional syncEnabled "unbound.service";
       requires = [
         "systemd-networkd.service"
         "gen-kea-${scope.fileStem}.service"
+        "${firewallService}.service"
       ];
       wants = lib.optional syncEnabled "unbound.service";
 
