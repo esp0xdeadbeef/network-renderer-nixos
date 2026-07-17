@@ -140,6 +140,18 @@ nix-store --realise "/nix/store/${template_drv}" >/dev/null
 jq -e '.Dhcp6 and (.Dhcp4 | not)' "${template}" >/dev/null
 jq -e '.Dhcp6."lease-database".name == "/persist/network/state/dhcpv6/router-access-client/client"' "${template}" >/dev/null \
   || fail "FAIL kea-dhcpv6-render: template does not use CPM lease-state path"
+jq -e '.Dhcp6.subnet6 == [{
+  id: 20,
+  interface: "tenant-client",
+  subnet: "fd42:dead:beef:20::/64",
+  pools: [{pool: "fd42:dead:beef:20::100 - fd42:dead:beef:20::1ff"}],
+  "option-data": [
+    {name: "dns-servers", data: "fd42:dead:beef:20::1"},
+    {name: "domain-search", data: "lan."}
+  ],
+  reservations: []
+}]' "${template}" >/dev/null \
+  || fail "FAIL kea-dhcpv6-render: subnet is not bound exactly to the modeled access interface"
 if grep -F '/var/lib/kea' "${template}" >/dev/null; then
   fail "FAIL kea-dhcpv6-render: template used renderer-local /var/lib/kea lease path"
 fi
