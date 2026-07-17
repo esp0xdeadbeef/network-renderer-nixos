@@ -114,22 +114,8 @@ let
   ];
   genConfig = "${pkgs.python3Minimal}/bin/python3 ${./runtime-reservation-materializer.py} ${lib.escapeShellArgs materializerArgs}";
 
-  waitIface = pkgs.writeShellScript "wait-iface-ready-kea-dhcp6-${scope.fileStem}" ''
-    set -euo pipefail
-    IF="$1"
-
-    for i in $(seq 1 80); do
-      if ${pkgs.iproute2}/bin/ip link show "$IF" >/dev/null 2>&1; then
-        if ${pkgs.iproute2}/bin/ip link show "$IF" | ${pkgs.gnugrep}/bin/grep -q "UP"; then
-          exit 0
-        fi
-      fi
-      sleep 0.25
-    done
-
-    ${pkgs.iproute2}/bin/ip link show "$IF" || true
-    exit 1
-  '';
+  waitIface = "${pkgs.runtimeShell} ${./wait-interface-ready.sh}";
+  postCheck = "${pkgs.runtimeShell} ${./kea-listener-ready.sh}";
 in
 {
   environment.systemPackages = [
@@ -175,6 +161,10 @@ in
       ];
 
       ExecStart = "${pkgs.kea}/bin/kea-dhcp6 -d -c ${cfgFile}";
+
+      ExecStartPost = [
+        "${postCheck} 547"
+      ];
 
       Restart = "always";
       RestartSec = "2s";

@@ -135,44 +135,8 @@ let
   genConfig = "${pkgs.python3Minimal}/bin/python3 ${./runtime-reservation-materializer.py} ${lib.escapeShellArgs materializerArgs}";
   syncScript = "${pkgs.runtimeShell} ${./kea-unbound-sync.sh}";
 
-  waitIface = pkgs.writeShellScript "wait-iface-ready-${scope.fileStem}" ''
-    set -euo pipefail
-    IF="$1"
-
-    for i in $(seq 1 80); do
-      if ${pkgs.iproute2}/bin/ip link show "$IF" >/dev/null 2>&1; then
-        if ${pkgs.iproute2}/bin/ip link show "$IF" | ${pkgs.gnugrep}/bin/grep -q "UP"; then
-          exit 0
-        fi
-      fi
-      sleep 0.25
-    done
-
-    ${pkgs.iproute2}/bin/ip link show "$IF" || true
-    exit 1
-  '';
-
-  postCheck = pkgs.writeShellScript "kea-post-check-${scope.fileStem}" ''
-    set -euo pipefail
-    IF="$1"
-
-    sleep 0.5
-
-    IPS="$(${pkgs.iproute2}/bin/ip -4 addr show "$IF" | ${pkgs.gawk}/bin/awk '/inet / {print $2}' | cut -d/ -f1)"
-    FOUND=0
-
-    for IP in $IPS; do
-      if ${pkgs.iproute2}/bin/ss -u -l -n | ${pkgs.gnugrep}/bin/grep -q "$IP:67"; then
-        FOUND=1
-        break
-      fi
-    done
-
-    if [ "$FOUND" -ne 1 ]; then
-      ${pkgs.iproute2}/bin/ss -u -l -n >&2
-      exit 1
-    fi
-  '';
+  waitIface = "${pkgs.runtimeShell} ${./wait-interface-ready.sh}";
+  postCheck = "${pkgs.runtimeShell} ${./kea-listener-ready.sh}";
 in
 {
   environment.systemPackages = [
@@ -226,7 +190,7 @@ in
         ExecStart = "${pkgs.kea}/bin/kea-dhcp4 -d -c ${cfgFile}";
 
         ExecStartPost = [
-          "${postCheck} ${lib.escapeShellArg scope.interfaceName}"
+          "${postCheck} 67"
         ];
 
         Restart = "always";
