@@ -76,6 +76,7 @@ nix_eval_true_or_fail \
           && genService.serviceConfig.Type == "oneshot"
           && builtins.elem "gen-kea-dhcp6-client.service" service.after
           && builtins.elem "gen-kea-dhcp6-client.service" service.requires
+          && service.serviceConfig.StateDirectory == "kea"
           && builtins.match ".*kea-dhcp6.*" service.serviceConfig.ExecStart != null
         ) then
           throw "kea-dhcpv6 render contract failed"
