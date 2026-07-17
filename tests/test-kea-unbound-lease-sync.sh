@@ -70,6 +70,7 @@ nix_eval_true_or_fail \
           && builtins.elem "127.0.0.1" dnsRemoteControl."control-interface"
           && builtins.elem "unbound.service" service.after
           && builtins.elem "unbound.service" service.wants
+          && service.serviceConfig.StateDirectory == "kea"
           && genService.serviceConfig.Type == "oneshot"
           && syncService.serviceConfig.Type == "oneshot"
           && builtins.match ".*kea-unbound-sync[.]sh" syncService.serviceConfig.ExecStart != null
