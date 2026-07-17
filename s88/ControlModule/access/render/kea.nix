@@ -121,6 +121,8 @@ let
     materializerScope
     "--subnet"
     scope.subnet
+    "--pool"
+    scope.pool
     "--template"
     (builtins.toString configTemplate)
     "--output"

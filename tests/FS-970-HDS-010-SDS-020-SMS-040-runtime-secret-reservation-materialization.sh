@@ -94,6 +94,8 @@ grep -F "$source_file" <<<"$kea_gen_script" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: gen script does not reference the runtime secret source file"
 grep -F 'runtime-reservation-materializer.py' <<<"$kea_gen_script" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: systemd unit does not call the standalone materializer"
+grep -F -- '--pool' <<<"$kea_gen_script" >/dev/null \
+  || fail "FAIL runtime-secret-reservation-materialization: materializer command omits the modeled allocation pool"
 if grep -E '/bash|/jq|runtime_descriptors|while IFS=' <<<"$kea_gen_script" >/dev/null; then
   fail "FAIL runtime-secret-reservation-materialization: secret materialization leaked back into generated Bash/jq wiring"
 fi
@@ -140,6 +142,7 @@ python3 "${materializer}" \
   --family ipv4 \
   --scope client \
   --subnet 10.20.20.0/24 \
+  --pool '10.20.20.100 - 10.20.20.199' \
   --source "${secret_v4}" \
   --template "${template_v4}" \
   --output "${output_v4}" \
@@ -152,6 +155,8 @@ jq -e \
   '.Dhcp4.subnet4[0].reservations == [{"hw-address": $mac, "ip-address": $address, hostname: $hostname}]' \
   "${output_v4}" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: standalone IPv4 materializer emitted the wrong Kea record"
+jq -e '.Dhcp4.subnet4[0]["reservations-out-of-pool"] == true' "${output_v4}" >/dev/null \
+  || fail "FAIL runtime-secret-reservation-materialization: IPv4 runtime config did not enable out-of-pool reservations"
 [[ "$(stat -c '%a' "${output_v4}")" == "600" ]] \
   || fail "FAIL runtime-secret-reservation-materialization: runtime Kea config is not mode 0600"
 
@@ -167,6 +172,7 @@ assert_redacted_rejection() {
     --family ipv4 \
     --scope client \
     --subnet 10.20.20.0/24 \
+    --pool '10.20.20.100 - 10.20.20.199' \
     --source "${source}" \
     --template "${template_v4}" \
     --output "${rejected_output}" \
@@ -194,6 +200,10 @@ assert_redacted_rejection wrong-scope "${wrong_scope}"
 out_of_prefix="${tmp}/out-of-prefix.json"
 jq '.[0].ipv4.address = "10.20.21.10"' "${secret_v4}" >"${out_of_prefix}"
 assert_redacted_rejection out-of-prefix "${out_of_prefix}"
+
+inside_dynamic_pool="${tmp}/inside-dynamic-pool.json"
+jq '.[0].ipv4.address = "10.20.20.110"' "${secret_v4}" >"${inside_dynamic_pool}"
+assert_redacted_rejection inside-dynamic-pool "${inside_dynamic_pool}"
 
 invalid_mac="${tmp}/invalid-mac.json"
 jq '.[0].ipv4["mac-address"] = "not-a-mac"' "${secret_v4}" >"${invalid_mac}"
@@ -232,6 +242,7 @@ python3 "${materializer}" \
   --family ipv6 \
   --scope client-v6 \
   --subnet 2001:db8:970:2::/64 \
+  --pool '2001:db8:970:2::100 - 2001:db8:970:2::1ff' \
   --source "${secret_v6}" \
   --template "${template_v6}" \
   --output "${output_v6}" \
@@ -241,11 +252,14 @@ jq -e \
   '.Dhcp6.subnet6[0].reservations == [{duid: "000400000000000000000000000000000040", "ip-addresses": ["2001:db8:970:2::40"]}]' \
   "${output_v6}" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: standalone IPv6 materializer did not preserve DUID/address identity"
+jq -e '.Dhcp6.subnet6[0]["reservations-out-of-pool"] == true' "${output_v6}" >/dev/null \
+  || fail "FAIL runtime-secret-reservation-materialization: IPv6 runtime config did not enable out-of-pool reservations"
 
 iid_mismatch="${tmp}/iid-mismatch.json"
 jq '.[0].ipv6.iid = "0000:0000:0000:0041"' "${secret_v6}" >"${iid_mismatch}"
 if python3 "${materializer}" \
   --family ipv6 --scope client-v6 --subnet 2001:db8:970:2::/64 \
+  --pool '2001:db8:970:2::100 - 2001:db8:970:2::1ff' \
   --source "${iid_mismatch}" --template "${template_v6}" \
   --output "${tmp}/iid-mismatch-output.json" --lease-directory "${tmp}/leases-v6" \
   >"${tmp}/iid-mismatch.out" 2>"${tmp}/iid-mismatch.err"; then
