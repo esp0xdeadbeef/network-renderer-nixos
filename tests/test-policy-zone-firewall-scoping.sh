@@ -76,7 +76,9 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
         && !(has "iifname \"policy-branch\" oifname \"policy-hostile\" accept" branchDownstreamRules)
         && !(has "iifname \"access-dmz\" oifname \"access-client\" accept" siteCDownstreamRules)
-        && has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && has "iifname \"access-client\" oifname \"access-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && has "iifname \"access-client\" oifname \"access-dmz\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules)
         && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-wan\"" siteCDownstreamRules)
         && !(has "iifname \"pol-client-wan\" oifname \"policy-dmz-wan\" accept" siteCUpstreamRules)
         && !(has "iifname \"policy-dmz-wan\" oifname \"pol-client-wan\" accept" siteCUpstreamRules)

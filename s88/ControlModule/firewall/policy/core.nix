@@ -44,6 +44,7 @@ let
       interfaceSet
       common
       ;
+    natIntent = runtimeTarget.natIntent or { };
   };
 
   forwarding = import ./core/forwarding.nix {
@@ -102,15 +103,9 @@ let
   ++ lib.optional (interfaceSet.overlayIngressNames != [ ]) ''
     iifname ${renderInterfaceSet interfaceSet.overlayIngressNames} accept comment "allow-overlay-to-core"
   ''
-  ++
-    lib.optional
-      (
-        overlayUnderlayNames != [ ]
-        && underlayInput.udpPorts != [ ]
-      )
-      ''
-        iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-overlay-underlay-to-core"
-      '';
+  ++ lib.optional (overlayUnderlayNames != [ ] && underlayInput.udpPorts != [ ]) ''
+    iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-overlay-underlay-to-core"
+  '';
 
 in
 if interfaceSet.wanNames == [ ] && interfaceSet.lanNames == [ ] then
@@ -130,6 +125,11 @@ else
       nat6SourcePrefixes
       clampMssInterfaces
       ;
-    inherit (renderedNat) natPreroutingRules4 natPreroutingRules6;
+    inherit (renderedNat)
+      natPostroutingRules4
+      natPostroutingRules6
+      natPreroutingRules4
+      natPreroutingRules6
+      ;
     forwardRules = renderedNat.portForwardForwardRules;
   }

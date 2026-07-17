@@ -59,24 +59,87 @@ let
     pair:
     lib.filter (value: value != null) (map sourcePrefixMatch (asList (pair.sourcePrefixes or [ ])));
 
-  combineMatches = left: right:
+  destinationPrefixMatch =
+    value:
+    let
+      prefix = if builtins.isString value then value else value.prefix or "";
+      family =
+        if builtins.isAttrs value && (value.family or null) == 6 then
+          6
+        else if builtins.isString prefix && lib.hasInfix ":" prefix then
+          6
+        else
+          4;
+    in
+    if !(builtins.isString prefix) || prefix == "" then
+      null
+    else if family == 6 then
+      "ip6 daddr ${prefix}"
+    else
+      "ip daddr ${prefix}";
+
+  destinationPrefixMatches =
+    pair:
+    lib.filter (value: value != null) (
+      map destinationPrefixMatch (asList (pair.destinationPrefixes or [ ]))
+    );
+
+  renderRawMatch =
+    match:
+    let
+      family = if builtins.isString (match.family or null) then match.family else "any";
+      proto = if builtins.isString (match.proto or null) then match.proto else null;
+      dports = lib.filter builtins.isInt (asList (match.dports or [ ]));
+      familyPrefix =
+        if family == "ipv4" then
+          "meta nfproto ipv4 "
+        else if family == "ipv6" then
+          "meta nfproto ipv6 "
+        else
+          "";
+      portExpr =
+        if
+          dports == [ ]
+          || !(builtins.elem proto [
+            "tcp"
+            "udp"
+          ])
+        then
+          ""
+        else
+          " ${proto} dport { ${builtins.concatStringsSep ", " (map builtins.toString dports)} }";
+    in
+    if proto == null || proto == "any" then
+      [ familyPrefix ]
+    else if proto == "icmp" then
+      if family == "ipv6" then
+        [ "meta nfproto ipv6 ip6 nexthdr ipv6-icmp" ]
+      else
+        [ "${familyPrefix}ip protocol icmp" ]
+    else if proto == "icmpv6" || proto == "icmp6" then
+      [ "meta nfproto ipv6 ip6 nexthdr ipv6-icmp" ]
+    else
+      [ "${familyPrefix}meta l4proto ${proto}${portExpr}" ];
+
+  combineMatches =
+    left: right:
     if left == [ ] then
       right
     else if right == [ ] then
       left
     else
-      lib.concatMap
-        (leftMatch:
-          map
-            (rightMatch:
-              if leftMatch == "" then
-                rightMatch
-              else if rightMatch == "" then
-                leftMatch
-              else
-                "${leftMatch} ${rightMatch}")
-            right)
-        left;
+      lib.concatMap (
+        leftMatch:
+        map (
+          rightMatch:
+          if leftMatch == "" then
+            rightMatch
+          else if rightMatch == "" then
+            leftMatch
+          else
+            "${leftMatch} ${rightMatch}"
+        ) right
+      ) left;
 
   explicitForwardPairs =
     if forwardingIntent != null && builtins.isAttrs forwardingIntent then
@@ -95,11 +158,11 @@ let
           "accept"
         else
           rawAction;
-      # FS-230-HDS-010-SDS-010-SMS-030: a return pair carries a connection-state
-      # restriction; realize it as a `ct state` match so the emitted rule is a
-      # stateful return instead of an unconditional reverse interface-pair accept.
+
       connectionStateExpr =
-        if pair ? connectionState && builtins.isString pair.connectionState && pair.connectionState != "" then
+        if
+          pair ? connectionState && builtins.isString pair.connectionState && pair.connectionState != ""
+        then
           " ct state ${pair.connectionState}"
         else
           "";
@@ -108,22 +171,19 @@ let
           " comment \"${renderComment pair.comment}\""
         else
           "";
-      trafficMatches =
-        if pair ? sourceFiles && builtins.isList pair.sourceFiles && pair.sourceFiles != [ ] then
-          [ "__s88_dynamic_source_forward__" ]
-          ++ combineMatches
-            (sourcePrefixMatches pair)
-            (if pair ? trafficType && builtins.isString pair.trafficType then renderTrafficType pair.trafficType else [ "" ])
-        else if
-          pair ? sourcePrefixes && builtins.isList pair.sourcePrefixes && pair.sourcePrefixes != [ ]
-        then
-          combineMatches
-            (sourcePrefixMatches pair)
-            (if pair ? trafficType && builtins.isString pair.trafficType then renderTrafficType pair.trafficType else [ "" ])
+      rawMatches =
+        if pair ? matches && builtins.isList pair.matches && pair.matches != [ ] then
+          lib.concatMap renderRawMatch (lib.filter builtins.isAttrs pair.matches)
         else if pair ? trafficType && builtins.isString pair.trafficType then
           renderTrafficType pair.trafficType
         else
           [ "" ];
+      scopedMatches = combineMatches (combineMatches (sourcePrefixMatches pair) (destinationPrefixMatches pair)) rawMatches;
+      trafficMatches =
+        if pair ? sourceFiles && builtins.isList pair.sourceFiles && pair.sourceFiles != [ ] then
+          [ "__s88_dynamic_source_forward__" ] ++ scopedMatches
+        else
+          scopedMatches;
     in
     map (
       matchExpr:

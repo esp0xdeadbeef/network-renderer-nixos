@@ -5,8 +5,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
+source "${repo_root}/tests/lib/adjacent-repo-paths.sh"
 
-nixos_repo="${NIXOS_REPO_PATH:-${repo_root}/../nixos}"
+nixos_repo="$(resolve_adjacent_repo NIXOS_REPO_PATH nixos)"
 [[ -f "${nixos_repo}/flake.nix" ]] || fail "missing adjacent nixos flake: ${nixos_repo}"
 
 tmp_dir="$(mktemp -d)"

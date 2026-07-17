@@ -49,7 +49,7 @@ nix_eval_true_or_fail "provider-overlay-interface-not-materialized" env \
         && !(networks ? "10-overlay-east-west")
         && (builtins.length (builtins.attrNames providerRouteServices)) >= 2
         && lib.hasInfix "iifname \"nebula1\" accept" nftRules
-        && lib.hasInfix "iifname \"nebula1\" oifname \"upstream\" accept" nftRules
+        && lib.hasInfix "iifname \"nebula1\" oifname \"upstream\" ct state established,related accept" nftRules
         && lib.hasInfix "iifname \"upstream\" oifname \"nebula1\"" nftRules
     '
 

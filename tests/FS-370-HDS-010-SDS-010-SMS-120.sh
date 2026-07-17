@@ -419,7 +419,7 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 SN2: missing reverse nft r
           modules = [ (ds.config or {}) ];
         }).config;
         ruleset = dsCfg.networking.nftables.ruleset or "";
-        reverseRule = "iifname \"policy-client\" oifname \"access-client\" accept comment \"selector-handoff-reverse--s-router-access-client--selector-to-policy-to-access-to-selector--fabric\"";
+        reverseRule = "iifname \"policy-client\" oifname \"access-client\" ct state established,related accept comment \"selector-handoff-reverse--s-router-access-client--selector-to-policy-to-access-to-selector--fabric\"";
         hasReverse = value: lib.hasInfix reverseRule value;
         missingReverse = builtins.replaceStrings [ reverseRule ] [ "" ] ruleset;
       in
