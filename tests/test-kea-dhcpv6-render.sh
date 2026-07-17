@@ -119,54 +119,18 @@ gen_script="$(
         builtins.toString kea.systemd.services."gen-kea-dhcp6-client".serviceConfig.ExecStart
     '
 )"
-gen_drv="$(
-  env REPO_ROOT="${repo_root}" nix eval --raw \
-    --extra-experimental-features 'nix-command flakes' \
-    --impure --expr '
-      let
-        repoRoot = builtins.getEnv "REPO_ROOT";
-        flake = builtins.getFlake ("path:" + repoRoot);
-        lib = flake.inputs.nixpkgs.lib;
-        pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
-        kea =
-          import (repoRoot + "/s88/ControlModule/access/render/kea-dhcp6.nix") {
-            inherit lib pkgs;
-            scope = {
-              fileStem = "client";
-              interfaceName = "tenant-client";
-              subnetId = 20;
-              subnet = "fd42:dead:beef:20::/64";
-              pool = "fd42:dead:beef:20::100 - fd42:dead:beef:20::1ff";
-              dnsServers = [ "fd42:dead:beef:20::1" ];
-              domain = "lan.";
-              leaseState = {
-                service = "dhcpv6";
-                id = "client";
-                kind = "lease-state";
-                mode = "persistent";
-                required = true;
-                interface = "tenant-client";
-                tenant = "client";
-                source = "inventory-realization";
-                path = "/persist/network/state/dhcpv6/router-access-client/client";
-              };
-            };
-          };
-      in
-        kea.systemd.services."gen-kea-dhcp6-client".serviceConfig.ExecStart.drvPath
-    '
-)"
-
-nix-store -r "$gen_drv" >/dev/null
-[[ -x "$gen_script" ]] || fail "FAIL kea-dhcpv6-render: generated config script is not executable: ${gen_script}"
-grep -F '"Dhcp6"' "$gen_script" >/dev/null || fail "FAIL kea-dhcpv6-render: generated script does not contain Dhcp6 config"
-grep -F '"/persist/network/state/dhcpv6/router-access-client/client"' "$gen_script" >/dev/null || fail "FAIL kea-dhcpv6-render: generated script does not use CPM lease-state path"
-if grep -F '/var/lib/kea' "$gen_script" >/dev/null; then
-  fail "FAIL kea-dhcpv6-render: generated script used renderer-local /var/lib/kea lease path"
+template="$(awk '{ for (i = 1; i <= NF; i++) if ($i == "--template") { print $(i + 1); exit } }' <<<"${gen_script}")"
+[[ -n "${template}" ]] || fail "FAIL kea-dhcpv6-render: generator command omitted template"
+template_drv="$(nix derivation show "${template}" | jq -r '.derivations | keys[0]')"
+nix-store --realise "/nix/store/${template_drv}" >/dev/null
+jq -e '.Dhcp6 and (.Dhcp4 | not)' "${template}" >/dev/null
+jq -e '.Dhcp6."lease-database".name == "/persist/network/state/dhcpv6/router-access-client/client"' "${template}" >/dev/null \
+  || fail "FAIL kea-dhcpv6-render: template does not use CPM lease-state path"
+if grep -F '/var/lib/kea' "${template}" >/dev/null; then
+  fail "FAIL kea-dhcpv6-render: template used renderer-local /var/lib/kea lease path"
 fi
-if grep -F '"Dhcp4"' "$gen_script" >/dev/null; then
-  fail "FAIL kea-dhcpv6-render: DHCPv6 renderer emitted Dhcp4 config"
-fi
+grep -F 'runtime-reservation-materializer.py' <<<"${gen_script}" >/dev/null \
+  || fail "FAIL kea-dhcpv6-render: generator bypasses standalone materializer"
 
 kea_out="$(nix eval --raw nixpkgs#kea.outPath)"
 cat >"${tmp}/good-dhcp6.json" <<EOF
