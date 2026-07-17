@@ -42,7 +42,9 @@ def normalized_duid(value: object) -> str:
     require(isinstance(value, str))
     compact = value.replace(":", "").replace("-", "")
     require(len(compact) % 2 == 0 and DUID.fullmatch(compact) is not None)
-    return compact.lower()
+    return ":".join(
+        compact[index : index + 2].lower() for index in range(0, len(compact), 2)
+    )
 
 
 def reservation_pool(family: str, subnet: object, pool_text: str) -> tuple[int, int]:

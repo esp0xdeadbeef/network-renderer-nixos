@@ -249,7 +249,7 @@ python3 "${materializer}" \
   --lease-directory "${tmp}/leases-v6"
 
 jq -e \
-  '.Dhcp6.subnet6[0].reservations == [{duid: "000400000000000000000000000000000040", "ip-addresses": ["2001:db8:970:2::40"]}]' \
+  '.Dhcp6.subnet6[0].reservations == [{duid: "00:04:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:40", "ip-addresses": ["2001:db8:970:2::40"]}]' \
   "${output_v6}" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: standalone IPv6 materializer did not preserve DUID/address identity"
 jq -e '.Dhcp6.subnet6[0]["reservations-out-of-pool"] == true' "${output_v6}" >/dev/null \
