@@ -46,11 +46,6 @@ let
           comment = pair.comment;
         };
 
-  # FS-230-HDS-010-SDS-010-SMS-030: return authorization is stateful return
-  # for the owned forward tuple. A reverse-direction return rule must carry a
-  # recognized connection-state restriction; a state-unqualified reverse rule
-  # is reverse-new-flow authority invention and fails closed here instead of
-  # rendering an unconditional reverse interface-pair accept.
   recognizedConnectionStates = [ "established,related" ];
 
   normalizeForwardRule =
@@ -112,6 +107,16 @@ let
             (builtins.isString value && value != "")
             || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
           ) rule.sourcePrefixes;
+        }
+        // lib.optionalAttrs (builtins.isList (rule.destinationPrefixes or null)) {
+          destinationPrefixes = lib.filter (
+            value:
+            (builtins.isString value && value != "")
+            || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
+          ) rule.destinationPrefixes;
+        }
+        // lib.optionalAttrs (builtins.isList (rule.matches or null)) {
+          matches = lib.filter builtins.isAttrs rule.matches;
         }
         // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
           family = rule.family;

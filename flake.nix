@@ -329,6 +329,7 @@
         // vmApi
         // {
           capabilities.delegatedPrefixTenantRoutes = true;
+          capabilities.publicIngressNatIntent = true;
           renderer =
             api.renderer
             // {

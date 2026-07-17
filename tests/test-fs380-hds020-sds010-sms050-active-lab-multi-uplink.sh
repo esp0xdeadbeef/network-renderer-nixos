@@ -5,8 +5,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
+source "${repo_root}/tests/lib/adjacent-repo-paths.sh"
 
-labs_repo="${NETWORK_LABS_PATH:-${repo_root}/../network-labs}"
+labs_repo="$(resolve_adjacent_repo NETWORK_LABS_PATH network-labs)"
 trace_id="FS-380-HDS-020-SDS-010-SMS-050"
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs380-sms050.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT

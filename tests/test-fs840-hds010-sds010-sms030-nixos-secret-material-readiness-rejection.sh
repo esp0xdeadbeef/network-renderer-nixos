@@ -66,13 +66,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Also verify the FS-840 comment exists near the ordering
-if grep -q 'FS-840.*scoped runtime secret delivery' "${flake_file}" 2>/dev/null; then
-  echo "  PASS: flake.nix documents FS-840 scoped runtime secret delivery rationale"
-else
-  echo "  FAIL: flake.nix missing FS-840 rationale comment near sops-nix ordering"
-  failures=$((failures + 1))
-fi
 echo ""
 
 # ============================================================

@@ -5,8 +5,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
+source "${repo_root}/tests/lib/adjacent-repo-paths.sh"
 
-labs_repo="${NETWORK_LABS_PATH:-${repo_root}/../network-labs}"
+labs_repo="$(resolve_adjacent_repo NETWORK_LABS_PATH network-labs)"
 trace_id="FS-380-HDS-020-SDS-010-SMS-120"
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs380-sms120.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
@@ -18,7 +19,7 @@ NETWORK_LABS_CURRENT_LAB_DIR="${current_lab_dir}" \
 metadata_path="${current_lab_dir}/metadata.nix"
 intent_path="${current_lab_dir}/intent-s-router-nixos.nix"
 inventory_path="${current_lab_dir}/inventory-s-router-nixos.nix"
-cpm_repo="${NETWORK_CONTROL_PLANE_MODEL_PATH:-${repo_root}/../network-control-plane-model}"
+cpm_repo="$(resolve_adjacent_repo NETWORK_CONTROL_PLANE_MODEL_PATH network-control-plane-model)"
 if [[ ! -f "${cpm_repo}/flake.nix" ]]; then
   cpm_repo=""
 fi
