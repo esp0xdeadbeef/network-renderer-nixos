@@ -45,8 +45,24 @@ def normalized_duid(value: object) -> str:
     return compact.lower()
 
 
+def reservation_pool(family: str, subnet: object, pool_text: str) -> tuple[int, int]:
+    require(isinstance(subnet, (ipaddress.IPv4Network, ipaddress.IPv6Network)))
+    require(isinstance(pool_text, str))
+    bounds = [value.strip() for value in pool_text.split("-", maxsplit=1)]
+    require(len(bounds) == 2 and all(bounds))
+    start = ipaddress.ip_address(bounds[0])
+    end = ipaddress.ip_address(bounds[1])
+    require(start.version == subnet.version and end.version == subnet.version)
+    require(start in subnet and end in subnet and int(start) <= int(end))
+    require(
+        (family == "ipv4" and start.version == 4)
+        or (family == "ipv6" and start.version == 6)
+    )
+    return (int(start), int(end))
+
+
 def materialize_records(
-    family: str, scope: str, subnet_text: str, source_path: Path
+    family: str, scope: str, subnet_text: str, pool_text: str, source_path: Path
 ) -> list[dict[str, Any]]:
     require(family in {"ipv4", "ipv6"})
     require(scope != "")
@@ -55,6 +71,7 @@ def materialize_records(
         (family == "ipv4" and network.version == 4)
         or (family == "ipv6" and network.version == 6)
     )
+    pool_start, pool_end = reservation_pool(family, network, pool_text)
 
     with source_path.open("r", encoding="utf-8") as source_handle:
         source = json.load(source_handle)
@@ -85,6 +102,7 @@ def materialize_records(
             require(set(identity) == {"address", "mac-address"})
             address = ipaddress.IPv4Address(identity["address"])
             require(address in network)
+            require(not pool_start <= int(address) <= pool_end)
             mac = identity["mac-address"]
             require(isinstance(mac, str) and MAC.fullmatch(mac) is not None)
             normalized_identity = mac.lower()
@@ -100,6 +118,7 @@ def materialize_records(
             )
             address = ipaddress.IPv6Address(identity["address"])
             require(address in network)
+            require(not pool_start <= int(address) <= pool_end)
             iid = normalized_iid(identity["iid"])
             require(identity["iid-stability"] == "stable")
             require((int(address) & ((1 << 64) - 1)) == iid)
@@ -153,6 +172,7 @@ def insert_reservations(
         and len({reservation_address(record) for record in combined}) == len(combined)
     )
     subnets[0]["reservations"] = combined
+    subnets[0]["reservations-out-of-pool"] = True
     return config
 
 
@@ -178,6 +198,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--family", choices=("ipv4", "ipv6"), required=True)
     parser.add_argument("--scope", required=True)
     parser.add_argument("--subnet", required=True)
+    parser.add_argument("--pool", required=True)
     parser.add_argument("--source", type=Path)
     parser.add_argument("--template", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -191,7 +212,9 @@ def main() -> None:
     with args.template.open("r", encoding="utf-8") as template_handle:
         config = json.load(template_handle)
     if args.source is not None:
-        records = materialize_records(args.family, args.scope, args.subnet, args.source)
+        records = materialize_records(
+            args.family, args.scope, args.subnet, args.pool, args.source
+        )
         config = insert_reservations(config, args.family, records)
     atomic_write(args.output, config)
 
