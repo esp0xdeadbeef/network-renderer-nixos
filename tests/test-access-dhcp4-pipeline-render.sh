@@ -40,6 +40,7 @@ base // {
               router = "10.20.20.1";
               dnsServers = [ "router-self" ];
               domain = "lan.";
+              leaseState.path = "/var/lib/kea/client.leases";
             };
           };
         };
@@ -91,8 +92,9 @@ nix_eval_json_or_fail \
             (cpmDhcp4.pool.start or null) == "10.20.20.100"
             && (cpmDhcp4.pool.end or null) == "10.20.20.199";
           cpm_preserves_router = cpmDhcp4.router == "10.20.20.1";
-          cpm_preserves_lease_state =
-            cpmLease.path == "/persist/network/state/dhcp4/esp0xdeadbeef-site-a-s-router-access-client/client";
+          cpm_preserves_advertisement_lease_state =
+            cpmDhcp4.leaseState.path == "/var/lib/kea/client.leases";
+          cpm_preserves_lease_state = cpmLease.path == "/var/lib/kea/client.leases";
           renderer_emits_generator = services ? "gen-kea-client";
           renderer_emits_service = services ? "kea-dhcp4-client";
           renderer_uses_kea_dhcp4 =
@@ -100,6 +102,8 @@ nix_eval_json_or_fail \
               (builtins.toString services."kea-dhcp4-client".serviceConfig.ExecStart) != null;
           renderer_wires_generator =
             builtins.elem "gen-kea-client.service" services."kea-dhcp4-client".requires;
+          renderer_provides_kea_state_directory =
+            services."kea-dhcp4-client".serviceConfig.StateDirectory == "kea";
         };
       in
       {
