@@ -203,7 +203,38 @@ assert_redacted_rejection out-of-prefix "${out_of_prefix}"
 
 inside_dynamic_pool="${tmp}/inside-dynamic-pool.json"
 jq '.[0].ipv4.address = "10.20.20.110"' "${secret_v4}" >"${inside_dynamic_pool}"
-assert_redacted_rejection inside-dynamic-pool "${inside_dynamic_pool}"
+inside_dynamic_pool_output="${tmp}/inside-dynamic-pool-output.json"
+python3 "${materializer}" \
+  --family ipv4 --scope client --subnet 10.20.20.0/24 \
+  --pool '10.20.20.100 - 10.20.20.199' \
+  --source "${inside_dynamic_pool}" --template "${template_v4}" \
+  --output "${inside_dynamic_pool_output}" --lease-directory "${lease_v4}"
+jq -e '
+  .Dhcp4.subnet4[0]["reservations-in-subnet"] == true and
+  .Dhcp4.subnet4[0]["reservations-out-of-pool"] == false and
+  .Dhcp4.subnet4[0].reservations[0]["ip-address"] == "10.20.20.110"
+' "${inside_dynamic_pool_output}" >/dev/null \
+  || fail "FAIL runtime-secret-reservation-materialization: valid in-pool reservation semantics were not explicit"
+
+mixed_pool="${tmp}/mixed-pool.json"
+jq '.[0] as $outside | . + [
+  ($outside
+    | .id = "opaque-client-02"
+    | .ipv4.address = "10.20.20.110"
+    | .ipv4["mac-address"] = "02:00:00:00:00:11")
+]' "${secret_v4}" >"${mixed_pool}"
+mixed_pool_output="${tmp}/mixed-pool-output.json"
+python3 "${materializer}" \
+  --family ipv4 --scope client --subnet 10.20.20.0/24 \
+  --pool '10.20.20.100 - 10.20.20.199' \
+  --source "${mixed_pool}" --template "${template_v4}" \
+  --output "${mixed_pool_output}" --lease-directory "${lease_v4}"
+jq -e '
+  .Dhcp4.subnet4[0]["reservations-in-subnet"] == true and
+  .Dhcp4.subnet4[0]["reservations-out-of-pool"] == true and
+  (.Dhcp4.subnet4[0].reservations | length) == 2
+' "${mixed_pool_output}" >/dev/null \
+  || fail "FAIL runtime-secret-reservation-materialization: mixed in-pool/out-of-pool reservations were not enabled"
 
 invalid_mac="${tmp}/invalid-mac.json"
 jq '.[0].ipv4["mac-address"] = "not-a-mac"' "${secret_v4}" >"${invalid_mac}"
@@ -214,7 +245,7 @@ jq '.[0] as $first | . + [$first | .id = "opaque-client-02" | .ipv4.address = "1
   "${secret_v4}" >"${duplicate_identity}"
 assert_redacted_rejection duplicate-identity "${duplicate_identity}"
 
-pass "runtime-secret-reservation-materialization IPv4 seeded negatives redacted"
+pass "runtime-secret-reservation-materialization IPv4 pool modes + seeded negatives redacted"
 
 template_v6="${tmp}/kea-v6-template.json"
 secret_v6="${tmp}/protected-v6.json"

@@ -65,7 +65,7 @@ def reservation_pool(family: str, subnet: object, pool_text: str) -> tuple[int, 
 
 def materialize_records(
     family: str, scope: str, subnet_text: str, pool_text: str, source_path: Path
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     require(family in {"ipv4", "ipv6"})
     require(scope != "")
     network = ipaddress.ip_network(subnet_text, strict=True)
@@ -83,6 +83,7 @@ def materialize_records(
     ids: set[str] = set()
     identities: set[str] = set()
     addresses: set[str] = set()
+    has_out_of_pool = False
 
     for record in source:
         require(isinstance(record, dict))
@@ -104,7 +105,6 @@ def materialize_records(
             require(set(identity) == {"address", "mac-address"})
             address = ipaddress.IPv4Address(identity["address"])
             require(address in network)
-            require(not pool_start <= int(address) <= pool_end)
             mac = identity["mac-address"]
             require(isinstance(mac, str) and MAC.fullmatch(mac) is not None)
             normalized_identity = mac.lower()
@@ -120,7 +120,6 @@ def materialize_records(
             )
             address = ipaddress.IPv6Address(identity["address"])
             require(address in network)
-            require(not pool_start <= int(address) <= pool_end)
             iid = normalized_iid(identity["iid"])
             require(identity["iid-stability"] == "stable")
             require((int(address) & ((1 << 64) - 1)) == iid)
@@ -143,15 +142,21 @@ def materialize_records(
         )
         identities.add(normalized_identity)
         addresses.add(normalized_address)
+        has_out_of_pool = has_out_of_pool or not (
+            pool_start <= int(address) <= pool_end
+        )
         if hostname is not None:
             emitted_record["hostname"] = hostname
         emitted.append(emitted_record)
 
-    return emitted
+    return (emitted, has_out_of_pool)
 
 
 def insert_reservations(
-    config: dict[str, Any], family: str, runtime_records: list[dict[str, Any]]
+    config: dict[str, Any],
+    family: str,
+    runtime_records: list[dict[str, Any]],
+    has_out_of_pool: bool,
 ) -> dict[str, Any]:
     if family == "ipv4":
         subnets = config["Dhcp4"]["subnet4"]
@@ -174,7 +179,8 @@ def insert_reservations(
         and len({reservation_address(record) for record in combined}) == len(combined)
     )
     subnets[0]["reservations"] = combined
-    subnets[0]["reservations-out-of-pool"] = True
+    subnets[0]["reservations-in-subnet"] = True
+    subnets[0]["reservations-out-of-pool"] = has_out_of_pool
     return config
 
 
@@ -214,10 +220,12 @@ def main() -> None:
     with args.template.open("r", encoding="utf-8") as template_handle:
         config = json.load(template_handle)
     if args.source is not None:
-        records = materialize_records(
+        records, has_out_of_pool = materialize_records(
             args.family, args.scope, args.subnet, args.pool, args.source
         )
-        config = insert_reservations(config, args.family, records)
+        config = insert_reservations(
+            config, args.family, records, has_out_of_pool
+        )
     atomic_write(args.output, config)
 
 
