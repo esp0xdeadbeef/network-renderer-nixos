@@ -180,6 +180,7 @@ in
       RestartSec = "2s";
 
       RuntimeDirectory = "kea";
+      StateDirectory = "kea";
 
       CapabilityBoundingSet = [
         "CAP_NET_BIND_SERVICE"
