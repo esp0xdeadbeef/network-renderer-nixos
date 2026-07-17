@@ -66,6 +66,7 @@ let
       subnet6 = [
         {
           id = scope.subnetId;
+          interface = scope.interfaceName;
           subnet = scope.subnet;
           pools = [
             {
