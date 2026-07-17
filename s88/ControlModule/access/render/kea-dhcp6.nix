@@ -1,32 +1,55 @@
-{ lib
-, pkgs
-, scope
-,
+{
+  lib,
+  pkgs,
+  scope,
 }:
 
 let
   cfgFile = "/run/etc/kea/${scope.fileStem}-dhcp6.json";
-  lease = (import ./lease-state.nix {
-    service = "DHCPv6";
-    fileStem = scope.fileStem;
-    suffix = "-dhcp6";
-  }) (scope.leaseState or null);
-  reservations =
-    map
-      (reservation:
-        (
-          if builtins.isString (reservation.duid or null) && reservation.duid != "" then
-            { duid = reservation.duid; }
-          else
-            { "hw-address" = reservation.mac; }
-        )
-        // {
-          "ip-addresses" = [ reservation.address ];
-        }
-        // lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "") {
+  lease =
+    (import ./lease-state.nix {
+      service = "DHCPv6";
+      fileStem = scope.fileStem;
+      suffix = "-dhcp6";
+    })
+      (scope.leaseState or null);
+  reservationSource =
+    if (scope.reservationSource or null) == null then
+      null
+    else if builtins.isAttrs scope.reservationSource then
+      scope.reservationSource
+    else
+      throw "NixOS DHCPv6 renderer requires scope.reservationSource to be an opaque protected-source record";
+  runtimeReservationsEnabled = reservationSource != null;
+  runtimeReservationSourceFile =
+    if !runtimeReservationsEnabled then
+      null
+    else if
+      (reservationSource.schema or null) == "gamp-protected-reservation-set-v1"
+      && (reservationSource.sourceClass or null) == "protected"
+      && builtins.isString (reservationSource.sourceFile or null)
+      && reservationSource.sourceFile != ""
+    then
+      reservationSource.sourceFile
+    else
+      throw "NixOS DHCPv6 renderer requires the explicit gamp-protected-reservation-set-v1 source contract";
+  reservations = map (
+    reservation:
+    (
+      if builtins.isString (reservation.duid or null) && reservation.duid != "" then
+        { duid = reservation.duid; }
+      else
+        { "hw-address" = reservation.mac; }
+    )
+    // {
+      "ip-addresses" = [ reservation.address ];
+    }
+    //
+      lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "")
+        {
           hostname = reservation.hostname;
-        })
-      (scope.reservations or [ ]);
+        }
+  ) (scope.reservations or [ ]);
 
   configJson = builtins.toJSON {
     Dhcp6 = {
@@ -65,14 +88,31 @@ let
     };
   };
 
-  genConfig = pkgs.writeShellScript "gen-kea-dhcp6-${scope.fileStem}" ''
-    set -euo pipefail
-    mkdir -p /run/etc/kea ${lib.escapeShellArg lease.directory}
-
-    cat > ${lib.escapeShellArg cfgFile} <<'EOF'
-    ${configJson}
-    EOF
-  '';
+  configTemplate = pkgs.writeText "kea-dhcp6-${scope.fileStem}-template.json" configJson;
+  materializerScope =
+    if builtins.isString (scope.scopeId or null) && scope.scopeId != "" then
+      scope.scopeId
+    else
+      scope.fileStem;
+  materializerArgs = [
+    "--family"
+    "ipv6"
+    "--scope"
+    materializerScope
+    "--subnet"
+    scope.subnet
+    "--template"
+    (builtins.toString configTemplate)
+    "--output"
+    cfgFile
+    "--lease-directory"
+    lease.directory
+  ]
+  ++ lib.optionals runtimeReservationsEnabled [
+    "--source"
+    runtimeReservationSourceFile
+  ];
+  genConfig = "${pkgs.python3Minimal}/bin/python3 ${./runtime-reservation-materializer.py} ${lib.escapeShellArgs materializerArgs}";
 
   waitIface = pkgs.writeShellScript "wait-iface-ready-kea-dhcp6-${scope.fileStem}" ''
     set -euo pipefail

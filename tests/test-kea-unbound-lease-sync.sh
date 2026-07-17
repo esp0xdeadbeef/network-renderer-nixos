@@ -72,7 +72,12 @@ nix_eval_true_or_fail \
           && builtins.elem "unbound.service" service.wants
           && genService.serviceConfig.Type == "oneshot"
           && syncService.serviceConfig.Type == "oneshot"
-          && syncService.serviceConfig.ExecStart == "/run/kea-unbound-sync/client.sh"
+          && builtins.match ".*kea-unbound-sync[.]sh" syncService.serviceConfig.ExecStart != null
+          && syncService.environment.LEASE_FILE == "/persist/network/state/dhcp4/router-access-client/client"
+          && syncService.environment.NAMESPACE == "client.lan."
+          && syncService.environment.OWNER_SCOPE == "tenant-client"
+          && syncService.environment.REQUESTER_SCOPE == "tenant-client"
+          && builtins.match ".*/unbound-control" syncService.environment.UNBOUND_CONTROL != null
           && builtins.elem "unbound.service" syncService.after
           && !(syncService ? wantedBy)
           && syncTimer.wantedBy == [ "timers.target" ]
@@ -82,7 +87,7 @@ nix_eval_true_or_fail \
         else true
     '
 
-gen_script="$(
+gen_command="$(
   env REPO_ROOT="${repo_root}" nix eval --raw \
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr '
@@ -125,63 +130,23 @@ gen_script="$(
         builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart
     '
 )"
-gen_drv="$(
-  env REPO_ROOT="${repo_root}" nix eval --raw \
-    --extra-experimental-features 'nix-command flakes' \
-    --impure --expr '
-      let
-        repoRoot = builtins.getEnv "REPO_ROOT";
-        flake = builtins.getFlake ("path:" + repoRoot);
-        lib = flake.inputs.nixpkgs.lib;
-        pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
-        kea =
-          import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
-            inherit lib pkgs;
-            scope = {
-              fileStem = "client";
-              interfaceName = "tenant-client";
-              subnetId = 20;
-              subnet = "10.20.20.0/24";
-              pool = "10.20.20.100 - 10.20.20.199";
-              router = "10.20.20.1";
-              dnsServers = [ "10.20.20.1" ];
-              domain = "lan.";
-              leaseDns = {
-                ownerScope = "tenant-client";
-                requesterScope = "tenant-client";
-                namespace = "client.lan.";
-              };
-              leaseState = {
-                service = "dhcp4";
-                id = "client";
-                kind = "lease-state";
-                mode = "persistent";
-                required = true;
-                interface = "tenant-client";
-                tenant = "client";
-                source = "inventory-realization";
-                path = "/persist/network/state/dhcp4/router-access-client/client";
-              };
-            };
-          };
-      in
-        kea.systemd.services."gen-kea-client".serviceConfig.ExecStart.drvPath
-    '
-)"
 
-nix-store -r "$gen_drv" >/dev/null
-[[ -x "$gen_script" ]] || fail "FAIL kea-unbound-lease-sync: generated config script is not executable: ${gen_script}"
-grep -F '"/persist/network/state/dhcp4/router-access-client/client"' "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not use CPM lease-state path"
-grep -F "namespace=client.lan." "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not preserve modeled lease DNS namespace"
-grep -F "owner_scope=tenant-client" "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not preserve modeled owner scope"
-grep -F "requester_scope=tenant-client" "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not preserve modeled requester scope"
-grep -F 'fqdn="$hostname.$namespace"' "$gen_script" >/dev/null || fail "FAIL kea-unbound-lease-sync: generated script does not publish relative leases only under the modeled namespace"
-if grep -F '/var/lib/kea' "$gen_script" >/dev/null; then
-  fail "FAIL kea-unbound-lease-sync: generated script used renderer-local /var/lib/kea lease path"
+template="$(awk '{ for (i = 1; i <= NF; i++) if ($i == "--template") { print $(i + 1); exit } }' <<<"${gen_command}")"
+[[ -n "${template}" ]] || fail "FAIL kea-unbound-lease-sync: generator command omitted template"
+template_drv="$(nix derivation show "${template}" | jq -r '.derivations | keys[0]')"
+nix-store --realise "/nix/store/${template_drv}" >/dev/null
+jq -e '.Dhcp4."lease-database".name == "/persist/network/state/dhcp4/router-access-client/client"' "${template}" >/dev/null \
+  || fail "FAIL kea-unbound-lease-sync: template does not use CPM lease-state path"
+if grep -F '/var/lib/kea' "${template}" >/dev/null; then
+  fail "FAIL kea-unbound-lease-sync: template used renderer-local /var/lib/kea lease path"
 fi
-if grep -F '"hooks-libraries"' "$gen_script" >/dev/null; then
+if grep -F '"hooks-libraries"' "${template}" >/dev/null; then
   fail "FAIL kea-unbound-lease-sync: generated Kea config must not use libdhcp_run_script hook"
 fi
+
+bash -n "${repo_root}/s88/ControlModule/access/render/kea-unbound-sync.sh"
+grep -F 'fqdn="$hostname.$NAMESPACE"' "${repo_root}/s88/ControlModule/access/render/kea-unbound-sync.sh" >/dev/null \
+  || fail "FAIL kea-unbound-lease-sync: standalone sync does not publish relative leases under the modeled namespace"
 
 kea_out="$(nix eval --raw nixpkgs#kea.outPath)"
 unbound_out="$(nix eval --raw nixpkgs#unbound.outPath)"
@@ -288,7 +253,7 @@ if env REPO_ROOT="${repo_root}" nix eval \
           };
         };
     in
-      builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart
+      kea.systemd.services."kea-unbound-sync-client".environment.OWNER_SCOPE
   ' >"${tmp}/partial-authority.out" 2>"${tmp}/partial-authority.err"; then
   fail "FAIL kea-unbound-lease-sync: partial leaseDns authority was accepted"
 fi

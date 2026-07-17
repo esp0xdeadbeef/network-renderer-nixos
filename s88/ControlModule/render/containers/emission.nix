@@ -37,12 +37,10 @@ let
     values:
     builtins.attrValues (
       builtins.listToAttrs (
-        map
-          (device: {
-            name = device.node;
-            value = device;
-          })
-          (lib.filter (device: device != null) (map allowedDeviceFor values))
+        map (device: {
+          name = device.node;
+          value = device;
+        }) (lib.filter (device: device != null) (map allowedDeviceFor values))
       )
     );
 
@@ -92,12 +90,6 @@ let
     in
     uniqueStrings (lib.mapAttrsToList sourceFileFor owners);
 
-  # Runtime-secret DHCPv4/DHCPv6 reservation identity source files
-  # (FS-970-HDS-010-SDS-020-SMS-040). Each reservation whose CPM record
-  # carries identitySource.sourceFile under /run/secrets/ must have that
-  # protected source file bind-mounted read-only into the container that
-  # runs Kea, so runtime materialization can read it. The protected MAC and
-  # private hostname are never emitted here; only the source file path is.
   reservationRuntimeSourceFiles =
     let
       advertisements =
@@ -108,28 +100,23 @@ let
           renderedModel.runtimeTarget.advertisements
         else
           { };
-      reservationsFor =
-        name:
-        if builtins.isList (advertisements.${name} or null) then advertisements.${name} else [ ];
-      allReservations =
-        lib.concatLists (
-          map
-            (adv: if builtins.isAttrs adv && builtins.isList (adv.reservations or null) then adv.reservations else [ ])
-            (reservationsFor "dhcp4" ++ reservationsFor "dhcpv6")
-        );
+      advertisementsFor =
+        name: if builtins.isList (advertisements.${name} or null) then advertisements.${name} else [ ];
       sourceFileFor =
-        reservation:
+        advertisement:
         if
-          builtins.isAttrs reservation
-          && builtins.isAttrs (reservation.identitySource or null)
-          && builtins.isString (reservation.identitySource.sourceFile or null)
+          builtins.isAttrs advertisement
+          && builtins.isAttrs (advertisement.reservationSource or null)
+          && builtins.isString (advertisement.reservationSource.sourceFile or null)
         then
-          reservation.identitySource.sourceFile
+          advertisement.reservationSource.sourceFile
         else
           "";
     in
     uniqueStrings (
-      lib.filter (path: lib.hasPrefix "/run/secrets/" path) (map sourceFileFor allReservations)
+      lib.filter (path: lib.hasPrefix "/run/secrets/" path) (
+        map sourceFileFor (advertisementsFor "dhcp4" ++ advertisementsFor "dhcpv6")
+      )
     );
 
   runtimeRouteSourceFileMounts = lib.genAttrs runtimeRouteSourceFiles (sourceFile: {
