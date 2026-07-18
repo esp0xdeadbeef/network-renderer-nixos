@@ -23,13 +23,35 @@ else
       localRecords
       namespaceFallbackDecisions
       outgoingInterfaces
+      recursionMode
+      warningCodes
+      localForwardZones
+      requesterPolicies
       ;
 
-    accessControl = map (cidr: "${cidr} allow") allowFrom;
+    requesterAccessControl = lib.concatMap
+      (policy:
+        map
+          (cidr: "${cidr} ${policy.action}")
+          (lib.filter builtins.isString (policy.sourcePrefixes or [ ])))
+      requesterPolicies;
+    accessControl = lib.unique ((map (cidr: "${cidr} allow") allowFrom) ++ requesterAccessControl);
     namespaceFallbackZoneSettings =
       map (decision: "${decision.namespace} static") namespaceFallbackDecisions;
+    localOnlyRootZoneSettings = lib.optional (recursionMode == "local-only") ". static";
     localZoneSettings =
-      lib.unique ((map (zone: "${zone.name} ${zone.type or "static"}") localZones) ++ namespaceFallbackZoneSettings);
+      lib.unique (
+        (map (zone: "${zone.name} ${zone.type or "static"}") localZones)
+        ++ namespaceFallbackZoneSettings
+        ++ localOnlyRootZoneSettings
+      );
+    localForwardZoneSettings = map
+      (zone: {
+        name = zone.name;
+        "forward-addr" = zone.forwardTo;
+        "forward-first" = zone.forwardFirst;
+      })
+      localForwardZones;
     localDataSettings = lib.concatMap
       (
         record:
@@ -45,9 +67,13 @@ else
     nft = import ./dns-services/nft-rules.nix { inherit lib pkgs facts; };
   in
   {
+    warnings = map
+      (code: "network-renderer-nixos DNS reproducibility warning ${code}; address material is intentionally omitted")
+      warningCodes;
+
     services.unbound = {
       enable = true;
-      enableRootTrustAnchor = false;
+      enableRootTrustAnchor = recursionMode == "iterative";
       settings = {
         server = {
           interface = listenAddresses;
@@ -69,10 +95,12 @@ else
         // lib.optionalAttrs (outgoingInterfaces != [ ]) {
           "outgoing-interface" = outgoingInterfaces;
         };
-        forward-zone = lib.optional (forwarders != [ ]) {
-          name = ".";
-          "forward-addr" = forwarders;
-        };
+        forward-zone =
+          lib.optional (forwarders != [ ]) {
+            name = ".";
+            "forward-addr" = forwarders;
+          }
+          ++ localForwardZoneSettings;
         remote-control = {
           "control-enable" = true;
           "control-interface" = [
