@@ -43,6 +43,7 @@ let
   core = render coreTarget;
   recursiveDns = recursiveTarget.services.dns;
   localDns = localTarget.services.dns;
+  coreDns = coreTarget.services.dns;
   recursiveForwardZones = recursive.services.unbound.settings."forward-zone";
   localForwardZones = local.services.unbound.settings."forward-zone";
   coreForwardZones = core.services.unbound.settings."forward-zone";
@@ -54,13 +55,18 @@ let
       (resolver: (resolver.kind or null) == "named-core-resolver")
       recursiveDns.upstreamResolvers
   );
+  coreEndpointBinding = builtins.head coreDns.serviceEndpointBindings;
   localZoneByName = builtins.listToAttrs (
     map (zone: { name = zone.name; value = zone; }) localForwardZones
   );
   localSourcePrefixes = builtins.concatMap
     (policy: policy.sourcePrefixes)
     recursiveDns.requesterPolicies;
+  lateralSourcePrefixes = builtins.concatMap
+    (policy: policy.sourcePrefixes)
+    localDns.requesterPolicies;
   recursiveAccessControl = recursive.services.unbound.settings.server."access-control";
+  localAccessControl = local.services.unbound.settings.server."access-control";
   mutatedLocalTarget = localTarget // {
     services = localTarget.services // {
       dns = localDns // {
@@ -71,6 +77,37 @@ let
   mutatedRecursiveTarget = recursiveTarget // {
     services = recursiveTarget.services // {
       dns = recursiveDns // { forwarders = [ "seeded-mismatch" ]; };
+    };
+  };
+  missingEndpointAuthorityTarget = recursiveTarget // {
+    services = recursiveTarget.services // {
+      dns = recursiveDns // {
+        upstreamResolvers = map
+          (resolver:
+            if (resolver.kind or null) == "named-core-resolver" then
+              builtins.removeAttrs resolver [ "endpointAuthority" ]
+            else
+              resolver)
+          recursiveDns.upstreamResolvers;
+      };
+    };
+  };
+  divergentCoreEndpointTarget = coreTarget // {
+    services = coreTarget.services // {
+      dns = coreDns // {
+        serviceEndpointBindings = map
+          (binding: binding // { addresses = [ "seeded.v4" "seeded:v6" ]; })
+          coreDns.serviceEndpointBindings;
+      };
+    };
+  };
+  shadowedLocalNamespaceTarget = localTarget // {
+    services = localTarget.services // {
+      dns = localDns // {
+        localZones = map
+          (zone: if zone.name == "lab." then zone // { type = "static"; } else zone)
+          localDns.localZones;
+      };
     };
   };
   warnedRecursiveTarget = recursiveTarget // {
@@ -103,6 +140,15 @@ let
   divergenceNegative = builtins.tryEval (
     builtins.deepSeq (render mutatedRecursiveTarget).services.unbound.settings true
   );
+  endpointAuthorityNegative = builtins.tryEval (
+    builtins.deepSeq (render missingEndpointAuthorityTarget).services.unbound.settings true
+  );
+  coreEndpointNegative = builtins.tryEval (
+    builtins.deepSeq (render divergentCoreEndpointTarget).services.unbound.settings true
+  );
+  namespaceShadowNegative = builtins.tryEval (
+    builtins.deepSeq (render shadowedLocalNamespaceTarget).services.unbound.settings true
+  );
   fatalWarningNegative = builtins.tryEval (
     builtins.deepSeq (render fatalRecursiveTarget).services.unbound.settings true
   );
@@ -112,9 +158,15 @@ in {
     recursiveDns.recursionMode == "forwarding"
     && builtins.length recursiveForwardZones == 1
     && recursiveRoot."forward-addr" == namedCore.addresses
+    && namedCore.endpointAuthority.relationId == coreEndpointBinding.relationId
+    && namedCore.endpointAuthority.terminalAttachmentId == coreEndpointBinding.terminalAttachmentId
+    && coreEndpointBinding.addresses == coreDns.listen
     && builtins.all
       (prefix: builtins.elem "${prefix} refuse_non_local" recursiveAccessControl)
       localSourcePrefixes
+    && builtins.all
+      (prefix: builtins.elem "${prefix} refuse_non_local" localAccessControl)
+      lateralSourcePrefixes
     && localDns.recursionMode == "local-only"
     && builtins.length localForwardZones == builtins.length localDns.localForwardZones
     && builtins.all
@@ -124,6 +176,8 @@ in {
         && localZoneByName.${zone.name}."forward-first" == false)
       localDns.localForwardZones
     && builtins.elem ". static" local.services.unbound.settings.server."local-zone"
+    && builtins.elem "lab. transparent" local.services.unbound.settings.server."local-zone"
+    && !(builtins.elem "lab. static" local.services.unbound.settings.server."local-zone")
     && coreTarget.services.dns.recursionMode == "iterative"
     && coreForwardZones == [ ]
     && core.services.unbound.enableRootTrustAnchor
@@ -133,6 +187,9 @@ in {
     && core.warnings == [ ];
   localNegativeRejected = !localNegative.success;
   divergenceRejected = !divergenceNegative.success;
+  endpointAuthorityRejected = !endpointAuthorityNegative.success;
+  coreEndpointDivergenceRejected = !coreEndpointNegative.success;
+  namespaceShadowRejected = !namespaceShadowNegative.success;
   fatalWarningRejected = !fatalWarningNegative.success;
   warningSurfaced =
     builtins.length warnedRecursive.warnings == 1
@@ -144,6 +201,9 @@ jq -e '
   .positive
   and .localNegativeRejected
   and .divergenceRejected
+  and .endpointAuthorityRejected
+  and .coreEndpointDivergenceRejected
+  and .namespaceShadowRejected
   and .fatalWarningRejected
   and .warningSurfaced
 ' <<<"${result}" >/dev/null
