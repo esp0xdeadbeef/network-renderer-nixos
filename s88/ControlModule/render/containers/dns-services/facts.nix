@@ -114,6 +114,25 @@ let
     && builtins.isInt (dnsEgressPolicy.firewallMark or null)
     && dnsEgressPolicy.firewallMark > 0;
 
+  validationAuthority =
+    if builtins.isAttrs (dnsService.validationAuthority or null) then
+      dnsService.validationAuthority
+    else
+      null;
+
+  validationAuthorityComplete =
+    validationAuthority == null
+    || (
+      dnsAuthority.recursionMode == "iterative"
+      && (validationAuthority.kind or null) == "controlled-iterative-hierarchy"
+      && (validationAuthority.scope or null) == "harness"
+      && builtins.isString (validationAuthority.selectedUplink or null)
+      && validationAuthority.selectedUplink != ""
+      && dnsEgressPolicy != null
+      && (dnsEgressPolicy.selectedUplink or null) == validationAuthority.selectedUplink
+      && (validationAuthority.trust.mode or null) == "insecure-controlled-root"
+    );
+
   explicitDnsForwardPairs =
     lib.filter
       (pair:
@@ -208,9 +227,11 @@ else
     throw "NixOS DNS renderer DNS_RENDERER_CONTRACT_DIVERGENCE: self-referential forwarder rejected without logging address material; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
   else if hasDnsRuntimeOriginEgress && !dnsEgressPolicyComplete then
     throw "NixOS DNS renderer DNS_RENDERER_CONTRACT_DIVERGENCE: CPM DNS runtime-origin egress lacks one complete model-owned policy-routing selection; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
+  else if !validationAuthorityComplete then
+    throw "NixOS DNS renderer DNS_VALIDATION_AUTHORITY_EXTERNAL: controlled iterative authority is missing its harness scope or disagrees with the selected model-owned egress; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-045"
   else
   rec {
-    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy;
+    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy validationAuthority;
     inherit (dnsAuthority)
       recursionMode
       reproducibilityWarnings

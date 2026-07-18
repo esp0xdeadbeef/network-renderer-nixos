@@ -237,11 +237,17 @@
             controlPlane = effectiveCpm;
             runtimeFacts = rendererInput.runtimeFacts or { };
           };
+          dnsValidationAuthorityConfig = import ./s88/ControlModule/module/dns-validation-authority.nix {
+            lib = userLib;
+            inherit pkgs hostName;
+            controlPlane = effectiveCpm;
+          };
         in
         {
           imports = [
             hostBuild.artifactModule
             publicIngressConfig
+            dnsValidationAuthorityConfig
           ];
 
           networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
