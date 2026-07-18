@@ -121,18 +121,6 @@ else
       "10-${dnsEgressPolicy.runtimeIfName}".routingPolicyRules = [
         {
           Family = "ipv4";
-          User = "unbound";
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv6";
-          User = "unbound";
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv4";
           FirewallMark = dnsEgressPolicy.firewallMark;
           Priority = dnsEgressPolicy.rulePriority;
           Table = dnsEgressPolicy.tableId;
