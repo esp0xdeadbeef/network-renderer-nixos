@@ -84,6 +84,16 @@ REPO_ROOT="${repo_root}" nix eval \
               Table = 1002;
             })
           rules;
+      hasResolverRule = family:
+        builtins.any
+          (rule:
+            rule == {
+              Family = family;
+              User = "unbound";
+              Priority = 1002;
+              Table = 1002;
+            })
+          rules;
       missingPolicyTarget = runtimeTarget // {
         runtimeOriginEgress = builtins.removeAttrs runtimeTarget.runtimeOriginEgress [ "policyRouting" ];
       };
@@ -107,7 +117,9 @@ REPO_ROOT="${repo_root}" nix eval \
     in
       hasRule "ipv4"
       && hasRule "ipv6"
-      && builtins.length rules == 2
+      && hasResolverRule "ipv4"
+      && hasResolverRule "ipv6"
+      && builtins.length rules == 4
       && lib.hasInfix "type route hook output priority mangle" nftScript
       && lib.hasInfix "udp dport 53 meta mark set 1002" nftScript
       && lib.hasInfix "tcp dport 53 meta mark set 1002" nftScript
