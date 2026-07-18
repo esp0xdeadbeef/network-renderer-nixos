@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GAMP-ID: FS-180-HDS-010-SDS-010-SMS-040
+# GAMP-SCOPE: software-integration-test
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -76,8 +78,9 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
         && !(has "iifname \"policy-branch\" oifname \"policy-hostile\" accept" branchDownstreamRules)
         && !(has "iifname \"access-dmz\" oifname \"access-client\" accept" siteCDownstreamRules)
-        && has "iifname \"access-client\" oifname \"access-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
-        && has "iifname \"access-client\" oifname \"access-dmz\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && !(has "iifname \"access-client\" oifname \"access-dmz\"" siteCDownstreamRules)
+        && has "iifname \"policy-dmz\" oifname \"access-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && has "iifname \"policy-dmz\" oifname \"access-dmz\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
         && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules)
         && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-wan\"" siteCDownstreamRules)
         && !(has "iifname \"pol-client-wan\" oifname \"policy-dmz-wan\" accept" siteCUpstreamRules)

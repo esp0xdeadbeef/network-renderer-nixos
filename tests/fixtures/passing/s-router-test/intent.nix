@@ -136,6 +136,7 @@
       relations = [
         {
           id = "allow-tenants-to-site-dns";
+          returnBehavior = "one-way";
           priority = 5;
           from = {
             kind = "tenant-set";
@@ -155,6 +156,7 @@
 
         {
           id = "allow-mgmt-internal";
+          returnBehavior = "one-way";
           priority = 10;
           from = {
             kind = "tenant-set";
@@ -174,6 +176,7 @@
 
         {
           id = "allow-icmp-anywhere";
+          returnBehavior = "one-way";
           priority = 20;
           from = {
             kind = "tenant-set";
@@ -209,6 +212,7 @@
 
         {
           id = "allow-tenants-to-wan";
+          returnBehavior = "one-way";
           priority = 100;
           from = {
             kind = "tenant-set";
@@ -228,6 +232,7 @@
 
         {
           id = "allow-wan-to-jump-host";
+          returnBehavior = "one-way";
           priority = 110;
           from = {
             kind = "external";
@@ -243,6 +248,7 @@
 
         {
           id = "allow-wan-to-mgmt-icmp";
+          returnBehavior = "one-way";
           priority = 115;
           from = {
             kind = "external";
@@ -258,6 +264,7 @@
 
         {
           id = "allow-wan-to-admin-web";
+          returnBehavior = "one-way";
           priority = 120;
           from = {
             kind = "external";

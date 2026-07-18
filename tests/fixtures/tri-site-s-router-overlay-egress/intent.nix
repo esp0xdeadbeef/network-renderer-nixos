@@ -29,6 +29,7 @@
               ];
             };
             id = "allow-site-wan-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 6;
             to = "any";
             trafficType = "icmp";
@@ -40,6 +41,7 @@
               name = "east-west";
             };
             id = "allow-site-overlay-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 7;
             to = "any";
             trafficType = "icmp";
@@ -51,6 +53,7 @@
               members = [ "admin" ];
             };
             id = "allow-admin-to-mgmt";
+            returnBehavior = "one-way";
             priority = 10;
             to = {
               kind = "tenant-set";
@@ -122,6 +125,7 @@
               ];
             };
             id = "allow-tenants-to-site-dns";
+            returnBehavior = "one-way";
             priority = 20;
             to = {
               kind = "service";
@@ -136,6 +140,7 @@
               name = "site-dns-mgmt";
             };
             id = "allow-site-dns-service-to-uplinks";
+            returnBehavior = "one-way";
             priority = 24;
             to = {
               kind = "external";
@@ -192,6 +197,7 @@
               members = [ "client" ];
             };
             id = "allow-client-to-cast-discovery";
+            returnBehavior = "one-way";
             priority = 30;
             to = {
               kind = "service";
@@ -206,6 +212,7 @@
               members = [ "client" ];
             };
             id = "allow-client-to-cast-control";
+            returnBehavior = "one-way";
             priority = 31;
             to = {
               kind = "service";
@@ -220,6 +227,7 @@
               members = [ "hostile" ];
             };
             id = "allow-hostile-egress-to-edge-overlay";
+            returnBehavior = "one-way";
             priority = 32;
             to = {
               kind = "external";
@@ -238,6 +246,7 @@
               ];
             };
             id = "allow-user-tenants-to-uplinks";
+            returnBehavior = "one-way";
             priority = 100;
             to = {
               kind = "external";
@@ -255,6 +264,7 @@
               name = "east-west";
             };
             id = "allow-edge-public-4444-to-home-hostile";
+            returnBehavior = "one-way";
             priority = 121;
             to = {
               kind = "service";
@@ -269,6 +279,7 @@
               members = [ "dmz" ];
             };
             id = "allow-dmz-to-uplinks";
+            returnBehavior = "one-way";
             priority = 101;
             to = {
               kind = "external";
@@ -286,6 +297,7 @@
               name = "east-west";
             };
             id = "allow-east-west-to-site-dns";
+            returnBehavior = "one-way";
             priority = 115;
             to = {
               kind = "service";
@@ -303,6 +315,7 @@
               ];
             };
             id = "allow-wan-to-dmz-nebula";
+            returnBehavior = "one-way";
             priority = 120;
             to = {
               kind = "service";
@@ -317,6 +330,7 @@
               name = "east-west";
             };
             id = "allow-nebula-underlay-to-uplinks";
+            returnBehavior = "one-way";
             priority = 130;
             to = {
               kind = "external";
@@ -334,6 +348,7 @@
               name = "east-west";
             };
             id = "allow-nebula-runtime-underlay-to-uplinks";
+            returnBehavior = "one-way";
             priority = 131;
             to = {
               kind = "external";
@@ -766,6 +781,7 @@
               uplinks = [ "wan" ];
             };
             id = "allow-edge-wan-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 6;
             to = "any";
             trafficType = "icmp";
@@ -777,6 +793,7 @@
               name = "east-west";
             };
             id = "allow-edge-overlay-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 7;
             to = "any";
             trafficType = "icmp";
@@ -788,6 +805,7 @@
               members = [ "client" ];
             };
             id = "allow-edge-client-to-dmz-dns";
+            returnBehavior = "one-way";
             priority = 20;
             to = {
               kind = "service";
@@ -816,6 +834,7 @@
               members = [ "client" ];
             };
             id = "allow-edge-client-to-wan";
+            returnBehavior = "one-way";
             priority = 100;
             to = {
               kind = "external";
@@ -830,6 +849,7 @@
               members = [ "dmz" ];
             };
             id = "allow-edge-dmz-to-wan";
+            returnBehavior = "one-way";
             priority = 101;
             to = {
               kind = "external";
@@ -844,6 +864,7 @@
               name = "edge-dns-dmz";
             };
             id = "allow-edge-dns-service-to-east-west";
+            returnBehavior = "one-way";
             priority = 109;
             to = {
               kind = "external";
@@ -858,6 +879,7 @@
               name = "edge-dns-dmz";
             };
             id = "allow-edge-dns-service-to-wan";
+            returnBehavior = "one-way";
             priority = 110;
             to = {
               kind = "external";
@@ -872,6 +894,7 @@
               name = "east-west";
             };
             id = "allow-hostile-overlay-egress-to-wan";
+            returnBehavior = "one-way";
             priority = 120;
             to = {
               kind = "external";
@@ -886,6 +909,7 @@
               uplinks = [ "wan" ];
             };
             id = "allow-wan-to-dmz-nebula";
+            returnBehavior = "one-way";
             priority = 125;
             to = {
               kind = "service";
@@ -900,6 +924,7 @@
               name = "east-west";
             };
             id = "allow-east-west-underlay-to-dmz-nebula";
+            returnBehavior = "one-way";
             priority = 126;
             to = {
               kind = "service";
@@ -914,6 +939,7 @@
               uplinks = [ "wan" ];
             };
             id = "allow-wan-to-home-hostile-4444";
+            returnBehavior = "one-way";
             priority = 130;
             to = {
               kind = "service";
@@ -928,6 +954,7 @@
               uplinks = [ "wan" ];
             };
             id = "allow-wan-to-lab-client-4445";
+            returnBehavior = "one-way";
             priority = 131;
             to = {
               kind = "service";
@@ -942,6 +969,7 @@
               uplinks = [ "wan" ];
             };
             id = "allow-wan-to-edge-client-4446";
+            returnBehavior = "one-way";
             priority = 132;
             to = {
               kind = "service";
@@ -956,6 +984,7 @@
               name = "east-west";
             };
             id = "allow-overlay-to-hostile-public-dns";
+            returnBehavior = "one-way";
             priority = 133;
             to = {
               kind = "service";
@@ -1289,6 +1318,7 @@
               name = "wan";
             };
             id = "allow-lab-wan-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 6;
             to = "any";
             trafficType = "icmp";
@@ -1300,6 +1330,7 @@
               name = "east-west";
             };
             id = "allow-lab-overlay-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 7;
             to = "any";
             trafficType = "icmp";
@@ -1311,6 +1342,7 @@
               members = [ "admin" ];
             };
             id = "allow-admin-to-mgmt";
+            returnBehavior = "one-way";
             priority = 10;
             to = {
               kind = "tenant-set";
@@ -1382,6 +1414,7 @@
               ];
             };
             id = "allow-normal-tenants-to-lab-dns";
+            returnBehavior = "one-way";
             priority = 20;
             to = {
               kind = "service";
@@ -1415,6 +1448,7 @@
               members = [ "client" ];
             };
             id = "allow-client-to-cast-discovery";
+            returnBehavior = "one-way";
             priority = 30;
             to = {
               kind = "service";
@@ -1429,6 +1463,7 @@
               members = [ "client" ];
             };
             id = "allow-client-to-cast-control";
+            returnBehavior = "one-way";
             priority = 31;
             to = {
               kind = "service";
@@ -1448,6 +1483,7 @@
               ];
             };
             id = "allow-normal-tenants-to-wan";
+            returnBehavior = "one-way";
             priority = 100;
             to = {
               kind = "external";
@@ -1476,6 +1512,7 @@
               members = [ "hostile" ];
             };
             id = "allow-hostile-dns-to-edge-public-dns";
+            returnBehavior = "one-way";
             priority = 110;
             to = {
               kind = "external";
@@ -1490,6 +1527,7 @@
               members = [ "hostile" ];
             };
             id = "allow-hostile-egress-to-edge-overlay";
+            returnBehavior = "one-way";
             priority = 111;
             to = {
               kind = "external";
@@ -1504,6 +1542,7 @@
               name = "east-west";
             };
             id = "allow-edge-public-4445-to-lab-client";
+            returnBehavior = "one-way";
             priority = 120;
             to = {
               kind = "service";
@@ -1518,6 +1557,7 @@
               name = "east-west";
             };
             id = "allow-nebula-underlay-to-wan";
+            returnBehavior = "one-way";
             priority = 130;
             to = {
               kind = "external";
