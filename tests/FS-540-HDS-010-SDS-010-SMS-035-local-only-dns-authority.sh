@@ -31,7 +31,7 @@ let
       inherit lib pkgs;
       renderedModel = {
         runtimeTarget = target;
-        interfaces = { };
+        interfaces = (target.effectiveRuntimeRealization or { }).interfaces or { };
       };
       forwardingIntent = { };
     };

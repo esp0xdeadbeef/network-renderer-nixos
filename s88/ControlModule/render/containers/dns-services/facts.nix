@@ -57,6 +57,63 @@ let
     else
       { };
 
+  runtimeOriginEgress =
+    if builtins.isAttrs (runtimeTarget.runtimeOriginEgress or null) then
+      runtimeTarget.runtimeOriginEgress
+    else
+      { };
+
+  hasDnsRuntimeOriginEgress =
+    (runtimeOriginEgress.enabled or false)
+    && (runtimeOriginEgress.source or null) == "dns-service"
+    && (
+      (runtimeOriginEgress.policyRoutingRequired or false)
+      || builtins.isAttrs (runtimeOriginEgress.policyRouting or null)
+    );
+
+  dnsEgressPolicy =
+    if hasDnsRuntimeOriginEgress && builtins.isAttrs (runtimeOriginEgress.policyRouting or null) then
+      runtimeOriginEgress.policyRouting
+    else
+      null;
+
+  dnsEgressSelectedInterface =
+    if
+      dnsEgressPolicy != null
+      && builtins.isString (dnsEgressPolicy.selectedInterface or null)
+      && builtins.hasAttr dnsEgressPolicy.selectedInterface interfaces
+    then
+      interfaces.${dnsEgressPolicy.selectedInterface}
+    else
+      { };
+
+  dnsEgressSelectedAllocation =
+    if builtins.isAttrs (dnsEgressSelectedInterface.policyRoutingAllocation or null) then
+      dnsEgressSelectedInterface.policyRoutingAllocation
+    else
+      { };
+
+  dnsEgressPolicyComplete =
+    dnsEgressPolicy != null
+    && (dnsEgressPolicy.source or null) == "control-plane-model"
+    && builtins.isString (dnsEgressPolicy.selectedUplink or null)
+    && (runtimeOriginEgress.uplinks or [ ]) == [ dnsEgressPolicy.selectedUplink ]
+    && builtins.isString (dnsEgressPolicy.selectedInterface or null)
+    && (dnsEgressSelectedInterface.sourceKind or null) == "wan"
+    && builtins.isString (dnsEgressPolicy.runtimeIfName or null)
+    && dnsEgressPolicy.runtimeIfName != ""
+    && (dnsEgressSelectedInterface.runtimeIfName or dnsEgressSelectedInterface.renderedIfName or null)
+      == dnsEgressPolicy.runtimeIfName
+    && (dnsEgressSelectedAllocation.source or null) == "control-plane-model"
+    && builtins.isInt (dnsEgressPolicy.tableId or null)
+    && dnsEgressPolicy.tableId > 0
+    && (dnsEgressSelectedAllocation.tableId or null) == dnsEgressPolicy.tableId
+    && builtins.isInt (dnsEgressPolicy.rulePriority or null)
+    && dnsEgressPolicy.rulePriority > 0
+    && (dnsEgressSelectedAllocation.tableRulePriority or null) == dnsEgressPolicy.rulePriority
+    && builtins.isInt (dnsEgressPolicy.firewallMark or null)
+    && dnsEgressPolicy.firewallMark > 0;
+
   explicitDnsForwardPairs =
     lib.filter
       (pair:
@@ -149,9 +206,11 @@ else
   in
   if _selfRef != [ ] then
     throw "NixOS DNS renderer DNS_RENDERER_CONTRACT_DIVERGENCE: self-referential forwarder rejected without logging address material; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
+  else if hasDnsRuntimeOriginEgress && !dnsEgressPolicyComplete then
+    throw "NixOS DNS renderer DNS_RENDERER_CONTRACT_DIVERGENCE: CPM DNS runtime-origin egress lacks one complete model-owned policy-routing selection; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
   else
   rec {
-    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules;
+    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy;
     inherit (dnsAuthority)
       recursionMode
       reproducibilityWarnings
