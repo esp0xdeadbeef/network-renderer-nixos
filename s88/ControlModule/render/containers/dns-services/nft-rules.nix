@@ -16,6 +16,7 @@ let
     deniedResolverCidrs6
     publicResolverForwardIngressNames
     dnsServiceForwardEgressRules
+    dnsEgressPolicy
     ;
 
   publicResolverForwardDropRules =
@@ -127,9 +128,27 @@ let
         ]
       )
       deniedResolverCidrs6);
+
+  dnsPolicyRoutingScript =
+    if dnsEgressPolicy == null then
+      ":"
+    else
+      let
+        mark = toString dnsEgressPolicy.firewallMark;
+      in
+      ''
+        if ${pkgs.nftables}/bin/nft list table inet s88_dns_egress >/dev/null 2>&1; then
+          ${pkgs.nftables}/bin/nft delete table inet s88_dns_egress
+        fi
+        ${pkgs.nftables}/bin/nft add table inet s88_dns_egress
+        ${pkgs.nftables}/bin/nft 'add chain inet s88_dns_egress output { type route hook output priority mangle; policy accept; }'
+        ${pkgs.nftables}/bin/nft add rule inet s88_dns_egress output meta l4proto udp udp dport 53 meta mark set ${mark} comment "select-modeled-dns-egress"
+        ${pkgs.nftables}/bin/nft add rule inet s88_dns_egress output meta l4proto tcp tcp dport 53 meta mark set ${mark} comment "select-modeled-dns-egress"
+      '';
 in
 {
   inherit nftRules;
+  inherit dnsPolicyRoutingScript;
   dnsOutputScript =
     if dnsOutputRules != [ ] then
       lib.concatStringsSep "\n          " dnsOutputRules

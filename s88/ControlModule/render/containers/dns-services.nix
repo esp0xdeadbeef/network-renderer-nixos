@@ -27,6 +27,7 @@ else
       warningCodes
       localForwardZones
       requesterPolicies
+      dnsEgressPolicy
       ;
 
     requesterAccessControl = lib.concatMap
@@ -112,8 +113,25 @@ else
     };
 
     systemd.services.unbound = {
-      wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
+      wants = [ "network-online.target" "nft-allow-dns-service.service" ];
+      after = [ "network-online.target" "nft-allow-dns-service.service" ];
+    };
+
+    systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
+      "10-${dnsEgressPolicy.runtimeIfName}".routingPolicyRules = [
+        {
+          Family = "ipv4";
+          FirewallMark = dnsEgressPolicy.firewallMark;
+          Priority = dnsEgressPolicy.rulePriority;
+          Table = dnsEgressPolicy.tableId;
+        }
+        {
+          Family = "ipv6";
+          FirewallMark = dnsEgressPolicy.firewallMark;
+          Priority = dnsEgressPolicy.rulePriority;
+          Table = dnsEgressPolicy.tableId;
+        }
+      ];
     };
 
     systemd.services.nft-allow-dns-service = {
@@ -135,6 +153,8 @@ else
         if ! ${pkgs.nftables}/bin/nft list ruleset | grep -q 'allow-dns-service-egress'; then
           ${nft.dnsOutputScript}
         fi
+
+        ${nft.dnsPolicyRoutingScript}
       '';
     };
   }
