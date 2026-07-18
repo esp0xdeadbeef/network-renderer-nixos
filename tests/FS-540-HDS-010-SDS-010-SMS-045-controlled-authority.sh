@@ -46,7 +46,6 @@ let
   };
   cfg = evaluated.config;
   core = cfg.containers."core-primary".config;
-  coreInterfaceLifecycle = core.systemd.services.s88-rename-interfaces.script;
   unboundServer = core.services.unbound.settings.server;
   rootHintsPath = unboundServer."root-hints" or null;
   knotZones = builtins.attrNames cfg.services.knot.settings.zone;
@@ -94,15 +93,7 @@ in {
     && builtins.match ".*root[.]dns-validation[.]test[.].*" (builtins.readFile rootHintsPath) != null;
   coreRoutedSlaac =
     core.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1
-    && core.boot.kernel.sysctl."net.ipv6.conf.all.accept_ra" == 2
-    && core.boot.kernel.sysctl."net.ipv6.conf.default.accept_ra" == 2
-    && core.boot.kernel.sysctl."net.ipv6.conf.wan0.accept_ra" == 2
-    && renderer.inputs.nixpkgs.lib.hasInfix
-      "systemd-sysctl --prefix=/net/ipv6/conf/wan0"
-      coreInterfaceLifecycle
-    && renderer.inputs.nixpkgs.lib.hasInfix
-      "test \"$(cat /proc/sys/net/ipv6/conf/wan0/accept_ra)\" = 2"
-      coreInterfaceLifecycle;
+    && core.systemd.network.networks."10-wan0".networkConfig.IPv6AcceptRA == true;
   providerDhcpRa =
     cfg.services.dnsmasq.enable
     && cfg.services.dnsmasq.resolveLocalQueries == false
@@ -114,7 +105,8 @@ in {
       (range: builtins.match ".*,ra-only,slaac,64,.*" range != null)
       cfg.services.dnsmasq.settings."dhcp-range";
   providerIpv6Router =
-    cfg.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1;
+    cfg.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1
+    && providerNetwork.networkConfig.LinkLocalAddressing == "ipv6";
   providerAuthority =
     cfg.services.knot.enable
     && knotZones == [ "." "dns-validation.test." ]

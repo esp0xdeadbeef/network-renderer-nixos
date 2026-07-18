@@ -82,12 +82,19 @@ else
   {
     boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = 1;
 
-    systemd.network.networks."30-${bridge}".address = [
-      authority.provider.ipv4.address
-      authority.provider.ipv6.address
-    ]
-    ++ map (address: "${address}/32") (authority.root.ipv4 ++ authority.delegation.ipv4)
-    ++ map (address: "${address}/128") (authority.root.ipv6 ++ authority.delegation.ipv6);
+    systemd.network.networks."30-${bridge}" = {
+      address = [
+        authority.provider.ipv4.address
+        authority.provider.ipv6.address
+      ]
+      ++ map (address: "${address}/32") (authority.root.ipv4 ++ authority.delegation.ipv4)
+      ++ map (address: "${address}/128") (authority.root.ipv6 ++ authority.delegation.ipv6);
+
+      # Router Advertisements must originate from a link-local address. The
+      # generic isolated bridge disables link-local addressing, so the
+      # controlled provider authority must opt back in explicitly.
+      networkConfig.LinkLocalAddressing = lib.mkForce "ipv6";
+    };
 
     services.dnsmasq = {
       enable = true;
