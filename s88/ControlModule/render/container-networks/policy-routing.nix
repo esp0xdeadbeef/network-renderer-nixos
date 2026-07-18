@@ -194,7 +194,45 @@ let
       lib.mapAttrs (_: iface: if iface ? policyRoutingAllocation then iface.policyRoutingAllocation else null) interfaces;
     inherit (routeSources) forTarget forTargetRules;
   };
+  effectiveRuntimeRealization =
+    if
+      containerModel ? runtimeTarget
+      && builtins.isAttrs containerModel.runtimeTarget
+      && builtins.isAttrs (containerModel.runtimeTarget.effectiveRuntimeRealization or null)
+    then
+      containerModel.runtimeTarget.effectiveRuntimeRealization
+    else
+      { };
+  relationSelectionRulesRaw = effectiveRuntimeRealization.routeSelectionRules or [ ];
+  relationSelectionRules =
+    if builtins.isList relationSelectionRulesRaw then
+      import ./policy-routing/relation-selection-rules.nix {
+        inherit
+          lib
+          interfaces
+          renderedInterfaceNames
+          ;
+        routeSelectionRules = relationSelectionRulesRaw;
+      }
+    else
+      throw "FS-270-HDS-010-SDS-010-SMS-020: effectiveRuntimeRealization.routeSelectionRules must be a list";
+  relationRuleKeys = builtins.attrNames relationSelectionRules.rulesByInterface;
+  allRuleKeys = lib.unique (
+    (builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys
+  );
+  policyRoutingWithRelationSelection = aggregatePolicyRouting // {
+    rules = builtins.listToAttrs (
+      map
+        (ifName: {
+          name = ifName;
+          value =
+            (aggregatePolicyRouting.rules.${ifName} or [ ])
+            ++ (relationSelectionRules.rulesByInterface.${ifName} or [ ]);
+        })
+        allRuleKeys
+    );
+  };
 in
 {
-  policyRoutingByInterface = aggregatePolicyRouting;
+  policyRoutingByInterface = policyRoutingWithRelationSelection;
 }
