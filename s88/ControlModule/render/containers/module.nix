@@ -35,7 +35,6 @@ let
 
   interfaceRenames = import ./module/interface-renames.nix {
     inherit lib pkgs renderedModel;
-    ipv6AcceptRAInterfaces = containerNetworkRender.ipv6AcceptRAInterfaces or [ ];
   };
 
   networkManager = import ./module/network-manager.nix {
