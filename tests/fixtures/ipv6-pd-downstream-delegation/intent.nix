@@ -25,6 +25,7 @@
               ];
             };
             id = "allow-tenants-to-site-dns";
+            returnBehavior = "one-way";
             priority = 5;
             to = {
               kind = "service";
@@ -39,6 +40,7 @@
               members = [ "mgmt" ];
             };
             id = "allow-mgmt-internal";
+            returnBehavior = "one-way";
             priority = 10;
             to = {
               kind = "tenant-set";
@@ -63,6 +65,7 @@
               ];
             };
             id = "allow-icmp-anywhere";
+            returnBehavior = "one-way";
             priority = 20;
             to = "any";
             trafficType = "icmp";
@@ -98,6 +101,7 @@
               ];
             };
             id = "allow-tenants-to-wan";
+            returnBehavior = "one-way";
             priority = 100;
             to = {
               kind = "external";
@@ -112,6 +116,7 @@
               name = "wan";
             };
             id = "allow-wan-to-jump-host";
+            returnBehavior = "one-way";
             priority = 110;
             to = {
               kind = "service";
@@ -126,6 +131,7 @@
               name = "wan";
             };
             id = "allow-wan-to-mgmt-icmp";
+            returnBehavior = "one-way";
             priority = 115;
             to = {
               kind = "tenant";
@@ -140,6 +146,7 @@
               name = "wan";
             };
             id = "allow-wan-to-admin-web";
+            returnBehavior = "one-way";
             priority = 120;
             to = {
               kind = "service";
