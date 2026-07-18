@@ -37,6 +37,22 @@ let
       tableId = allocation.tableId or null;
     in
     if builtins.isInt tableId && tableId > 0 then tableId else null;
+
+  ipv6AcceptRAFor =
+    iface:
+    let
+      assignedUplink = assignedUplinkFor iface;
+      pppoeOwned = (iface._s88PppoeOwned or false) == true;
+      dynamicAddressing = attrsOrEmpty (iface.dynamicAddressing or null);
+      explicitIpv6 = attrsOrEmpty (dynamicAddressing.ipv6 or null);
+      hasExplicitDynamic = dynamicAddressing ? ipv6;
+      ipv6Contract = if hasExplicitDynamic then explicitIpv6 else attrsOrEmpty (assignedUplink.ipv6 or null);
+    in
+    !pppoeOwned
+    && ((iface.sourceKind or null) == "wan" || hasExplicitDynamic)
+    && !(lib.any hasIpv6Address (iface.addresses or [ ]))
+    && (ipv6Contract.enable or false)
+    && ((ipv6Contract.acceptRA or false) || (ipv6Contract.method or null) == "slaac");
 in
 {
   mkDynamicWanNetworkConfig =
@@ -121,19 +137,18 @@ in
     else
       { };
 
-  needsIpv6AcceptRA =
-    iface:
+  mkDynamicWanIpv6AcceptRAConfig =
+    iface: fallbackTableId:
     let
-      assignedUplink = assignedUplinkFor iface;
-      pppoeOwned = (iface._s88PppoeOwned or false) == true;
-      dynamicAddressing = attrsOrEmpty (iface.dynamicAddressing or null);
-      explicitIpv6 = attrsOrEmpty (dynamicAddressing.ipv6 or null);
-      hasExplicitDynamic = dynamicAddressing ? ipv6;
-      ipv6Contract = if hasExplicitDynamic then explicitIpv6 else attrsOrEmpty (assignedUplink.ipv6 or null);
+      ifaceTableId = policyTableFor iface;
+      tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
-    !pppoeOwned
-    && ((iface.sourceKind or null) == "wan" || hasExplicitDynamic)
-    && !(lib.any hasIpv6Address (iface.addresses or [ ]))
-    && (ipv6Contract.enable or false)
-    && ((ipv6Contract.acceptRA or false) || (ipv6Contract.method or null) == "slaac");
+    if ipv6AcceptRAFor iface && tableId != null then
+      {
+        RouteTable = tableId;
+      }
+    else
+      { };
+
+  needsIpv6AcceptRA = ipv6AcceptRAFor;
 }
