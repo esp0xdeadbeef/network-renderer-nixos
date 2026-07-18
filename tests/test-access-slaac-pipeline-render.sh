@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# GAMP-ID: USR-MODEL-001-FS-001-HDS-002-SDS-001-001-SMS-001-CMC-001-015
 # GAMP-SCOPE: software-integration-test
 set -euo pipefail
 
