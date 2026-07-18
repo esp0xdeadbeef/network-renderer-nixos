@@ -131,6 +131,38 @@ else
           Priority = dnsEgressPolicy.rulePriority;
           Table = dnsEgressPolicy.tableId;
         }
+        {
+          Family = "ipv4";
+          User = "unbound";
+          IPProtocol = "udp";
+          DestinationPort = 53;
+          Priority = dnsEgressPolicy.rulePriority;
+          Table = dnsEgressPolicy.tableId;
+        }
+        {
+          Family = "ipv4";
+          User = "unbound";
+          IPProtocol = "tcp";
+          DestinationPort = 53;
+          Priority = dnsEgressPolicy.rulePriority;
+          Table = dnsEgressPolicy.tableId;
+        }
+        {
+          Family = "ipv6";
+          User = "unbound";
+          IPProtocol = "udp";
+          DestinationPort = 53;
+          Priority = dnsEgressPolicy.rulePriority;
+          Table = dnsEgressPolicy.tableId;
+        }
+        {
+          Family = "ipv6";
+          User = "unbound";
+          IPProtocol = "tcp";
+          DestinationPort = 53;
+          Priority = dnsEgressPolicy.rulePriority;
+          Table = dnsEgressPolicy.tableId;
+        }
       ];
     };
 
