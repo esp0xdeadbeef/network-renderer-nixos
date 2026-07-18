@@ -97,6 +97,10 @@ in {
     && cfg.services.dnsmasq.settings.interface == [ authority.provider.bridge ]
     && cfg.services.dnsmasq.settings."bind-interfaces" == [ true ]
     && cfg.services.dnsmasq.settings."enable-ra" == [ true ];
+  providerAutonomousSlaac =
+    builtins.any
+      (range: builtins.match ".*,ra-only,slaac,64,.*" range != null)
+      cfg.services.dnsmasq.settings."dhcp-range";
   providerAuthority =
     cfg.services.knot.enable
     && knotZones == [ "." "dns-validation.test." ]
@@ -127,6 +131,7 @@ jq -e '
   .authorityPreserved == true
   and .coreControlled == true
   and .providerDhcpRa == true
+  and .providerAutonomousSlaac == true
   and .providerAuthority == true
   and .providerAddresses == true
   and .alternateUnanswered == true

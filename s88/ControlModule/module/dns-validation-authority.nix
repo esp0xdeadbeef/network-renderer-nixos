@@ -98,7 +98,7 @@ else
         "enable-ra" = true;
         "dhcp-range" = [
           "${authority.provider.ipv4.rangeStart},${authority.provider.ipv4.rangeEnd},${authority.provider.ipv4.leaseTime}"
-          "::,constructor:${bridge},ra-only,64,${authority.provider.ipv6.leaseTime}"
+          "::,constructor:${bridge},ra-only,slaac,64,${authority.provider.ipv6.leaseTime}"
         ];
         "dhcp-option" = [
           "option:router,${authority.provider.ipv4.router}"
