@@ -80,7 +80,9 @@ in
       (
         parentIf:
         let
-          uplinksOnParent = lib.filter (uplinkName: uplinks.${uplinkName}.parent == parentIf) uplinkNames;
+          uplinksOnParent = lib.filter (
+            uplinkName: (uplinks.${uplinkName}.parent or null) == parentIf
+          ) uplinkNames;
           bridgeVlansOnParent = lib.filter (
             bridgeName: bridgeNetworkVlanParentFor bridgeName == parentIf
           ) bridgeNetworkVlanNames;

@@ -28,7 +28,26 @@ else
       localForwardZones
       requesterPolicies
       dnsEgressPolicy
+      validationAuthority
       ;
+
+    controlledAuthority = validationAuthority != null;
+    rootHintsFile =
+      if controlledAuthority then
+        pkgs.writeText "controlled-root-hints" (
+          builtins.concatStringsSep "\n" (
+            [ ". 60 IN NS ${validationAuthority.root.nameServer}" ]
+            ++ map
+              (address: "${validationAuthority.root.nameServer} 60 IN A ${address}")
+              validationAuthority.root.ipv4
+            ++ map
+              (address: "${validationAuthority.root.nameServer} 60 IN AAAA ${address}")
+              validationAuthority.root.ipv6
+          )
+          + "\n"
+        )
+      else
+        null;
 
     requesterAccessControl = lib.concatMap
       (policy:
@@ -74,7 +93,7 @@ else
 
     services.unbound = {
       enable = true;
-      enableRootTrustAnchor = recursionMode == "iterative";
+      enableRootTrustAnchor = recursionMode == "iterative" && !controlledAuthority;
       settings = {
         server = {
           interface = listenAddresses;
@@ -83,6 +102,10 @@ else
           "do-ip6" = true;
           "infra-host-ttl" = 1;
           "infra-lame-ttl" = 1;
+        }
+        // lib.optionalAttrs controlledAuthority {
+          "root-hints" = "${rootHintsFile}";
+          "domain-insecure" = [ "." ];
         }
         // lib.optionalAttrs hasMixedForwarders {
           "prefer-ip4" = true;
