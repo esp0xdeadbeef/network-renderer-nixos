@@ -169,11 +169,11 @@ in {
       lateralSourcePrefixes
     && builtins.all
       (prefix:
-        builtins.elem "${prefix} refuse_non_local" localAccessControl
-        && !(builtins.elem "${prefix} allow" localAccessControl))
+        builtins.elem "${prefix} allow" localAccessControl
+        && !(builtins.elem "${prefix} refuse_non_local" localAccessControl))
       localDns.allowFrom
-    && builtins.elem "127.0.0.0/8 refuse_non_local" localAccessControl
-    && builtins.elem "::1/128 refuse_non_local" localAccessControl
+    && builtins.elem "127.0.0.0/8 allow" localAccessControl
+    && builtins.elem "::1/128 allow" localAccessControl
     && localDns.recursionMode == "local-only"
     && builtins.length localForwardZones == builtins.length localDns.localForwardZones
     && builtins.all
@@ -182,6 +182,7 @@ in {
         && localZoneByName.${zone.name}."forward-addr" == zone.forwardTo
         && localZoneByName.${zone.name}."forward-first" == false)
       localDns.localForwardZones
+    && builtins.elem ". refuse" local.services.unbound.settings.server."local-zone"
     && !(builtins.elem ". static" local.services.unbound.settings.server."local-zone")
     && builtins.elem "lab. transparent" local.services.unbound.settings.server."local-zone"
     && !(builtins.elem "lab. static" local.services.unbound.settings.server."local-zone")
