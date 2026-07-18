@@ -57,9 +57,39 @@ let
   namedCoreResolvers = builtins.filter
     (resolver: (resolver.kind or null) == "named-core-resolver")
     upstreamResolvers;
+  validNamedCoreResolver = resolver:
+    let
+      endpointAuthority =
+        if builtins.isAttrs (resolver.endpointAuthority or null) then
+          resolver.endpointAuthority
+        else
+          { };
+    in
+    builtins.isString (endpointAuthority.relationId or null)
+    && endpointAuthority.relationId != ""
+    && builtins.isString (endpointAuthority.terminalAttachmentId or null)
+    && endpointAuthority.terminalAttachmentId != "";
   namedCoreAddresses = sortedUnique (
     lib.concatMap (resolver: stringList (resolver.addresses or [ ])) namedCoreResolvers
   );
+
+  serviceEndpointBindings = attrsList (dnsService.serviceEndpointBindings or [ ]);
+  validServiceEndpointBinding = binding:
+    builtins.isString (binding.service or null)
+    && binding.service != ""
+    && builtins.isString (binding.requesterService or null)
+    && binding.requesterService != ""
+    && builtins.isString (binding.providerNode or null)
+    && binding.providerNode != ""
+    && builtins.isString (binding.relationId or null)
+    && binding.relationId != ""
+    && builtins.isString (binding.terminalAttachmentId or null)
+    && binding.terminalAttachmentId != ""
+    && familyComplete (stringList (binding.addresses or [ ]));
+  serviceEndpointAddresses = sortedUnique (
+    lib.concatMap (binding: stringList (binding.addresses or [ ])) serviceEndpointBindings
+  );
+  configuredListenAddresses = sortedUnique (stringList (dnsService.listen or [ ]));
 
   localAuthorityResolvers = builtins.filter
     (resolver: (resolver.kind or null) == "local-namespace-authority")
@@ -73,6 +103,17 @@ let
     && zone.relationId != ""
     && (zone.forwardFirst or true) == false
     && familyComplete (stringList (zone.forwardTo or [ ]));
+
+  localZones = attrsList (dnsService.localZones or [ ]);
+  shadowedLocalNamespaces = map (zone: zone.name) (
+    builtins.filter
+      (zone:
+        builtins.isString (zone.name or null)
+        && zone.name != ""
+        && builtins.any (forwardZone: (forwardZone.name or null) == zone.name) localForwardZones
+        && (zone.type or "static") != "transparent")
+      localZones
+  );
 
   requesterPolicies = attrsList (dnsService.requesterPolicies or [ ]);
   validRequesterPolicy = policy:
@@ -113,6 +154,7 @@ let
     if recursionMode == "forwarding" then
       if
         builtins.length namedCoreResolvers == 1
+        && builtins.all validNamedCoreResolver namedCoreResolvers
         && familyComplete namedCoreAddresses
         && (legacyForwarders == [ ] || sameStrings legacyForwarders namedCoreAddresses)
       then
@@ -144,6 +186,27 @@ let
     else
       true;
 
+  _serviceEndpointContract =
+    if serviceEndpointBindings == [ ] then
+      true
+    else if
+      builtins.all validServiceEndpointBinding serviceEndpointBindings
+      && sameStrings serviceEndpointAddresses configuredListenAddresses
+    then
+      true
+    else
+      fail
+        "DNS_RENDERER_CONTRACT_DIVERGENCE"
+        "provider listener addresses or terminal authority disagree with the CPM service endpoint binding";
+
+  _namespaceShadowContract =
+    if shadowedLocalNamespaces == [ ] then
+      true
+    else
+      fail
+        "DNS_LOCAL_NAMESPACE_SHADOWED"
+        "a local zone would terminate a namespace before its modeled forwarding authority";
+
   _requesterPolicyContract =
     if builtins.all validRequesterPolicy requesterPolicies then
       true
@@ -162,16 +225,20 @@ let
 in
 builtins.seq _fatalWarnings (
   builtins.seq _modeContract (
-    builtins.seq _requesterPolicyContract {
-      inherit
-        recursionMode
-        reproducibilityWarnings
-        warningCodes
-        rootForwarders
-        localForwardZones
-        requesterPolicies
-        localOnlyPolicy
-        ;
-    }
+    builtins.seq _serviceEndpointContract (
+      builtins.seq _namespaceShadowContract (
+        builtins.seq _requesterPolicyContract {
+          inherit
+            recursionMode
+            reproducibilityWarnings
+            warningCodes
+            rootForwarders
+            localForwardZones
+            requesterPolicies
+            localOnlyPolicy
+            ;
+        }
+      )
+    )
   )
 )
