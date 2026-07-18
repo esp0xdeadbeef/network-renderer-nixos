@@ -101,6 +101,8 @@ in {
     builtins.any
       (range: builtins.match ".*,ra-only,slaac,64,.*" range != null)
       cfg.services.dnsmasq.settings."dhcp-range";
+  providerIpv6Router =
+    cfg.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1;
   providerAuthority =
     cfg.services.knot.enable
     && knotZones == [ "." "dns-validation.test." ]
@@ -132,6 +134,7 @@ jq -e '
   and .coreControlled == true
   and .providerDhcpRa == true
   and .providerAutonomousSlaac == true
+  and .providerIpv6Router == true
   and .providerAuthority == true
   and .providerAddresses == true
   and .alternateUnanswered == true

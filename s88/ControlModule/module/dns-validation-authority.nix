@@ -80,6 +80,8 @@ else if authorityCount != 1 then
   throw "network-renderer-nixos DNS_VALIDATION_AUTHORITY_EXTERNAL: host must own exactly one controlled authority fixture; address material is intentionally omitted"
 else
   {
+    boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = 1;
+
     systemd.network.networks."30-${bridge}".address = [
       authority.provider.ipv4.address
       authority.provider.ipv6.address
