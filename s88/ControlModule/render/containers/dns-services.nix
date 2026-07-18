@@ -55,16 +55,15 @@ else
           (cidr: "${cidr} ${policy.action}")
           (lib.filter builtins.isString (policy.sourcePrefixes or [ ])))
       requesterPolicies;
-    requesterDefaultAction = if recursionMode == "local-only" then "refuse_non_local" else "allow";
-    accessControl = lib.unique (
-      (map (cidr: "${cidr} ${requesterDefaultAction}") allowFrom) ++ requesterAccessControl
-    );
+    accessControl = lib.unique ((map (cidr: "${cidr} allow") allowFrom) ++ requesterAccessControl);
     namespaceFallbackZoneSettings =
       map (decision: "${decision.namespace} static") namespaceFallbackDecisions;
+    localOnlyRootZoneSettings = lib.optional (recursionMode == "local-only") ". refuse";
     localZoneSettings =
       lib.unique (
         (map (zone: "${zone.name} ${zone.type or "static"}") localZones)
         ++ namespaceFallbackZoneSettings
+        ++ localOnlyRootZoneSettings
       );
     localForwardZoneSettings = map
       (zone: {
