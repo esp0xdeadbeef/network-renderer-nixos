@@ -84,7 +84,28 @@ REPO_ROOT="${repo_root}" nix eval \
               Table = 1002;
             })
           rules;
-      hasNoResolverIdentityRule = builtins.all (rule: !(rule ? User)) rules;
+      hasScopedResolverRule = family: protocol:
+        builtins.any
+          (rule:
+            rule == {
+              Family = family;
+              User = "unbound";
+              IPProtocol = protocol;
+              DestinationPort = 53;
+              Priority = 1002;
+              Table = 1002;
+            })
+          rules;
+      hasNoProcessWideResolverIdentityRule =
+        builtins.all
+          (rule:
+            !(rule ? User)
+            || (
+              (rule.User or null) == "unbound"
+              && builtins.elem (rule.IPProtocol or null) [ "udp" "tcp" ]
+              && (rule.DestinationPort or null) == 53
+            ))
+          rules;
       missingPolicyTarget = runtimeTarget // {
         runtimeOriginEgress = builtins.removeAttrs runtimeTarget.runtimeOriginEgress [ "policyRouting" ];
       };
@@ -108,8 +129,12 @@ REPO_ROOT="${repo_root}" nix eval \
     in
       hasRule "ipv4"
       && hasRule "ipv6"
-      && hasNoResolverIdentityRule
-      && builtins.length rules == 2
+      && hasScopedResolverRule "ipv4" "udp"
+      && hasScopedResolverRule "ipv4" "tcp"
+      && hasScopedResolverRule "ipv6" "udp"
+      && hasScopedResolverRule "ipv6" "tcp"
+      && hasNoProcessWideResolverIdentityRule
+      && builtins.length rules == 6
       && lib.hasInfix "type route hook output priority mangle" nftScript
       && lib.hasInfix "udp dport 53 meta mark set 1002" nftScript
       && lib.hasInfix "tcp dport 53 meta mark set 1002" nftScript
