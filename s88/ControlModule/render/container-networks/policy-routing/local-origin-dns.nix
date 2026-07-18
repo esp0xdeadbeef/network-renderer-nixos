@@ -41,6 +41,18 @@ let
     else
       4;
 
+  normalizedAddress =
+    family: address:
+    let
+      bare = stripCidr address;
+    in
+    if bare == null then
+      null
+    else if family == 6 then
+      (lib.network.ipv6.fromString bare).address
+    else
+      bare;
+
   candidateCidrsForFamily =
     family: iface:
     lib.filter
@@ -73,13 +85,15 @@ let
       sourceNames = lib.filter (name: builtins.hasAttr name interfaces) sourceIfNames;
       bindingForOutgoing =
         outgoing:
-        if !(builtins.isString outgoing) || outgoing == "" then
+        if !(builtins.isString outgoing) || outgoing == "" || addressFamily outgoing != family then
           null
         else
           let
             match =
               lib.findFirst
-                (ifName: addressForFamily family interfaces.${ifName} == outgoing)
+                (ifName:
+                  normalizedAddress family (addressForFamily family interfaces.${ifName})
+                  == normalizedAddress family outgoing)
                 null
                 sourceNames;
           in

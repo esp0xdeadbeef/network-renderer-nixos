@@ -90,7 +90,7 @@ in {
     core.services.unbound.enableRootTrustAnchor == false
     && rootHintsPath != null
     && unboundServer."domain-insecure" == [ "." ]
-    && builtins.match ".*root[.]dns-validation[.]test[.].*" (builtins.readFile rootHintsPath) != null;
+    && builtins.match ".*root[.]dns-validation[.]gamp[.].*" (builtins.readFile rootHintsPath) != null;
   coreRoutedSlaac =
     core.boot.kernel.sysctl."net.ipv6.conf.all.forwarding" == 1
     && core.systemd.network.networks."10-wan0".networkConfig.IPv6AcceptRA == true;
@@ -109,7 +109,7 @@ in {
     && providerNetwork.networkConfig.LinkLocalAddressing == "ipv6";
   providerAuthority =
     cfg.services.knot.enable
-    && knotZones == [ "." "dns-validation.test." ]
+    && knotZones == [ "." "dns-validation.gamp." ]
     && builtins.all
       (address: builtins.elem "${address}@53" cfg.services.knot.settings.server.listen)
       (authority.root.ipv4 ++ authority.root.ipv6
