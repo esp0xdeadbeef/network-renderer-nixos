@@ -15,6 +15,12 @@ let
     else
       null;
 
+  dnsAuthority =
+    if builtins.isAttrs dnsService then
+      import ./authority.nix { inherit lib dnsService; }
+    else
+      null;
+
   stringList = value:
     if builtins.isList value then lib.filter builtins.isString value else [ ];
 
@@ -43,13 +49,7 @@ let
     ++ stringList (dnsService.allowFrom or [ ])
   );
 
-  forwarders =
-    if dnsService ? forwarders then
-      stringList dnsService.forwarders
-    else if dnsService ? upstreams then
-      stringList dnsService.upstreams
-    else
-      [ ];
+  forwarders = dnsAuthority.rootForwarders;
 
   interfaces =
     if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces then
@@ -142,16 +142,24 @@ if !(builtins.isAttrs dnsService) then
   null
 else
   let
-    _fwd = if dnsService ? forwarders then stringList dnsService.forwarders else if dnsService ? upstreams then stringList dnsService.upstreams else [ ];
+    _fwd = dnsAuthority.rootForwarders;
     _listen = lib.unique ([ "127.0.0.1" "::1" ] ++ stringList (dnsService.listen or [ ]));
     _nonLoopback = builtins.filter (a: a != "127.0.0.1" && a != "::1") _listen;
     _selfRef = builtins.filter (f: builtins.elem f _nonLoopback) _fwd;
   in
   if _selfRef != [ ] then
-    throw "NixOS DNS renderer rejects self-referential forwarder: forward-addr ${builtins.concatStringsSep ", " _selfRef} matches unbound listen address on access-client container. Configure distinct upstream resolver addresses. GAMP: FS-540-HDS-010-SDS-010-SMS-035"
+    throw "NixOS DNS renderer DNS_RENDERER_CONTRACT_DIVERGENCE: self-referential forwarder rejected without logging address material; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
   else
   rec {
     inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules;
+    inherit (dnsAuthority)
+      recursionMode
+      reproducibilityWarnings
+      warningCodes
+      localForwardZones
+      requesterPolicies
+      localOnlyPolicy
+      ;
     listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
     listen6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) listenAddresses;
     forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;
