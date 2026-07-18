@@ -47,8 +47,19 @@ REPO_ROOT="${repo_root}" nix eval \
           sourceKind = "wan";
           runtimeIfName = "wan0";
           renderedIfName = "wan0";
+          dynamicAddressing.ipv6 = {
+            enable = true;
+            method = "slaac";
+            acceptRA = true;
+          };
           inherit policyRoutingAllocation;
         };
+      };
+      common = import (repoRoot + "/s88/ControlModule/render/container-networks/common.nix") { inherit lib; };
+      dynamicWan = import (repoRoot + "/s88/ControlModule/render/container-networks/dynamic-wan.nix") {
+        inherit lib common;
+        uplinks = { };
+        wanUplinkName = null;
       };
       render = target: ifaces:
         import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
@@ -62,6 +73,7 @@ REPO_ROOT="${repo_root}" nix eval \
       rendered = render runtimeTarget interfaces;
       rules = rendered.systemd.network.networks."10-wan0".routingPolicyRules;
       nftScript = rendered.systemd.services.nft-allow-dns-service.script;
+      ipv6AcceptRAConfig = dynamicWan.mkDynamicWanIpv6AcceptRAConfig interfaces.isp-primary null;
       hasRule = family:
         builtins.any
           (rule:
@@ -100,6 +112,7 @@ REPO_ROOT="${repo_root}" nix eval \
       && lib.hasInfix "udp dport 53 meta mark set 1002" nftScript
       && lib.hasInfix "tcp dport 53 meta mark set 1002" nftScript
       && lib.hasInfix "select-modeled-dns-egress" nftScript
+      && ipv6AcceptRAConfig == { RouteTable = 1002; }
       && builtins.elem "nft-allow-dns-service.service" rendered.systemd.services.unbound.after
       && !missingPolicy.success
       && !divergentAllocation.success

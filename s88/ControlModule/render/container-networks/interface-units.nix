@@ -14,6 +14,7 @@
   delegatedPrefixSourceForRoute,
   mkDynamicWanNetworkConfig,
   mkDynamicWanDhcpV4Config,
+  mkDynamicWanIpv6AcceptRAConfig,
   needsIpv6AcceptRA,
   common,
   skipInterfaceNames ? [ ],
@@ -242,6 +243,8 @@ let
               }
               // mkDynamicWanNetworkConfig iface;
               dhcpV4Config = mkDynamicWanDhcpV4Config iface (policyRuleDhcpTableForInterface ifName interfaceName);
+              ipv6AcceptRAConfig =
+                mkDynamicWanIpv6AcceptRAConfig iface (policyRuleDhcpTableForInterface ifName interfaceName);
               linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
                 MTUBytes = iface.mtu;
               };
