@@ -29,7 +29,11 @@ lib.concatMap
         && builtins.length dports == 1
         && builtins.isInt (builtins.head dports)
         && builtins.isString (pair.comment or null)
-        && pair.comment != "";
+        && pair.comment != ""
+        && (pair.returnBehavior or null) == "stateful-return"
+        && (pair.translationMode or null) == "none"
+        && (pair.sourcePreservation or null) == "preserve-source"
+        && (pair.destinationTranslation or null) == false;
     in
     if destinations == [ ] then
       [ ]
@@ -51,6 +55,13 @@ lib.concatMap
         destinationPort = builtins.head dports;
         action = pair.action or (throw "FS-230-HDS-010-SDS-010-SMS-040: runtime destination rule lacks action");
         comment = builtins.substring 0 128 pair.comment;
+        family = 6;
+        inherit (pair)
+          returnBehavior
+          translationMode
+          sourcePreservation
+          destinationTranslation
+          ;
       } ]
   )
   pairs

@@ -98,6 +98,18 @@ let
         // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
           trafficType = rule.trafficType;
         }
+        // lib.optionalAttrs (builtins.isString (rule.returnBehavior or null)) {
+          returnBehavior = rule.returnBehavior;
+        }
+        // lib.optionalAttrs (builtins.isString (rule.translationMode or null)) {
+          translationMode = rule.translationMode;
+        }
+        // lib.optionalAttrs (builtins.isString (rule.sourcePreservation or null)) {
+          sourcePreservation = rule.sourcePreservation;
+        }
+        // lib.optionalAttrs (builtins.isBool (rule.destinationTranslation or null)) {
+          destinationTranslation = rule.destinationTranslation;
+        }
         // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
           sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
         }
