@@ -33,6 +33,115 @@ let
     else
       [ value ];
 
+  requireNonEmptyString =
+    path: value:
+    if builtins.isString value && value != "" then
+      value
+    else
+      throw "NixOS DNS renderer requires ${path} to be a non-empty string";
+
+  requireStringList =
+    path: value:
+    if
+      builtins.isList value
+      && value != [ ]
+      && builtins.all (entry: builtins.isString entry && entry != "") value
+    then
+      value
+    else
+      throw "NixOS DNS renderer requires ${path} to be a non-empty string list";
+
+  safeStem = name: builtins.replaceStrings [ "/" ":" " " ] [ "-" "-" "-" ] name;
+
+  protectedReservationPublications =
+    let
+      raw =
+        if builtins.isList (dnsService.protectedReservationPublications or null) then
+          dnsService.protectedReservationPublications
+        else
+          [ ];
+      normalized = builtins.genList (
+        idx:
+        let
+          entryPath = "services.dns.protectedReservationPublications[${builtins.toString idx}]";
+          rawPublication = builtins.elemAt raw idx;
+          publication =
+            if builtins.isAttrs rawPublication then
+              rawPublication
+            else
+              throw "NixOS DNS renderer requires ${entryPath} to be an explicit publication contract";
+          source = if builtins.isAttrs (publication.source or null) then publication.source else { };
+          scopeId = requireNonEmptyString "${entryPath}.scopeId" (publication.scopeId or null);
+          namespace = requireNonEmptyString "${entryPath}.namespace" (publication.namespace or null);
+          ownerScope = requireNonEmptyString "${entryPath}.ownerScope" (publication.ownerScope or null);
+          requesterScopes = requireStringList "${entryPath}.requesterScopes" (publication.requesterScopes or null);
+          recordClasses = requireStringList "${entryPath}.recordClasses" (publication.recordClasses or null);
+          sourceFile = requireNonEmptyString "${entryPath}.source.sourceFile" (source.sourceFile or null);
+          materializerFamily = requireNonEmptyString
+            "${entryPath}.materializerFamily"
+            (publication.materializerFamily or null);
+          stem = safeStem scopeId;
+          _source =
+            if
+              (source.schema or null) == "gamp-protected-reservation-set-v1"
+              && (source.sourceClass or null) == "protected"
+              && lib.hasPrefix "/run/secrets/" sourceFile
+            then
+              true
+            else
+              throw "diagnostic.protected-reservation-name-publication-source-invalid: NixOS DNS renderer rejected an unapproved protected source without logging address material";
+          _scope =
+            if
+              ownerScope == scopeId
+              && builtins.elem ownerScope requesterScopes
+              && !(builtins.elem "*" requesterScopes)
+            then
+              true
+            else
+              throw "diagnostic.protected-reservation-name-scope-invalid: NixOS DNS renderer rejected an unscoped publication without logging address material";
+          _recordClasses =
+            if
+              builtins.all (recordClass: builtins.elem recordClass [ "A" "AAAA" "PTR" ]) recordClasses
+              && builtins.length (lib.unique recordClasses) == builtins.length recordClasses
+            then
+              true
+            else
+              throw "diagnostic.protected-reservation-name-record-class-invalid: NixOS DNS renderer rejected invalid publication classes";
+          _policy =
+            if
+              (publication.fallbackBehavior or null) == "local-only"
+              && builtins.isString (publication.publicationDenialDiagnostic or null)
+              && publication.publicationDenialDiagnostic != ""
+            then
+              true
+            else
+              throw "diagnostic.protected-reservation-name-policy-invalid: NixOS DNS renderer requires fail-closed local-only publication";
+          generatorUnit =
+            if materializerFamily == "ipv4" then
+              "gen-kea-${stem}.service"
+            else if materializerFamily == "ipv6" then
+              "gen-kea-dhcp6-${stem}.service"
+            else
+              throw "diagnostic.protected-reservation-name-materializer-family-invalid: NixOS DNS renderer requires an explicit CPM family";
+        in
+        builtins.seq _source (
+          builtins.seq _scope (
+            builtins.seq _recordClasses (
+              builtins.seq _policy {
+                inherit scopeId namespace recordClasses generatorUnit;
+                configFile = "/run/protected-reservation-dns/${stem}.conf";
+              }
+            )
+          )
+        )
+      ) (builtins.length raw);
+      keys = map (publication: publication.configFile) normalized;
+    in
+    if builtins.length (lib.unique keys) == builtins.length keys then
+      normalized
+    else
+      throw "diagnostic.protected-reservation-name-publication-duplicate: NixOS DNS renderer requires one materializer per protected scope";
+
   listenAddresses = lib.unique (
     [
       "127.0.0.1"
@@ -231,7 +340,7 @@ else
     throw "NixOS DNS renderer DNS_VALIDATION_AUTHORITY_EXTERNAL: controlled iterative authority is missing its harness scope or disagrees with the selected model-owned egress; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-045"
   else
   rec {
-    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy validationAuthority;
+    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy validationAuthority protectedReservationPublications;
     inherit (dnsAuthority)
       recursionMode
       reproducibilityWarnings

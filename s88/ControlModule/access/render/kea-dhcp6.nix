@@ -33,6 +33,13 @@ let
       reservationSource.sourceFile
     else
       throw "NixOS DHCPv6 renderer requires the explicit gamp-protected-reservation-set-v1 source contract";
+  namePublication =
+    if runtimeReservationsEnabled && builtins.isAttrs (reservationSource.namePublication or null) then
+      reservationSource.namePublication
+    else
+      null;
+  protectedNamePublicationEnabled = namePublication != null;
+  protectedNamePublicationFile = "/run/protected-reservation-dns/${scope.fileStem}.conf";
   reservations = map (
     reservation:
     (
@@ -114,7 +121,18 @@ let
   ++ lib.optionals runtimeReservationsEnabled [
     "--source"
     runtimeReservationSourceFile
-  ];
+  ]
+  ++ lib.optionals protectedNamePublicationEnabled (
+    [
+      "--dns-output"
+      protectedNamePublicationFile
+      "--dns-namespace"
+      namePublication.namespace
+      "--dns-group"
+      "unbound"
+    ]
+    ++ lib.concatMap (recordClass: [ "--dns-record-class" recordClass ]) namePublication.recordClasses
+  );
   genConfig = "${pkgs.python3Minimal}/bin/python3 ${./runtime-reservation-materializer.py} ${lib.escapeShellArgs materializerArgs}";
 
   waitIface = "${pkgs.runtimeShell} ${./wait-interface-ready.sh}";
@@ -140,7 +158,7 @@ in
 
   systemd.services."gen-kea-dhcp6-${scope.fileStem}" = {
     wantedBy = [ "multi-user.target" ];
-    before = [ "kea-dhcp6-${scope.fileStem}.service" ];
+    before = [ "kea-dhcp6-${scope.fileStem}.service" ] ++ lib.optional protectedNamePublicationEnabled "unbound.service";
     serviceConfig = {
       Type = "oneshot";
       ExecStart = genConfig;

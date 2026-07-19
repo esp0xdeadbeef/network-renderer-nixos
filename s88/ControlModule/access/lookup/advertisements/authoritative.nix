@@ -80,6 +80,17 @@ let
     else
       throw "CPM renderer contract update required: ${path} must be a non-empty string";
 
+  requireStringList =
+    path: value:
+    if
+      builtins.isList value
+      && value != [ ]
+      && builtins.all (entry: builtins.isString entry && entry != "") value
+    then
+      value
+    else
+      throw "CPM renderer contract update required: ${path} must be a non-empty string list";
+
   forbiddenReservationAuthorityKeys = [
     "reachability"
     "routes"
@@ -133,6 +144,101 @@ let
         sourceFile = requireNonEmptyString "${entryPath}.reservationSource.sourceFile" (
           raw.sourceFile or null
         );
+        namePublication =
+          if (raw.namePublication or null) == null then
+            null
+          else if !builtins.isAttrs raw.namePublication then
+            throw "CPM renderer contract update required: ${entryPath}.reservationSource.namePublication must be an explicit protected publication contract"
+          else
+            let
+              publication = raw.namePublication;
+              allowedKeys = [
+                "namespace"
+                "ownerScope"
+                "requesterScopes"
+                "recordClasses"
+                "fallbackBehavior"
+                "publicationDenialDiagnostic"
+                "source"
+                "sourceFamily"
+              ];
+              unexpectedKeys = lib.filter
+                (name: !(builtins.elem name allowedKeys))
+                (builtins.attrNames publication);
+              namespace = requireNonEmptyString
+                "${entryPath}.reservationSource.namePublication.namespace"
+                (publication.namespace or null);
+              ownerScope = requireNonEmptyString
+                "${entryPath}.reservationSource.namePublication.ownerScope"
+                (publication.ownerScope or null);
+              requesterScopes = requireStringList
+                "${entryPath}.reservationSource.namePublication.requesterScopes"
+                (publication.requesterScopes or null);
+              recordClasses = requireStringList
+                "${entryPath}.reservationSource.namePublication.recordClasses"
+                (publication.recordClasses or null);
+              invalidRecordClasses = lib.filter
+                (recordClass: !(builtins.elem recordClass [ "A" "AAAA" "PTR" ]))
+                recordClasses;
+              _knownFields =
+                if unexpectedKeys == [ ] then
+                  true
+                else
+                  throw "diagnostic.protected-reservation-name-publication-field-invalid: ${entryPath}.reservationSource.namePublication contains unsupported public fields";
+              _source =
+                if
+                  (publication.source or null) == "protected-reservation-set"
+                  && (publication.sourceFamily or null) == family
+                then
+                  true
+                else
+                  throw "CPM renderer contract update required: ${entryPath}.reservationSource.namePublication must identify its protected reservation family";
+              _scope =
+                if
+                  ownerScope == requireNonEmptyString "${entryPath}.id" (adv.id or null)
+                  && builtins.elem ownerScope requesterScopes
+                  && !(builtins.elem "*" requesterScopes)
+                then
+                  true
+                else
+                  throw "diagnostic.protected-reservation-name-scope-invalid: ${entryPath}.reservationSource.namePublication must remain owner-scoped";
+              _recordClasses =
+                if
+                  invalidRecordClasses == [ ]
+                  && builtins.length (lib.unique recordClasses) == builtins.length recordClasses
+                then
+                  true
+                else
+                  throw "CPM renderer contract update required: ${entryPath}.reservationSource.namePublication.recordClasses must contain unique A, AAAA, or PTR entries";
+              _fallback =
+                if (publication.fallbackBehavior or null) == "local-only" then
+                  true
+                else
+                  throw "CPM renderer contract update required: ${entryPath}.reservationSource.namePublication must remain local-only";
+              publicationDenialDiagnostic = requireNonEmptyString
+                "${entryPath}.reservationSource.namePublication.publicationDenialDiagnostic"
+                (publication.publicationDenialDiagnostic or null);
+            in
+            builtins.seq _knownFields (
+              builtins.seq _source (
+                builtins.seq _scope (
+                  builtins.seq _recordClasses (
+                    builtins.seq _fallback {
+                      inherit
+                        namespace
+                        ownerScope
+                        requesterScopes
+                        recordClasses
+                        publicationDenialDiagnostic
+                        ;
+                      fallbackBehavior = "local-only";
+                      source = "protected-reservation-set";
+                      sourceFamily = family;
+                    }
+                  )
+                )
+              )
+            );
         rawReservations = if builtins.isList (adv.reservations or null) then adv.reservations else [ ];
         _schema =
           if schema == "gamp-protected-reservation-set-v1" then
@@ -164,6 +270,7 @@ let
                 inherit schema sourceClass sourceFile;
                 inherit family;
               }
+              // lib.optionalAttrs (namePublication != null) { inherit namePublication; }
             )
           )
         )
