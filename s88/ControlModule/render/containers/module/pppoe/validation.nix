@@ -61,6 +61,35 @@ let
     && hasFileCredential credentials "passwordFile"
     && !(hasInlineCredential credentials "username")
     && !(hasInlineCredential credentials "password");
+
+  hasIpv6PrefixDelegationContract =
+    value:
+    value == null
+    || (
+      builtins.isAttrs value
+      && builtins.attrNames value == builtins.attrNames {
+        mode = null;
+        defaultRoute = null;
+        iaid = null;
+        prefixDelegationRequestId = null;
+        duidMode = null;
+        resolverMode = null;
+        ipv4Mode = null;
+        routerSolicitation = null;
+        fallbackPolicy = null;
+      }
+      && (value.mode or null) == "dhcpv6-pd"
+      && builtins.isBool (value.defaultRoute or null)
+      && builtins.isInt (value.iaid or null)
+      && value.iaid > 0
+      && builtins.isInt (value.prefixDelegationRequestId or null)
+      && value.prefixDelegationRequestId > 0
+      && (value.duidMode or null) == "persistent"
+      && (value.resolverMode or null) == "disabled"
+      && (value.ipv4Mode or null) == "disabled"
+      && (value.routerSolicitation or null) == false
+      && (value.fallbackPolicy or null) == "none"
+    );
 in
 {
   clientAssertion =
@@ -73,6 +102,7 @@ in
       )
       && hasCredentialFileContract (clientConfig.credentials or null)
       && supportedImplementation clientConfig
+      && hasIpv6PrefixDelegationContract (clientConfig.ipv6 or null)
     );
 
   serverAssertion =

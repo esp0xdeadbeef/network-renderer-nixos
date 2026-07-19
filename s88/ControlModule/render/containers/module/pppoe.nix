@@ -113,6 +113,11 @@ let
   sanitizeName = value: builtins.replaceStrings [ "/" ":" "." "@" ] [ "-" "-" "-" "-" ] value;
 
   clientConfig = if builtins.isAttrs (pppoe.client or null) then pppoe.client else null;
+  clientIpv6Config =
+    if clientConfig != null && builtins.isAttrs (clientConfig.ipv6 or null) then
+      clientConfig.ipv6
+    else
+      null;
   serverConfig = if builtins.isAttrs (pppoe.server or null) then pppoe.server else null;
   validation = import ./pppoe/validation.nix { inherit renderedModel; };
 
@@ -143,6 +148,11 @@ let
             ''
           else
             "";
+        defaultRoute6Lines =
+          if clientIpv6Config != null && clientIpv6Config.defaultRoute then
+            "defaultroute6"
+          else
+            "";
         usePeerDns = clientConfig.usePeerDns or true;
         peerDns = import ./pppoe/client-peer-dns.nix {
           inherit
@@ -163,6 +173,35 @@ let
       in
       {
         inherit peerName systemdUnitName starterServiceName starterTimerName;
+        dhcpcdConfigName = "s88/pppoe-ipv6-${sanitizeName logicalIf}.conf";
+        dhcpcdConfig = lib.optionalString (clientIpv6Config != null) ''
+          duid
+          persistent
+          nohook resolv.conf
+          noipv6rs
+          noipv4
+          ipv6only
+
+          interface ${pppName}
+            iaid ${toString clientIpv6Config.iaid}
+            ia_pd ${toString clientIpv6Config.prefixDelegationRequestId}
+        '';
+        pdServiceName = "s88-pppoe-ipv6-pd-${sanitizeName logicalIf}";
+        pdService = lib.optionalAttrs (clientIpv6Config != null) {
+          description = "Acquire DHCPv6 prefix delegation on ${pppName}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "nftables.service" "${systemdUnitName}.service" ];
+          requires = [ "nftables.service" "${systemdUnitName}.service" ];
+          bindsTo = [ "${systemdUnitName}.service" ];
+          partOf = [ "${systemdUnitName}.service" ];
+          serviceConfig = {
+            Type = "simple";
+            ExecStartPre = "${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg pppName}";
+            ExecStart = "${pkgs.dhcpcd}/bin/dhcpcd -6 -d -B -f /etc/s88/pppoe-ipv6-${sanitizeName logicalIf}.conf ${lib.escapeShellArg pppName}";
+            Restart = "always";
+            RestartSec = "2s";
+          };
+        };
         peer = {
           enable = true;
           autostart = false;
@@ -204,6 +243,7 @@ let
             noipdefault
             ifname ${pppName}
             ${defaultRouteLines}
+            ${defaultRoute6Lines}
             ${peerDns.options}
             persist
             maxfail 0
@@ -334,6 +374,9 @@ let
       {
         ${clientPeer.systemdUnitName} = clientPeer.service;
         ${clientPeer.starterServiceName} = clientPeer.starterService;
+      }
+      // lib.optionalAttrs (clientIpv6Config != null) {
+        ${clientPeer.pdServiceName} = clientPeer.pdService;
       };
   clientTimers =
     if clientPeer == null then
@@ -348,7 +391,7 @@ in
     assertions = [
       {
         assertion = validation.clientAssertion clientConfig;
-        message = "NixOS PPPoE client service requires services.pppoe.client.interface to name a rendered interface, non-empty credentials.usernameFile and credentials.passwordFile paths with no inline username/password values, and supported implementation 'rp-pppoe'";
+        message = "NixOS PPPoE client service requires services.pppoe.client.interface to name a rendered interface, non-empty credentials.usernameFile and credentials.passwordFile paths with no inline username/password values, and supported implementation 'rp-pppoe'; optional IPv6/PD must be the complete CPM dhcpv6-pd-only contract";
       }
       {
         assertion = validation.serverAssertion serverConfig;
@@ -358,7 +401,7 @@ in
     environment.systemPackages = [
       pkgs.ppp
       pkgs.rp-pppoe
-    ];
+    ] ++ lib.optional (clientIpv6Config != null) pkgs.dhcpcd;
     services.pppd = lib.optionalAttrs (clientPeer != null) {
       enable = true;
       package = pkgs.ppp;
@@ -366,13 +409,20 @@ in
     };
     systemd.services = clientServices // serverUnit;
     systemd.timers = clientTimers;
-    environment.etc = lib.optionalAttrs (serverConfig != null) {
-      "s88/pppoe-tools".text = ''
-        pppoe-server=${pkgs.rp-pppoe}/bin/pppoe-server
-        pppoe=${pkgs.rp-pppoe}/bin/pppoe
-        pppoe-sniff=${pkgs.rp-pppoe}/bin/pppoe-sniff
-        pppd=${pkgs.ppp}/bin/pppd
-      '';
-    };
+    environment.etc =
+      lib.optionalAttrs (serverConfig != null) {
+        "s88/pppoe-tools".text = ''
+          pppoe-server=${pkgs.rp-pppoe}/bin/pppoe-server
+          pppoe=${pkgs.rp-pppoe}/bin/pppoe
+          pppoe-sniff=${pkgs.rp-pppoe}/bin/pppoe-sniff
+          pppd=${pkgs.ppp}/bin/pppd
+        '';
+      }
+      // lib.optionalAttrs (clientIpv6Config != null) {
+        ${clientPeer.dhcpcdConfigName}.text = clientPeer.dhcpcdConfig;
+      };
+    networking.nftables.ruleset = lib.mkAfter (lib.optionalString (clientIpv6Config != null) ''
+      add rule inet router input iifname ${lib.escapeShellArg clientConfig.runtimeInterface} ip6 saddr fe80::/10 udp sport 547 udp dport 546 counter accept comment "s88-pppoe-dhcpv6-pd-replies"
+    '');
   };
 }
