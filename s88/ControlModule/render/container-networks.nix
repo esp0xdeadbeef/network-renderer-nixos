@@ -232,6 +232,12 @@ let
           ) pair.sourceFiles
       )
       (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+
+  dynamicDestinationForwardRules =
+    import ./container-networks/runtime-destination-forwarding.nix {
+      inherit lib;
+      pairs = if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ];
+    };
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };
     networks =
@@ -246,6 +252,7 @@ let
     inherit (interfaceUnits) staticProviderRoutes;
     inherit (interfaceUnits) staticProviderPolicyRules;
     inherit dynamicSourceForwardRules;
+    inherit dynamicDestinationForwardRules;
     dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
   };
 in

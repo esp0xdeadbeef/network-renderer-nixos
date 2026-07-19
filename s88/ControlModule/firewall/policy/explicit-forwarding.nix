@@ -80,9 +80,25 @@ let
 
   destinationPrefixMatches =
     pair:
-    lib.filter (value: value != null) (
-      map destinationPrefixMatch (asList (pair.destinationPrefixes or [ ]))
-    );
+    let
+      static = lib.filter (value: value != null) (
+        map destinationPrefixMatch (asList (pair.destinationPrefixes or [ ]))
+      );
+      runtime = asList (pair.destinationRuntimeAddresses or [ ]);
+      validRuntime =
+        builtins.length runtime == 1
+        && builtins.isAttrs (builtins.head runtime)
+        && ((builtins.head runtime).sourceClass or null) == "protected"
+        && builtins.isString ((builtins.head runtime).sourceFile or null)
+        && lib.hasPrefix "/run/secrets/" (builtins.head runtime).sourceFile
+        && ((builtins.head runtime).targetPrefixLength or null) == 128;
+    in
+    if runtime == [ ] then
+      static
+    else if static != [ ] || !validRuntime then
+      throw "FS-230-HDS-010-SDS-010-SMS-040: runtime IPv6 destination must be one protected /128 source with no static destination"
+    else
+      [ "ip6 daddr ::/128" ];
 
   renderRawMatch =
     match:

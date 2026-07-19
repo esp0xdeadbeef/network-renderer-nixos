@@ -57,6 +57,11 @@ let
     dynamicSourceForwardRules = containerNetworkRender.dynamicSourceForwardRules or [ ];
   };
 
+  dynamicDestinationForwarding = import ./module/dynamic-destination-forwarding.nix {
+    inherit lib pkgs;
+    dynamicDestinationForwardRules = containerNetworkRender.dynamicDestinationForwardRules or [ ];
+  };
+
   dynamicPolicyRules = import ./module/dynamic-policy-rules.nix {
     inherit lib pkgs;
     dynamicPolicySourceRules = containerNetworkRender.dynamicPolicySourceRules or [ ];
@@ -103,6 +108,7 @@ in
     delegatedRoutes.config
     staticProviderRoutes.config
     dynamicForwarding.config
+    dynamicDestinationForwarding.config
     dynamicPolicyRules.config
     (lib.optionalAttrs ((containerNetworkRender.ipv6AcceptRAInterfaces or [ ]) != [ ]) {
       boot.kernel.sysctl = import ./module/ipv6-ra-sysctls.nix {
