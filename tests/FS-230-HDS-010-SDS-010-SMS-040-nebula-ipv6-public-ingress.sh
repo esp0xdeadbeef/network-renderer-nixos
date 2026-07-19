@@ -29,6 +29,10 @@ result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
       fromInterface = "ppp0";
       toInterface = "core";
       trafficType = "public-ingress";
+      returnBehavior = "stateful-return";
+      translationMode = "none";
+      sourcePreservation = "preserve-source";
+      destinationTranslation = false;
       matches = [ { family = "ipv6"; proto = "udp"; dports = [ 4242 ]; } ];
       destinationPrefixes = [ ];
       destinationRuntimeAddresses = [ runtimeDestination ];
@@ -99,6 +103,11 @@ result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
       destinationPort = 4242;
       action = "accept";
       comment = "allow-wan-to-nebula-ipv6";
+      family = 6;
+      returnBehavior = "stateful-return";
+      translationMode = "none";
+      sourcePreservation = "preserve-source";
+      destinationTranslation = false;
     };
     runtimeServiceWired =
       service.after == [ "nftables.service" ]
