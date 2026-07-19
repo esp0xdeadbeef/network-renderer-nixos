@@ -47,6 +47,16 @@ reaching this renderer.
 | SMS   | FS-320-HDS-010-SDS-010-SMS-020 | Runtime interface name mapping — deterministic valid names with audit alias |
 | SMS   | FS-320-HDS-010-SDS-010-SMS-030 | Renderer interface audit mapping — inspectable logical-to-runtime mapping |
 
+### Public Ingress Runtime Destination
+
+`FS-230-HDS-010-SDS-010-SMS-040` owns protected IPv6 public-ingress
+materialization. The renderer consumes one complete CPM tuple, keeps the public
+prefix value outside evaluation and the Nix store, derives the exact `/128` only
+at runtime from the protected prefix plus inventory-owned endpoint IID, and
+replaces one fail-closed nftables placeholder without changing rule order.
+Missing, invalid, or ambiguous runtime material fails closed. IPv4 NAPT and IPv6
+no-translation remain separate CPM authorities.
+
 ### SMT Status (2026-06-12)
 
 - FS-310-HDS-010-SDS-010-SMS-010: **OK** — Coordinator: NixOS tests pass (policy-endpoint, container-routing, firewall-parity, explicit-forwarding)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Derive one routed tenant prefix from a protected delegated parent."""
+"""Derive a tenant prefix or exact IID address from a protected parent."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--delegated-prefix-length", type=int, required=True)
     parser.add_argument("--tenant-prefix-length", type=int, required=True)
     parser.add_argument("--slot", type=int, required=True)
+    parser.add_argument("--interface-identifier")
     return parser.parse_args()
 
 
@@ -51,7 +52,15 @@ def derive(args: argparse.Namespace) -> str:
         strict=True,
     )
     require(tenant.subnet_of(parent))
-    return str(tenant)
+    if args.interface_identifier is None:
+        return str(tenant)
+    require(args.family == 6)
+    require(tenant.prefixlen == 64)
+    identifier = ipaddress.IPv6Address(args.interface_identifier)
+    require(int(identifier) < (1 << 64))
+    address = ipaddress.IPv6Address(int(tenant.network_address) | int(identifier))
+    require(address in tenant)
+    return f"{address}/128"
 
 
 def main() -> None:

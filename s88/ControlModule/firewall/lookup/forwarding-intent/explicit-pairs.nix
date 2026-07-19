@@ -115,6 +115,9 @@ let
             || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
           ) rule.destinationPrefixes;
         }
+        // lib.optionalAttrs (builtins.isList (rule.destinationRuntimeAddresses or null)) {
+          destinationRuntimeAddresses = lib.filter builtins.isAttrs rule.destinationRuntimeAddresses;
+        }
         // lib.optionalAttrs (builtins.isList (rule.matches or null)) {
           matches = lib.filter builtins.isAttrs rule.matches;
         }
