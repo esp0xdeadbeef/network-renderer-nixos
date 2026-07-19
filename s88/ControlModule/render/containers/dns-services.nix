@@ -59,11 +59,26 @@ else
     accessControl = lib.unique ((map (cidr: "${cidr} allow") allowFrom) ++ requesterAccessControl);
     namespaceFallbackZoneSettings =
       map (decision: "${decision.namespace} static") namespaceFallbackDecisions;
+    protectedReservationLocalZoneSettings =
+      let
+        conflicts = lib.filter
+          (publication:
+            builtins.any
+              (zone: zone.name == publication.namespace && (zone.type or "static") != "static")
+              localZones
+            || builtins.any (zone: zone.name == publication.namespace) localForwardZones)
+          protectedReservationPublications;
+      in
+      if conflicts != [ ] then
+        throw "diagnostic.protected-reservation-name-namespace-authority-conflict: NixOS DNS renderer rejected an overlapping local or forwarding namespace without logging address material"
+      else
+        map (publication: "${publication.namespace} static") protectedReservationPublications;
     localOnlyRootZoneSettings = lib.optional (recursionMode == "local-only") ". refuse";
     localZoneSettings =
       lib.unique (
         (map (zone: "${zone.name} ${zone.type or "static"}") localZones)
         ++ namespaceFallbackZoneSettings
+        ++ protectedReservationLocalZoneSettings
         ++ localOnlyRootZoneSettings
       );
     localForwardZoneSettings = map

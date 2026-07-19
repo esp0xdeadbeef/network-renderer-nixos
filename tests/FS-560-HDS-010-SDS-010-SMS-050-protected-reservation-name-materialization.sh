@@ -31,6 +31,17 @@ rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
       sourceFile = "/run/secrets/test-reservations.json";
       namePublication = publication;
     };
+    publicationContract = {
+      source = builtins.removeAttrs source [ "namePublication" ];
+      scopeId = "client";
+      namespace = publication.namespace;
+      ownerScope = publication.ownerScope;
+      requesterScopes = publication.requesterScopes;
+      recordClasses = publication.recordClasses;
+      materializerFamily = "ipv4";
+      fallbackBehavior = publication.fallbackBehavior;
+      publicationDenialDiagnostic = publication.publicationDenialDiagnostic;
+    };
     kea = import (repoRoot + "/s88/ControlModule/access/render/kea.nix") {
       inherit lib pkgs;
       scope = {
@@ -58,36 +69,32 @@ rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
         };
       };
     };
-    dns = import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
-      inherit lib pkgs;
-      renderedModel = {
-        interfaces = { };
-        runtimeTarget.services.dns = {
-          recursionMode = "iterative";
-          listen = [ "10.20.20.1" ];
-          allowFrom = [ "10.20.20.0/24" ];
-          protectedReservationPublications = [
-            {
-              source = builtins.removeAttrs source [ "namePublication" ];
-              scopeId = "client";
-              namespace = publication.namespace;
-              ownerScope = publication.ownerScope;
-              requesterScopes = publication.requesterScopes;
-              recordClasses = publication.recordClasses;
-              materializerFamily = "ipv4";
-              fallbackBehavior = publication.fallbackBehavior;
-              publicationDenialDiagnostic = publication.publicationDenialDiagnostic;
-            }
-          ];
+    renderDns = extraDns:
+      import (repoRoot + "/s88/ControlModule/render/containers/dns-services.nix") {
+        inherit lib pkgs;
+        renderedModel = {
+          interfaces = { };
+          runtimeTarget.services.dns = {
+            recursionMode = "iterative";
+            listen = [ "10.20.20.1" ];
+            allowFrom = [ "10.20.20.0/24" ];
+            protectedReservationPublications = [ publicationContract ];
+          } // extraDns;
         };
+        forwardingIntent = { };
       };
-      forwardingIntent = { };
+    dns = renderDns { };
+    conflictingDns = renderDns {
+      localZones = [ { name = "client.lan."; type = "transparent"; } ];
     };
+    conflictAccepted = (builtins.tryEval (builtins.deepSeq conflictingDns true)).success;
   in
   {
     generator = builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart;
     generatorBefore = kea.systemd.services."gen-kea-client".before;
     includes = dns.services.unbound.settings.server.include;
+    localZones = dns.services.unbound.settings.server."local-zone";
+    inherit conflictAccepted;
     unboundAfter = dns.systemd.services.unbound.after;
     unboundRequires = dns.systemd.services.unbound.requires;
   }
@@ -95,6 +102,8 @@ rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
 
 jq -e '
   .includes == ["/run/protected-reservation-dns/client.conf"]
+  and .localZones == ["client.lan. static"]
+  and .conflictAccepted == false
   and (.generatorBefore | index("unbound.service")) != null
   and (.unboundAfter | index("gen-kea-client.service")) != null
   and (.unboundRequires | index("gen-kea-client.service")) != null
