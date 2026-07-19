@@ -125,6 +125,102 @@ jq -e 'all(.[]; . == true)' <<<"${result}" >/dev/null || {
   exit 1
 }
 
+full_row_result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
+  let
+    root = builtins.getEnv "REPO_ROOT";
+    flake = builtins.getFlake ("path:" + root);
+    lib = flake.inputs.nixpkgs.lib;
+    system = builtins.currentSystem;
+    traceId = "FS-230-HDS-010-SDS-010-SMS-040";
+    relationId = "${traceId}__lab-wan-to-nebula-ipv6";
+    sourceFile = "/run/secrets/fs230-lab-dmz-ipv6-prefix";
+    row = flake.inputs.network-labs.outPath + "/GAMP/SMT/${traceId}";
+    cpm = flake.inputs.network-control-plane-model.lib.${system}.compileAndBuild {
+      input = import (row + "/intent.nix");
+      inventory = import (row + "/inventory-nixos.nix");
+    };
+    site = cpm.control_plane_model.data."mini-smt".${traceId};
+    hostModule = flake.lib.renderer.hostModule {
+      inherit lib system cpm;
+      hostName = "s-router-nixos";
+      selectorFile = "tests/FS-230-HDS-010-SDS-010-SMS-040-nebula-ipv6-public-ingress.sh";
+    };
+    evaluated = lib.nixosSystem {
+      inherit system;
+      modules = [ hostModule ];
+    };
+    containers = evaluated.config.containers;
+    expectedNames = [
+      "access-dmz"
+      "core-lab-wan"
+      "downstream-selector"
+      "policy"
+      "upstream-selector"
+    ];
+    configFor = name: containers.${name}.config;
+    rulesetFor = name: (configFor name).networking.nftables.ruleset;
+    runtimeServiceNamesFor = name:
+      builtins.filter
+        (serviceName: lib.hasPrefix "s88-runtime-destination-forward-" serviceName)
+        (builtins.attrNames ((configFor name).systemd.services or { }));
+    runtimePathFor = name:
+      (configFor name).systemd.paths."s88-runtime-destination-forward-0".pathConfig;
+    natFor = name: (configFor name).networking.nat;
+    exactProtectedRuleFor = name:
+      let ruleset = rulesetFor name;
+      in
+      lib.hasInfix "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"${relationId}\"" ruleset
+      && !(lib.hasInfix "tcp dport { 4242 }" ruleset);
+    noTranslationFor = name:
+      let
+        ruleset = rulesetFor name;
+        nat = natFor name;
+      in
+      nat.enable == false
+      && nat.enableIPv6 == false
+      && nat.externalInterface == null
+      && nat.internalInterfaces == [ ]
+      && !(lib.hasInfix "masquerade" ruleset)
+      && !(lib.hasInfix " snat " ruleset)
+      && !(lib.hasInfix " dnat " ruleset);
+    protectedRuntimeFor = name:
+      runtimeServiceNamesFor name == [ "s88-runtime-destination-forward-0" ]
+      && runtimePathFor name == {
+        PathChanged = sourceFile;
+        PathExists = sourceFile;
+        Unit = "s88-runtime-destination-forward-0.service";
+      };
+    targetForRole = role:
+      builtins.head (builtins.filter
+        (target: target.role == role)
+        (builtins.attrValues site.runtimeTargets));
+    core = targetForRole "core";
+    upstream = targetForRole "upstream-selector";
+  in {
+    exactFiveNodeHost = builtins.attrNames containers == expectedNames;
+    exactProtectedUdpTuple = builtins.all exactProtectedRuleFor expectedNames;
+    protectedRuntimeMaterialization = builtins.all protectedRuntimeFor expectedNames;
+    noTranslationOrMasquerade = builtins.all noTranslationFor expectedNames;
+    noStaticPublicDestination = builtins.all
+      (name: !(lib.hasInfix "2001:db8:" (rulesetFor name)))
+      expectedNames;
+    ingressAnchorIsNotEgress =
+      core.egressIntent.explicit == true
+      && core.egressIntent.exit == false
+      && core.egressIntent.uplinks == [ ]
+      && upstream.egressIntent.explicit == true
+      && upstream.egressIntent.upstreamSelection == false
+      && upstream.egressIntent.uplinks == [ ];
+    noGenericCoreOutboundAccept =
+      !(lib.hasInfix "iifname \"upstream\" oifname \"wan0\"" (rulesetFor "core-lab-wan"));
+  }
+'; })"
+
+jq -e 'all(.[]; . == true)' <<<"${full_row_result}" >/dev/null || {
+  printf 'FAIL FS-230-HDS-010-SDS-010-SMS-040: full five-node NixOS row mismatch\n%s\n' "${full_row_result}" >&2
+  exit 1
+}
+
 helper="${repo_root}/s88/ControlModule/render/containers/module/runtime-delegated-prefix.py"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
