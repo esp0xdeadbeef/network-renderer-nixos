@@ -27,6 +27,7 @@ else
       warningCodes
       localForwardZones
       requesterPolicies
+      protectedReservationPublications
       dnsEgressPolicy
       validationAuthority
       ;
@@ -84,6 +85,12 @@ else
         (map (addr: "\"${name} IN A ${addr}\"") a) ++ (map (addr: "\"${name} IN AAAA ${addr}\"") aaaa)
       )
       localRecords;
+    protectedReservationIncludes = map
+      (publication: publication.configFile)
+      protectedReservationPublications;
+    protectedReservationGeneratorUnits = map
+      (publication: publication.generatorUnit)
+      protectedReservationPublications;
     nft = import ./dns-services/nft-rules.nix { inherit lib pkgs facts; };
   in
   {
@@ -116,6 +123,9 @@ else
         // lib.optionalAttrs (localDataSettings != [ ]) {
           "local-data" = localDataSettings;
         }
+        // lib.optionalAttrs (protectedReservationIncludes != [ ]) {
+          include = protectedReservationIncludes;
+        }
         // lib.optionalAttrs (outgoingInterfaces != [ ]) {
           "outgoing-interface" = outgoingInterfaces;
         };
@@ -136,8 +146,9 @@ else
     };
 
     systemd.services.unbound = {
-      wants = [ "network-online.target" "nft-allow-dns-service.service" ];
-      after = [ "network-online.target" "nft-allow-dns-service.service" ];
+      wants = [ "network-online.target" "nft-allow-dns-service.service" ] ++ protectedReservationGeneratorUnits;
+      after = [ "network-online.target" "nft-allow-dns-service.service" ] ++ protectedReservationGeneratorUnits;
+      requires = protectedReservationGeneratorUnits;
     };
 
     systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
