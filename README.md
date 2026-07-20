@@ -23,17 +23,19 @@ reaching this renderer.
 
 | Layer | ID | Description |
 |-------|----|-------------|
-| URS   | L11, L29, L156 | Portable meaning, renderers don't invent meaning, explicit policy only |
-| FS    | FS-310 | Renderer Policy Boundary — materialize explicit CPM policy, no local allow rules |
+| URS   | Model Portability; Canonical Realization and Renderer Boundary | Portable meaning, canonical-only renderer input, and no invented policy |
+| FS    | FS-310 | Renderer Policy Boundary — materialize explicit canonical policy, no local allow rules |
+| FS    | FS-161 / FS-162 | Canonical realization authority and peer-renderer boundary |
+| FS    | FS-168 / FS-169 | Renderer consumption and rendered-output coverage |
 | FS    | FS-320 | Renderer Layout Preservation — compact layouts must preserve roles/policy/hygiene |
 | FS    | FS-982 | Host Configuration Renderer Boundary — NixOS host config stays thin; generated network realization belongs in renderers, not host profiles |
 | HDS   | FS-310-HDS-010 | Renderer Policy Boundary hardware design — substrate facts for renderer contracts |
 | SDS   | FS-310-HDS-010-SDS-010 | Renderer Policy Boundary software design — interface architecture, S88 layout, primitive registry |
 | SMS   | FS-310-HDS-010-SDS-010-SMS-010 | **Coordinator** — renderer policy boundary module (SMT: OK) |
 | SMS   | FS-310-HDS-010-SDS-010-SMS-040 | Interface name source binding — no hardcoded `eth0`/`ens3` |
-| SMS   | FS-310-HDS-010-SDS-010-SMS-050 | nftables primitive source binding — table/chain names from CPM |
-| SMS   | FS-310-HDS-010-SDS-010-SMS-100 | CPM-only consumption — no intent.nix, inventory.nix parsing |
-| SMS   | FS-310-HDS-010-SDS-010-SMS-110 | Fail-closed contract — missing/partial CPM input must fail |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-050 | nftables primitive source binding — table/chain names from canonical authority |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-100 | Canonical-only consumption — no raw intent, inventory, forwarding-model, or CPM parsing |
+| SMS   | FS-310-HDS-010-SDS-010-SMS-110 | Fail-closed contract — missing/partial canonical input must fail |
 | SMS   | FS-310-HDS-010-SDS-010-SMS-120 | No naming inference — don't guess from node/interface/role names |
 | SMS   | FS-310-HDS-010-SDS-010-SMS-130 | No policy invention — don't create firewall/routing from defaults |
 
@@ -51,12 +53,12 @@ reaching this renderer.
 ### Public Ingress Runtime Destination
 
 `FS-230-HDS-010-SDS-010-SMS-040` owns protected IPv6 public-ingress
-materialization. The renderer consumes one complete CPM tuple, keeps the public
+materialization. The renderer consumes one complete canonical tuple, keeps the public
 prefix value outside evaluation and the Nix store, derives the exact `/128` only
 at runtime from the protected prefix plus inventory-owned endpoint IID, and
 replaces one fail-closed nftables placeholder without changing rule order.
 Missing, invalid, or ambiguous runtime material fails closed. IPv4 NAPT and IPv6
-no-translation remain separate CPM authorities.
+no-translation remain separate canonical authorities with upstream provenance.
 
 ### SMT Status (2026-06-12)
 
@@ -95,15 +97,15 @@ Construction tests: `network-renderer-nixos/tests/`
 
 ## Allowed
 
-- Map CPM interfaces, addresses, routes, rules, services, and host/container
+- Map canonical interfaces, addresses, routes, rules, services, and host/container
   selections into NixOS module fragments.
 - Emit systemd-networkd, nftables, resolver, DHCP/RA, service, and validation
-  configuration from explicit CPM fields.
-- Consume explicit provider-neutral overlay interface semantics supplied by CPM
-  or a provider renderer.
+  configuration from explicit canonical fields.
+- Consume explicit provider-neutral overlay interface semantics from the same
+  validated canonical bundle.
 - Map explicit logical interface identities to deterministic platform-valid
   runtime interface names where Linux-bound artifacts impose stricter limits,
-  while preserving aliases for audit back to the CPM/provider identity.
+  while preserving aliases for audit back to canonical and upstream identities.
 
 ## Not Allowed
 
@@ -111,7 +113,8 @@ Construction tests: `network-renderer-nixos/tests/`
 - Guess behavior from node names, interface names, role names, or string tokens.
 - Treat a provider name such as `nebula`, `wireguard`, or `openvpn` as generic
   forwarding truth.
-- Repair missing CPM fields with local defaults.
+- Repair missing canonical fields with local defaults.
+- Consume raw CPM or another renderer's output as network-semantic authority.
 - Reinterpret inventory, intent files, or examples as hidden forwarding
   authority.
 - Move provider-specific runtime materialization into this renderer.
@@ -119,18 +122,21 @@ Construction tests: `network-renderer-nixos/tests/`
 ## Test Boundary
 
 Renderer tests may load `intent.nix` and inventory files to build the upstream
-pipeline and assert that renderer output preserves the expected contract. That
-is test scaffolding only.
+pipeline through canonical realization and assert that renderer output
+preserves the expected contract. A focused renderer test may also start from a
+schema-validated fixture bundle. Both are test scaffolding only; the latter
+proves renderer functionality, not controlled end-to-end evidence.
 
 Production renderer code must not parse those files for meaning. If a renderer
 needs a concept such as lane identity, overlay transport semantics, WAN
 eligibility, delegated-prefix sources, DNS policy, or firewall behavior, that
-concept must be explicit in CPM output. Missing CPM data is an upstream contract
-bug, not a renderer inference opportunity.
+concept must be explicit in the canonical bundle with upstream provenance.
+Missing canonical data is an upstream contract bug, not a renderer inference
+opportunity.
 
 ## Provider Boundary
 
-Provider-specific runtime rendering belongs in the provider renderer.
+Provider-specific runtime rendering belongs in the selected peer renderer.
 
 Examples:
 
@@ -139,9 +145,12 @@ Examples:
 - WireGuard peer/key/interface runtime would belong in a WireGuard renderer.
 - OpenVPN runtime would belong in an OpenVPN renderer.
 
-This renderer may consume the resulting explicit NixOS module fragments or
-provider-neutral interface semantics. It must not hardcode provider names to
-derive routing, firewall, WAN eligibility, or overlay behavior.
+Peer-renderer output is not network-semantic input to this renderer. A
+deployment may compose independently rendered artifacts only after each peer
+has consumed the same canonical bundle identity; that composition does not
+grant either renderer new network authority. This renderer must not hardcode
+provider names to derive routing, firewall, WAN eligibility, or overlay
+behavior.
 
 ## API
 
