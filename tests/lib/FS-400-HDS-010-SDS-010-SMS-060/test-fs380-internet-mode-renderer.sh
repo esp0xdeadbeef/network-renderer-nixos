@@ -1,0 +1,1 @@
+../shared/test-fs380-internet-mode-renderer.sh

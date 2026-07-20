@@ -1,0 +1,1 @@
+../shared/test-d23-host-runtime-ifname-bridge.sh

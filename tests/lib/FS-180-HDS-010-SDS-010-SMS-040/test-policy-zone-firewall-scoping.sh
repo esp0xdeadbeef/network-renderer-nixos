@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# GAMP-ID: FS-180-HDS-010-SDS-010-SMS-040
+# GAMP-SCOPE: software-integration-test
+set -euo pipefail
+
+repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "${repo_root}/tests/lib/test-common.sh"
+
+example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
+
+nix_eval_true_or_fail "policy-zone-firewall-scoping" env REPO_ROOT="${repo_root}" \
+INTENT_PATH="${example_root}/intent.nix" \
+INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        system = "x86_64-linux";
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
+          boxName = "s-router-test";
+          inherit system;
+        };
+        siteCContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
+          boxName = "s-router-hetzner-anywhere";
+          inherit system;
+        };
+        evalContainer = container:
+          (flake.inputs.nixpkgs.lib.nixosSystem {
+            inherit system;
+            modules = [ container.config ];
+          }).config;
+        rules = (evalContainer builtContainers."b-router-policy").networking.nftables.ruleset;
+        siteCRules = (evalContainer siteCContainers."c-router-policy").networking.nftables.ruleset;
+        branchDownstreamRules =
+          (evalContainer builtContainers."b-router-downstream-selector").networking.nftables.ruleset;
+        siteCDownstreamRules =
+          (evalContainer siteCContainers."c-router-downstream-selector").networking.nftables.ruleset;
+        siteCUpstreamRules =
+          (evalContainer siteCContainers."c-router-upstream-selector").networking.nftables.ruleset;
+        has = flake.inputs.nixpkgs.lib.hasInfix;
+        hasBefore =
+          earlier: later: text:
+          has later text && has earlier (builtins.elemAt (builtins.split later text) 0);
+      in
+        has "type filter hook input priority filter; policy drop;" rules
+        && has "iifname \"lo\" accept" rules
+        && has "ct state established,related accept" rules
+        && has "icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment \"allow-ipv6-nd-ra\"" rules
+        && has "iifname \"down-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-east-west\"" rules
+        && has "iifname \"down-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-east-west\"" rules
+        && has "iifname \"up-hostile-ew\" oifname \"down-hostile\" accept comment \"allow-east-west-to-hostile\"" rules
+        && has "iifname \"down-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" rules
+        && has "iifname \"down-branch\" oifname \"upstream-branch\" accept comment \"allow-branch-to-wan\"" rules
+        && !(has "iifname \"down-hostile\" oifname \"up-hostile\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-hostile-dns-to-wan\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-branch-ew\" meta l4proto udp udp dport { 53 } drop comment \"deny-branch-dns-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"upstream-branch\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-wan\"" rules)
+        && !(has "iifname \"down-hostile\" oifname \"up-branch-ew\" accept comment \"allow-hostile-to-east-west\"" rules)
+        && !(has "iifname \"up-branch-ew\" oifname \"down-hostile\" accept comment \"allow-east-west-to-hostile\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-hostile\" accept comment \"allow-branch-to-wan\"" rules)
+        && !(has "iifname \"down-branch\" oifname \"up-hostile-ew\" accept comment \"allow-branch-to-wan\"" rules)
+        && has "iifname \"downstream-dmz\" oifname \"up-dmz-wan\" accept comment \"allow-sitec-dmz-to-wan\"" siteCRules
+        && has "iifname \"down-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && has "iifname \"down-client\" oifname \"downstream-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCRules
+        && has "iifname \"down-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
+        && has "iifname \"down-client\" oifname \"up-client-ew\" accept comment \"allow-sitec-client-to-east-west\"" siteCRules
+        && has "iifname \"up-client-ew\" oifname \"down-client\" accept comment \"allow-east-west-to-sitec-client\"" siteCRules
+        && has "iifname \"up-client-ew\" oifname \"up-client-wan\" meta l4proto udp udp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" siteCRules
+        && has "iifname \"up-client-ew\" oifname \"up-client-wan\" meta l4proto tcp tcp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" siteCRules
+        && !(has "iifname \"up-client-ew\" oifname \"up-client-wan\" accept" siteCRules)
+        && hasBefore "iifname \"down-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" "iifname \"down-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && has "type filter hook forward priority filter; policy drop;" branchDownstreamRules
+        && !(has "iifname \"access-branch\" oifname \"access-hostile\" accept" branchDownstreamRules)
+        && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
+        && !(has "iifname \"policy-branch\" oifname \"policy-hostile\" accept" branchDownstreamRules)
+        && !(has "iifname \"access-dmz\" oifname \"access-client\" accept" siteCDownstreamRules)
+        && !(has "iifname \"access-client\" oifname \"access-dmz\"" siteCDownstreamRules)
+        && has "iifname \"policy-dmz\" oifname \"access-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && has "iifname \"policy-dmz\" oifname \"access-dmz\" meta l4proto tcp tcp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules
+        && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-dmz-dns\"" siteCDownstreamRules)
+        && !(has "iifname \"access-client\" oifname \"access-dmz\" accept comment \"allow-sitec-client-to-wan\"" siteCDownstreamRules)
+        && !(has "iifname \"pol-client-wan\" oifname \"policy-dmz-wan\" accept" siteCUpstreamRules)
+        && !(has "iifname \"policy-dmz-wan\" oifname \"pol-client-wan\" accept" siteCUpstreamRules)
+    '
+
+echo "PASS policy-zone-firewall-scoping"

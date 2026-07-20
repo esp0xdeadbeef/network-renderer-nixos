@@ -53,9 +53,9 @@ wait_for_one() {
 
 mapfile -d '' test_files < <(
   {
-    find "${repo_root}/tests" -maxdepth 1 -type f -name 'test-*.sh' ! -name 'test-passing-fixtures.sh' -print0
-    find "${repo_root}/tests" -maxdepth 1 -type f -name 'FS-*.sh' -print0
-    find "${repo_root}/tests" -maxdepth 1 -type f -name 'run-fs982-sms110.sh' -print0
+    find "${repo_root}/tests" -maxdepth 1 \( -type f -o -type l \) -name 'test-*.sh' ! -name 'test-passing-fixtures.sh' -print0
+    find "${repo_root}/tests" -maxdepth 1 -regextype posix-extended \( -type f -o -type l \) \
+      -regex '.*/FS-[0-9]+-HDS-[0-9]+-SDS-[0-9]+-SMS-[0-9]+\.sh' -print0
     find "${repo_root}/tests/cases" -maxdepth 1 -type f -name '*.sh' -print0
   } | sort -z
 )

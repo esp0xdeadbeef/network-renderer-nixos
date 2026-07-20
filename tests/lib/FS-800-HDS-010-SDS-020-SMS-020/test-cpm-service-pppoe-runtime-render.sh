@@ -1,0 +1,1 @@
+../shared/test-cpm-service-pppoe-runtime-render.sh
