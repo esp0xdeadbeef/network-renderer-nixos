@@ -11,7 +11,7 @@
     network-forwarding-model.url = "github:esp0xdeadbeef/network-forwarding-model";
     network-forwarding-model.inputs.nixpkgs.follows = "nixpkgs";
 
-    network-realization-model.url = "github:esp0xdeadbeef/network-realization-model/759ed91eb1ea7524951cba99357828223c26b2e7";
+    network-realization-model.url = "github:esp0xdeadbeef/network-realization-model";
     network-realization-model.inputs.nixpkgs.follows = "nixpkgs";
 
     network-labs.url = "github:esp0xdeadbeef/network-labs";
@@ -468,7 +468,7 @@
               identity = "nixos-renderer-boundary";
             };
             rootLockIdentity = "network-renderer-nixos-flake-lock";
-            producerRevision = "network-realization-model-759ed91";
+            producerRevision = network-realization-model.rev;
           };
           accepted = canonicalRendererInput { inherit bundle; };
           rawRejected =
