@@ -1,7 +1,8 @@
 # network-renderer-nixos
 
-`network-renderer-nixos` emits NixOS configuration from explicit
-`network-control-plane-model` output.
+`network-renderer-nixos` emits NixOS configuration from one validated canonical
+network-realization bundle and, when required, one validated NixOS platform-
+binding bundle.
 
 It is an emission stage only.
 
@@ -9,7 +10,7 @@ Migration, deviation, exception, transition, or temporary compatibility behavior
 must be explicit in the README, tests, and owning layer before it is accepted.
 
 ```text
-network-forwarding-model -> network-control-plane-model -> network-renderer-nixos
+network-control-plane-model -> network-realization-model -> schema validation -> network-renderer-nixos
 ```
 
 ## Spec Chain
@@ -66,10 +67,13 @@ no-translation remain separate CPM authorities.
 ### Pipeline
 
 ```
-network-labs (intent + inventory) → network-compiler → NFM → CPM → network-renderer-nixos
+network-labs → compiler → NFM → CPM → realization → schema validation → network-renderer-nixos
 ```
 
-Required input: CPM output only. Must not parse `intent.nix`, `inventory.nix`, or `inventory-nixos.nix`.
+The canonical renderer API accepts only the validated bundle boundary. Raw CPM
+remains available solely to superseded direct-entry regression fixtures and is
+not current controlled evidence. Production rendering must not parse
+`intent.nix`, `inventory.nix`, or `inventory-nixos.nix`.
 
 ### Owning Repository
 
@@ -77,13 +81,15 @@ Construction tests: `network-renderer-nixos/tests/`
 
 ## Contract
 
-- The forwarding model and CPM are the source of truth.
-- This renderer consumes resolved CPM output and emits NixOS-shaped artifacts.
-- Runtime renderer behavior must be derived from CPM output only, not from
+- Upstream network semantics reach this renderer only through the validated
+  canonical bundle.
+- The optional normalized platform-binding bundle may supply NixOS mechanics,
+  but may not create network meaning.
+- Runtime renderer behavior must be derived from canonical input only, not from
   `intent.nix`, `inventory.nix`, `inventory-nixos.nix`, or repository-local
   source parsing.
 - Missing, partial, or inconsistent input must fail evaluation.
-- Renderer output must be deterministic for the same CPM input.
+- Renderer output must be deterministic for the same bundle and binding identities.
 - Rendered debug/artifact files must expose the consumed inputs and emitted
   host/container shape for audit.
 
@@ -145,7 +151,14 @@ Main consumers use:
 
 - `lib.containers.buildForBox`
 - `lib.hosts.buildHostFromPaths`
-- `lib.renderer.hostModule { outPath; hostName; ... }` for a NixOS module
+- `lib.renderer.canonical.hostModule { bundle; platformBinding; hostName; ... }`
+  for the controlled canonical boundary
+- `lib.renderer.canonical.buildHost` for focused construction
+- `lib.renderer.canonical.validateInput` for boundary diagnostics
+- `lib.renderer.hostModule` only for retained, superseded direct-CPM regression
+  fixtures during migration
+
+The canonical host module returns a NixOS module
   attrset carrying rendered networkd, container, module-argument and debug
   artifact output
 

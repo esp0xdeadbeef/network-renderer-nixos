@@ -11,6 +11,9 @@
     network-forwarding-model.url = "github:esp0xdeadbeef/network-forwarding-model";
     network-forwarding-model.inputs.nixpkgs.follows = "nixpkgs";
 
+    network-realization-model.url = "github:esp0xdeadbeef/network-realization-model/759ed91eb1ea7524951cba99357828223c26b2e7";
+    network-realization-model.inputs.nixpkgs.follows = "nixpkgs";
+
     network-labs.url = "github:esp0xdeadbeef/network-labs";
   };
 
@@ -21,6 +24,7 @@
       nixos-network-compiler,
       network-control-plane-model,
       network-forwarding-model,
+      network-realization-model,
       network-labs,
       ...
     }:
@@ -272,6 +276,63 @@
         }
         // builtins.seq mgmtValidate { };
 
+      canonicalRendererInput =
+        {
+          bundle,
+          platformBinding ? null,
+        }:
+        network-realization-model.lib.validateRendererInput {
+          inherit bundle platformBinding;
+          expectedTarget = "nixos";
+        };
+
+      canonicalHostModule =
+        {
+          bundle,
+          platformBinding ? null,
+          ...
+        }@rendererInput:
+        let
+          validated = canonicalRendererInput { inherit bundle platformBinding; };
+          forwarded = builtins.removeAttrs rendererInput [
+            "bundle"
+            "platformBinding"
+          ];
+        in
+        hostModule (
+          forwarded
+          // {
+            cpm = validated.controlPlaneEnvelope;
+            canonicalBundleIdentity = validated.bundleIdentity;
+            canonicalBindingIdentity = validated.bindingIdentity;
+          }
+        );
+
+      canonicalBuildHost =
+        {
+          bundle,
+          platformBinding ? null,
+          ...
+        }@rendererInput:
+        let
+          validated = canonicalRendererInput { inherit bundle platformBinding; };
+          forwarded = builtins.removeAttrs rendererInput [
+            "bundle"
+            "platformBinding"
+          ];
+          rendered = api.renderer.buildHostFromControlPlane (
+            forwarded // { controlPlaneOut = validated.controlPlaneEnvelope; }
+          );
+        in
+        rendered
+        // {
+          canonicalInput = {
+            bundleIdentity = validated.bundleIdentity;
+            bindingIdentity = validated.bindingIdentity;
+            requestScope = validated.requestScope;
+          };
+        };
+
       mkVmApiForSystem =
         system:
         let
@@ -340,6 +401,11 @@
             api.renderer
             // {
               inherit hostModule;
+              canonical = {
+                buildHost = canonicalBuildHost;
+                hostModule = canonicalHostModule;
+                validateInput = canonicalRendererInput;
+              };
             }
             // vmApi;
         };
@@ -348,6 +414,11 @@
       lib = api // {
         renderer = api.renderer // {
           inherit hostModule;
+          canonical = {
+            buildHost = canonicalBuildHost;
+            hostModule = canonicalHostModule;
+            validateInput = canonicalRendererInput;
+          };
         };
       };
 
@@ -383,6 +454,39 @@
             type = "app";
             inherit program;
           };
+        }
+      );
+
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          bundle = network-realization-model.lib.realize {
+            input = import "${network-realization-model}/examples/cpm-result.nix";
+            requestScope = {
+              kind = "complete-artifact";
+              identity = "nixos-renderer-boundary";
+            };
+            rootLockIdentity = "network-renderer-nixos-flake-lock";
+            producerRevision = "network-realization-model-759ed91";
+          };
+          accepted = canonicalRendererInput { inherit bundle; };
+          rawRejected =
+            !(builtins.tryEval (
+              builtins.deepSeq (canonicalRendererInput {
+                bundle = {
+                  control_plane_model = { };
+                };
+              }) true
+            )).success;
+        in
+        assert accepted.bundleIdentity == bundle.bundleIdentity;
+        assert accepted.controlPlaneEnvelope.control_plane_model == bundle.network.data;
+        assert rawRejected;
+        {
+          canonical-renderer-input = pkgs.runCommand "network-renderer-nixos-canonical-input" { } ''
+            touch "$out"
+          '';
         }
       );
     };
