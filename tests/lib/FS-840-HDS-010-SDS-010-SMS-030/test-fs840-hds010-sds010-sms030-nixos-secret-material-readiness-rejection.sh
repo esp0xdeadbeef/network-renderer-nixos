@@ -1,0 +1,1 @@
+../shared/test-fs840-hds010-sds010-sms030-nixos-secret-material-readiness-rejection.sh

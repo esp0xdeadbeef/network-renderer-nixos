@@ -1,0 +1,1 @@
+../shared/test-bgp-runtime-contract-fail-closed.sh

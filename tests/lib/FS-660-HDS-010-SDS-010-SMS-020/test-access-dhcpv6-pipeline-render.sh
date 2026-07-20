@@ -1,0 +1,1 @@
+../shared/test-access-dhcpv6-pipeline-render.sh

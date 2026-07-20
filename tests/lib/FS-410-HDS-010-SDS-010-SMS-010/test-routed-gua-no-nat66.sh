@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# GAMP-ID: FS-410-HDS-010-SDS-010-SMS-010
+set -euo pipefail
+# LAB-SMT-ID: LAB-SMT-018
+# LAB-SMT-SCOPE: examples-only; see network-labs/tests/SMT.md
+
+repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
+source "${repo_root}/tests/lib/test-common.sh"
+
+example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
+intent_path="${example_root}/intent.nix"
+inventory_path="${example_root}/inventory-nixos.nix"
+
+result_json="$(mktemp)"
+eval_stderr="$(mktemp)"
+trap 'rm -f "${result_json}" "${eval_stderr}"' EXIT
+
+nix_eval_json_or_fail \
+  routed-gua-no-nat66 \
+  "${result_json}" \
+  "${eval_stderr}" \
+  env REPO_ROOT="${repo_root}" \
+    INTENT_PATH="${intent_path}" \
+    INVENTORY_PATH="${inventory_path}" \
+    nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --json --expr '
+      let
+        flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
+        lib = flake.inputs.nixpkgs.lib;
+        system = "x86_64-linux";
+        builtContainers = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-containers-from-paths.nix") {
+          boxName = "s-router-hetzner-anywhere";
+          inherit system;
+        };
+        cfg = (lib.nixosSystem {
+          inherit system;
+          modules = [ builtContainers."c-router-core".config ];
+        }).config;
+        rules = cfg.networking.nftables.ruleset;
+      in
+      {
+        message = "routed hostile GUA must not be NAT66 masqueraded; NAT66 requires explicit CPM intent and is not the default renderer behavior";
+        inherit rules;
+      }
+    '
+
+rules_file="$(mktemp)"
+trap 'rm -f "${result_json}" "${eval_stderr}" "${rules_file}"' EXIT
+
+_jq -r '.rules' "${result_json}" >"${rules_file}"
+
+if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "[^"]+" ip saddr .*10\.90\.10\.0/24.*masquerade' "${rules_file}"; then
+  echo "FAIL routed-gua-no-nat66: expected IPv4 egress masquerade to remain rendered for private IPv4 internet egress" >&2
+  echo "nft nat excerpt:" >&2
+  rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
+  exit 1
+fi
+
+if awk '
+  /table ip6 nat/ { in_ip6_nat = 1; next }
+  in_ip6_nat && /^  table / { in_ip6_nat = 0 }
+  in_ip6_nat && /masquerade/ { found = 1 }
+  END { exit found ? 0 : 1 }
+' "${rules_file}"; then
+  echo "FAIL routed-gua-no-nat66: routed hostile GUA must not be NAT66 masqueraded; NAT66 requires explicit CPM intent and is not the default renderer behavior" >&2
+  echo "nft nat excerpt:" >&2
+  rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
+  exit 1
+fi
+
+pass "routed-gua-no-nat66"

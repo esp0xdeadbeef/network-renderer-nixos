@@ -1,0 +1,1 @@
+../shared/test-bgp-cpm-contract-render.sh

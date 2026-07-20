@@ -1,0 +1,1 @@
+../shared/test-fs500-dns-hat-evidence-debug-payload.sh

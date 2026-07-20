@@ -1,0 +1,1 @@
+../shared/test-kea-dhcpv6-render.sh

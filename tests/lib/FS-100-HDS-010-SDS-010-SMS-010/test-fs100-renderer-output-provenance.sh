@@ -1,0 +1,1 @@
+../shared/test-fs100-renderer-output-provenance.sh
