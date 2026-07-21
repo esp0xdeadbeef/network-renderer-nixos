@@ -190,7 +190,9 @@ let
             iface.connectivity.upstream
           else
             null;
-      };
+      }
+      // lib.optionalAttrs (iface ? ipv4) { ipv4 = iface.ipv4; }
+      // lib.optionalAttrs (iface ? ipv6) { ipv6 = iface.ipv6; };
     };
 in
 {
