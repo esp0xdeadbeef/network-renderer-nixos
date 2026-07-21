@@ -11,7 +11,19 @@ if [[ ! -d "$search_root" ]]; then
   fail "missing network-labs directory: ${search_root}"
 fi
 
-mapfile -t intent_paths < <(find "$search_root" -type f -name intent.nix | sort)
+mapfile -t intent_paths < <(
+  {
+    if [[ -d "${search_root}/examples" ]]; then
+      find "${search_root}/examples" -mindepth 2 -maxdepth 2 -type f -name intent.nix
+    fi
+    if [[ -d "${search_root}/GAMP/HAT" ]]; then
+      find "${search_root}/GAMP/HAT" -mindepth 2 -maxdepth 2 -type f -name intent.nix
+    fi
+    if [[ -f "${search_root}/GAMP/SAT/intent.nix" ]]; then
+      printf '%s\n' "${search_root}/GAMP/SAT/intent.nix"
+    fi
+  } | LC_ALL=C sort -u
+)
 
 if (( ${#intent_paths[@]} == 0 )); then
   fail "no intent.nix files found under: ${search_root}"
@@ -28,12 +40,6 @@ for intent_path in "${intent_paths[@]}"; do
     skipped=$((skipped + 1))
     continue
   fi
-  case "$intent_path" in
-    */GAMP/SMT/FS-*/intent.nix)
-      skipped=$((skipped + 1))
-      continue
-      ;;
-  esac
   if rg -q 'scope = "(canonical-sms-source-stub|mini-smt-auto)"' "$inventory_path"; then
     skipped=$((skipped + 1))
     continue
