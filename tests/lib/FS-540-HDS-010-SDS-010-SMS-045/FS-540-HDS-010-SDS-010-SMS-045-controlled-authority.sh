@@ -84,6 +84,48 @@ let
   badSelection = builtins.tryEval (builtins.deepSeq
     badEvaluation.config.containers."core-primary".config.services.unbound.settings
     true);
+
+  # Production posture: infra-host-ttl=900, no infra-lame-ttl
+  productionHostTtl = unboundServer."infra-host-ttl" or null;
+  productionLameTtl = unboundServer."infra-lame-ttl" or null;
+
+  # Fixture with explicit timer acceleration
+  fixtureCore = targets.${coreTargetName} // {
+    services = targets.${coreTargetName}.services // {
+      dns = targets.${coreTargetName}.services.dns // {
+        infraHostTtl = 1;
+        infraLameTtl = 1;
+      };
+    };
+  };
+  fixtureCpm = cpm // {
+    control_plane_model = cpm.control_plane_model // {
+      data = cpm.control_plane_model.data // {
+        "mini-smt" = cpm.control_plane_model.data."mini-smt" // {
+          ${trace} = cpm.control_plane_model.data."mini-smt".${trace} // {
+            runtimeTargets = targets // { ${coreTargetName} = fixtureCore; };
+          };
+        };
+      };
+    };
+  };
+  fixtureEvaluation = renderer.inputs.nixpkgs.lib.nixosSystem {
+    inherit system;
+    modules = [
+      (renderer.libBySystem.${system}.renderer.hostModule {
+        cpm = fixtureCpm;
+        hostName = "s-router-nixos";
+      })
+      ({ ... }: {
+        boot.isContainer = true;
+        system.stateVersion = "26.05";
+      })
+    ];
+  };
+  fixtureUnbound = fixtureEvaluation.config.containers."core-primary".config.services.unbound.settings.server;
+  fixtureHostTtl = fixtureUnbound."infra-host-ttl" or null;
+  fixtureLameTtl = fixtureUnbound."infra-lame-ttl" or null;
+
 in {
   authorityPreserved = authority.kind == "controlled-iterative-hierarchy";
   coreControlled =
@@ -130,6 +172,8 @@ in {
       (authority.root.ipv4 ++ authority.root.ipv6
         ++ authority.delegation.ipv4 ++ authority.delegation.ipv6);
   badSelectionRejected = badSelection.success == false;
+  productionTtlDefault = productionHostTtl == 900 && productionLameTtl == null;
+  fixtureTtlOverride = fixtureHostTtl == 1 && fixtureLameTtl == 1;
 }
 ')"
 
@@ -144,6 +188,8 @@ jq -e '
   and .providerAddresses == true
   and .alternateUnanswered == true
   and .badSelectionRejected == true
+  and .productionTtlDefault == true
+  and .fixtureTtlOverride == true
 ' <<<"${result}" >/dev/null
 
 echo "PASS FS-540 NixOS controlled iterative authority materialization"

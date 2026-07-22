@@ -30,6 +30,8 @@ else
       protectedReservationPublications
       dnsEgressPolicy
       validationAuthority
+      infraHostTtl
+      infraLameTtl
       ;
 
     controlledAuthority = validationAuthority != null;
@@ -122,8 +124,10 @@ else
           "access-control" = accessControl;
           "do-ip4" = true;
           "do-ip6" = true;
-          "infra-host-ttl" = 1;
-          "infra-lame-ttl" = 1;
+          "infra-host-ttl" = if infraHostTtl != null then infraHostTtl else 900;
+        }
+        // lib.optionalAttrs (infraLameTtl != null) {
+          "infra-lame-ttl" = infraLameTtl;
         }
         // lib.optionalAttrs controlledAuthority {
           "root-hints" = "${rootHintsFile}";
