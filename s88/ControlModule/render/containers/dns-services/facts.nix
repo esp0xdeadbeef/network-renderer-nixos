@@ -229,6 +229,18 @@ let
     else
       null;
 
+  infraHostTtl =
+    if dnsService ? infraHostTtl && builtins.isInt dnsService.infraHostTtl && dnsService.infraHostTtl > 0 then
+      dnsService.infraHostTtl
+    else
+      null;
+
+  infraLameTtl =
+    if dnsService ? infraLameTtl && builtins.isInt dnsService.infraLameTtl && dnsService.infraLameTtl > 0 then
+      dnsService.infraLameTtl
+    else
+      null;
+
   validationAuthorityComplete =
     validationAuthority == null
     || (
@@ -340,7 +352,7 @@ else
     throw "NixOS DNS renderer DNS_VALIDATION_AUTHORITY_EXTERNAL: controlled iterative authority is missing its harness scope or disagrees with the selected model-owned egress; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-045"
   else
   rec {
-    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy validationAuthority protectedReservationPublications;
+    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy validationAuthority protectedReservationPublications infraHostTtl infraLameTtl;
     inherit (dnsAuthority)
       recursionMode
       reproducibilityWarnings
