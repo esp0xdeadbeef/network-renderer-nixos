@@ -1,5 +1,29 @@
 #!/usr/bin/env python3
-"""Materialize one protected reservation set into a runtime-local Kea config."""
+"""Materialize one protected reservation set into a runtime-local Kea config.
+
+GAMP-ID: FS-560-HDS-010-SDS-010-SMS-050
+GAMP-SCOPE: software-module-construction
+
+Owning implementation artifact for protected reservation name materialization
+(SMS-050).  Consumes the schema-valid canonical publication record via the
+--dns-* arguments wired by kea.nix / kea-dhcp6.nix and materializes
+platform-native A, AAAA, and PTR local data for Unbound at runtime.
+
+Predicate coverage:
+  001 — Bind to namespace owner, requester scopes, record classes, pub behavior
+  002 — Absent/disabled publication yields zero DNS records
+  003 — Opaque protected source reference preservation
+  004 — Derived source kind + family from enclosing reservation source
+  005 — Runtime-only A/AAAA/PTR materialization
+  006 — One PTR per unique IPv4/IPv6 address
+  007 — Address-set publication: group by namespace owner + hostname
+  008 — Per-reservation identity preservation
+  009 — Local authoritative boundary (no upstream fallthrough)
+  010 — Reservation-to-Kea + reservation-to-DNS identity
+  011 — Equivalent NixOS and CLAB semantics
+  012 — Local publication independent from recursion/egress
+  013 — Fail-closed with redacted diagnostics
+"""
 
 from __future__ import annotations
 
@@ -16,6 +40,7 @@ from typing import Any
 
 
 DIAGNOSTIC = "diagnostic.runtime-reservation-secret-record-invalid"
+PUBLICATION_HOSTNAME_MISSING = "diagnostic.protected-reservation-name-publication-hostname-missing"
 SCHEMA_FIELDS = {"id", "scope", "ipv4", "ipv6", "hostname"}
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 MAC = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
@@ -183,39 +208,52 @@ def materialize_dns_lines(
         require(set(record).issubset(SCHEMA_FIELDS))
         require(record.get("scope") == scope)
         hostname = record.get("hostname")
+        if not isinstance(hostname, str) or not hostname:
+            raise ReservationContractError(PUBLICATION_HOSTNAME_MISSING)
         require(
-            isinstance(hostname, str)
-            and HOSTNAME.fullmatch(hostname) is not None
+            HOSTNAME.fullmatch(hostname) is not None
             and "." not in hostname
         )
         fqdn = f"{hostname}.{namespace}"
         normalized_fqdn = fqdn.lower()
-        require(normalized_fqdn not in names)
         names.add(normalized_fqdn)
 
         record_addresses: list[str] = []
-        if "A" in record_classes:
-            ipv4, _ = validated_ipv4_identity(record.get("ipv4"))
-            rendered_ipv4 = str(ipv4)
-            lines.append(f'  local-data: "{fqdn} IN A {rendered_ipv4}"')
-            record_addresses.append(rendered_ipv4)
-        if "AAAA" in record_classes:
-            ipv6, _ = validated_ipv6_identity(record.get("ipv6"))
-            rendered_ipv6 = str(ipv6)
-            lines.append(f'  local-data: "{fqdn} IN AAAA {rendered_ipv6}"')
-            record_addresses.append(rendered_ipv6)
-        if "PTR" in record_classes:
-            if not record_addresses:
-                if record.get("ipv4") is not None:
-                    ipv4, _ = validated_ipv4_identity(record.get("ipv4"))
-                    record_addresses.append(str(ipv4))
-                if record.get("ipv6") is not None:
-                    ipv6, _ = validated_ipv6_identity(record.get("ipv6"))
-                    record_addresses.append(str(ipv6))
-            require(record_addresses)
+        # Determine per-address-family data before emitting.
+        v4 = None
+        v6 = None
+        if record.get("ipv4") is not None:
+            v4, _ = validated_ipv4_identity(record["ipv4"])
+        if record.get("ipv6") is not None:
+            v6, _ = validated_ipv6_identity(record["ipv6"])
+
+        # Collect addresses based on requested record classes.
+        if v4 is not None and "A" in record_classes:
+            record_addresses.append(str(v4))
+        if v6 is not None and "AAAA" in record_classes:
+            record_addresses.append(str(v6))
+        if "PTR" in record_classes and not record_addresses:
+            if v4 is not None:
+                record_addresses.append(str(v4))
+            if v6 is not None:
+                record_addresses.append(str(v6))
+        require(record_addresses)
+
+        # SMS-050 predicate 007: Address-set publication — allow distinct
+        # reservation identities to contribute unique addresses to one
+        # hostname.  Duplicate addresses are silently deduplicated.
         for address in record_addresses:
-            require(address not in addresses)
+            if address in addresses:
+                continue
             addresses.add(address)
+            try:
+                parsed = ipaddress.ip_address(address)
+                if parsed.version == 4 and "A" in record_classes:
+                    lines.append(f'  local-data: "{fqdn} IN A {address}"')
+                if parsed.version == 6 and "AAAA" in record_classes:
+                    lines.append(f'  local-data: "{fqdn} IN AAAA {address}"')
+            except ValueError:
+                pass
             if "PTR" in record_classes:
                 lines.append(f'  local-data-ptr: "{address} {fqdn}"')
 
@@ -349,6 +387,13 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
+    except ReservationContractError as exc:
+        msg = exc.args[0] if exc.args else DIAGNOSTIC
+        print(
+            f"{msg}: protected reservation set or Kea template rejected",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     except Exception:
         print(
             f"{DIAGNOSTIC}: protected reservation set or Kea template rejected",
