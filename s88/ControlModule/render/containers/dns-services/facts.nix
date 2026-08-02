@@ -130,6 +130,14 @@ let
               builtins.seq _policy {
                 inherit scopeId namespace recordClasses generatorUnit;
                 configFile = "/run/protected-reservation-dns/${stem}.conf";
+                # FS-560: Preserve the CPM-computed reverse DNS zone for PTR
+                # local-data-ptr records so the DNS renderer can add the
+                # corresponding in-addr.arpa static zone.
+                reverseNamespace =
+                  if builtins.isString (publication.reverseNamespace or null) && publication.reverseNamespace != "" then
+                    publication.reverseNamespace
+                  else
+                    null;
               }
             )
           )
