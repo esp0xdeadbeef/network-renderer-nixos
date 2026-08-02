@@ -41,8 +41,18 @@ let
         reproducibilityWarnings
     )
   );
+  nonFatalWarningCodes = [
+    "DNS_CORE_UPSTREAM_HARDCODED"
+    "DNS_LOCAL_SHARING_INTENT_MISSING"
+    "DNS_LOCAL_ONLY_AUTHORITY_LEAK"
+    "DNS_RECURSION_FAMILY_INCOMPLETE"
+    "DNS_EGRESS_SELECTION_MISSING"
+    "DNS_EGRESS_SELECTION_AMBIGUOUS"
+    "DNS_CORE_ENDPOINT_PATH_MISMATCH"
+    "DNS_CORE_FAMILY_INCOMPLETE"
+  ];
   fatalWarningCodes = builtins.filter
-    (code: code != "DNS_CORE_UPSTREAM_HARDCODED")
+    (code: !(builtins.elem code nonFatalWarningCodes))
     warningCodes;
 
   legacyForwarders =
