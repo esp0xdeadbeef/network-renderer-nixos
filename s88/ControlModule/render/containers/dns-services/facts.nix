@@ -118,9 +118,9 @@ let
               throw "diagnostic.protected-reservation-name-policy-invalid: NixOS DNS renderer requires fail-closed local-only publication";
           generatorUnit =
             if materializerFamily == "ipv4" then
-              "gen-kea-${stem}.service"
+              "gen-s-router-prod-${stem}-local-data.service"
             else if materializerFamily == "ipv6" then
-              "gen-kea-dhcp6-${stem}.service"
+              "gen-s-router-prod-${stem}-local-data.service"
             else
               throw "diagnostic.protected-reservation-name-materializer-family-invalid: NixOS DNS renderer requires an explicit CPM family";
         in
@@ -129,7 +129,7 @@ let
             builtins.seq _recordClasses (
               builtins.seq _policy {
                 inherit scopeId namespace recordClasses generatorUnit;
-                configFile = "/run/protected-reservation-dns/${stem}.conf";
+                configFile = "/run/unbound/s-router-prod-${stem}-local.conf";
                 # FS-560: Preserve the CPM-computed reverse DNS zone for PTR
                 # local-data-ptr records so the DNS renderer can add the
                 # corresponding in-addr.arpa static zone.
