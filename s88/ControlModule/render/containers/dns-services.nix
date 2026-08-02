@@ -70,11 +70,22 @@ else
               localZones
             || builtins.any (zone: zone.name == publication.namespace) localForwardZones)
           protectedReservationPublications;
+        forwardZones = map (publication: "${publication.namespace} static") protectedReservationPublications;
+        # FS-560-HDS-010-SDS-010-SMS-050: when a protected publication includes
+        # PTR records, the CPM also emits a reverseNamespace for the in-addr.arpa
+        # or ip6.arpa zone so Unbound's local-data-ptr records are served from a
+        # static authoritative zone.
+        reverseZones = lib.filter (z: z != null) (map
+          (publication:
+            let rn = publication.reverseNamespace or null;
+            in if builtins.isString rn && rn != "" then "${rn} static" else null)
+          protectedReservationPublications);
+        allZones = forwardZones ++ reverseZones;
       in
       if conflicts != [ ] then
         throw "diagnostic.protected-reservation-name-namespace-authority-conflict: NixOS DNS renderer rejected an overlapping local or forwarding namespace without logging address material"
       else
-        map (publication: "${publication.namespace} static") protectedReservationPublications;
+        allZones;
     localOnlyRootZoneSettings = lib.optional (recursionMode == "local-only") ". refuse";
     localZoneSettings =
       lib.unique (
