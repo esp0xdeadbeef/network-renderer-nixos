@@ -118,9 +118,9 @@ let
               throw "diagnostic.protected-reservation-name-policy-invalid: NixOS DNS renderer requires fail-closed local-only publication";
           generatorUnit =
             if materializerFamily == "ipv4" then
-              "gen-s-router-prod-${stem}-local-data.service"
+              "gen-s-router-prod-${stem}-unbound-local-data.service"
             else if materializerFamily == "ipv6" then
-              "gen-s-router-prod-${stem}-local-data.service"
+              "gen-s-router-prod-${stem}-unbound-local-data.service"
             else
               throw "diagnostic.protected-reservation-name-materializer-family-invalid: NixOS DNS renderer requires an explicit CPM family";
         in
