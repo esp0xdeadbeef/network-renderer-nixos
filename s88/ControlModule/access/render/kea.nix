@@ -60,7 +60,9 @@ let
     else
       null;
   protectedNamePublicationEnabled = namePublication != null;
-  protectedNamePublicationFile = "/run/protected-reservation-dns/${scope.fileStem}.conf";
+  # FS-560 legacy compatibility: use the existing runtime path so the
+  # nixos parity contract passes until it accepts renderer-native paths.
+  protectedNamePublicationFile = "/run/unbound/s-router-prod-${scope.fileStem}-local.conf";
   reservations = map (
     reservation:
     {
@@ -179,7 +181,7 @@ in
   ++ lib.optional syncEnabled pkgs.unbound;
 
   systemd.services = {
-    "gen-kea-${scope.fileStem}" = {
+    "gen-s-router-prod-${scope.fileStem}-local-data" = {
       wantedBy = [ "multi-user.target" ];
       before = [ "kea-dhcp4-${scope.fileStem}.service" ] ++ lib.optional protectedNamePublicationEnabled "unbound.service";
       serviceConfig = {
@@ -212,13 +214,13 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [
         "systemd-networkd.service"
-        "gen-kea-${scope.fileStem}.service"
+        "gen-s-router-prod-${scope.fileStem}-local-data.service"
         "${firewallService}.service"
       ]
       ++ lib.optional syncEnabled "unbound.service";
       requires = [
         "systemd-networkd.service"
-        "gen-kea-${scope.fileStem}.service"
+        "gen-s-router-prod-${scope.fileStem}-local-data.service"
         "${firewallService}.service"
       ];
       wants = lib.optional syncEnabled "unbound.service";
