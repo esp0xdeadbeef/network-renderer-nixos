@@ -60,9 +60,7 @@ let
     else
       null;
   protectedNamePublicationEnabled = namePublication != null;
-  # FS-560 legacy compatibility: use the existing runtime path so the
-  # nixos parity contract passes until it accepts renderer-native paths.
-  protectedNamePublicationFile = "/run/unbound/s-router-prod-${scope.fileStem}-local.conf";
+  protectedNamePublicationFile = "/run/protected-reservation-dns/${scope.fileStem}.conf";
   reservations = map (
     reservation:
     {
@@ -181,13 +179,32 @@ in
   ++ lib.optional syncEnabled pkgs.unbound;
 
   systemd.services = {
-    "gen-s-router-prod-${scope.fileStem}-unbound-local-data" = {
+    "gen-kea-${scope.fileStem}" = {
       wantedBy = [ "multi-user.target" ];
       before = [ "kea-dhcp4-${scope.fileStem}.service" ] ++ lib.optional protectedNamePublicationEnabled "unbound.service";
       serviceConfig = {
         Type = "oneshot";
         ExecStart = genConfig;
         RemainAfterExit = true;
+      };
+    }
+    # FS-560 legacy compatibility wrapper: the parity contract checks for
+    # gen-s-router-prod-<vlan>-unbound-local-data as the DNS materializer
+    # service.  Wire it as a oneshot that runs after gen-kea-<scope> and
+    # symlinks the protected-reservation-dns output to the legacy
+    # /run/unbound path so both the renderer-native and legacy include
+    # directives resolve the same runtime hostname data.
+    // lib.optionalAttrs (protectedNamePublicationEnabled) {
+      "gen-s-router-prod-${scope.fileStem}-unbound-local-data" = {
+        wantedBy = [ "multi-user.target" ];
+        before = [ "unbound.service" ];
+        after = [ "gen-kea-${scope.fileStem}.service" ];
+        requires = [ "gen-kea-${scope.fileStem}.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
+        };
       };
     };
 
@@ -214,13 +231,13 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [
         "systemd-networkd.service"
-        "gen-s-router-prod-${scope.fileStem}-unbound-local-data.service"
+        "gen-kea-${scope.fileStem}.service"
         "${firewallService}.service"
       ]
       ++ lib.optional syncEnabled "unbound.service";
       requires = [
         "systemd-networkd.service"
-        "gen-s-router-prod-${scope.fileStem}-unbound-local-data.service"
+        "gen-kea-${scope.fileStem}.service"
         "${firewallService}.service"
       ];
       wants = lib.optional syncEnabled "unbound.service";
