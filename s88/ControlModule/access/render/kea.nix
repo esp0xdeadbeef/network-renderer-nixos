@@ -184,6 +184,10 @@ in
       before = [ "kea-dhcp4-${scope.fileStem}.service" ] ++ lib.optional protectedNamePublicationEnabled "unbound.service";
       serviceConfig = {
         Type = "oneshot";
+        ExecStartPre = [
+          "${pkgs.coreutils}/bin/mkdir -p /run/etc/kea"
+          "${pkgs.coreutils}/bin/mkdir -p /run/protected-reservation-dns"
+        ];
         ExecStart = genConfig;
         RemainAfterExit = true;
       };

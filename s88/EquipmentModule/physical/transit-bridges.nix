@@ -60,75 +60,86 @@ let
     else
       null;
 
-  parseTransitVlan =
-    transitName:
-    if builtins.match "tr[0-9]+" transitName != null then
-      builtins.fromJSON (builtins.substring 2 (builtins.stringLength transitName - 2) transitName)
-    else
-      null;
+  # Collect bridge and direct attachments from realization model ports.
+  # Transit bridges are identified by explicit attach.vlan metadata
+  # (set by CPM normalizeAttach from bridgeDef.vlan in inventory).
+  # Naming-inference (tr[0-9]+ VLAN extraction) is prohibited per
+  # SMS FS-310-HDS-010-SDS-010-SMS-120.
+  synthesizedTransitAttachments = lib.unique (
+    builtins.filter (entry: entry != null) (
+      lib.concatMap
+        (
+          nodeName:
+          let
+            node = realizationNodes.${nodeName};
+            ports = if node ? ports && builtins.isAttrs node.ports then node.ports else { };
+          in
+          if (node.host or null) == deploymentHostName then
+            lib.concatMap
+              (
+                portName:
+                let
+                  port = ports.${portName};
+                  attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
 
-  synthesizedTransitNames = lib.unique (
-    lib.concatMap
-      (
-        nodeName:
-        let
-          node = realizationNodes.${nodeName};
-          ports = if node ? ports && builtins.isAttrs node.ports then node.ports else { };
-        in
-        if (node.host or null) == deploymentHostName then
-          lib.concatMap
-            (
-              portName:
-              let
-                port = ports.${portName};
-                attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
+                  bridgeEntry =
+                    if
+                      (attach.kind or null) == "bridge"
+                      && attach ? bridge
+                      && builtins.isString attach.bridge
+                      && attach ? vlan
+                    then
+                      {
+                        name = attach.bridge;
+                        vlan = attach.vlan;
+                      }
+                      // lib.optionalAttrs (attach ? parentUplink && builtins.isString attach.parentUplink) {
+                        inherit (attach) parentUplink;
+                      }
+                    else
+                      null;
 
-                bridgeName =
-                  if
-                    (attach.kind or null) == "bridge"
-                    && attach ? bridge
-                    && builtins.isString attach.bridge
-                    && parseTransitVlan attach.bridge != null
-                  then
-                    attach.bridge
-                  else
-                    null;
-
-                directName =
-                  if (attach.kind or null) == "direct" && port ? link && builtins.isString port.link then
-                    port.link
-                  else
-                    null;
-              in
-              lib.filter builtins.isString [
-                bridgeName
-                directName
-              ]
-            )
-            (builtins.attrNames ports)
-        else
-          [ ]
-      )
-      (builtins.attrNames realizationNodes)
+                  directEntry =
+                    if (attach.kind or null) == "direct" && port ? link && builtins.isString port.link then
+                      { name = port.link; }
+                    else
+                      null;
+                in
+                lib.filter (e: e != null) [
+                  bridgeEntry
+                  directEntry
+                ]
+              )
+              (builtins.attrNames ports)
+          else
+            [ ]
+        )
+        (builtins.attrNames realizationNodes)
+    )
   );
+
+  synthesizedTransitNames = map (entry: entry.name) synthesizedTransitAttachments;
 
   synthesizedTransitBridgeNameMap = hostNaming.ensureUnique synthesizedTransitNames;
 
   synthesizedTransitBridges = builtins.listToAttrs (
     map
-      (transitName: {
-        name = transitName;
+      (entry: {
+        name = entry.name;
         value = {
-          name = synthesizedTransitBridgeNameMap.${transitName};
+          name = synthesizedTransitBridgeNameMap.${entry.name};
         }
-        // lib.optionalAttrs (parseTransitVlan transitName != null) {
-          vlan = parseTransitVlan transitName;
+        // lib.optionalAttrs (entry ? vlan) {
+          vlan = entry.vlan;
         }
-        // lib.optionalAttrs (parseTransitVlan transitName != null && defaultParentUplinkName != null) {
+        // lib.optionalAttrs (entry ? parentUplink) {
+          parentUplink = entry.parentUplink;
+        }
+        // lib.optionalAttrs (!(entry ? vlan) && defaultParentUplinkName != null) {
           parentUplink = defaultParentUplinkName;
         };
       })
-      synthesizedTransitNames
+      synthesizedTransitAttachments
   );
 
   transitBridges = synthesizedTransitBridges // explicitTransitBridges;

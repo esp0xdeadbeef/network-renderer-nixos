@@ -37,3 +37,41 @@ command, evidence, owner, and next fix.
 - state=fixed | target=identical logical uplink aliases on one physical parent | evidence=`bash tests/cases/external-examples.sh` against network-labs `d45a8611`; the 104-test renderer sweep passed including the HAT `wan`/`inter-site` alias realization | reason=multiple logical uplink names may share one parent only when their bridge and host-network realization are identical; genuinely different direct bridges on one parent still fail closed.
 - state=construction-fixed-live-pending | target=FS-540 direction-scoped recursive DNS egress | first-bad-artifact=cold stage `/tmp/s-router-stage-FS-540-HDS-010-SDS-010-SMS-045-restage12` used pushed NixOS renderer `6a894b55e4f6810a13920bc063a8ed72739e760c`; core received and completed recursive requests, but every internal answer timed out because the renderer-added `User = "unbound"` rule selected provider table 1002 for the reply as well as the upstream request | evidence=with the same core source and internal destination, `ip route get` used the modeled transit return without a UID and the WAN table with the real Unbound UID; CPM supplies the selected interface, table, priority, and firewall mark but no process-wide UID selector, so this is a representative FS-540 renderer invention; the focused FS-540 test was made red before repair and now requires exactly two dual-stack fwmark rules with no resolver-identity rule | reason=the renderer now selects only upstream DNS requests through CPM's destination-port mark; internal replies from the same process retain the normal modeled route. A fresh pushed cold stage remains required for live acceptance.
 - state=construction-fixed-live-pending | target=FS-540 pre-socket recursive DNS route selection | first-bad-artifact=cold stage `/tmp/s-router-stage-FS-540-HDS-010-SDS-010-SMS-045-restage13` used pushed renderer `36b219bdc838a49f36ed5e5a5d26e4406090d28a`; the valid no-UID runtime preserved internal reply routes, but the first NixOS recursive query returned SERVFAIL and captures on `wan0` and `any` saw zero DNS packets | evidence=the selected fwmark table resolved both families when the mark was supplied explicitly, while a resolver-independent UDP/53 socket probe failed with `ENETUNREACH` before packet emission; the nft output hook therefore cannot create the initial socket route. The revised pushed SDS/SMS requires resolver identity plus UDP/TCP destination port 53 at pre-socket policy lookup and rejects both output-mark-only and process-wide UID selection. The focused FS-540 construction test was red before repair and now requires exactly four scoped resolver rules plus the two dual-stack fwmark rules | reason=the renderer now materializes protocol- and destination-port-scoped resolver identity rules in addition to CPM's packet mark, so upstream sockets obtain the selected provider route while replies to requester ephemeral ports retain the modeled return path. Fresh pushed cold-stage evidence remains required for downstream acceptance.
+# FS-982 host-management materialization and upstream-gap warnings
+
+- **Observed:** the host module could only consume `deploymentHosts.*.uplinks.management`, so canonical `hostManagement` requirements were neither rendered nor diagnosed when their inventory binding was missing.
+- **Root cause:** there was no renderer adapter for the CPM host-management runtime-target record or its fail-closed diagnostics.
+- **Fix:** consume only complete CPM host-management targets, merge DHCPv4 onto the explicitly named link with `UseDNS = false` and `UseRoutes = false`, suppress legacy fallback once the canonical contract is present, and surface CPM inventory/intent diagnostics through NixOS evaluation warnings.
+- **Regression:** `tests/FS-982-HDS-010-SDS-010-SMS-120.sh` proves native output, missing-binding warnings, authority rejection, label independence, and no legacy fallback beside canonical records.
+
+## FS-982 validated VM NIC bindings stopped before QEMU materialization
+
+- **Observed:** canonical renderer validation exposed only platform-binding identities, while host profiles still owned `virtualisation.qemu.networkingOptions` and suppressed the generic default NIC locally.
+- **Root cause:** the validated binding payload was not forwarded to the NixOS host module and there was no deterministic VM-target adapter.
+- **Fix:** consume an ordered `categories.deployment.vmTargets.<host>` binding, validate explicit NIC-set mode, stable IDs, bridge attachments, cardinality, and public MAC syntax, then emit the exact QEMU NIC list beginning with `-nic none`. Invalid or missing target bindings warn and emit no partial list.
+- **Regression:** `tests/FS-982-HDS-010-SDS-010-SMS-130.sh` proves exact two-NIC output, stable ordering, bridge-move identity preservation, missing-target warning, duplicate-ID rejection, and cardinality rejection.
+
+## Host-local reservation and VM compatibility ownership was silent
+
+- **Observed:** a host profile could append Kea reservation generation or force QEMU NIC options outside the canonical pipeline; when inventory was incomplete, the renderer emitted no ownership diagnostic of its own.
+- **Root cause:** renderer warnings only described data already present in CPM and could not identify parallel target mechanics composed by the host module system.
+- **Fix:** diagnose non-empty host-local `gen-kea-*` post-processors and QEMU networking options when no validated VM-target binding is present. Diagnostics contain only controlled codes and service-class facts, never protected reservation or MAC material.
+- **Regression:** `tests/test-host-compatibility-diagnostics.sh` proves both compatibility patterns warn and clean canonical composition remains silent.
+
+## FS-560 protected reservation address-set publication was order-sensitive
+
+- **Observed:** repeated protected hostnames could emit multiple addresses, but output order followed protected input order and an address reused by another hostname was silently discarded.
+- **Root cause:** the runtime DNS materializer tracked addresses globally without retaining address-to-name ownership or grouping by normalized hostname.
+- **Fix:** group records by normalized hostname, sort names and numeric addresses deterministically, preserve one PTR per unique address, and reject one address bound to multiple names with a redacted diagnostic.
+- **Regression:** `tests/lib/FS-560-HDS-010-SDS-010-SMS-050/FS-560-HDS-010-SDS-010-SMS-050.sh` proves multi-address A/AAAA/PTR output is identical across input permutations and conflicting owners fail without disclosure.
+## FS-800 access RA path MTU
+
+- Radvd scopes consume the explicit CPM `pathMtu` provenance contract and materialize `AdvLinkMTU`.
+- Missing or ambiguous inventory authority is projected as a redacted renderer warning; invalid MTU contracts fail closed.
+- Construction coverage: `tests/FS-800-HDS-030-SDS-020-SMS-040.sh`.
+## Renderer warnings for upstream model gaps
+
+- Renderer host modules now project redacted CPM DNS warnings and emit explicit inventory/intent diagnostics for missing protected name publication, PPPoE DHCPv6-PD authority, and scoped IPv6 public ingress.
+- `DNS_LOCAL_SHARING_INTENT_MISSING` is warning-class at the DNS authority boundary; unrelated reproducibility failures remain fatal.
+- Complete model contracts stay warning-free; the renderer does not invent missing values or relations.
+- Construction coverage: `tests/test-model-contract-diagnostics.sh`.

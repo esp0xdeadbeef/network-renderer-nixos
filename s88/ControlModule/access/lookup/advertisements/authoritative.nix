@@ -545,5 +545,9 @@ in
           (adv.autonomous or null);
     }
     // lib.optionalAttrs (delegatedPrefix != null) { inherit delegatedPrefix; }
+    // lib.optionalAttrs (builtins.isAttrs (adv.pathMtu or null)) { pathMtu = adv.pathMtu; }
+    // lib.optionalAttrs (builtins.isAttrs (adv.pathMtuDiagnostic or null)) {
+      pathMtuDiagnostic = adv.pathMtuDiagnostic;
+    }
   ) (builtins.length authoritativeIpv6Ra);
 }
