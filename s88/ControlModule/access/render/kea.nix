@@ -187,7 +187,7 @@ in
         ExecStart = genConfig;
         RemainAfterExit = true;
       };
-    }
+    };
 
     "${firewallService}" = {
       description = "Allow DHCPv4 service traffic on ${scope.interfaceName}";
@@ -288,11 +288,7 @@ in
       };
     };
   }
-  # FS-560 legacy compatibility wrapper: the parity contract checks for
-  # gen-s-router-prod-<vlan>-unbound-local-data as the DNS materializer
-  # service.  Wire it as a oneshot that symlinks the protected-reservation
-  # DNS output to the legacy /run/unbound path.
-  // lib.optionalAttrs (protectedNamePublicationEnabled) {
+  // (lib.optionalAttrs protectedNamePublicationEnabled {
     "gen-s-router-prod-${scope.fileStem}-unbound-local-data" = {
       wantedBy = [ "multi-user.target" ];
       before = [ "unbound.service" ];
@@ -304,7 +300,7 @@ in
         ExecStart = "${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
       };
     };
-  };
+  });
 
   systemd.timers = lib.optionalAttrs syncEnabled {
     "kea-unbound-sync-${scope.fileStem}" = {
