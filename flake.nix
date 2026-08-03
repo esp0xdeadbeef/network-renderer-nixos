@@ -282,14 +282,10 @@
           ];
 
           warnings =
-            # FS-560: force evaluation of rendered container configs before
-            # warnings are computed, so parity contract assertions that read
-            # container Unbound settings see fully-evaluated values.
-            builtins.seq (builtins.deepSeq renderedContainers null)
-            (hostManagementRender.warnings
+            hostManagementRender.warnings
             ++ vmNicRender.warnings
             ++ hostCompatibilityDiagnostics.warnings
-            ++ modelContractDiagnostics.warnings);
+            ++ modelContractDiagnostics.warnings;
 
           networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
           systemd.network.enable = lib.mkIf hostRequiresNetworkd true;
