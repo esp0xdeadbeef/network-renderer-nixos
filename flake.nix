@@ -288,13 +288,24 @@
             ++ modelContractDiagnostics.warnings;
 
           # FS-560: Force evaluation of container Unbound server settings
-          # so parity contract assertions see fully-evaluated values.
+          # before parity contract assertions check them.  Reading these
+          # specific paths forces NixOS to evaluate the container submodule
+          # configs, so when legacy-parity-contract.nix accesses
+          # config.containers.<name>.config.services.unbound.settings.server
+          # it finds fully-evaluated values instead of empty thunks.
           assertions = let
-            v2_server = (renderedContainers."access-vlan2" or {}).config or {};
-            v3_server = (renderedContainers."access-vlan3" or {}).config or {};
-            core_server = (renderedContainers.core or {}).config or {};
-            forced = builtins.deepSeq [ v2_server v3_server core_server ] true;
-          in [ { assertion = forced; message = "container DNS config evaluated"; } ];
+            v2_server = config.containers.access-vlan2.config.services.unbound.settings.server or {};
+            v2_lz = v2_server.local-zone or [];
+            v2_ld = v2_server.local-data or [];
+            v2_inc = v2_server.include or [];
+            v3_server = config.containers.access-vlan3.config.services.unbound.settings.server or {};
+            v3_lz = v3_server.local-zone or [];
+            v3_acl = v3_server.access-control or [];
+            core_server = config.containers.core.config.services.unbound.settings.server or {};
+            core_acl = core_server.access-control or [];
+            core_fwd = config.containers.core.config.services.unbound.settings.forward-zone or [];
+            forced = builtins.deepSeq [ v2_lz v2_ld v2_inc v3_lz v3_acl core_acl core_fwd ] true;
+          in [ { assertion = forced; message = "container DNS config evaluated for parity contract"; } ];
 
           networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
           systemd.network.enable = lib.mkIf hostRequiresNetworkd true;
