@@ -287,6 +287,15 @@
             ++ hostCompatibilityDiagnostics.warnings
             ++ modelContractDiagnostics.warnings;
 
+          # FS-560: Force evaluation of container Unbound server settings
+          # so parity contract assertions see fully-evaluated values.
+          assertions = let
+            v2_server = (renderedContainers."access-vlan2" or {}).config or {};
+            v3_server = (renderedContainers."access-vlan3" or {}).config or {};
+            core_server = (renderedContainers.core or {}).config or {};
+            forced = builtins.deepSeq [ v2_server v3_server core_server ] true;
+          in [ { assertion = forced; message = "container DNS config evaluated"; } ];
+
           networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
           systemd.network.enable = lib.mkIf hostRequiresNetworkd true;
           networking.useDHCP = lib.mkIf hostRequiresNetworkd false;
