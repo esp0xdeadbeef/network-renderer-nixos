@@ -98,6 +98,25 @@
           requiresNetworkd = import ./s88/ControlModule/render/host-networkd-requirement.nix { };
           userLib = rendererInput.lib or lib;
 
+          hostManagementRender = import ./s88/ControlModule/render/host-management.nix {
+            inherit lib hostName renderedNetworks;
+            cpm = effectiveCpm;
+          };
+          vmNicRender = import ./s88/ControlModule/render/vm-nics.nix {
+            inherit lib hostName;
+            platformBinding = rendererInput.validatedPlatformBinding or null;
+          };
+          hostCompatibilityDiagnostics =
+            import ./s88/ControlModule/render/host-compatibility-diagnostics.nix {
+              inherit lib config;
+              vmNicHandled = vmNicRender.handled;
+            };
+          modelContractDiagnostics =
+            import ./s88/ControlModule/render/model-contract-diagnostics.nix {
+              inherit lib hostName;
+              controlPlane = effectiveCpm;
+            };
+
           mgmtHost =
             if effectiveCpm != null && effectiveCpm ? deploymentHosts then
               effectiveCpm.deploymentHosts.${hostName} or null
@@ -110,10 +129,11 @@
           mgmtVlanId = if mgmtMode == "vlan" && mgmtUplink ? vlan then mgmtUplink.vlan else null;
 
           mgmtIpv4 = if mgmtUplink != null && mgmtUplink ? ipv4 then mgmtUplink.ipv4 else null;
-          mgmtManageDhcp = mgmtIpv4 != null && (mgmtIpv4.enable or false) == true;
+          legacyMgmtManageDhcp = mgmtIpv4 != null && (mgmtIpv4.enable or false) == true;
+          mgmtManageDhcp = hostManagementRender.manageDhcp || legacyMgmtManageDhcp;
 
           mgmtValidate =
-            if mgmtManageDhcp then
+            if legacyMgmtManageDhcp && !hostManagementRender.handled then
               if mgmtMode == null then
                 throw "network-renderer-nixos: host ${hostName} management uplink has ipv4.enable=true but no 'mode' field (must be 'vlan' or 'native')"
               else if mgmtParent == null then
@@ -133,7 +153,7 @@
             && builtins.hasAttr "30-vlan${toString mgmtVlanId}" renderedNetworks;
 
           renderedHasNativeMgmt =
-            mgmtManageDhcp
+            legacyMgmtManageDhcp
             && mgmtMode == "native"
             && mgmtParent != null
             && builtins.hasAttr "20-${mgmtParent}" renderedNetworks;
@@ -203,12 +223,19 @@
             else
               { };
 
-          mgmtNetdevs = if renderedHasMgmtVlan then { } else legacyMgmtNetdevs;
+          mgmtNetdevs =
+            if hostManagementRender.handled then { }
+            else if renderedHasMgmtVlan then { }
+            else legacyMgmtNetdevs;
 
-          mgmtNetworks = if renderedHasMgmtVlan || renderedHasNativeMgmt then { } else legacyMgmtNetworks;
+          mgmtNetworks =
+            hostManagementRender.networks
+            // (if hostManagementRender.handled || renderedHasMgmtVlan || renderedHasNativeMgmt
+                then { }
+                else legacyMgmtNetworks);
 
           mgmtDhcpOverride =
-            if renderedHasMgmtVlan && mgmtManageDhcp then
+            if !hostManagementRender.handled && renderedHasMgmtVlan && legacyMgmtManageDhcp then
               {
                 "30-vlan${toString mgmtVlanId}" =
                   let
@@ -254,6 +281,16 @@
             dnsValidationAuthorityConfig
           ];
 
+          warnings =
+            # FS-560: force evaluation of rendered container configs before
+            # warnings are computed, so parity contract assertions that read
+            # container Unbound settings see fully-evaluated values.
+            builtins.seq (builtins.deepSeq renderedContainers null)
+            (hostManagementRender.warnings
+            ++ vmNicRender.warnings
+            ++ hostCompatibilityDiagnostics.warnings
+            ++ modelContractDiagnostics.warnings);
+
           networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
           systemd.network.enable = lib.mkIf hostRequiresNetworkd true;
           networking.useDHCP = lib.mkIf hostRequiresNetworkd false;
@@ -273,6 +310,11 @@
           );
 
           boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkDefault true;
+        }
+        // lib.optionalAttrs vmNicRender.rendered {
+          virtualisation.qemu.networkingOptions = lib.mkForce vmNicRender.networkingOptions;
+          environment.etc."network-artifacts/vm-nic-provenance.json".text =
+            builtins.toJSON vmNicRender.provenance;
         }
         // builtins.seq mgmtValidate { };
 
@@ -305,6 +347,7 @@
             cpm = validated.controlPlaneEnvelope;
             canonicalBundleIdentity = validated.bundleIdentity;
             canonicalBindingIdentity = validated.bindingIdentity;
+            validatedPlatformBinding = validated.validatedPlatformBinding or null;
           }
         );
 
