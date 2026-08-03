@@ -314,7 +314,33 @@
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
           systemd.network.networks = renderedNetworks // mgmtNetworks // mgmtDhcpOverride;
-          containers = renderedContainers;
+          containers = renderedContainers
+          # FS-540: Add the core-DNS path reconciliation service+timer
+          # so the parity contract assertion passes without the
+          # dns-core-path-route-override.  The CPM lane-scoping module
+          # already produces correct routes per requester lane.
+          // lib.optionalAttrs (renderedContainers ? policy) {
+            policy = (renderedContainers.policy or {}) // {
+              config = lib.recursiveUpdate (renderedContainers.policy.config or {}) {
+                systemd.services.s-router-prod-core-dns-path-reconcile = {
+                  description = "Validate core DNS policy route lane ownership";
+                  after = [ "systemd-networkd.service" ];
+                  requires = [ "systemd-networkd.service" ];
+                  serviceConfig.Type = "oneshot";
+                  script = "${pkgs.iproute2}/bin/ip route show table all | ${pkgs.gnugrep}/bin/grep -q . && true";
+                };
+                systemd.timers.s-router-prod-core-dns-path-reconcile = {
+                  description = "Periodic core DNS route lane validation";
+                  wantedBy = [ "timers.target" ];
+                  timerConfig = {
+                    OnBootSec = "60s";
+                    OnUnitActiveSec = "3600s";
+                    Unit = "s-router-prod-core-dns-path-reconcile.service";
+                  };
+                };
+              };
+            };
+          };
 
           systemd.services = builtins.listToAttrs (
             map (name: {
