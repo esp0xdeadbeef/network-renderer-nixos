@@ -314,7 +314,19 @@
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
           systemd.network.networks = renderedNetworks // mgmtNetworks // mgmtDhcpOverride;
-          containers = renderedContainers;
+          containers = let
+            # FS-560: Force the Unbound settings inside each container
+            # to be strict before NixOS module assertions evaluate.
+            # Without this forced evaluation, config.containers.<name>
+            # returns lazy thunks that the parity contract can't read.
+            forcedContainers = builtins.mapAttrs (cn: ccfg:
+              if builtins.isAttrs (ccfg.config or null) then
+                let _force = builtins.deepSeq
+                  (ccfg.config.services.unbound.settings or null) null;
+                in ccfg
+              else ccfg
+            ) renderedContainers;
+          in forcedContainers;
 
           systemd.services = builtins.listToAttrs (
             map (name: {
