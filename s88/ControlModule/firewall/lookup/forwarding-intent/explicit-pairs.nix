@@ -81,20 +81,23 @@ let
           else
             true;
         transportAuthority = rule.transportAuthority or null;
-        _validateTransportAuthority =
+        # FS-310-HDS-010-SDS-010-SMS-130: Rules with admissible=false are
+        # CPM selector-handoff provenance markers, not authorized packet
+        # transport rules.  Skip them rather than throwing — the renderer
+        # must not materialize them, but their presence in the model is
+        # expected and not an error.
+        isAdmissible =
           if transportAuthority == null then
             true
           else if !(builtins.isAttrs transportAuthority) then
             true
-          else if (transportAuthority.admissible or true) == false then
-            throw "FS-310-HDS-010-SDS-010-SMS-130: rule '${ruleName}' carries transportAuthority with admissible=false (basis=${toString (transportAuthority.basis or "unproven")}) — renderer must not materialize forwarding rules whose CPM transport authority is unproven or rejected; provenance labels, relation IDs, and comments are topology tracking only and never authorize packet transport"
           else
-            true;
+            transportAuthority.admissible or true;
       in
-      if inIfs == [ ] || outIfs == [ ] then
+      if inIfs == [ ] || outIfs == [ ] || !isAdmissible then
         null
       else
-        builtins.seq _validateTransportAuthority (builtins.seq _validateReturnRule ({
+        builtins.seq _validateReturnRule ({
           "in" = inIfs;
           "out" = outIfs;
           inherit action;
