@@ -209,7 +209,7 @@ def materialize_dns_lines(
         require(record.get("scope") == scope)
         hostname = record.get("hostname")
         if not isinstance(hostname, str) or not hostname:
-            continue
+            raise ReservationContractError(PUBLICATION_HOSTNAME_MISSING)
         require(
             HOSTNAME.fullmatch(hostname) is not None
             and "." not in hostname
