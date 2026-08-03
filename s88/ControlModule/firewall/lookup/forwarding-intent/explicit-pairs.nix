@@ -151,7 +151,7 @@ let
         }
         // lib.optionalAttrs (comment != null && comment != "") {
           inherit comment;
-        }));
+        });
 
   fromRules = lib.filter (pair: pair != null) (
     map normalizeForwardRule (
