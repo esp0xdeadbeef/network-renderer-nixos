@@ -3,6 +3,8 @@
 # GAMP-SCOPE: software-module-test
 # Behavioral proof for NixOS renderer layout preservation on a compact,
 # co-located access layout with distinct policy identities.
+# CH3 adds an unusual co-located edge layout that triggers a target
+# limitation diagnostic (design-assumption alarm).
 set -euo pipefail
 
 repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
@@ -30,5 +32,10 @@ containers="$(_jq -r '.coverage.containerCount' "${result_json}")"
 interfaces="$(_jq -r '.coverage.coLocatedTenantInterfaces' "${result_json}")"
 rules="$(_jq -r '.coverage.explicitForwardingRules' "${result_json}")"
 negatives="$(_jq -r '.coverage.seededNegativeCount' "${result_json}")"
+ch3_containers="$(_jq -r '.coverage.ch3ContainerCount' "${result_json}")"
+ch3_interfaces="$(_jq -r '.coverage.ch3CoLocatedInterfaces' "${result_json}")"
+ch3_rules="$(_jq -r '.coverage.ch3ExplicitRules' "${result_json}")"
+ch3_negatives="$(_jq -r '.coverage.ch3SeededNegativeCount' "${result_json}")"
+ch3_diag="$(_jq -r '.coverage.ch3TargetLimitationDiagnosticCount' "${result_json}")"
 
-echo "PASS FS-320-HDS-010-SDS-010-SMS-010 layout preservation: containers=${containers} coLocatedTenantInterfaces=${interfaces} explicitForwardingRules=${rules} seededNegatives=${negatives}"
+echo "PASS FS-320-HDS-010-SDS-010-SMS-010 layout preservation: containers=${containers} coLocatedTenantInterfaces=${interfaces} explicitForwardingRules=${rules} seededNegatives=${negatives} ch3Containers=${ch3_containers} ch3Interfaces=${ch3_interfaces} ch3ExplicitRules=${ch3_rules} ch3SeededNegatives=${ch3_negatives} ch3TargetLimitationDiag=${ch3_diag}"

@@ -344,6 +344,37 @@ else
 fi
 
 # ============================================================
+# Predicate 6: Canonical boundary — realization-model → schema → renderer
+# ============================================================
+echo ""
+echo "--- Predicate 6: Canonical boundary proof (realization-model → schema → renderer) ---"
+
+canonical_out="${tmp_dir}/canonical-boundary.out"
+canonical_err="${tmp_dir}/canonical-boundary.err"
+
+if env REPO_ROOT="${repo_root}" nix eval \
+  --extra-experimental-features 'nix-command flakes' \
+  --impure --json \
+  --file "${repo_root}/tests/nix/fs320-hds040-sds010-sms060-canonical-boundary.nix" \
+  >"${canonical_out}" 2>"${canonical_err}"; then
+  if grep -q '"ok":true' "${canonical_out}"; then
+    echo "PASS: Canonical boundary — CPM fixture realized through realization-model+schema, renderer correctly resolves all interface roles"
+    echo "  WAN: $(grep -o '"wanNames":\[[^]]*\]' "${canonical_out}" || echo 'N/A')"
+    echo "  LAN: $(grep -o '"lanNames":\[[^]]*\]' "${canonical_out}" || echo 'N/A')"
+    echo "  Transit: $(grep -o '"transitNames":\[[^]]*\]' "${canonical_out}" || echo 'N/A')"
+    echo "  Uplink: $(grep -o '"uplinkNames":\[[^]]*\]' "${canonical_out}" || echo 'N/A')"
+  else
+    echo "FAIL: Canonical boundary — checks not ok"
+    cat "${canonical_out}" >&2
+    all_checks_passed=false
+  fi
+else
+  echo "FAIL: Canonical boundary — nix eval crashed"
+  cat "${canonical_err}" >&2
+  all_checks_passed=false
+fi
+
+# ============================================================
 # Report
 # ============================================================
 echo ""

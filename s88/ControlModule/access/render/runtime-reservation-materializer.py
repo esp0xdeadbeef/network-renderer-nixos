@@ -201,8 +201,8 @@ def materialize_dns_lines(
     require(isinstance(source, list) and len(source) > 0)
 
     lines: list[str] = ["server:"]
-    names: set[str] = set()
-    addresses: set[str] = set()
+    records_by_name: dict[str, dict[int, set[str]]] = {}
+    address_owners: dict[str, str] = {}
     for record in source:
         require(isinstance(record, dict))
         require(set(record).issubset(SCHEMA_FIELDS))
@@ -216,7 +216,10 @@ def materialize_dns_lines(
         )
         fqdn = f"{hostname}.{namespace}"
         normalized_fqdn = fqdn.lower()
-        names.add(normalized_fqdn)
+        name_records = records_by_name.setdefault(
+            normalized_fqdn,
+            {4: set(), 6: set()},
+        )
 
         record_addresses: list[str] = []
         # Determine per-address-family data before emitting.
@@ -239,23 +242,36 @@ def materialize_dns_lines(
                 record_addresses.append(str(v6))
         require(record_addresses)
 
-        # SMS-050 predicate 007: Address-set publication — allow distinct
+        # SMS-050 predicate 007: address-set publication allows distinct
         # reservation identities to contribute unique addresses to one
-        # hostname.  Duplicate addresses are silently deduplicated.
+        # hostname. Identical name/address pairs are deduplicated, while one
+        # address bound to multiple names is an ownership conflict.
         for address in record_addresses:
-            if address in addresses:
-                continue
-            addresses.add(address)
-            try:
-                parsed = ipaddress.ip_address(address)
-                if parsed.version == 4 and "A" in record_classes:
-                    lines.append(f'  local-data: "{fqdn} IN A {address}"')
-                if parsed.version == 6 and "AAAA" in record_classes:
-                    lines.append(f'  local-data: "{fqdn} IN AAAA {address}"')
-            except ValueError:
-                pass
-            if "PTR" in record_classes:
-                lines.append(f'  local-data-ptr: "{address} {fqdn}"')
+            parsed = ipaddress.ip_address(address)
+            previous_owner = address_owners.get(address)
+            require(previous_owner is None or previous_owner == normalized_fqdn)
+            address_owners[address] = normalized_fqdn
+            name_records[parsed.version].add(address)
+
+    # Output is stable across protected-source input ordering. Keep all
+    # addresses for one normalized owner together and emit one reverse binding
+    # for every unique address.
+    for normalized_fqdn in sorted(records_by_name):
+        name_records = records_by_name[normalized_fqdn]
+        for version, record_class in ((4, "A"), (6, "AAAA")):
+            ordered_addresses = sorted(
+                name_records[version],
+                key=lambda value: int(ipaddress.ip_address(value)),
+            )
+            for address in ordered_addresses:
+                if record_class in record_classes:
+                    lines.append(
+                        f'  local-data: "{normalized_fqdn} IN {record_class} {address}"'
+                    )
+                if "PTR" in record_classes:
+                    lines.append(
+                        f'  local-data-ptr: "{address} {normalized_fqdn}"'
+                    )
 
     return lines
 

@@ -119,8 +119,94 @@ negative="$(REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     routerSolicitation = rejected (base // { ipv6 = ipv6 // { routerSolicitation = true; }; });
     fallbackEnabled = rejected (base // { ipv6 = ipv6 // { fallbackPolicy = "slaac"; }; });
     inventedField = rejected (base // { ipv6 = ipv6 // { inventedPppInterface = "ppp0"; }; });
+    resolverEnabled = rejected (base // { ipv6 = ipv6 // { resolverMode = "enabled"; }; });
+    changedIaid = rejected (base // { ipv6 = ipv6 // { iaid = 0; }; });
+    pdRequestIdZero = rejected (base // { ipv6 = ipv6 // { prefixDelegationRequestId = 0; }; });
+    missingPdRequestId = rejected (base // { ipv6 = builtins.removeAttrs ipv6 [ "prefixDelegationRequestId" ]; });
+    differentInterface = rejected (base // { interface = "nonexistent"; });
   }
 ')"
 jq -e 'all(.[]; . == true)' <<<"${negative}" >/dev/null
+
+# --- Ordinal 3: Remove firewall/PPPoE ordering and require rejection ---
+# Checker: verify nominal pdAfter ordering places nftables.service before any pppd service
+ordering_check() {
+  local candidate_json="$1"
+  jq -e '
+    .pdAfter as $a |
+    (([$a | to_entries[] | select(.value | startswith("pppd"))] | .[0].key // -1) // -1) as $pppd_pos |
+    (([$a | to_entries[] | select(.value == "nftables.service")] | .[0].key // -1) // -1) as $nft_pos |
+    $nft_pos >= 0 and $pppd_pos > $nft_pos
+  ' <<<"${candidate_json}" >/dev/null
+}
+
+# Nominal passes the ordering check
+if ! ordering_check "${result}"; then
+  echo "FAIL FS-800 ordinal 3: nominal firewall/PPPoE ordering missing" >&2
+  exit 1
+fi
+
+# Mutation: swap nftables.service out of position (produce bad ordering by
+# removing nftables.service from pdAfter, then the structural check fails)
+mutant_pd_after="$(jq -c '.pdAfter - ["nftables.service"]' <<<"${result}")"
+mutant_ordering_json="$(jq --argjson a "${mutant_pd_after}" '.pdAfter = $a' <<<"${result}")"
+if ordering_check "${mutant_ordering_json}"; then
+  echo "FAIL FS-800 ordinal 3: removed firewall/PPPoE ordering was not rejected" >&2
+  exit 1
+fi
+
+# --- Ordinal 3 part 2: Interface wait succeed while absent ---
+# Checker: verify ExecStartPre contains a fail-closed interface wait
+wait_check() {
+  local candidate_json="$1"
+  jq -e '
+    .pdExecStartPre | contains("ip link show dev ppp-test")
+    and (contains("|| true") | not)
+  ' <<<"${candidate_json}" >/dev/null
+}
+
+# Nominal passes the wait check
+if ! wait_check "${result}"; then
+  echo "FAIL FS-800 ordinal 3: nominal interface wait not fail-closed" >&2
+  exit 1
+fi
+
+# Mutation: make ExecStartPre succeed even when ppp-test is absent
+mutant_wait_exec="$(jq -r '.pdExecStartPre' <<<"${result}")"
+mutant_wait_exec="${mutant_wait_exec//ip link show dev ppp-test/true}"
+mutant_wait_json="$(jq --arg e "${mutant_wait_exec}" '.pdExecStartPre = $e' <<<"${result}")"
+if wait_check "${mutant_wait_json}"; then
+  echo "FAIL FS-800 ordinal 3: interface wait succeed-while-absent was not rejected" >&2
+  exit 1
+fi
+
+# --- Ordinal 4: Widen the link-local UDP 547-to-546 rule and require rejection ---
+# Checker: verify firewall contains the exact restricted rule and no broad
+# udp-dport-547 rule that is not also restricted to iifname ppp-test + fe80::/10 + sport 547
+firewall_check() {
+  local candidate_text="$1"
+  # Must have the correct restricted rule
+  echo "${candidate_text}" | grep -q 'iifname ppp-test ip6 saddr fe80::/10 udp sport 547 udp dport 546'
+  local has_restricted=$?
+  # Count lines with udp dport 547 that are NOT the restricted rule
+  local broad_count
+  broad_count=$(echo "${candidate_text}" | grep 'udp dport 547' | grep -v 'iifname ppp-test ip6 saddr fe80::/10 udp sport 547 udp dport 546' | grep -c . || true)
+  [[ $has_restricted -eq 0 && $broad_count -eq 0 ]]
+}
+
+# Nominal passes the firewall check
+if ! firewall_check "$(jq -r '.firewall' <<<"${result}")"; then
+  echo "FAIL FS-800 ordinal 4: nominal firewall check failed" >&2
+  exit 1
+fi
+
+# Mutation: add a broad udp dport 547 rule not restricted to ppp-test/fe80::/10/sport 547
+mutant_fw_text="$(jq -r '.firewall' <<<"${result}")"
+mutant_fw_text="${mutant_fw_text}
+nft add rule inet filter input udp dport 547 counter accept"
+if firewall_check "${mutant_fw_text}"; then
+  echo "FAIL FS-800 ordinal 4: widened link-local UDP 547-to-546 rule was not rejected" >&2
+  exit 1
+fi
 
 echo 'PASS FS-800-HDS-030-SDS-020-SMS-020: NixOS PPPoE IPv6/PD materialization'

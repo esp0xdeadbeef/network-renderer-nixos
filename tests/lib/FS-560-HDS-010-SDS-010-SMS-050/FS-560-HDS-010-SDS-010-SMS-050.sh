@@ -161,6 +161,77 @@ if grep -F -e '02:10:20:aa:bb:cc' -e '0001000123456789001122334455' "${dns_outpu
   fail "FAIL protected-reservation-name-materialization: DHCP identities leaked into Unbound data"
 fi
 
+multi_secret="${tmp}/protected-multi-address.json"
+multi_secret_reversed="${tmp}/protected-multi-address-reversed.json"
+multi_dns_output="${tmp}/runtime-dns/client-multi.conf"
+multi_dns_output_reversed="${tmp}/runtime-dns/client-multi-reversed.conf"
+jq '. + [{
+  "id": "opaque-02",
+  "scope": "client",
+  "hostname": "private-device",
+  "ipv4": {
+    "address": "10.20.20.11",
+    "mac-address": "02:10:20:aa:bb:dd"
+  },
+  "ipv6": {
+    "address": "fd42:20::1234:5678:9abc:def1",
+    "iid": "123456789abcdef1",
+    "iid-stability": "stable",
+    "duid": "0001000123456789001122334466",
+    "iaid": 8
+  }
+}]' "${secret}" >"${multi_secret}"
+jq 'reverse' "${multi_secret}" >"${multi_secret_reversed}"
+
+for source_and_output in \
+  "${multi_secret}:${multi_dns_output}:multi" \
+  "${multi_secret_reversed}:${multi_dns_output_reversed}:multi-reversed"; do
+  IFS=: read -r multi_source multi_output multi_stem <<<"${source_and_output}"
+  python3 "${materializer}" \
+    --family ipv4 \
+    --scope client \
+    --subnet 10.20.20.0/24 \
+    --pool '10.20.20.100 - 10.20.20.199' \
+    --source "${multi_source}" \
+    --template "${template}" \
+    --output "${tmp}/${multi_stem}-kea.json" \
+    --lease-directory "${tmp}/${multi_stem}-leases" \
+    --dns-output "${multi_output}" \
+    --dns-namespace client.lan. \
+    --dns-record-class A \
+    --dns-record-class AAAA \
+    --dns-record-class PTR \
+    --dns-group "$(id -gn)"
+done
+
+cmp -s "${multi_dns_output}" "${multi_dns_output_reversed}" \
+  || fail "FAIL protected-reservation-name-materialization: address-set output depends on protected-source input order"
+[[ "$(grep -Fc 'local-data: "private-device.client.lan. IN A ' "${multi_dns_output}")" == 2 ]] \
+  || fail "FAIL protected-reservation-name-materialization: multi-address A set was not preserved"
+[[ "$(grep -Fc 'local-data: "private-device.client.lan. IN AAAA ' "${multi_dns_output}")" == 2 ]] \
+  || fail "FAIL protected-reservation-name-materialization: multi-address AAAA set was not preserved"
+[[ "$(grep -Fc 'local-data-ptr: "' "${multi_dns_output}")" == 4 ]] \
+  || fail "FAIL protected-reservation-name-materialization: one PTR per multi-address record was not preserved"
+
+conflicting_owner="${tmp}/conflicting-owner.json"
+jq '.[0] as $first | . + [($first | .id = "opaque-conflict" | .hostname = "other-device" | .ipv4."mac-address" = "02:10:20:aa:bb:ee")]' \
+  "${secret}" >"${conflicting_owner}"
+if python3 "${materializer}" \
+  --family ipv4 --scope client --subnet 10.20.20.0/24 \
+  --pool '10.20.20.100 - 10.20.20.199' \
+  --source "${conflicting_owner}" --template "${template}" \
+  --output "${tmp}/conflicting-owner-kea.json" --lease-directory "${tmp}/conflicting-owner-leases" \
+  --dns-output "${tmp}/conflicting-owner.conf" --dns-namespace client.lan. \
+  --dns-record-class A --dns-record-class PTR --dns-group "$(id -gn)" \
+  >"${tmp}/conflicting-owner.out" 2>"${tmp}/conflicting-owner.err"; then
+  fail "FAIL protected-reservation-name-materialization: one address bound to multiple names was accepted"
+fi
+grep -F 'diagnostic.runtime-reservation-secret-record-invalid' "${tmp}/conflicting-owner.err" >/dev/null \
+  || fail "FAIL protected-reservation-name-materialization: conflicting address owner diagnostic was not redacted"
+if grep -F -e 'private-device' -e 'other-device' -e '10.20.20.10' "${tmp}/conflicting-owner.err" >/dev/null; then
+  fail "FAIL protected-reservation-name-materialization: conflicting address owner diagnostic disclosed protected values"
+fi
+
 escaped_secret="${tmp}/escaped.json"
 jq '.[0].hostname = "escape.other"' "${secret}" >"${escaped_secret}"
 if python3 "${materializer}" \

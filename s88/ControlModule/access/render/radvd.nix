@@ -7,6 +7,7 @@
 let
   cfgFile = "/run/radvd-${scope.fileStem}.conf";
   delegatedPrefix = scope.delegatedPrefix or null;
+  pathMtuRender = import ./ra-path-mtu.nix { inherit scope; };
   flag = enabled: if enabled then "on" else "off";
   requireBool =
     name: value:
@@ -88,6 +89,9 @@ let
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
     interface ${scope.interfaceName} {
       AdvSendAdvert on;
+    ${lib.optionalString (pathMtuRender.directive != "") ''
+      ${pathMtuRender.directive}
+    ''}
       MinRtrAdvInterval 10;
       MaxRtrAdvInterval 30;
       AdvManagedFlag ${flag managed};
@@ -130,6 +134,8 @@ let
   '';
 in
 {
+  warnings = pathMtuRender.warnings;
+
   environment.systemPackages = [
     pkgs.radvd
     pkgs.iproute2
