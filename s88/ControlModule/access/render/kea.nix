@@ -188,25 +188,6 @@ in
         RemainAfterExit = true;
       };
     }
-    # FS-560 legacy compatibility wrapper: the parity contract checks for
-    # gen-s-router-prod-<vlan>-unbound-local-data as the DNS materializer
-    # service.  Wire it as a oneshot that runs after gen-kea-<scope> and
-    # symlinks the protected-reservation-dns output to the legacy
-    # /run/unbound path so both the renderer-native and legacy include
-    # directives resolve the same runtime hostname data.
-    // lib.optionalAttrs (protectedNamePublicationEnabled) {
-      "gen-s-router-prod-${scope.fileStem}-unbound-local-data" = {
-        wantedBy = [ "multi-user.target" ];
-        before = [ "unbound.service" ];
-        after = [ "gen-kea-${scope.fileStem}.service" ];
-        requires = [ "gen-kea-${scope.fileStem}.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          ExecStart = "${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
-        };
-      };
-    };
 
     "${firewallService}" = {
       description = "Allow DHCPv4 service traffic on ${scope.interfaceName}";
@@ -304,6 +285,23 @@ in
       serviceConfig = {
         Type = "oneshot";
         ExecStart = syncScript;
+      };
+    };
+  }
+  # FS-560 legacy compatibility wrapper: the parity contract checks for
+  # gen-s-router-prod-<vlan>-unbound-local-data as the DNS materializer
+  # service.  Wire it as a oneshot that symlinks the protected-reservation
+  # DNS output to the legacy /run/unbound path.
+  // lib.optionalAttrs (protectedNamePublicationEnabled) {
+    "gen-s-router-prod-${scope.fileStem}-unbound-local-data" = {
+      wantedBy = [ "multi-user.target" ];
+      before = [ "unbound.service" ];
+      after = [ "gen-kea-${scope.fileStem}.service" ];
+      requires = [ "gen-kea-${scope.fileStem}.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
       };
     };
   };
