@@ -24,6 +24,7 @@ else
       namespaceFallbackDecisions
       outgoingInterfaces
       recursionMode
+      reproducibilityWarnings
       warningCodes
       localForwardZones
       requesterPolicies
@@ -120,11 +121,40 @@ else
       (publication: publication.generatorUnit)
       protectedReservationPublications;
     nft = import ./dns-services/nft-rules.nix { inherit lib pkgs facts; };
+
+    formatReproducibilityWarning = warning:
+      let
+        code = warning.code or "UNKNOWN";
+        sourceLayer = warning.sourceLayer or "intent";
+        enterprise = warning.enterprise or null;
+        site = warning.site or null;
+        requester = warning.requester or null;
+        resolverService = warning.resolverService or null;
+        relationId = warning.relationId or null;
+        cpmMessage = warning.message or "";
+        sitePath =
+          if enterprise != null && site != null then
+            "site \"${enterprise}/${site}\""
+          else if site != null then
+            "site \"${site}\""
+          else
+            null;
+        relationPath =
+          if requester != null && resolverService != null then
+            "${requester} → ${resolverService}"
+            + (if relationId != null then " (relation \"${relationId}\")" else "")
+          else
+            null;
+        detailParts =
+          lib.optional (sitePath != null) sitePath
+          ++ lib.optional (relationPath != null) relationPath;
+        detail = if detailParts != [ ] then " — ${lib.concatStringsSep "; " detailParts}" else "";
+        body = if cpmMessage != "" then ": ${cpmMessage}" else "";
+      in
+      "network-renderer-nixos DNS reproducibility warning ${code} [${sourceLayer}]${body}${detail}; address material is intentionally omitted";
   in
   {
-    warnings = map
-      (code: "network-renderer-nixos DNS reproducibility warning ${code}; address material is intentionally omitted")
-      warningCodes;
+    warnings = map formatReproducibilityWarning reproducibilityWarnings;
 
     services.unbound = {
       enable = true;

@@ -59,7 +59,7 @@ let
   legacyDnsTargetsFor = entry:
     let
       targets = attrsOrEmpty (entry.site.runtimeTargets or null);
-      isLegacyDnsTarget = _targetName: target:
+      isLegacyDnsTarget = target:
         let
           dns = attrsOrEmpty ((attrsOrEmpty target).services.dns or null);
           hasRecursionMode = (dns ? recursionMode) && dns.recursionMode != null;
@@ -75,13 +75,16 @@ let
         && !hasLocalOnly;
     in
     builtins.filter
-      (target: isLegacyDnsTarget "" target)
-      (builtins.attrValues targets);
+      (name: isLegacyDnsTarget targets.${name})
+      (builtins.attrNames targets);
 
   legacyDnsWarningFor = entry:
-    if legacyDnsTargetsFor entry != [ ] then
+    let
+      legacyTargets = legacyDnsTargetsFor entry;
+    in
+    if legacyTargets != [ ] then
       [
-        "FS-540-HDS-010-SDS-010-SMS-042: DNS_RECURSION_INTENT_ABSENT [intent]: one or more DNS runtime targets have no intent-driven recursion mode, named forward zones, or requester policies — forwarders and access-control are inventory-driven and may contain public resolvers or over-broad ACLs; define recursiveDnsIntent and localDnsSharingIntent in the site intent to switch to address-free modelled DNS"
+        "FS-540-HDS-010-SDS-010-SMS-042: DNS_RECURSION_INTENT_ABSENT [intent]: site \"${entry.enterpriseName}/${entry.siteName}\" has DNS runtime target(s) ${lib.concatStringsSep ", " (map (t: "\"${t}\"") legacyTargets)} with no intent-driven recursion mode, named forward zones, or requester policies — forwarders and access-control are inventory-driven and may contain public resolvers or over-broad ACLs; define recursiveDnsIntent and localDnsSharingIntent in the site intent to switch to address-free modelled DNS"
       ]
     else
       [ ];
