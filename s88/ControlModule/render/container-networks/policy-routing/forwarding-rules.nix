@@ -141,16 +141,13 @@ let
 
   matchingAcceptForwardingRules =
     fromName: toName:
-    let
-      matches = lib.filter (
-        rule:
-        builtins.isAttrs rule
-        && (rule.action or null) == "accept"
-        && (rule.fromInterface or null) == fromName
-        && (rule.toInterface or null) == toName
-      ) forwardingRulesResolved;
-    in
-    builtins.trace "fwd-rules: ${fromName}->${toName} count=${toString (builtins.length matches)}" matches;
+    lib.filter (
+      rule:
+      builtins.isAttrs rule
+      && (rule.action or null) == "accept"
+      && (rule.fromInterface or null) == fromName
+      && (rule.toInterface or null) == toName
+    ) forwardingRulesResolved;
 in
 {
   inherit forwardingRulesResolved;
