@@ -294,10 +294,12 @@ let
     else
       lib.filter (route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)) explicitAcceptedOutputRoutes;
 in
-lib.filter builtins.isAttrs (
-  map
-    (
-      route: if builtins.isAttrs route then route // { table = tableId; } else null
-    )
-    scopedSourceRoutes
+builtins.trace "raw-routes: table=${toString tableId} iface=${interfaceName} src=${sourceIfName} defaults=${toString (builtins.length (lib.filter isDefaultRoute scopedSourceRoutes))} total=${toString (builtins.length scopedSourceRoutes)}" (
+  lib.filter builtins.isAttrs (
+    map
+      (
+        route: if builtins.isAttrs route then route // { table = tableId; } else null
+      )
+      scopedSourceRoutes
+  )
 )
