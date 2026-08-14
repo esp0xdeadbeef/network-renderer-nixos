@@ -78,16 +78,14 @@ in
     let
       access = laneAccessForRenderedName interfaceName;
       sourceKind = sourceKindForRenderedName interfaceName;
-      result =
-        if access != null then
-          scopeForAccess access
-        else if sourceKind == "p2p" then
-          allTenantsScope
-        else
-          {
-            staticPrefixes = [ ];
-            sourceFiles = [ ];
-          };
     in
-    builtins.trace "source-prefixes: iface=${interfaceName} access=${toString access} sourceKind=${toString sourceKind} staticPrefixCount=${toString (builtins.length result.staticPrefixes)}" result;
+    if access != null then
+      scopeForAccess access
+    else if sourceKind == "p2p" then
+      allTenantsScope
+    else
+      {
+        staticPrefixes = [ ];
+        sourceFiles = [ ];
+      };
 }
