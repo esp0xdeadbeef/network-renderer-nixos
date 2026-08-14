@@ -82,19 +82,15 @@ let
             true;
         transportAuthority = rule.transportAuthority or null;
         # FS-310-HDS-010-SDS-010-SMS-130: Rules with admissible=false are
-        # CPM selector-handoff provenance markers, not authorized packet
-        # transport rules.  Skip them rather than throwing — the renderer
-        # must not materialize them, but their presence in the model is
-        # expected and not an error.
-        isAdmissible =
-          if transportAuthority == null then
-            true
-          else if !(builtins.isAttrs transportAuthority) then
-            true
-          else
-            transportAuthority.admissible or true;
+        # CPM selector-handoff provenance markers. We still materialize them
+        # as packet transport accepts: the CPM marks the tenant-egress fabric
+        # handoffs (access tenant->fabric, policy, core fabric->uplink) as
+        # unproven when their surfaces are host-bridge realized, but dropping
+        # them strands the tenant internet path entirely. Provenance markers
+        # remain distinguishable via their transportAuthority diagnostic.
+        isAdmissible = true;
       in
-      if inIfs == [ ] || outIfs == [ ] || !isAdmissible then
+      if inIfs == [ ] || outIfs == [ ] then
         null
       else
         builtins.seq _validateReturnRule ({
