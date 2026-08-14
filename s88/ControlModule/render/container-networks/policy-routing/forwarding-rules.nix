@@ -55,9 +55,37 @@ let
         ) (pair."in" or [ ])
     ) pairs;
 
+  normalizeRuleInterfaces =
+    rule:
+    if !(builtins.isAttrs rule) then
+      rule
+    else
+      let
+        fromInterface =
+          if builtins.isString (rule.fromInterface or null) && rule.fromInterface != "" then
+            rule.fromInterface
+          else if builtins.isAttrs (rule.from or null) && builtins.isString (rule.from.runtimeInterface or null) then
+            rule.from.runtimeInterface
+          else
+            null;
+        toInterface =
+          if builtins.isString (rule.toInterface or null) && rule.toInterface != "" then
+            rule.toInterface
+          else if builtins.isAttrs (rule.to or null) && builtins.isString (rule.to.runtimeInterface or null) then
+            rule.to.runtimeInterface
+          else
+            null;
+      in
+      if fromInterface == null || toInterface == null then
+        rule
+      else
+        rule // { inherit fromInterface toInterface; };
+
   explicitForwardingRules =
-    (runtimeForwardingIntent.rules or [ ])
-    ++ (forwardingIntentData.rules or [ ])
+    map normalizeRuleInterfaces (
+      (runtimeForwardingIntent.rules or [ ])
+      ++ (forwardingIntentData.rules or [ ])
+    )
     ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
     ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]));
 
