@@ -21,6 +21,7 @@
 , isCoreTransitInterface
 , mkRoute
 , isExternalValidationDelegatedPrefixRoute
+, sourceKindForRenderedName
 ,
 }:
 let
@@ -100,7 +101,7 @@ let
     policyRoutingSources = containerModel.policyRoutingSources or { };
   };
   sourcePrefixes = import ./policy-routing/source-prefixes.nix {
-    inherit lib containerModel laneAccessForRenderedName;
+    inherit lib containerModel laneAccessForRenderedName sourceKindForRenderedName;
   };
   forwardingSourceScope = import ./policy-routing/forwarding-source-scope.nix {
     inherit lib forwardingRulesResolved;

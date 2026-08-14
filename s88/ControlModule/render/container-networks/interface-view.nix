@@ -72,6 +72,14 @@ let
       lane = backingRef.lane or { };
     in
     if builtins.isAttrs lane && builtins.isString (lane.access or null) then lane.access else null;
+
+  sourceKindForRenderedName =
+    name:
+    let
+      ifName = interfaceKeyForRenderedName name;
+      iface = if ifName == null then { } else interfaces.${ifName} or { };
+    in
+    iface.sourceKind or null;
 in
 {
   inherit
@@ -80,6 +88,7 @@ in
     renderedInterfaceNames
     interfaceKeyForRenderedName
     laneAccessForRenderedName
+    sourceKindForRenderedName
     ;
 
   upstreamLanesMatch =

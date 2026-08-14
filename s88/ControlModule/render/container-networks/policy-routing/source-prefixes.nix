@@ -2,6 +2,7 @@
   lib,
   containerModel,
   laneAccessForRenderedName,
+  sourceKindForRenderedName,
 }:
 
 let
@@ -58,18 +59,33 @@ let
         lib.filter (entry: entry.kind == "sourceFile") owned
       );
     };
+
+  # The core fabric p2p carries every tenant's forwarded traffic without its
+  # own access lane, so it must be source-scoped by all tenant prefixes rather
+  # than by a single access unit.
+  allTenantsScope = {
+    staticPrefixes = map (entry: { inherit (entry) family prefix; }) (
+      lib.filter (entry: entry.kind == "static") entries
+    );
+    sourceFiles = map (entry: { inherit (entry) family sourceFile; }) (
+      lib.filter (entry: entry.kind == "sourceFile") entries
+    );
+  };
 in
 {
   forInterface =
     interfaceName:
     let
       access = laneAccessForRenderedName interfaceName;
+      sourceKind = sourceKindForRenderedName interfaceName;
     in
-    if access == null then
+    if access != null then
+      scopeForAccess access
+    else if sourceKind == "p2p" then
+      allTenantsScope
+    else
       {
         staticPrefixes = [ ];
         sourceFiles = [ ];
-      }
-    else
-      scopeForAccess access;
+      };
 }
