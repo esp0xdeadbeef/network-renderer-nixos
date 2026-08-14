@@ -291,21 +291,31 @@ let
           else
             throw "diagnostic.runtime-reservation-source-must-be-scope-level: ${path}.identitySource.sourceFile is a public per-reservation descriptor; protected runtime recordsets belong on the served advertisement reservationSource";
         _family = validateReservationAddressFamily path family address;
+        protectedHandle =
+          if builtins.isString (reservation.secretRef or null) && reservation.secretRef != "" then
+            reservation.secretRef
+          else if builtins.isString ((reservation.identitySource or { }).secretRef or null) then
+            (reservation.identitySource or { }).secretRef
+          else
+            null;
         _identity =
           if family == "dhcpv6" then
             if
               (builtins.isString (reservation.mac or null) && reservation.mac != "")
               || (builtins.isString (reservation.duid or null) && reservation.duid != "")
+              || protectedHandle != null
             then
               true
             else
-              throw "CPM renderer contract update required: ${path} must carry explicit mac or duid identity"
+              throw "CPM renderer contract update required: ${path} must carry explicit mac, duid, or protected handle identity"
           else if builtins.isString (reservation.mac or null) && reservation.mac != "" then
             true
           else if runtimeSourceFile != null then
             true
+          else if protectedHandle != null then
+            true
           else
-            throw "CPM renderer contract update required: ${path} must carry explicit mac or identitySource.sourceFile";
+            throw "CPM renderer contract update required: ${path} must carry explicit mac or protected handle identity";
         _authority = rejectReservationAuthority path reservation;
       in
       builtins.seq _runtimeSourceFileBoundary (
