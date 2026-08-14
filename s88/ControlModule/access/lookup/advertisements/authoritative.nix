@@ -239,7 +239,6 @@ let
                 )
               )
             );
-        rawReservations = if builtins.isList (adv.reservations or null) then adv.reservations else [ ];
         _schema =
           if schema == "gamp-protected-reservation-set-v1" then
             true
@@ -255,23 +254,16 @@ let
             true
           else
             throw "diagnostic.runtime-reservation-source-path-invalid: ${entryPath}.reservationSource.sourceFile must be delivered from the renderer-approved /run/secrets/ runtime secret boundary";
-        _scopeOnly =
-          if rawReservations == [ ] then
-            true
-          else
-            throw "diagnostic.runtime-reservation-source-conflict: ${entryPath} must not combine one protected reservationSource with public per-reservation descriptors";
         _servedScope = builtins.seq (requireNonEmptyString "${entryPath}.subnet" (adv.subnet or null)) true;
       in
       builtins.seq _schema (
         builtins.seq _protected (
           builtins.seq _sourcePath (
-            builtins.seq _scopeOnly (
-              builtins.seq _servedScope {
-                inherit schema sourceClass sourceFile;
-                inherit family;
-              }
-              // lib.optionalAttrs (namePublication != null) { inherit namePublication; }
-            )
+            builtins.seq _servedScope {
+              inherit schema sourceClass sourceFile;
+              inherit family;
+            }
+            // lib.optionalAttrs (namePublication != null) { inherit namePublication; }
           )
         )
       );
