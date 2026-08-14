@@ -139,6 +139,7 @@ let
       interfaceNames
       renderedInterfaceNames
       laneAccessForRenderedName
+      sourceKindForRenderedName
       upstreamLanesMatch
       ;
     inherit (classes)
