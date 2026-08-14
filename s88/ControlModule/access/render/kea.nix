@@ -64,9 +64,14 @@ let
   reservations = map (
     reservation:
     {
-      "hw-address" = reservation.mac;
+      "hw-address" = reservation.mac or "";
       "ip-address" = reservation.address;
     }
+    //
+      lib.optionalAttrs (builtins.isString (reservation.secretRef or null) && reservation.secretRef != "")
+        {
+          "reservation-handle" = reservation.secretRef;
+        }
     //
       lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "")
         {

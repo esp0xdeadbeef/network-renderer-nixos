@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
-"""Materialize one protected reservation set into a runtime-local Kea config.
+"""Materialize one protected reservation identity set into runtime Kea + DNS.
 
-GAMP-ID: FS-560-HDS-010-SDS-010-SMS-050
+GAMP-ID: FS-970-HDS-010-SDS-010-SMS-010 / SMS-020 / SMS-040
 GAMP-SCOPE: software-module-construction
 
-Owning implementation artifact for protected reservation name materialization
-(SMS-050).  Consumes the schema-valid canonical publication record via the
---dns-* arguments wired by kea.nix / kea-dhcp6.nix and materializes
-platform-native A, AAAA, and PTR local data for Unbound at runtime.
+Runtime counterpart of the SDS-010 "compose public assignment fields with a
+protected-source fragment by stable endpoint handle" contract.
 
-Predicate coverage:
-  001 — Bind to namespace owner, requester scopes, record classes, pub behavior
-  002 — Absent/disabled publication yields zero DNS records
-  003 — Opaque protected source reference preservation
-  004 — Derived source kind + family from enclosing reservation source
-  005 — Runtime-only A/AAAA/PTR materialization
-  006 — One PTR per unique IPv4/IPv6 address
-  007 — Address-set publication: group by namespace owner + hostname
-  008 — Per-reservation identity preservation
-  009 — Local authoritative boundary (no upstream fallthrough)
-  010 — Reservation-to-Kea + reservation-to-DNS identity
-  011 — Equivalent NixOS and CLAB semantics
-  012 — Local publication independent from recursion/egress
-  013 — Fail-closed with redacted diagnostics
+The protected source is a site-independent identity registry:
+
+    [ { "id": "l-portal-usb", "mac": "aa:bb:cc:dd:ee:01" },
+      { "id": "idrac-m780", "mac": "...", "hostname": "idrac-m780" },
+      { "id": "test-raspi", "duid": "...", "iid": "...", "hostname": "test-raspi" } ]
+
+Hostname is optional and secret when present (per-entry).  The public
+assignment side arrives in the Kea template as reservations carrying a
+"reservation-handle" marker plus the already-resolved address:
+
+    { "hw-address": "", "ip-address": "10.2.8.100", "reservation-handle": "l-portal-usb" }
+
+This materializer joins the two on the handle, fills the selected matcher
+(MAC for IPv4, DUID for IPv6), and fails closed on duplicate or missing
+identity.  Hostname may be supplied by exactly one of the two sources.
 """
 
 from __future__ import annotations
@@ -42,7 +41,8 @@ from typing import Any
 DIAGNOSTIC = "diagnostic.runtime-reservation-secret-record-invalid"
 PUBLICATION_HOSTNAME_MISSING = "diagnostic.protected-reservation-name-publication-hostname-missing"
 CROSS_IDENTITY_MISMATCH = "diagnostic.protected-reservation-cross-identity-mismatch"
-SCHEMA_FIELDS = {"id", "scope", "ipv4", "ipv6", "hostname"}
+HANDLE_FIELD = "reservation-handle"
+SCHEMA_FIELDS = {"id", "mac", "duid", "iid"}
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 MAC = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 IID = re.compile(r"^[0-9A-Fa-f]{16}$")
@@ -60,13 +60,6 @@ def require(condition: bool) -> None:
         raise ReservationContractError
 
 
-def normalized_iid(value: object) -> int:
-    require(isinstance(value, str))
-    compact = value.replace(":", "").replace("-", "")
-    require(IID.fullmatch(compact) is not None)
-    return int(compact, 16)
-
-
 def normalized_duid(value: object) -> str:
     require(isinstance(value, str))
     compact = value.replace(":", "").replace("-", "")
@@ -76,149 +69,60 @@ def normalized_duid(value: object) -> str:
     )
 
 
-def reservation_pool(family: str, subnet: object, pool_text: str) -> tuple[int, int]:
-    require(isinstance(subnet, (ipaddress.IPv4Network, ipaddress.IPv6Network)))
-    require(isinstance(pool_text, str))
-    bounds = [value.strip() for value in pool_text.split("-", maxsplit=1)]
-    require(len(bounds) == 2 and all(bounds))
-    start = ipaddress.ip_address(bounds[0])
-    end = ipaddress.ip_address(bounds[1])
-    require(start.version == subnet.version and end.version == subnet.version)
-    require(start in subnet and end in subnet and int(start) <= int(end))
-    require(
-        (family == "ipv4" and start.version == 4)
-        or (family == "ipv6" and start.version == 6)
-    )
-    return (int(start), int(end))
-
-
-def validated_ipv4_identity(value: object) -> tuple[ipaddress.IPv4Address, str]:
-    require(isinstance(value, dict))
-    require(set(value) == {"address", "mac-address"})
-    address = ipaddress.IPv4Address(value["address"])
-    mac = value["mac-address"]
-    require(isinstance(mac, str) and MAC.fullmatch(mac) is not None)
-    return (address, mac.lower())
-
-
-def validated_ipv6_identity(value: object) -> tuple[ipaddress.IPv6Address, str]:
-    require(isinstance(value, dict))
-    require(set(value) == {"address", "iid", "iid-stability", "duid", "iaid"})
-    address = ipaddress.IPv6Address(value["address"])
-    iid = normalized_iid(value["iid"])
-    require(value["iid-stability"] == "stable")
-    require((int(address) & ((1 << 64) - 1)) == iid)
-    duid = normalized_duid(value["duid"])
-    iaid = value["iaid"]
-    require(
-        isinstance(iaid, int)
-        and not isinstance(iaid, bool)
-        and 0 <= iaid <= 0xFFFFFFFF
-    )
-    return (address, duid)
-
-
-def materialize_records(
-    family: str, scope: str, subnet_text: str, pool_text: str, source_path: Path
-) -> tuple[list[dict[str, Any]], bool, set[str]]:
-    require(family in {"ipv4", "ipv6"})
-    require(scope != "")
-    network = ipaddress.ip_network(subnet_text, strict=True)
-    require(
-        (family == "ipv4" and network.version == 4)
-        or (family == "ipv6" and network.version == 6)
-    )
-    pool_start, pool_end = reservation_pool(family, network, pool_text)
-
+def load_registry(source_path: Path) -> dict[str, dict[str, Any]]:
+    """Read the protected identity registry keyed by stable endpoint handle."""
     with source_path.open("r", encoding="utf-8") as source_handle:
         source = json.load(source_handle)
     require(isinstance(source, list) and len(source) > 0)
 
-    emitted: list[dict[str, Any]] = []
-    ids: set[str] = set()
-    identities: set[str] = set()
-    addresses: set[str] = set()
-    has_out_of_pool = False
-
+    registry: dict[str, dict[str, Any]] = {}
     for record in source:
         require(isinstance(record, dict))
         require(set(record).issubset(SCHEMA_FIELDS))
         handle = record.get("id")
-        require(isinstance(handle, str) and handle != "" and handle not in ids)
-        ids.add(handle)
-        require(record.get("scope") == scope)
+        require(isinstance(handle, str) and handle != "" and handle not in registry)
+        registry[handle] = record
+    return registry
 
-        hostname = record.get("hostname")
+
+def identity_for_record(family: str, record: dict[str, Any]) -> tuple[str, str | None]:
+    """Return (matcher-kind, normalized-identity) for the selected family."""
+    if family == "ipv4":
+        mac = record.get("mac")
+        require(isinstance(mac, str) and MAC.fullmatch(mac) is not None)
+        return ("hw-address", mac.lower())
+    duid = record.get("duid")
+    require(isinstance(duid, str))
+    normalized = normalized_duid(duid)
+    iid = record.get("iid")
+    if iid is not None:
         require(
-            hostname is None
-            or (isinstance(hostname, str) and HOSTNAME.fullmatch(hostname) is not None)
+            isinstance(iid, str)
+            and IID.fullmatch(iid.replace(":", "").replace("-", "")) is not None
         )
-
-        if family == "ipv4":
-            address, normalized_identity = validated_ipv4_identity(record.get("ipv4"))
-            require(address in network)
-            emitted_record: dict[str, Any] = {
-                "hw-address": normalized_identity,
-                "ip-address": str(address),
-            }
-        else:
-            address, normalized_identity = validated_ipv6_identity(record.get("ipv6"))
-            require(address in network)
-            emitted_record = {
-                "duid": normalized_identity,
-                "ip-addresses": [str(address)],
-            }
-
-        normalized_address = str(address)
-        require(
-            normalized_identity not in identities
-            and normalized_address not in addresses
-        )
-        identities.add(normalized_identity)
-        addresses.add(normalized_address)
-        has_out_of_pool = has_out_of_pool or not (
-            pool_start <= int(address) <= pool_end
-        )
-        if hostname is not None:
-            emitted_record["hostname"] = hostname
-        emitted.append(emitted_record)
-
-    return (emitted, has_out_of_pool, ids)
+    return ("duid", normalized)
 
 
 def materialize_dns_lines(
-    scope: str,
     namespace: str,
     record_classes: list[str],
-    source_path: Path,
+    family: str,
+    records: list[dict[str, Any]],
 ) -> tuple[list[str], set[str]]:
-    require(scope != "")
     require(DNS_NAMESPACE.fullmatch(namespace) is not None)
     require(record_classes and set(record_classes).issubset(DNS_RECORD_CLASSES))
     require(len(record_classes) == len(set(record_classes)))
-
-    with source_path.open("r", encoding="utf-8") as source_handle:
-        source = json.load(source_handle)
-    require(isinstance(source, list) and len(source) > 0)
+    require(family in {"ipv4", "ipv6"})
 
     lines: list[str] = ["server:"]
     records_by_name: dict[str, dict[int, set[str]]] = {}
     address_owners: dict[str, str] = {}
     dns_ids: set[str] = set()
-    for record in source:
-        require(isinstance(record, dict))
-        require(set(record).issubset(SCHEMA_FIELDS))
-        require(record.get("scope") == scope)
-        handle = record.get("id")
-        require(isinstance(handle, str) and handle != "")
+    for record in records:
         hostname = record.get("hostname")
         if not isinstance(hostname, str) or not hostname:
             raise ReservationContractError(PUBLICATION_HOSTNAME_MISSING)
-        dns_ids.add(handle)
-        require(
-            HOSTNAME.fullmatch(hostname) is not None
-            and "." not in hostname
-        )
+        require(HOSTNAME.fullmatch(hostname) is not None and "." not in hostname)
         fqdn = f"{hostname}.{namespace}"
         normalized_fqdn = fqdn.lower()
         name_records = records_by_name.setdefault(
@@ -226,41 +130,21 @@ def materialize_dns_lines(
             {4: set(), 6: set()},
         )
 
-        record_addresses: list[str] = []
-        # Determine per-address-family data before emitting.
-        v4 = None
-        v6 = None
-        if record.get("ipv4") is not None:
-            v4, _ = validated_ipv4_identity(record["ipv4"])
-        if record.get("ipv6") is not None:
-            v6, _ = validated_ipv6_identity(record["ipv6"])
+        if family == "ipv4":
+            address = record.get("ip-address")
+            require(isinstance(address, str))
+            addresses = [address]
+        else:
+            addresses = record.get("ip-addresses")
+            require(isinstance(addresses, list) and len(addresses) >= 1)
 
-        # Collect addresses based on requested record classes.
-        if v4 is not None and "A" in record_classes:
-            record_addresses.append(str(v4))
-        if v6 is not None and "AAAA" in record_classes:
-            record_addresses.append(str(v6))
-        if "PTR" in record_classes and not record_addresses:
-            if v4 is not None:
-                record_addresses.append(str(v4))
-            if v6 is not None:
-                record_addresses.append(str(v6))
-        require(record_addresses)
-
-        # SMS-050 predicate 007: address-set publication allows distinct
-        # reservation identities to contribute unique addresses to one
-        # hostname. Identical name/address pairs are deduplicated, while one
-        # address bound to multiple names is an ownership conflict.
-        for address in record_addresses:
+        for address in addresses:
             parsed = ipaddress.ip_address(address)
             previous_owner = address_owners.get(address)
             require(previous_owner is None or previous_owner == normalized_fqdn)
             address_owners[address] = normalized_fqdn
             name_records[parsed.version].add(address)
 
-    # Output is stable across protected-source input ordering. Keep all
-    # addresses for one normalized owner together and emit one reverse binding
-    # for every unique address.
     for normalized_fqdn in sorted(records_by_name):
         name_records = records_by_name[normalized_fqdn]
         for version, record_class in ((4, "A"), (6, "AAAA")):
@@ -284,9 +168,9 @@ def materialize_dns_lines(
 def insert_reservations(
     config: dict[str, Any],
     family: str,
-    runtime_records: list[dict[str, Any]],
+    source_path: Path,
     has_out_of_pool: bool,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if family == "ipv4":
         subnets = config["Dhcp4"]["subnet4"]
         identity_key = "hw-address"
@@ -294,23 +178,62 @@ def insert_reservations(
         subnets = config["Dhcp6"]["subnet6"]
         identity_key = "duid"
 
-    def reservation_address(record: dict[str, Any]) -> str:
-        if family == "ipv4":
-            return record["ip-address"]
-        return record["ip-addresses"][0]
-
+    registry = load_registry(source_path)
     require(isinstance(subnets, list) and len(subnets) == 1)
     existing = subnets[0].get("reservations", [])
     require(isinstance(existing, list))
-    combined = existing + runtime_records
-    require(
-        len({record[identity_key] for record in combined}) == len(combined)
-        and len({reservation_address(record) for record in combined}) == len(combined)
-    )
-    subnets[0]["reservations"] = combined
+
+    resolved: list[dict[str, Any]] = []
+    seen_identities: set[str] = set()
+    seen_addresses: set[str] = set()
+    for record in existing:
+        require(isinstance(record, dict))
+        if HANDLE_FIELD not in record:
+            # Inline public reservation; keep it but still enforce uniqueness.
+            identity = record.get(identity_key)
+            address = (
+                record.get("ip-address")
+                if family == "ipv4"
+                else (record.get("ip-addresses") or [None])[0]
+            )
+            if identity is not None and address is not None:
+                require(identity not in seen_identities and address not in seen_addresses)
+                seen_identities.add(identity)
+                seen_addresses.add(str(address))
+            resolved.append(record)
+            continue
+
+        handle = record.pop(HANDLE_FIELD)
+        protected = registry.get(handle)
+        require(
+            protected is not None,
+            f"{CROSS_IDENTITY_MISMATCH}: assignment handle '{handle}' has no protected identity",
+        )
+        kind, identity = identity_for_record(family, protected)
+        require(identity not in seen_identities)
+        seen_identities.add(identity)
+
+        if family == "ipv4":
+            address = record.get("ip-address")
+            require(isinstance(address, str))
+            record[kind] = identity
+            require(address not in seen_addresses)
+            seen_addresses.add(address)
+        else:
+            addresses = record.get("ip-addresses")
+            require(isinstance(addresses, list) and len(addresses) == 1)
+            require(str(addresses[0]) not in seen_addresses)
+            seen_addresses.add(str(addresses[0]))
+            record[kind] = identity
+
+        # Hostname is a public assignment field only; the registry carries no
+        # hostname, so there is no conflict to resolve.
+        resolved.append(record)
+
+    subnets[0]["reservations"] = resolved
     subnets[0]["reservations-in-subnet"] = True
     subnets[0]["reservations-out-of-pool"] = has_out_of_pool
-    return config
+    return (config, resolved)
 
 
 def atomic_write(path: Path, value: dict[str, Any]) -> None:
@@ -354,7 +277,6 @@ def atomic_write_dns(path: Path, lines: list[str], group_name: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--family", choices=("ipv4", "ipv6"), required=True)
-    parser.add_argument("--scope", required=True)
     parser.add_argument("--subnet", required=True)
     parser.add_argument("--pool", required=True)
     parser.add_argument("--source", type=Path)
@@ -387,25 +309,22 @@ def main() -> None:
     args.lease_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with args.template.open("r", encoding="utf-8") as template_handle:
         config = json.load(template_handle)
-    kea_ids: set[str] | None = None
-    dns_ids: set[str] | None = None
+
+    joined: list[dict[str, Any]] = []
     if args.source is not None:
-        records, has_out_of_pool, kea_ids = materialize_records(
-            args.family, args.scope, args.subnet, args.pool, args.source
+        config, joined = insert_reservations(
+            config, args.family, args.source, False
         )
-        config = insert_reservations(
-            config, args.family, records, has_out_of_pool
-        )
+
     if dns_enabled:
-        dns_lines, dns_ids = materialize_dns_lines(
-            args.scope,
+        dns_lines, _ = materialize_dns_lines(
             args.dns_namespace,
             args.dns_record_class,
-            args.source,
+            args.family,
+            joined,
         )
         atomic_write_dns(args.dns_output, dns_lines, args.dns_group)
-    if kea_ids is not None and dns_ids is not None:
-        require(kea_ids == dns_ids)
+
     atomic_write(args.output, config)
 
 

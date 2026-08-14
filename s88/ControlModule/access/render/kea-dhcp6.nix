@@ -43,14 +43,21 @@ let
   reservations = map (
     reservation:
     (
-      if builtins.isString (reservation.duid or null) && reservation.duid != "" then
+      if builtins.isString (reservation.secretRef or null) && reservation.secretRef != "" then
+        { duid = ""; }
+      else if builtins.isString (reservation.duid or null) && reservation.duid != "" then
         { duid = reservation.duid; }
       else
-        { "hw-address" = reservation.mac; }
+        { "hw-address" = reservation.mac or ""; }
     )
     // {
       "ip-addresses" = [ reservation.address ];
     }
+    //
+      lib.optionalAttrs (builtins.isString (reservation.secretRef or null) && reservation.secretRef != "")
+        {
+          "reservation-handle" = reservation.secretRef;
+        }
     //
       lib.optionalAttrs (builtins.isString (reservation.hostname or null) && reservation.hostname != "")
         {
