@@ -42,7 +42,7 @@ DIAGNOSTIC = "diagnostic.runtime-reservation-secret-record-invalid"
 PUBLICATION_HOSTNAME_MISSING = "diagnostic.protected-reservation-name-publication-hostname-missing"
 CROSS_IDENTITY_MISMATCH = "diagnostic.protected-reservation-cross-identity-mismatch"
 HANDLE_FIELD = "reservation-handle"
-SCHEMA_FIELDS = {"id", "mac", "duid", "iid"}
+DEVICE_FIELDS = {"mac", "duid"}
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 MAC = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 IID = re.compile(r"^[0-9A-Fa-f]{16}$")
@@ -69,20 +69,13 @@ def normalized_duid(value: object) -> str:
     )
 
 
-def load_registry(source_path: Path) -> dict[str, dict[str, Any]]:
-    """Read the protected identity registry keyed by stable endpoint handle."""
-    with source_path.open("r", encoding="utf-8") as source_handle:
-        source = json.load(source_handle)
-    require(isinstance(source, list) and len(source) > 0)
-
-    registry: dict[str, dict[str, Any]] = {}
-    for record in source:
-        require(isinstance(record, dict))
-        require(set(record).issubset(SCHEMA_FIELDS))
-        handle = record.get("id")
-        require(isinstance(handle, str) and handle != "" and handle not in registry)
-        registry[handle] = record
-    return registry
+def load_device(path: Path) -> dict[str, Any]:
+    """Read one protected device identity record: { mac, duid? }."""
+    with path.open("r", encoding="utf-8") as source_handle:
+        record = json.load(source_handle)
+    require(isinstance(record, dict))
+    require(set(record).issubset(DEVICE_FIELDS))
+    return record
 
 
 def identity_for_record(family: str, record: dict[str, Any]) -> tuple[str, str | None]:
@@ -178,7 +171,7 @@ def insert_reservations(
         subnets = config["Dhcp6"]["subnet6"]
         identity_key = "duid"
 
-    registry = load_registry(source_path)
+    registry = None
     require(isinstance(subnets, list) and len(subnets) == 1)
     existing = subnets[0].get("reservations", [])
     require(isinstance(existing, list))
@@ -204,11 +197,12 @@ def insert_reservations(
             continue
 
         handle = record.pop(HANDLE_FIELD)
-        protected = registry.get(handle)
+        device_path = source_path / handle
         require(
-            protected is not None,
-            f"{CROSS_IDENTITY_MISMATCH}: assignment handle '{handle}' has no protected identity",
+            device_path.is_file(),
+            f"{CROSS_IDENTITY_MISMATCH}: no protected identity file for handle '{handle}'",
         )
+        protected = load_device(device_path)
         kind, identity = identity_for_record(family, protected)
         require(identity not in seen_identities)
         seen_identities.add(identity)
