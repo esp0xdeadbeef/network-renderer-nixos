@@ -35,7 +35,6 @@ in
     networking.useDHCP = false;
     networking.networkmanager.enable = false;
     networking.useHostResolvConf = lib.mkForce false;
-    services.resolved.enable = lib.mkForce false;
     networking.firewall.enable = lib.mkForce false;
     nix.extraOptions = ''
       experimental-features = nix-command flakes
