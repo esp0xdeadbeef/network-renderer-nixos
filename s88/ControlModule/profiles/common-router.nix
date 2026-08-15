@@ -19,7 +19,7 @@ in
   networking.useHostResolvConf = lib.mkForce false;
 
   services.resolved.enable = lib.mkIf (
-    !config.services.network-renderer-wireguard.providerRuntime.enable
+    !(config.services.network-renderer-wireguard.providerRuntime.enable or false)
   ) (lib.mkForce false);
   networking.firewall.enable = lib.mkForce false;
 
