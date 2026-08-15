@@ -15,10 +15,10 @@ in
   systemd.network.enable = true;
   networking.useDHCP = false;
   networking.networkmanager.enable = lib.mkDefault false;
-  networking.useHostResolvConf = lib.mkForce false;
+  networking.useHostResolvConf = false;
 
-  services.resolved.enable = lib.mkDefault false;
-  networking.firewall.enable = lib.mkForce false;
+  services.resolved.enable = false;
+  networking.firewall.enable = false;
 
   boot.kernel.sysctl = {
     "net.ipv4.ip_forward" = 1;
