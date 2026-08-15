@@ -101,27 +101,40 @@ let
 
   isMainTableDefaultRoute = route: isMainTableRoute route && isDefaultRoute route;
 
+  localOriginEgressRuleFor =
+    ifName: interfaceName: iface:
+    let
+      tableId = policyRuleDhcpTableForInterface ifName interfaceName;
+      networkConfig = mkDynamicWanNetworkConfig iface;
+      isDynamicWan = (networkConfig.DHCP or "no") != "no";
+    in
+    if isDynamicWan && tableId != null then
+      {
+        Family = "both";
+        Priority = 32765;
+        Table = tableId;
+      }
+    else
+      null;
+
   policyRuleDhcpTableForInterface =
     ifName: interfaceName:
     let
-      tables =
-        lib.unique (
-          lib.filter builtins.isInt (
-            map
-              (
-                rule:
-                if
-                  (rule.IncomingInterface or null) == interfaceName
-                  && builtins.isInt (rule.Table or null)
-                  && rule.Table != 254
-                then
-                  rule.Table
-                else
-                  null
-              )
-              (policyRoutingByInterface.rules.${ifName} or [ ])
-          )
-        );
+      tables = lib.unique (
+        lib.filter builtins.isInt (
+          map (
+            rule:
+            if
+              (rule.IncomingInterface or null) == interfaceName
+              && builtins.isInt (rule.Table or null)
+              && rule.Table != 254
+            then
+              rule.Table
+            else
+              null
+          ) (policyRoutingByInterface.rules.${ifName} or [ ])
+        )
+      );
     in
     if builtins.length tables == 1 then builtins.head tables else null;
 
@@ -186,8 +199,7 @@ let
     || (materialization.owner or null) == "network-renderer-nixos";
 
   isProviderCreatedInterface =
-    iface:
-    (iface.sourceKind or null) == "overlay" && !nixosOwnsInterface iface;
+    iface: (iface.sourceKind or null) == "overlay" && !nixosOwnsInterface iface;
 
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
@@ -228,10 +240,16 @@ let
             ))
             ++ policyMainRoutes
             ++ diagnosticMainRoutes
-            ++ (lib.filter (route: route != null) (map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])))
+            ++ (lib.filter (route: route != null) (
+              map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])
+            ))
             ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
         in
-        if builtins.elem ifName skipInterfaceNames || builtins.elem interfaceName networkManagerInterfaces || isProviderCreatedInterface iface then
+        if
+          builtins.elem ifName skipInterfaceNames
+          || builtins.elem interfaceName networkManagerInterfaces
+          || isProviderCreatedInterface iface
+        then
           null
         else
           {
@@ -242,9 +260,12 @@ let
                 ConfigureWithoutCarrier = true;
               }
               // mkDynamicWanNetworkConfig iface;
-              dhcpV4Config = mkDynamicWanDhcpV4Config iface (policyRuleDhcpTableForInterface ifName interfaceName);
-              ipv6AcceptRAConfig =
-                mkDynamicWanIpv6AcceptRAConfig iface (policyRuleDhcpTableForInterface ifName interfaceName);
+              dhcpV4Config = mkDynamicWanDhcpV4Config iface (
+                policyRuleDhcpTableForInterface ifName interfaceName
+              );
+              ipv6AcceptRAConfig = mkDynamicWanIpv6AcceptRAConfig iface (
+                policyRuleDhcpTableForInterface ifName interfaceName
+              );
               linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
                 MTUBytes = iface.mtu;
               };
@@ -252,7 +273,11 @@ let
               routes = map stripRouteMetadata (
                 lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
               );
-              routingPolicyRules = policyRoutingByInterface.rules.${ifName} or [ ];
+              routingPolicyRules =
+                (policyRoutingByInterface.rules.${ifName} or [ ])
+                ++ lib.optional (localOriginEgressRuleFor ifName interfaceName iface != null) (
+                  localOriginEgressRuleFor ifName interfaceName iface
+                );
             };
           }
       ) interfaceNames
@@ -270,69 +295,59 @@ let
     inherit delegatedPrefixSourceForRoute isExternalValidationDelegatedPrefixRoute;
   };
 
-  staticProviderRoutes =
-    lib.concatLists (
-      map
-        (
-          ifName:
-          let
-            iface = interfaces.${ifName};
-            interfaceName = renderedInterfaceNames.${ifName};
-            isProviderCreated = (iface.sourceKind or null) == "overlay";
-          in
-          if !isProviderCreated then
-            [ ]
+  staticProviderRoutes = lib.concatLists (
+    map (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        interfaceName = renderedInterfaceNames.${ifName};
+        isProviderCreated = (iface.sourceKind or null) == "overlay";
+      in
+      if !isProviderCreated then
+        [ ]
+      else
+        lib.imap0 (
+          index: route:
+          if !builtins.isAttrs route || !(builtins.isString (route.Destination or null)) then
+            null
           else
-            lib.imap0
-              (
-                index: route:
-                if !builtins.isAttrs route || !(builtins.isString (route.Destination or null)) then
-                  null
-                else
-                  {
-                    name = "provider-route-${interfaceName}-${builtins.toString index}";
-                    inherit interfaceName;
-                    destination = route.Destination;
-                    gateway = route.Gateway or null;
-                    scope = route.Scope or null;
-                    table = route.Table or null;
-                    metric = route.Metric or null;
-                  }
-              )
-              (policyRoutingByInterface.routes.${ifName} or [ ])
-        )
-        interfaceNames
-    );
+            {
+              name = "provider-route-${interfaceName}-${builtins.toString index}";
+              inherit interfaceName;
+              destination = route.Destination;
+              gateway = route.Gateway or null;
+              scope = route.Scope or null;
+              table = route.Table or null;
+              metric = route.Metric or null;
+            }
+        ) (policyRoutingByInterface.routes.${ifName} or [ ])
+    ) interfaceNames
+  );
 
-  staticProviderPolicyRules =
-    lib.concatLists (
-      map
-        (
-          ifName:
-          let
-            iface = interfaces.${ifName};
-            interfaceName = renderedInterfaceNames.${ifName};
-            isProviderCreated = (iface.sourceKind or null) == "overlay";
-          in
-          if !isProviderCreated then
-            [ ]
+  staticProviderPolicyRules = lib.concatLists (
+    map (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        interfaceName = renderedInterfaceNames.${ifName};
+        isProviderCreated = (iface.sourceKind or null) == "overlay";
+      in
+      if !isProviderCreated then
+        [ ]
+      else
+        lib.imap0 (
+          index: rule:
+          if !builtins.isAttrs rule then
+            null
           else
-            lib.imap0
-              (
-                index: rule:
-                if !builtins.isAttrs rule then
-                  null
-                else
-                  rule
-                  // {
-                    name = "provider-policy-rule-${interfaceName}-${builtins.toString index}";
-                    outputInterfaceName = interfaceName;
-                  }
-              )
-              (policyRoutingByInterface.rules.${ifName} or [ ])
-        )
-        interfaceNames
-    );
+            rule
+            // {
+              name = "provider-policy-rule-${interfaceName}-${builtins.toString index}";
+              outputInterfaceName = interfaceName;
+            }
+        ) (policyRoutingByInterface.rules.${ifName} or [ ])
+    ) interfaceNames
+  );
 in
 {
   inherit interfaceUnits;
