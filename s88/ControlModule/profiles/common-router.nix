@@ -10,7 +10,7 @@ in
   networking.useNetworkd = true;
   systemd.network.enable = true;
   networking.useDHCP = false;
-  networking.networkmanager.enable = false;
+  networking.networkmanager.enable = lib.mkDefault false;
   networking.useHostResolvConf = lib.mkForce false;
 
   services.resolved.enable = lib.mkForce false;
