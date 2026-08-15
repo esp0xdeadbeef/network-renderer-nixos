@@ -1,4 +1,8 @@
-{ lib, renderedModel, forwardingIntent ? { } }:
+{
+  lib,
+  renderedModel,
+  forwardingIntent ? { },
+}:
 
 let
   runtimeTarget =
@@ -16,13 +20,9 @@ let
       null;
 
   dnsAuthority =
-    if builtins.isAttrs dnsService then
-      import ./authority.nix { inherit lib dnsService; }
-    else
-      null;
+    if builtins.isAttrs dnsService then import ./authority.nix { inherit lib dnsService; } else null;
 
-  stringList = value:
-    if builtins.isList value then lib.filter builtins.isString value else [ ];
+  stringList = value: if builtins.isList value then lib.filter builtins.isString value else [ ];
 
   asList =
     value:
@@ -74,12 +74,14 @@ let
           scopeId = requireNonEmptyString "${entryPath}.scopeId" (publication.scopeId or null);
           namespace = requireNonEmptyString "${entryPath}.namespace" (publication.namespace or null);
           ownerScope = requireNonEmptyString "${entryPath}.ownerScope" (publication.ownerScope or null);
-          requesterScopes = requireStringList "${entryPath}.requesterScopes" (publication.requesterScopes or null);
+          requesterScopes = requireStringList "${entryPath}.requesterScopes" (
+            publication.requesterScopes or null
+          );
           recordClasses = requireStringList "${entryPath}.recordClasses" (publication.recordClasses or null);
           sourceFile = requireNonEmptyString "${entryPath}.source.sourceFile" (source.sourceFile or null);
-          materializerFamily = requireNonEmptyString
-            "${entryPath}.materializerFamily"
-            (publication.materializerFamily or null);
+          materializerFamily = requireNonEmptyString "${entryPath}.materializerFamily" (
+            publication.materializerFamily or null
+          );
           stem = safeStem scopeId;
           _source =
             if
@@ -101,7 +103,14 @@ let
               throw "diagnostic.protected-reservation-name-scope-invalid: NixOS DNS renderer rejected an unscoped publication without logging address material";
           _recordClasses =
             if
-              builtins.all (recordClass: builtins.elem recordClass [ "A" "AAAA" "PTR" ]) recordClasses
+              builtins.all (
+                recordClass:
+                builtins.elem recordClass [
+                  "A"
+                  "AAAA"
+                  "PTR"
+                ]
+              ) recordClasses
               && builtins.length (lib.unique recordClasses) == builtins.length recordClasses
             then
               true
@@ -128,13 +137,18 @@ let
           builtins.seq _scope (
             builtins.seq _recordClasses (
               builtins.seq _policy {
-                inherit scopeId namespace recordClasses generatorUnit;
+                inherit
+                  scopeId
+                  namespace
+                  recordClasses
+                  generatorUnit
+                  ;
                 configFile = "/run/unbound/s-router-prod-${stem}-local.conf";
-                # FS-560: Preserve the CPM-computed reverse DNS zone for PTR
-                # local-data-ptr records so the DNS renderer can add the
-                # corresponding in-addr.arpa static zone.
+
                 reverseNamespace =
-                  if builtins.isString (publication.reverseNamespace or null) && publication.reverseNamespace != "" then
+                  if
+                    builtins.isString (publication.reverseNamespace or null) && publication.reverseNamespace != ""
+                  then
                     publication.reverseNamespace
                   else
                     null;
@@ -219,7 +233,8 @@ let
     && (dnsEgressSelectedInterface.sourceKind or null) == "wan"
     && builtins.isString (dnsEgressPolicy.runtimeIfName or null)
     && dnsEgressPolicy.runtimeIfName != ""
-    && (dnsEgressSelectedInterface.runtimeIfName or dnsEgressSelectedInterface.renderedIfName or null)
+    &&
+      (dnsEgressSelectedInterface.runtimeIfName or dnsEgressSelectedInterface.renderedIfName or null)
       == dnsEgressPolicy.runtimeIfName
     && (dnsEgressSelectedAllocation.source or null) == "control-plane-model"
     && builtins.isInt (dnsEgressPolicy.tableId or null)
@@ -238,13 +253,17 @@ let
       null;
 
   infraHostTtl =
-    if dnsService ? infraHostTtl && builtins.isInt dnsService.infraHostTtl && dnsService.infraHostTtl > 0 then
+    if
+      dnsService ? infraHostTtl && builtins.isInt dnsService.infraHostTtl && dnsService.infraHostTtl > 0
+    then
       dnsService.infraHostTtl
     else
       null;
 
   infraLameTtl =
-    if dnsService ? infraLameTtl && builtins.isInt dnsService.infraLameTtl && dnsService.infraLameTtl > 0 then
+    if
+      dnsService ? infraLameTtl && builtins.isInt dnsService.infraLameTtl && dnsService.infraLameTtl > 0
+    then
       dnsService.infraLameTtl
     else
       null;
@@ -262,28 +281,27 @@ let
       && (validationAuthority.trust.mode or null) == "insecure-controlled-root"
     );
 
-  explicitDnsForwardPairs =
-    lib.filter
-      (pair:
-        builtins.isAttrs pair
-        && (pair.action or "accept") == "accept"
-        && (pair.trafficType or null) == "dns"
-        && builtins.isList (pair."in" or null))
-      (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+  explicitDnsForwardPairs = lib.filter (
+    pair:
+    builtins.isAttrs pair
+    && (pair.action or "accept") == "accept"
+    && (pair.trafficType or null) == "dns"
+    && builtins.isList (pair."in" or null)
+  ) (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
 
-  explicitDnsServiceEgressPairs =
-    lib.filter
-      (pair:
-        builtins.isAttrs pair
-        && (pair.action or "accept") == "accept"
-        && (pair.trafficType or null) == "dns"
-        && builtins.isList (pair."in" or null)
-        && builtins.isList (pair."out" or null)
-        && builtins.isList (pair.sourcePrefixes or null)
-        && pair.sourcePrefixes != [ ])
-      (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+  explicitDnsServiceEgressPairs = lib.filter (
+    pair:
+    builtins.isAttrs pair
+    && (pair.action or "accept") == "accept"
+    && (pair.trafficType or null) == "dns"
+    && builtins.isList (pair."in" or null)
+    && builtins.isList (pair."out" or null)
+    && builtins.isList (pair.sourcePrefixes or null)
+    && pair.sourcePrefixes != [ ]
+  ) (forwardingIntent.normalizedExplicitForwardPairs or [ ]);
 
-  sourcePrefixRecord = value:
+  sourcePrefixRecord =
+    value:
     let
       prefix =
         if builtins.isString value then
@@ -302,30 +320,28 @@ let
     in
     if prefix == "" then null else { inherit prefix family; };
 
-  dnsServiceForwardEgressRules =
-    lib.concatMap
-      (pair:
-        lib.concatMap
-          (source:
-            lib.concatMap
-              (inIf:
-                map
-                  (outIf: {
-                    inherit source;
-                    inInterface = inIf;
-                    outInterface = outIf;
-                  })
-                  (stringList (pair."out" or [ ])))
-              (stringList (pair."in" or [ ])))
-          (lib.filter (value: value != null) (map sourcePrefixRecord (asList (pair.sourcePrefixes or [ ])))))
-      explicitDnsServiceEgressPairs;
+  dnsServiceForwardEgressRules = lib.concatMap (
+    pair:
+    lib.concatMap (
+      source:
+      lib.concatMap (
+        inIf:
+        map (outIf: {
+          inherit source;
+          inInterface = inIf;
+          outInterface = outIf;
+        }) (stringList (pair."out" or [ ]))
+      ) (stringList (pair."in" or [ ]))
+    ) (lib.filter (value: value != null) (map sourcePrefixRecord (asList (pair.sourcePrefixes or [ ]))))
+  ) explicitDnsServiceEgressPairs;
 
   hasExplicitDnsAllowFrom =
-    ifName:
-    builtins.any (pair: builtins.elem ifName (pair."in" or [ ])) explicitDnsForwardPairs;
+    ifName: builtins.any (pair: builtins.elem ifName (pair."in" or [ ])) explicitDnsForwardPairs;
 
   directEgressBlockedTenants =
-    if dnsService ? directEgressBlockedTenants && builtins.isList dnsService.directEgressBlockedTenants then
+    if
+      dnsService ? directEgressBlockedTenants && builtins.isList dnsService.directEgressBlockedTenants
+    then
       lib.filter builtins.isString dnsService.directEgressBlockedTenants
     else
       null;
@@ -339,7 +355,9 @@ let
     if sourceKind == "wan" || sourceKind == "overlay" then
       false
     else if directEgressBlockedTenants != null then
-      sourceKind == "tenant" && builtins.isString tenant && builtins.elem tenant directEgressBlockedTenants
+      sourceKind == "tenant"
+      && builtins.isString tenant
+      && builtins.elem tenant directEgressBlockedTenants
     else
       true;
 in
@@ -348,7 +366,13 @@ if !(builtins.isAttrs dnsService) then
 else
   let
     _fwd = dnsAuthority.rootForwarders;
-    _listen = lib.unique ([ "127.0.0.1" "::1" ] ++ stringList (dnsService.listen or [ ]));
+    _listen = lib.unique (
+      [
+        "127.0.0.1"
+        "::1"
+      ]
+      ++ stringList (dnsService.listen or [ ])
+    );
     _nonLoopback = builtins.filter (a: a != "127.0.0.1" && a != "::1") _listen;
     _selfRef = builtins.filter (f: builtins.elem f _nonLoopback) _fwd;
   in
@@ -359,134 +383,168 @@ else
   else if !validationAuthorityComplete then
     throw "NixOS DNS renderer DNS_VALIDATION_AUTHORITY_EXTERNAL: controlled iterative authority is missing its harness scope or disagrees with the selected model-owned egress; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-045"
   else
-  rec {
-    inherit dnsService listenAddresses allowFrom forwarders interfaces dnsServiceForwardEgressRules dnsEgressPolicy validationAuthority protectedReservationPublications infraHostTtl infraLameTtl;
-    inherit (dnsAuthority)
-      recursionMode
-      reproducibilityWarnings
-      warningCodes
-      localForwardZones
-      requesterPolicies
-      localOnlyPolicy
-      ;
-    listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
-    listen6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) listenAddresses;
-    forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;
-    forwarder6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) forwarders;
-    hasMixedForwarders = forwarder4 != [ ] && forwarder6 != [ ];
-    deniedResolverCidrs = stringList (dnsService.deniedResolverCidrs or [ ]);
-    deniedResolverCidrs4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) deniedResolverCidrs;
-    deniedResolverCidrs6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) deniedResolverCidrs;
-    publicResolverForwardIngressNames =
-      if ((dnsService.killSwitch or { }).blockPublicResolvers or false) then
-        lib.unique
-          (
+    rec {
+      inherit
+        dnsService
+        listenAddresses
+        allowFrom
+        forwarders
+        interfaces
+        dnsServiceForwardEgressRules
+        dnsEgressPolicy
+        validationAuthority
+        protectedReservationPublications
+        infraHostTtl
+        infraLameTtl
+        ;
+      inherit (dnsAuthority)
+        recursionMode
+        reproducibilityWarnings
+        warningCodes
+        localForwardZones
+        requesterPolicies
+        localOnlyPolicy
+        ;
+      listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
+      listen6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) listenAddresses;
+      forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;
+      forwarder6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) forwarders;
+      hasMixedForwarders = forwarder4 != [ ] && forwarder6 != [ ];
+      deniedResolverCidrs = stringList (dnsService.deniedResolverCidrs or [ ]);
+      strictEgress = (dnsService.strictEgress or false);
+      deniedResolverCidrs4 = lib.filter (
+        value: builtins.isString value && lib.hasInfix "." value
+      ) deniedResolverCidrs;
+      deniedResolverCidrs6 = lib.filter (
+        value: builtins.isString value && lib.hasInfix ":" value
+      ) deniedResolverCidrs;
+      publicResolverForwardIngressNames =
+        if ((dnsService.killSwitch or { }).blockPublicResolvers or false) then
+          lib.unique (
             lib.filter (name: name != "") (
-              map
-                (
-                  ifName:
-                  let
-                    iface = interfaces.${ifName} or { };
-                    sourceKind = iface.sourceKind or "";
-                    renderedName =
-                      if iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != "" then
-                        iface.renderedIfName
-                      else if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
-                        iface.interfaceName
-                      else
-                        ifName;
-                  in
-                  if sourceKind == "wan" || sourceKind == "overlay" then "" else renderedName
-                )
-                (builtins.attrNames interfaces)
+              map (
+                ifName:
+                let
+                  iface = interfaces.${ifName} or { };
+                  sourceKind = iface.sourceKind or "";
+                  renderedName =
+                    if
+                      iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != ""
+                    then
+                      iface.renderedIfName
+                    else if
+                      iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != ""
+                    then
+                      iface.interfaceName
+                    else
+                      ifName;
+                in
+                if sourceKind == "wan" || sourceKind == "overlay" then "" else renderedName
+              ) (builtins.attrNames interfaces)
             )
           )
-      else
-        [ ];
-    localZones =
-      lib.filter
-        (zone: builtins.isAttrs zone && builtins.isString (zone.name or null) && zone.name != "")
-        (if builtins.isList (dnsService.localZones or null) then dnsService.localZones else [ ]);
-    localRecords =
-      lib.filter
-        (record: builtins.isAttrs record && builtins.isString (record.name or null) && record.name != "")
-        (if builtins.isList (dnsService.localRecords or null) then dnsService.localRecords else [ ]);
-  namespaceFallback =
-    if builtins.isAttrs (dnsService.namespaceFallback or null) then dnsService.namespaceFallback else { };
-  namespaceFallbackDecisionsRaw =
-    if builtins.isList (namespaceFallback.decisions or null) then namespaceFallback.decisions else [ ];
-  invalidNamespaceConflictDecisions =
-    lib.filter
-      (decision:
+        else
+          [ ];
+      localZones = lib.filter (
+        zone: builtins.isAttrs zone && builtins.isString (zone.name or null) && zone.name != ""
+      ) (if builtins.isList (dnsService.localZones or null) then dnsService.localZones else [ ]);
+      localRecords = lib.filter (
+        record: builtins.isAttrs record && builtins.isString (record.name or null) && record.name != ""
+      ) (if builtins.isList (dnsService.localRecords or null) then dnsService.localRecords else [ ]);
+      namespaceFallback =
+        if builtins.isAttrs (dnsService.namespaceFallback or null) then
+          dnsService.namespaceFallback
+        else
+          { };
+      namespaceFallbackDecisionsRaw =
+        if builtins.isList (namespaceFallback.decisions or null) then namespaceFallback.decisions else [ ];
+      invalidNamespaceConflictDecisions = lib.filter (
+        decision:
         builtins.isAttrs decision
         && !(decision.publicRecursionFallback or false)
-        && builtins.elem (decision.action or null) [ "block" "deny" ]
+        && builtins.elem (decision.action or null) [
+          "block"
+          "deny"
+        ]
         && !(
           builtins.isString (decision.requesterScope or null)
           && decision.requesterScope != ""
           && builtins.isString (decision.namespace or null)
           && decision.namespace != ""
-        ))
-      namespaceFallbackDecisionsRaw;
-  namespaceFallbackDecisions =
-      if invalidNamespaceConflictDecisions != [ ] then
-        let
-          bad = builtins.head invalidNamespaceConflictDecisions;
-          badNamespace =
-            if builtins.isString (bad.namespace or null) && bad.namespace != "" then
-              bad.namespace
-            else
-              "<missing-namespace>";
-          badAction =
-            if builtins.isString (bad.action or null) && bad.action != "" then
-              bad.action
-            else
-              "<missing-action>";
-        in
-        throw "NixOS DNS renderer requires requesterScope and namespace for modeled namespace-conflict state predicate action '${badAction}' on '${badNamespace}'"
-      else
-      lib.filter
-        (decision:
-          builtins.isAttrs decision
-          && builtins.isString (decision.requesterScope or null)
-          && decision.requesterScope != ""
-          && builtins.isString (decision.namespace or null)
-          && decision.namespace != ""
-          && !((decision.publicRecursionFallback or false))
-          && builtins.elem (decision.action or null) [ "block" "deny" ])
-        namespaceFallbackDecisionsRaw;
-    dnsRoles = if builtins.isAttrs (dnsService.roles or null) then dnsService.roles else { };
-    recursionRole = if builtins.isAttrs (dnsRoles.recursion or null) then dnsRoles.recursion else { };
-    roleOutgoingInterfaces = stringList (recursionRole.outgoingInterfaces or [ ]);
-    outgoingInterfaces = lib.unique (if roleOutgoingInterfaces != [ ] then roleOutgoingInterfaces else stringList (dnsService.outgoingInterfaces or [ ]));
-    dnsEgressSources = if outgoingInterfaces != [ ] then outgoingInterfaces else listenAddresses;
-    dnsEgressSources4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) dnsEgressSources;
-    dnsEgressSources6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) dnsEgressSources;
-    ingressInterfaceNames =
-      if dnsService.blockDirectEgress or false then
-        lib.unique
-          (
+        )
+      ) namespaceFallbackDecisionsRaw;
+      namespaceFallbackDecisions =
+        if invalidNamespaceConflictDecisions != [ ] then
+          let
+            bad = builtins.head invalidNamespaceConflictDecisions;
+            badNamespace =
+              if builtins.isString (bad.namespace or null) && bad.namespace != "" then
+                bad.namespace
+              else
+                "<missing-namespace>";
+            badAction =
+              if builtins.isString (bad.action or null) && bad.action != "" then
+                bad.action
+              else
+                "<missing-action>";
+          in
+          throw "NixOS DNS renderer requires requesterScope and namespace for modeled namespace-conflict state predicate action '${badAction}' on '${badNamespace}'"
+        else
+          lib.filter (
+            decision:
+            builtins.isAttrs decision
+            && builtins.isString (decision.requesterScope or null)
+            && decision.requesterScope != ""
+            && builtins.isString (decision.namespace or null)
+            && decision.namespace != ""
+            && !((decision.publicRecursionFallback or false))
+            && builtins.elem (decision.action or null) [
+              "block"
+              "deny"
+            ]
+          ) namespaceFallbackDecisionsRaw;
+      dnsRoles = if builtins.isAttrs (dnsService.roles or null) then dnsService.roles else { };
+      recursionRole = if builtins.isAttrs (dnsRoles.recursion or null) then dnsRoles.recursion else { };
+      roleOutgoingInterfaces = stringList (recursionRole.outgoingInterfaces or [ ]);
+      outgoingInterfaces = lib.unique (
+        if roleOutgoingInterfaces != [ ] then
+          roleOutgoingInterfaces
+        else
+          stringList (dnsService.outgoingInterfaces or [ ])
+      );
+      dnsEgressSources = if outgoingInterfaces != [ ] then outgoingInterfaces else listenAddresses;
+      dnsEgressSources4 = lib.filter (
+        value: builtins.isString value && lib.hasInfix "." value
+      ) dnsEgressSources;
+      dnsEgressSources6 = lib.filter (
+        value: builtins.isString value && lib.hasInfix ":" value
+      ) dnsEgressSources;
+      ingressInterfaceNames =
+        if dnsService.blockDirectEgress or false then
+          lib.unique (
             lib.filter (name: name != "") (
-              map
-                (
-                  ifName:
-                  let
-                    iface = interfaces.${ifName} or { };
-                  in
-                  if !(shouldBlockInterface ifName iface) then
-                    ""
-                  else if iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != "" then
-                    if hasExplicitDnsAllowFrom iface.renderedIfName then "" else iface.renderedIfName
-                  else if iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != "" then
-                    if hasExplicitDnsAllowFrom iface.interfaceName then "" else iface.interfaceName
-                  else if hasExplicitDnsAllowFrom ifName then
-                    ""
-                  else
-                    ifName
-                )
-                (builtins.attrNames interfaces)
+              map (
+                ifName:
+                let
+                  iface = interfaces.${ifName} or { };
+                in
+                if !(shouldBlockInterface ifName iface) then
+                  ""
+                else if
+                  iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != ""
+                then
+                  if hasExplicitDnsAllowFrom iface.renderedIfName then "" else iface.renderedIfName
+                else if
+                  iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != ""
+                then
+                  if hasExplicitDnsAllowFrom iface.interfaceName then "" else iface.interfaceName
+                else if hasExplicitDnsAllowFrom ifName then
+                  ""
+                else
+                  ifName
+              ) (builtins.attrNames interfaces)
             )
           )
-      else
-        [ ];
-  }
+        else
+          [ ];
+    }
