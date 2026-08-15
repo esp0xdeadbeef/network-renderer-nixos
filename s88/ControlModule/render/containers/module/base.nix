@@ -34,9 +34,9 @@ in
     systemd.services.systemd-networkd-wait-online.enable = lib.mkIf usesExtraVeths (lib.mkForce false);
     networking.useDHCP = false;
     networking.networkmanager.enable = false;
-    networking.useHostResolvConf = lib.mkForce false;
-    services.resolved.enable = lib.mkDefault false;
-    networking.firewall.enable = lib.mkForce false;
+    networking.useHostResolvConf = false;
+    services.resolved.enable = false;
+    networking.firewall.enable = false;
     nix.extraOptions = ''
       experimental-features = nix-command flakes
     '';
