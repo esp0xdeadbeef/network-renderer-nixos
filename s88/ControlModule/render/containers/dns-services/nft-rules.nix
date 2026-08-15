@@ -14,26 +14,14 @@ let
     ingressInterfaceNames
     forwarder4
     forwarder6
+    registeredUpstreams4
+    registeredUpstreams6
     dnsEgressSources4
     dnsEgressSources6
-    deniedResolverCidrs4
-    deniedResolverCidrs6
-    publicResolverForwardIngressNames
     dnsServiceForwardEgressRules
     dnsEgressPolicy
     strictEgress
     ;
-
-  publicResolverForwardDropRules =
-    ifName:
-    (lib.concatMap (cidr: [
-      "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-forward-leak\""
-      "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-forward-leak\""
-    ]) deniedResolverCidrs4)
-    ++ (lib.concatMap (cidr: [
-      "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip6 daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-forward-leak\""
-      "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} ip6 daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-forward-leak\""
-    ]) deniedResolverCidrs6);
 
   dnsServiceForwardEgressRule =
     proto: rule:
@@ -48,6 +36,24 @@ let
     (dnsServiceForwardEgressRule "udp" rule)
     (dnsServiceForwardEgressRule "tcp" rule)
   ]) dnsServiceForwardEgressRules;
+
+  dnsUpstreamSetDefinitions =
+    (lib.optional (registeredUpstreams4 != [ ])
+      "${pkgs.nftables}/bin/nft list set inet router s88_dns_upstream4 >/dev/null 2>&1 || ${pkgs.nftables}/bin/nft add set inet router s88_dns_upstream4 { type ipv4_addr; }"
+    )
+    ++ (lib.optional (registeredUpstreams6 != [ ])
+      "${pkgs.nftables}/bin/nft list set inet router s88_dns_upstream6 >/dev/null 2>&1 || ${pkgs.nftables}/bin/nft add set inet router s88_dns_upstream6 { type ipv6_addr; }"
+    );
+
+  registeredUpstreamAllowRules =
+    (lib.concatMap (source: [
+      "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr @s88_dns_upstream4 udp dport 53 accept comment \"allow-dns-service-egress-registered\""
+      "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr @s88_dns_upstream4 tcp dport 53 accept comment \"allow-dns-service-egress-registered\""
+    ]) dnsEgressSources4)
+    ++ (lib.concatMap (source: [
+      "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr @s88_dns_upstream6 udp dport 53 accept comment \"allow-dns-service-egress-registered\""
+      "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr @s88_dns_upstream6 tcp dport 53 accept comment \"allow-dns-service-egress-registered\""
+    ]) dnsEgressSources6);
 
   dnsServiceStrictEgressDefaultDropRules =
     if strictEgress then
@@ -83,7 +89,6 @@ let
       "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} udp dport 53 drop comment \"deny-direct-dns-egress\""
       "${pkgs.nftables}/bin/nft insert rule inet router forward iifname ${nftString ifName} tcp dport 53 drop comment \"deny-direct-dns-egress\""
     ]) ingressInterfaceNames)
-    ++ (lib.concatMap publicResolverForwardDropRules publicResolverForwardIngressNames)
     ++ dnsServiceForwardEgressNftRules;
 
   dnsOutputRules =
@@ -115,14 +120,7 @@ let
         "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr ${forwarder} tcp dport 53 accept comment \"allow-dns-service-egress\""
       ) forwarder6
     ) dnsEgressSources6)
-    ++ (lib.concatMap (cidr: [
-      "${pkgs.nftables}/bin/nft add rule inet router output ip daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-output-leak\""
-      "${pkgs.nftables}/bin/nft add rule inet router output ip daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-output-leak\""
-    ]) deniedResolverCidrs4)
-    ++ (lib.concatMap (cidr: [
-      "${pkgs.nftables}/bin/nft add rule inet router output ip6 daddr ${cidr} udp dport 53 drop comment \"deny-public-dns-output-leak\""
-      "${pkgs.nftables}/bin/nft add rule inet router output ip6 daddr ${cidr} tcp dport 53 drop comment \"deny-public-dns-output-leak\""
-    ]) deniedResolverCidrs6)
+    ++ registeredUpstreamAllowRules
     ++ dnsServiceStrictEgressDefaultDropRules;
 
   dnsPolicyRoutingScript =
@@ -145,6 +143,7 @@ in
 {
   inherit nftRules;
   inherit dnsPolicyRoutingScript;
+  inherit dnsUpstreamSetDefinitions;
   dnsOutputScript =
     if dnsOutputRules != [ ] then lib.concatStringsSep "\n          " dnsOutputRules else ":";
 }

@@ -1,34 +1,34 @@
 { lib, dnsService }:
 
 let
-  stringList = value:
-    if builtins.isList value then lib.filter builtins.isString value else [ ];
+  stringList = value: if builtins.isList value then lib.filter builtins.isString value else [ ];
 
-  attrsList = value:
-    if builtins.isList value then lib.filter builtins.isAttrs value else [ ];
+  attrsList = value: if builtins.isList value then lib.filter builtins.isAttrs value else [ ];
 
-  sortedUnique = values:
-    lib.sort builtins.lessThan (lib.unique values);
+  sortedUnique = values: lib.sort builtins.lessThan (lib.unique values);
 
-  sameStrings = left: right:
-    sortedUnique left == sortedUnique right;
+  sameStrings = left: right: sortedUnique left == sortedUnique right;
 
-  hasIpv4 = values:
-    builtins.any (value: builtins.isString value && lib.hasInfix "." value) values;
+  hasIpv4 = values: builtins.any (value: builtins.isString value && lib.hasInfix "." value) values;
 
-  hasIpv6 = values:
-    builtins.any (value: builtins.isString value && lib.hasInfix ":" value) values;
+  hasIpv6 = values: builtins.any (value: builtins.isString value && lib.hasInfix ":" value) values;
 
-  familyComplete = values:
-    hasIpv4 values && hasIpv6 values;
+  familyComplete = values: hasIpv4 values && hasIpv6 values;
 
-  fail = code: reason:
+  fail =
+    code: reason:
     throw "network-renderer-nixos DNS ${code}: ${reason}; address material is intentionally omitted";
 
   recursionMode =
     if !(dnsService ? recursionMode) then
       null
-    else if builtins.elem dnsService.recursionMode [ "iterative" "forwarding" "local-only" ] then
+    else if
+      builtins.elem dnsService.recursionMode [
+        "iterative"
+        "forwarding"
+        "local-only"
+      ]
+    then
       dnsService.recursionMode
     else
       fail "DNS_RECURSION_MODE_INVALID" "CPM emitted an unsupported recursion mode";
@@ -36,9 +36,9 @@ let
   reproducibilityWarnings = attrsList (dnsService.reproducibilityWarnings or [ ]);
   warningCodes = sortedUnique (
     map (warning: warning.code) (
-      lib.filter
-        (warning: builtins.isString (warning.code or null) && warning.code != "")
-        reproducibilityWarnings
+      lib.filter (
+        warning: builtins.isString (warning.code or null) && warning.code != ""
+      ) reproducibilityWarnings
     )
   );
   nonFatalWarningCodes = [
@@ -51,9 +51,7 @@ let
     "DNS_CORE_ENDPOINT_PATH_MISMATCH"
     "DNS_CORE_FAMILY_INCOMPLETE"
   ];
-  fatalWarningCodes = builtins.filter
-    (code: !(builtins.elem code nonFatalWarningCodes))
-    warningCodes;
+  fatalWarningCodes = builtins.filter (code: !(builtins.elem code nonFatalWarningCodes)) warningCodes;
 
   legacyForwarders =
     if dnsService ? forwarders then
@@ -63,17 +61,17 @@ let
     else
       [ ];
 
+  registeredUpstreams = attrsList (dnsService.registeredUpstreams or [ ]);
+
   upstreamResolvers = attrsList (dnsService.upstreamResolvers or [ ]);
-  namedCoreResolvers = builtins.filter
-    (resolver: (resolver.kind or null) == "named-core-resolver")
-    upstreamResolvers;
-  validNamedCoreResolver = resolver:
+  namedCoreResolvers = builtins.filter (
+    resolver: (resolver.kind or null) == "named-core-resolver"
+  ) upstreamResolvers;
+  validNamedCoreResolver =
+    resolver:
     let
       endpointAuthority =
-        if builtins.isAttrs (resolver.endpointAuthority or null) then
-          resolver.endpointAuthority
-        else
-          { };
+        if builtins.isAttrs (resolver.endpointAuthority or null) then resolver.endpointAuthority else { };
     in
     builtins.isString (endpointAuthority.relationId or null)
     && endpointAuthority.relationId != ""
@@ -84,7 +82,8 @@ let
   );
 
   serviceEndpointBindings = attrsList (dnsService.serviceEndpointBindings or [ ]);
-  validServiceEndpointBinding = binding:
+  validServiceEndpointBinding =
+    binding:
     builtins.isString (binding.service or null)
     && binding.service != ""
     && builtins.isString (binding.requesterService or null)
@@ -101,12 +100,13 @@ let
   );
   configuredListenAddresses = sortedUnique (stringList (dnsService.listen or [ ]));
 
-  localAuthorityResolvers = builtins.filter
-    (resolver: (resolver.kind or null) == "local-namespace-authority")
-    upstreamResolvers;
+  localAuthorityResolvers = builtins.filter (
+    resolver: (resolver.kind or null) == "local-namespace-authority"
+  ) upstreamResolvers;
 
   localForwardZones = attrsList (dnsService.localForwardZones or [ ]);
-  validLocalForwardZone = zone:
+  validLocalForwardZone =
+    zone:
     builtins.isString (zone.name or null)
     && zone.name != ""
     && builtins.isString (zone.relationId or null)
@@ -116,17 +116,18 @@ let
 
   localZones = attrsList (dnsService.localZones or [ ]);
   shadowedLocalNamespaces = map (zone: zone.name) (
-    builtins.filter
-      (zone:
-        builtins.isString (zone.name or null)
-        && zone.name != ""
-        && builtins.any (forwardZone: (forwardZone.name or null) == zone.name) localForwardZones
-        && (zone.type or "static") != "transparent")
-      localZones
+    builtins.filter (
+      zone:
+      builtins.isString (zone.name or null)
+      && zone.name != ""
+      && builtins.any (forwardZone: (forwardZone.name or null) == zone.name) localForwardZones
+      && (zone.type or "static") != "transparent"
+    ) localZones
   );
 
   requesterPolicies = attrsList (dnsService.requesterPolicies or [ ]);
-  validRequesterPolicy = policy:
+  validRequesterPolicy =
+    policy:
     (policy.action or null) == "refuse_non_local"
     && builtins.isString (policy.requesterService or null)
     && policy.requesterService != ""
@@ -136,10 +137,7 @@ let
     && stringList (policy.namespaces or [ ]) != [ ];
 
   localOnlyPolicy =
-    if builtins.isAttrs (dnsService.localOnlyPolicy or null) then
-      dnsService.localOnlyPolicy
-    else
-      { };
+    if builtins.isAttrs (dnsService.localOnlyPolicy or null) then dnsService.localOnlyPolicy else { };
   validLocalOnlyPolicy =
     localOnlyPolicy != { }
     && builtins.isString (localOnlyPolicy.providerService or null)
@@ -156,30 +154,27 @@ let
     if fatalWarningCodes == [ ] then
       true
     else
-      fail
-        (builtins.concatStringsSep "," fatalWarningCodes)
-        "CPM marked this resolver contract non-reproducible";
+      fail (builtins.concatStringsSep "," fatalWarningCodes) "CPM marked this resolver contract non-reproducible";
 
   _modeContract =
     if recursionMode == "forwarding" then
       if
-        builtins.length namedCoreResolvers == 1
-        && builtins.all validNamedCoreResolver namedCoreResolvers
-        && familyComplete namedCoreAddresses
-        && (legacyForwarders == [ ] || sameStrings legacyForwarders namedCoreAddresses)
+        (
+          builtins.length namedCoreResolvers == 1
+          && builtins.all validNamedCoreResolver namedCoreResolvers
+          && familyComplete namedCoreAddresses
+          && (legacyForwarders == [ ] || sameStrings legacyForwarders namedCoreAddresses)
+        )
+        || (registeredUpstreams != [ ] && legacyForwarders == [ ] && namedCoreResolvers == [ ])
       then
         true
       else
-        fail
-          "DNS_RENDERER_CONTRACT_DIVERGENCE"
-          "forwarding mode lacks one dual-stack named-core resolver or disagrees with the legacy projection"
+        fail "DNS_RENDERER_CONTRACT_DIVERGENCE" "forwarding mode lacks one dual-stack named-core resolver or one registered upstream, or disagrees with the legacy projection"
     else if recursionMode == "iterative" then
       if legacyForwarders == [ ] && namedCoreResolvers == [ ] then
         true
       else
-        fail
-          "DNS_RECURSION_MODE_INVALID"
-          "iterative mode contains a forwarding or fallback source"
+        fail "DNS_RECURSION_MODE_INVALID" "iterative mode contains a forwarding or fallback source"
     else if recursionMode == "local-only" then
       if
         legacyForwarders == [ ]
@@ -190,9 +185,7 @@ let
       then
         true
       else
-        fail
-          "DNS_LOCAL_ONLY_AUTHORITY_LEAK"
-          "local-only mode is incomplete or would permit recursion, fallback, or transitive egress"
+        fail "DNS_LOCAL_ONLY_AUTHORITY_LEAK" "local-only mode is incomplete or would permit recursion, fallback, or transitive egress"
     else
       true;
 
@@ -205,25 +198,19 @@ let
     then
       true
     else
-      fail
-        "DNS_RENDERER_CONTRACT_DIVERGENCE"
-        "provider listener addresses or terminal authority disagree with the CPM service endpoint binding";
+      fail "DNS_RENDERER_CONTRACT_DIVERGENCE" "provider listener addresses or terminal authority disagree with the CPM service endpoint binding";
 
   _namespaceShadowContract =
     if shadowedLocalNamespaces == [ ] then
       true
     else
-      fail
-        "DNS_LOCAL_NAMESPACE_SHADOWED"
-        "a local zone would terminate a namespace before its modeled forwarding authority";
+      fail "DNS_LOCAL_NAMESPACE_SHADOWED" "a local zone would terminate a namespace before its modeled forwarding authority";
 
   _requesterPolicyContract =
     if builtins.all validRequesterPolicy requesterPolicies then
       true
     else
-      fail
-        "DNS_LOCAL_ONLY_AUTHORITY_LEAK"
-        "a provider requester policy is not source-scoped refuse_non_local";
+      fail "DNS_LOCAL_ONLY_AUTHORITY_LEAK" "a provider requester policy is not source-scoped refuse_non_local";
 
   rootForwarders =
     if recursionMode == "forwarding" then
