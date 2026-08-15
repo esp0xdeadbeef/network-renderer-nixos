@@ -1,6 +1,7 @@
 {
   lib,
   pkgs,
+  config,
   ...
 }:
 
@@ -17,6 +18,9 @@ in
   networking.networkmanager.enable = lib.mkDefault false;
   networking.useHostResolvConf = lib.mkForce false;
 
+  services.resolved.enable = lib.mkIf (
+    !(config.services.network-renderer-wireguard.providerRuntime.enable or false)
+  ) (lib.mkForce false);
   networking.firewall.enable = lib.mkForce false;
 
   boot.kernel.sysctl = {
