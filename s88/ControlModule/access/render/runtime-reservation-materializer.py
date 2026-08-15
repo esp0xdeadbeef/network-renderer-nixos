@@ -55,9 +55,9 @@ class ReservationContractError(Exception):
     """A protected source failed the redacted runtime contract."""
 
 
-def require(condition: bool) -> None:
+def require(condition: bool, message: str | None = None) -> None:
     if not condition:
-        raise ReservationContractError
+        raise ReservationContractError(message)
 
 
 def normalized_duid(value: object) -> str:
@@ -326,7 +326,7 @@ if __name__ == "__main__":
     try:
         main()
     except ReservationContractError as exc:
-        msg = exc.args[0] if exc.args else DIAGNOSTIC
+        msg = exc.args[0] if exc.args and exc.args[0] else DIAGNOSTIC
         print(
             f"{msg}: protected reservation set or Kea template rejected",
             file=sys.stderr,
