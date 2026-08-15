@@ -410,41 +410,28 @@ else
       forwarder4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) forwarders;
       forwarder6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) forwarders;
       hasMixedForwarders = forwarder4 != [ ] && forwarder6 != [ ];
-      deniedResolverCidrs = stringList (dnsService.deniedResolverCidrs or [ ]);
       strictEgress = (dnsService.strictEgress or false);
-      deniedResolverCidrs4 = lib.filter (
-        value: builtins.isString value && lib.hasInfix "." value
-      ) deniedResolverCidrs;
-      deniedResolverCidrs6 = lib.filter (
-        value: builtins.isString value && lib.hasInfix ":" value
-      ) deniedResolverCidrs;
-      publicResolverForwardIngressNames =
-        if ((dnsService.killSwitch or { }).blockPublicResolvers or false) then
-          lib.unique (
-            lib.filter (name: name != "") (
-              map (
-                ifName:
-                let
-                  iface = interfaces.${ifName} or { };
-                  sourceKind = iface.sourceKind or "";
-                  renderedName =
-                    if
-                      iface ? renderedIfName && builtins.isString iface.renderedIfName && iface.renderedIfName != ""
-                    then
-                      iface.renderedIfName
-                    else if
-                      iface ? interfaceName && builtins.isString iface.interfaceName && iface.interfaceName != ""
-                    then
-                      iface.interfaceName
-                    else
-                      ifName;
-                in
-                if sourceKind == "wan" || sourceKind == "overlay" then "" else renderedName
-              ) (builtins.attrNames interfaces)
-            )
+      registeredUpstreams =
+        lib.filter
+          (
+            entry:
+            builtins.isAttrs entry
+            && builtins.isString (entry.sourceFile or null)
+            && entry.sourceFile != ""
+            && builtins.isString (entry.family or "any")
           )
-        else
-          [ ];
+          (
+            if builtins.isList (dnsService.registeredUpstreams or null) then
+              dnsService.registeredUpstreams
+            else
+              [ ]
+          );
+      registeredUpstreams4 = lib.filter (
+        entry: (entry.family or "any") == "ipv4" || (entry.family or "any") == "any"
+      ) registeredUpstreams;
+      registeredUpstreams6 = lib.filter (
+        entry: (entry.family or "any") == "ipv6" || (entry.family or "any") == "any"
+      ) registeredUpstreams;
       localZones = lib.filter (
         zone: builtins.isAttrs zone && builtins.isString (zone.name or null) && zone.name != ""
       ) (if builtins.isList (dnsService.localZones or null) then dnsService.localZones else [ ]);

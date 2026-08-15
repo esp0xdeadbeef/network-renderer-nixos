@@ -1,8 +1,8 @@
-{ lib
-, pkgs
-, renderedModel
-, forwardingIntent ? { }
-,
+{
+  lib,
+  pkgs,
+  renderedModel,
+  forwardingIntent ? { },
 }:
 
 let
@@ -19,6 +19,9 @@ else
       allowFrom
       forwarders
       hasMixedForwarders
+      registeredUpstreams
+      registeredUpstreams4
+      registeredUpstreams6
       localZones
       localRecords
       namespaceFallbackDecisions
@@ -33,6 +36,7 @@ else
       validationAuthority
       infraHostTtl
       infraLameTtl
+      strictEgress
       ;
 
     controlledAuthority = validationAuthority != null;
@@ -41,46 +45,48 @@ else
         pkgs.writeText "controlled-root-hints" (
           builtins.concatStringsSep "\n" (
             [ ". 60 IN NS ${validationAuthority.root.nameServer}" ]
-            ++ map
-              (address: "${validationAuthority.root.nameServer} 60 IN A ${address}")
-              validationAuthority.root.ipv4
-            ++ map
-              (address: "${validationAuthority.root.nameServer} 60 IN AAAA ${address}")
-              validationAuthority.root.ipv6
+            ++ map (
+              address: "${validationAuthority.root.nameServer} 60 IN A ${address}"
+            ) validationAuthority.root.ipv4
+            ++ map (
+              address: "${validationAuthority.root.nameServer} 60 IN AAAA ${address}"
+            ) validationAuthority.root.ipv6
           )
           + "\n"
         )
       else
         null;
 
-    requesterAccessControl = lib.concatMap
-      (policy:
-        map
-          (cidr: "${cidr} ${policy.action}")
-          (lib.filter builtins.isString (policy.sourcePrefixes or [ ])))
-      requesterPolicies;
+    requesterAccessControl = lib.concatMap (
+      policy:
+      map (cidr: "${cidr} ${policy.action}") (lib.filter builtins.isString (policy.sourcePrefixes or [ ]))
+    ) requesterPolicies;
     accessControl = lib.unique ((map (cidr: "${cidr} allow") allowFrom) ++ requesterAccessControl);
-    namespaceFallbackZoneSettings =
-      map (decision: "${decision.namespace} static") namespaceFallbackDecisions;
+    namespaceFallbackZoneSettings = map (
+      decision: "${decision.namespace} static"
+    ) namespaceFallbackDecisions;
     protectedReservationLocalZoneSettings =
       let
-        conflicts = lib.filter
-          (publication:
-            builtins.any
-              (zone: zone.name == publication.namespace && (zone.type or "static") != "static")
-              localZones
-            || builtins.any (zone: zone.name == publication.namespace) localForwardZones)
-          protectedReservationPublications;
-        forwardZones = map (publication: "${publication.namespace} static") protectedReservationPublications;
-        # FS-560-HDS-010-SDS-010-SMS-050: when a protected publication includes
-        # PTR records, the CPM also emits a reverseNamespace for the in-addr.arpa
-        # or ip6.arpa zone so Unbound's local-data-ptr records are served from a
-        # static authoritative zone.
-        reverseZones = lib.filter (z: z != null) (map
-          (publication:
-            let rn = publication.reverseNamespace or null;
-            in if builtins.isString rn && rn != "" then "${rn} static" else null)
-          protectedReservationPublications);
+        conflicts = lib.filter (
+          publication:
+          builtins.any (
+            zone: zone.name == publication.namespace && (zone.type or "static") != "static"
+          ) localZones
+          || builtins.any (zone: zone.name == publication.namespace) localForwardZones
+        ) protectedReservationPublications;
+        forwardZones = map (
+          publication: "${publication.namespace} static"
+        ) protectedReservationPublications;
+
+        reverseZones = lib.filter (z: z != null) (
+          map (
+            publication:
+            let
+              rn = publication.reverseNamespace or null;
+            in
+            if builtins.isString rn && rn != "" then "${rn} static" else null
+          ) protectedReservationPublications
+        );
         allZones = forwardZones ++ reverseZones;
       in
       if conflicts != [ ] then
@@ -88,41 +94,79 @@ else
       else
         allZones;
     localOnlyRootZoneSettings = lib.optional (recursionMode == "local-only") ". refuse";
-    localZoneSettings =
-      lib.unique (
-        (map (zone: "${zone.name} ${zone.type or "static"}") localZones)
-        ++ namespaceFallbackZoneSettings
-        ++ protectedReservationLocalZoneSettings
-        ++ localOnlyRootZoneSettings
-      );
-    localForwardZoneSettings = map
-      (zone: {
-        name = zone.name;
-        "forward-addr" = zone.forwardTo;
-        "forward-first" = zone.forwardFirst;
-      })
-      localForwardZones;
-    localDataSettings = lib.concatMap
-      (
-        record:
-        let
-          name = record.name;
-          a = if builtins.isList (record.a or null) then lib.filter builtins.isString record.a else [ ];
-          aaaa =
-            if builtins.isList (record.aaaa or null) then lib.filter builtins.isString record.aaaa else [ ];
-        in
-        (map (addr: "\"${name} IN A ${addr}\"") a) ++ (map (addr: "\"${name} IN AAAA ${addr}\"") aaaa)
-      )
-      localRecords;
-    protectedReservationIncludes = map
-      (publication: publication.configFile)
-      protectedReservationPublications;
-    protectedReservationGeneratorUnits = map
-      (publication: publication.generatorUnit)
-      protectedReservationPublications;
+    localZoneSettings = lib.unique (
+      (map (zone: "${zone.name} ${zone.type or "static"}") localZones)
+      ++ namespaceFallbackZoneSettings
+      ++ protectedReservationLocalZoneSettings
+      ++ localOnlyRootZoneSettings
+    );
+    localForwardZoneSettings = map (zone: {
+      name = zone.name;
+      "forward-addr" = zone.forwardTo;
+      "forward-first" = zone.forwardFirst;
+    }) localForwardZones;
+    localDataSettings = lib.concatMap (
+      record:
+      let
+        name = record.name;
+        a = if builtins.isList (record.a or null) then lib.filter builtins.isString record.a else [ ];
+        aaaa =
+          if builtins.isList (record.aaaa or null) then lib.filter builtins.isString record.aaaa else [ ];
+      in
+      (map (addr: "\"${name} IN A ${addr}\"") a) ++ (map (addr: "\"${name} IN AAAA ${addr}\"") aaaa)
+    ) localRecords;
+    protectedReservationIncludes = map (
+      publication: publication.configFile
+    ) protectedReservationPublications;
+    protectedReservationGeneratorUnits = map (
+      publication: publication.generatorUnit
+    ) protectedReservationPublications;
     nft = import ./dns-services/nft-rules.nix { inherit lib pkgs facts; };
 
-    formatReproducibilityWarning = warning:
+    registeredUpstreamMaterializer = pkgs.writeShellApplication {
+      name = "dns-registered-upstream-materializer";
+      runtimeInputs = [
+        pkgs.nftables
+        pkgs.coreutils
+      ];
+      text = ''
+        set -euo pipefail
+        out=/run/unbound/registered-upstream.conf
+        tmp="$(mktemp)"
+        v4file="$(mktemp)"
+        v6file="$(mktemp)"
+        trap 'rm -f "$tmp" "$v4file" "$v6file"' EXIT
+        printf 'forward-zone:\n  name: "."\n' > "$tmp"
+        for sourceFile in "$@"; do
+          while IFS= read -r addr; do
+            addr="''${addr%%#*}"
+            addr="''${addr//[[:space:]]/}"
+            [ -n "$addr" ] || continue
+            case "$addr" in
+              *:*) printf '%s\n' "$addr" >> "$v6file" ;;
+              *)   printf '%s\n' "$addr" >> "$v4file" ;;
+            esac
+            printf '  forward-addr: %s\n' "$addr" >> "$tmp"
+          done < "$sourceFile"
+        done
+        install -m 0644 "$tmp" "$out"
+        if [ -s "$v4file" ]; then
+          ${pkgs.nftables}/bin/nft flush set inet router s88_dns_upstream4
+          ${pkgs.nftables}/bin/nft add element inet router s88_dns_upstream4 "{ $(paste -sd, "$v4file") }"
+        fi
+        if [ -s "$v6file" ]; then
+          ${pkgs.nftables}/bin/nft flush set inet router s88_dns_upstream6
+          ${pkgs.nftables}/bin/nft add element inet router s88_dns_upstream6 "{ $(paste -sd, "$v6file") }"
+        fi
+      '';
+    };
+
+    registeredUpstreamSourceFiles = lib.concatStringsSep " " (
+      map (entry: lib.escapeShellArg entry.sourceFile) registeredUpstreams
+    );
+
+    formatReproducibilityWarning =
+      warning:
       let
         code = warning.code or "UNKNOWN";
         sourceLayer = warning.sourceLayer or "intent";
@@ -146,8 +190,7 @@ else
           else
             null;
         detailParts =
-          lib.optional (sitePath != null) sitePath
-          ++ lib.optional (relationPath != null) relationPath;
+          lib.optional (sitePath != null) sitePath ++ lib.optional (relationPath != null) relationPath;
         detail = if detailParts != [ ] then " — ${lib.concatStringsSep "; " detailParts}" else "";
         body = if cpmMessage != "" then ": ${cpmMessage}" else "";
       in
@@ -202,13 +245,43 @@ else
             "::1"
           ];
         };
+      }
+      // lib.optionalAttrs (registeredUpstreams != [ ]) {
+        include = [ "/run/unbound/registered-upstream.conf" ];
       };
     };
 
     systemd.services.unbound = {
-      wants = [ "network-online.target" "nft-allow-dns-service.service" ] ++ protectedReservationGeneratorUnits;
-      after = [ "network-online.target" "nft-allow-dns-service.service" ] ++ protectedReservationGeneratorUnits;
+      wants = [
+        "network-online.target"
+        "nft-allow-dns-service.service"
+      ]
+      ++ protectedReservationGeneratorUnits;
+      after = [
+        "network-online.target"
+        "nft-allow-dns-service.service"
+      ]
+      ++ protectedReservationGeneratorUnits;
       requires = protectedReservationGeneratorUnits;
+    };
+
+    systemd.services.dns-registered-upstream = lib.optionalAttrs (registeredUpstreams != [ ]) {
+      description = "Materialize registered DNS upstreams into unbound and nftables";
+      wantedBy = [ "multi-user.target" ];
+      wants = [
+        "network-online.target"
+        "nft-allow-dns-service.service"
+      ];
+      after = [
+        "network-online.target"
+        "nft-allow-dns-service.service"
+      ];
+      before = [ "unbound.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${registeredUpstreamMaterializer}/bin/dns-registered-upstream-materializer ${registeredUpstreamSourceFiles}";
+      };
     };
 
     systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
@@ -275,6 +348,8 @@ else
         if ! ${pkgs.nftables}/bin/nft list chain inet router input | grep -q 'allow-dns-service'; then
           ${lib.concatStringsSep "\n          " nft.nftRules}
         fi
+
+        ${lib.concatStringsSep "\n        " nft.dnsUpstreamSetDefinitions}
 
         if ! ${pkgs.nftables}/bin/nft list ruleset | grep -q 'allow-dns-service-egress'; then
           ${nft.dnsOutputScript}
