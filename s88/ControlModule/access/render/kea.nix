@@ -121,16 +121,9 @@ let
   };
 
   configTemplate = pkgs.writeText "kea-${scope.fileStem}-template.json" configJson;
-  materializerScope =
-    if builtins.isString (scope.scopeId or null) && scope.scopeId != "" then
-      scope.scopeId
-    else
-      scope.fileStem;
   materializerArgs = [
     "--family"
     "ipv4"
-    "--scope"
-    materializerScope
     "--subnet"
     scope.subnet
     "--pool"
