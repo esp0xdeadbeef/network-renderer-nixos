@@ -104,16 +104,9 @@ let
   };
 
   configTemplate = pkgs.writeText "kea-dhcp6-${scope.fileStem}-template.json" configJson;
-  materializerScope =
-    if builtins.isString (scope.scopeId or null) && scope.scopeId != "" then
-      scope.scopeId
-    else
-      scope.fileStem;
   materializerArgs = [
     "--family"
     "ipv6"
-    "--scope"
-    materializerScope
     "--subnet"
     scope.subnet
     "--pool"
