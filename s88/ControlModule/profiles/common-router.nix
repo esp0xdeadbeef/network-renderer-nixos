@@ -1,4 +1,9 @@
-{ lib, pkgs, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  ...
+}:
 
 let
   debugTools = import ../debug-tools.nix { inherit pkgs; };
@@ -13,7 +18,9 @@ in
   networking.networkmanager.enable = lib.mkDefault false;
   networking.useHostResolvConf = lib.mkForce false;
 
-  services.resolved.enable = lib.mkForce false;
+  services.resolved.enable = lib.mkIf (
+    !config.services.network-renderer-wireguard.providerRuntime.enable
+  ) (lib.mkForce false);
   networking.firewall.enable = lib.mkForce false;
 
   boot.kernel.sysctl = {
