@@ -1,7 +1,6 @@
 {
   lib,
   pkgs,
-  config,
   containerName,
   renderedModel,
   alarmModel,
@@ -36,9 +35,7 @@ in
     networking.useDHCP = false;
     networking.networkmanager.enable = false;
     networking.useHostResolvConf = lib.mkForce false;
-    services.resolved.enable = lib.mkIf (
-      !(config.services.network-renderer-wireguard.providerRuntime.enable or false)
-    ) (lib.mkForce false);
+    services.resolved.enable = lib.mkDefault false;
     networking.firewall.enable = lib.mkForce false;
     nix.extraOptions = ''
       experimental-features = nix-command flakes
