@@ -285,52 +285,55 @@ else
     };
 
     systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
-      "10-${dnsEgressPolicy.runtimeIfName}".routingPolicyRules = [
-        {
-          Family = "ipv4";
-          FirewallMark = dnsEgressPolicy.firewallMark;
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv6";
-          FirewallMark = dnsEgressPolicy.firewallMark;
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv4";
-          User = "unbound";
-          IPProtocol = "udp";
-          DestinationPort = 53;
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv4";
-          User = "unbound";
-          IPProtocol = "tcp";
-          DestinationPort = 53;
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv6";
-          User = "unbound";
-          IPProtocol = "udp";
-          DestinationPort = 53;
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-        {
-          Family = "ipv6";
-          User = "unbound";
-          IPProtocol = "tcp";
-          DestinationPort = 53;
-          Priority = dnsEgressPolicy.rulePriority;
-          Table = dnsEgressPolicy.tableId;
-        }
-      ];
+      "10-${dnsEgressPolicy.runtimeIfName}" = {
+        matchConfig.Name = dnsEgressPolicy.runtimeIfName;
+        routingPolicyRules = [
+          {
+            Family = "ipv4";
+            FirewallMark = dnsEgressPolicy.firewallMark;
+            Priority = dnsEgressPolicy.rulePriority;
+            Table = dnsEgressPolicy.tableId;
+          }
+          {
+            Family = "ipv6";
+            FirewallMark = dnsEgressPolicy.firewallMark;
+            Priority = dnsEgressPolicy.rulePriority;
+            Table = dnsEgressPolicy.tableId;
+          }
+          {
+            Family = "ipv4";
+            User = "unbound";
+            IPProtocol = "udp";
+            DestinationPort = 53;
+            Priority = dnsEgressPolicy.rulePriority;
+            Table = dnsEgressPolicy.tableId;
+          }
+          {
+            Family = "ipv4";
+            User = "unbound";
+            IPProtocol = "tcp";
+            DestinationPort = 53;
+            Priority = dnsEgressPolicy.rulePriority;
+            Table = dnsEgressPolicy.tableId;
+          }
+          {
+            Family = "ipv6";
+            User = "unbound";
+            IPProtocol = "udp";
+            DestinationPort = 53;
+            Priority = dnsEgressPolicy.rulePriority;
+            Table = dnsEgressPolicy.tableId;
+          }
+          {
+            Family = "ipv6";
+            User = "unbound";
+            IPProtocol = "tcp";
+            DestinationPort = 53;
+            Priority = dnsEgressPolicy.rulePriority;
+            Table = dnsEgressPolicy.tableId;
+          }
+        ];
+      };
     };
 
     systemd.services.nft-allow-dns-service = {
