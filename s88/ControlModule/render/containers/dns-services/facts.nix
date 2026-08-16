@@ -230,7 +230,10 @@ let
     && builtins.isString (dnsEgressPolicy.selectedUplink or null)
     && (runtimeOriginEgress.uplinks or [ ]) == [ dnsEgressPolicy.selectedUplink ]
     && builtins.isString (dnsEgressPolicy.selectedInterface or null)
-    && (dnsEgressSelectedInterface.sourceKind or null) == "wan"
+    && (
+      (dnsEgressSelectedInterface.sourceKind or null) == "wan"
+      || (dnsEgressSelectedInterface.sourceKind or null) == "overlay"
+    )
     && builtins.isString (dnsEgressPolicy.runtimeIfName or null)
     && dnsEgressPolicy.runtimeIfName != ""
     &&
