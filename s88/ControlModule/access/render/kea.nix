@@ -305,7 +305,7 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = "${pkgs.coreutils}/bin/mkdir -p /run/unbound && ${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
+        ExecStart = "${pkgs.bash}/bin/sh -c 'mkdir -p /run/unbound && ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf'";
       };
     };
   });
