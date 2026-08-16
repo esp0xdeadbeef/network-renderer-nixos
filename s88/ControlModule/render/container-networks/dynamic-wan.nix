@@ -1,8 +1,8 @@
-{ lib
-, uplinks
-, wanUplinkName
-, common
-,
+{
+  lib,
+  uplinks,
+  wanUplinkName,
+  common,
 }:
 
 let
@@ -16,24 +16,14 @@ let
     let
       normalized = attrsOrEmpty (iface.dynamicAddressing or null);
       hasCanonical =
-        (iface ? ipv4 && builtins.isAttrs iface.ipv4)
-        || (iface ? ipv6 && builtins.isAttrs iface.ipv6);
+        (iface ? ipv4 && builtins.isAttrs iface.ipv4) || (iface ? ipv6 && builtins.isAttrs iface.ipv6);
     in
     {
       ipv4 =
-        if hasCanonical then
-          attrsOrEmpty (iface.ipv4 or null)
-        else
-          attrsOrEmpty (normalized.ipv4 or null);
+        if hasCanonical then attrsOrEmpty (iface.ipv4 or null) else attrsOrEmpty (normalized.ipv4 or null);
       ipv6 =
-        if hasCanonical then
-          attrsOrEmpty (iface.ipv6 or null)
-        else
-          attrsOrEmpty (normalized.ipv6 or null);
-      explicit =
-        hasCanonical
-        || normalized ? ipv4
-        || normalized ? ipv6;
+        if hasCanonical then attrsOrEmpty (iface.ipv6 or null) else attrsOrEmpty (normalized.ipv6 or null);
+      explicit = hasCanonical || normalized ? ipv4 || normalized ? ipv6;
     };
 
   assignedUplinkFor =
@@ -162,10 +152,11 @@ in
   mkDynamicWanIpv6AcceptRAConfig =
     iface: fallbackTableId:
     let
+      isWan = (iface.sourceKind or null) == "wan";
       ifaceTableId = policyTableFor iface;
       tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
-    if ipv6AcceptRAFor iface && tableId != null then
+    if isWan && ipv6AcceptRAFor iface && tableId != null then
       {
         RouteTable = tableId;
       }
