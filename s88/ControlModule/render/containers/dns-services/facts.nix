@@ -230,24 +230,30 @@ let
     && builtins.isString (dnsEgressPolicy.selectedUplink or null)
     && (runtimeOriginEgress.uplinks or [ ]) == [ dnsEgressPolicy.selectedUplink ]
     && builtins.isString (dnsEgressPolicy.selectedInterface or null)
-    && (
-      (dnsEgressSelectedInterface.sourceKind or null) == "wan"
-      || (dnsEgressSelectedInterface.sourceKind or null) == "overlay"
-    )
     && builtins.isString (dnsEgressPolicy.runtimeIfName or null)
     && dnsEgressPolicy.runtimeIfName != ""
-    &&
-      (dnsEgressSelectedInterface.runtimeIfName or dnsEgressSelectedInterface.renderedIfName or null)
-      == dnsEgressPolicy.runtimeIfName
-    && (dnsEgressSelectedAllocation.source or null) == "control-plane-model"
     && builtins.isInt (dnsEgressPolicy.tableId or null)
     && dnsEgressPolicy.tableId > 0
-    && (dnsEgressSelectedAllocation.tableId or null) == dnsEgressPolicy.tableId
     && builtins.isInt (dnsEgressPolicy.rulePriority or null)
     && dnsEgressPolicy.rulePriority > 0
-    && (dnsEgressSelectedAllocation.tableRulePriority or null) == dnsEgressPolicy.rulePriority
     && builtins.isInt (dnsEgressPolicy.firewallMark or null)
-    && dnsEgressPolicy.firewallMark > 0;
+    && dnsEgressPolicy.firewallMark > 0
+    && (
+
+      !(builtins.hasAttr dnsEgressPolicy.selectedInterface interfaces)
+      || (
+        (
+          (dnsEgressSelectedInterface.sourceKind or null) == "wan"
+          || (dnsEgressSelectedInterface.sourceKind or null) == "overlay"
+        )
+        &&
+          (dnsEgressSelectedInterface.runtimeIfName or dnsEgressSelectedInterface.renderedIfName or null)
+          == dnsEgressPolicy.runtimeIfName
+        && (dnsEgressSelectedAllocation.source or null) == "control-plane-model"
+        && (dnsEgressSelectedAllocation.tableId or null) == dnsEgressPolicy.tableId
+        && (dnsEgressSelectedAllocation.tableRulePriority or null) == dnsEgressPolicy.rulePriority
+      )
+    );
 
   validationAuthority =
     if builtins.isAttrs (dnsService.validationAuthority or null) then
