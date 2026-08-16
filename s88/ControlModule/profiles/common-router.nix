@@ -17,7 +17,7 @@ in
   networking.networkmanager.enable = lib.mkDefault false;
   networking.useHostResolvConf = false;
 
-  services.resolved.enable = lib.mkDefault false;
+  services.resolved.enable = lib.mkForce false;
   networking.firewall.enable = false;
 
   boot.kernel.sysctl = {
