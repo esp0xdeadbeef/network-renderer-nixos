@@ -120,6 +120,11 @@ builtins.foldl'
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
       };
+      isCoreToCoreReturnSideIngress =
+        sourceIfName:
+        sourceIfName != ifName
+        && isUpstreamSelectorCoreInterface interfaceName
+        && isUpstreamSelectorCoreInterface (renderedInterfaceNames.${sourceIfName});
       ruleSourceScopeForIngress =
         sourceIfName:
         let
@@ -127,6 +132,8 @@ builtins.foldl'
           ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
           baseScope =
             if sourceIfName == ifName && isReturnSideSelfIngress then
+              emptyScope
+            else if isCoreToCoreReturnSideIngress sourceIfName then
               emptyScope
             else if isReturnSideRuleIngress sourceIfName then
               scopedRuleSource
@@ -202,16 +209,7 @@ builtins.foldl'
       rulesForThisInterface = lib.concatMap (
         sourceIfName:
         let
-          destinationScope =
-            if sourceIfName == ifName then
-              [ ]
-            else if
-              isUpstreamSelectorCoreInterface interfaceName
-              && isUpstreamSelectorCoreInterface (renderedInterfaceNames.${sourceIfName})
-            then
-              [ ]
-            else
-              destinationScopeForIngress sourceIfName;
+          destinationScope = if sourceIfName == ifName then [ ] else destinationScopeForIngress sourceIfName;
           sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
           destinationScopedRules =
             policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
