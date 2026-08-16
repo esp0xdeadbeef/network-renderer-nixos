@@ -46,14 +46,18 @@ let
     );
 
   registeredUpstreamAllowRules =
-    (lib.concatMap (source: [
-      "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr @s88_dns_upstream4 udp dport 53 accept comment \"allow-dns-service-egress-registered\""
-      "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr @s88_dns_upstream4 tcp dport 53 accept comment \"allow-dns-service-egress-registered\""
-    ]) dnsEgressSources4)
-    ++ (lib.concatMap (source: [
-      "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr @s88_dns_upstream6 udp dport 53 accept comment \"allow-dns-service-egress-registered\""
-      "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr @s88_dns_upstream6 tcp dport 53 accept comment \"allow-dns-service-egress-registered\""
-    ]) dnsEgressSources6);
+    (lib.optionals (registeredUpstreams4 != [ ]) (
+      lib.concatMap (source: [
+        "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr @s88_dns_upstream4 udp dport 53 accept comment \"allow-dns-service-egress-registered\""
+        "${pkgs.nftables}/bin/nft add rule inet router output ip saddr ${source} ip daddr @s88_dns_upstream4 tcp dport 53 accept comment \"allow-dns-service-egress-registered\""
+      ]) dnsEgressSources4
+    ))
+    ++ (lib.optionals (registeredUpstreams6 != [ ]) (
+      lib.concatMap (source: [
+        "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr @s88_dns_upstream6 udp dport 53 accept comment \"allow-dns-service-egress-registered\""
+        "${pkgs.nftables}/bin/nft add rule inet router output ip6 saddr ${source} ip6 daddr @s88_dns_upstream6 tcp dport 53 accept comment \"allow-dns-service-egress-registered\""
+      ]) dnsEgressSources6
+    ));
 
   dnsServiceStrictEgressDefaultDropRules =
     if strictEgress then

@@ -148,7 +148,10 @@ let
       "--dns-group"
       "unbound"
     ]
-    ++ lib.concatMap (recordClass: [ "--dns-record-class" recordClass ]) namePublication.recordClasses
+    ++ lib.concatMap (recordClass: [
+      "--dns-record-class"
+      recordClass
+    ]) namePublication.recordClasses
   );
   genConfig = "${pkgs.python3Minimal}/bin/python3 ${./runtime-reservation-materializer.py} ${lib.escapeShellArgs materializerArgs}";
   syncScript = "${pkgs.runtimeShell} ${./kea-unbound-sync.sh}";
@@ -179,7 +182,10 @@ in
   systemd.services = {
     "gen-kea-${scope.fileStem}" = {
       wantedBy = [ "multi-user.target" ];
-      before = [ "kea-dhcp4-${scope.fileStem}.service" ] ++ lib.optional protectedNamePublicationEnabled "unbound.service";
+      before = [
+        "kea-dhcp4-${scope.fileStem}.service"
+      ]
+      ++ lib.optional protectedNamePublicationEnabled "unbound.service";
       serviceConfig = {
         Type = "oneshot";
         ExecStartPre = [
@@ -299,7 +305,7 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = "${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
+        ExecStart = "${pkgs.coreutils}/bin/mkdir -p /run/unbound && ${pkgs.coreutils}/bin/ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf";
       };
     };
   });
