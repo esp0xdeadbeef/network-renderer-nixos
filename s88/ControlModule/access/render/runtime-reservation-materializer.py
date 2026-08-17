@@ -70,9 +70,17 @@ def normalized_duid(value: object) -> str:
 
 
 def load_device(path: Path) -> dict[str, Any]:
-    """Read one protected device identity record: { mac, duid? }."""
+    """Read one protected device identity record.
+
+    The protected source is a yaml-derived single identity value. The sops
+    delivery layer extracts the `mac` field and writes a bare MAC string to
+    this path; the renderer wraps it back into the canonical record shape
+    for the join below.
+    """
     with path.open("r", encoding="utf-8") as source_handle:
-        record = json.load(source_handle)
+        raw = source_handle.read().strip()
+    require(MAC.fullmatch(raw) is not None)
+    record = {"mac": raw.lower()}
     require(isinstance(record, dict))
     require(set(record).issubset(DEVICE_FIELDS))
     return record
