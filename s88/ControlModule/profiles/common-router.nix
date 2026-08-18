@@ -23,6 +23,9 @@ in
   boot.kernel.sysctl = {
     "net.ipv4.ip_forward" = 1;
     "net.ipv6.conf.all.forwarding" = 1;
+
+    "net.ipv4.icmp_ratelimit" = 0;
+    "net.ipv6.icmp.ratelimit" = 0;
   };
 
   system.stateVersion = "25.11";
