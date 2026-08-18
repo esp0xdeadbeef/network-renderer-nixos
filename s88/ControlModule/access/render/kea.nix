@@ -113,6 +113,18 @@ let
               name = "domain-name";
               data = scope.domain;
             }
+          ]
+          ++ lib.optionals ((scope.classlessRoutes or [ ]) != [ ]) [
+            {
+
+              name = "rfc3442-classless-static-routes";
+              data = builtins.concatStringsSep ", " (
+                lib.concatMap (r: [
+                  r.destination
+                  r.router
+                ]) (scope.classlessRoutes or [ ])
+              );
+            }
           ];
           inherit reservations;
         }
