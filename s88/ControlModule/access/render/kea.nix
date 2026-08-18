@@ -117,7 +117,7 @@ let
           ++ lib.optionals ((scope.classlessRoutes or [ ]) != [ ]) [
             {
 
-              name = "classless-static-routes";
+              name = "classless-static-route";
               data = builtins.concatStringsSep ", " (
                 lib.concatMap (r: [
                   r.destination
