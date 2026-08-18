@@ -1,21 +1,18 @@
-{ lib
-, common
-, containerModel
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-,
+{
+  lib,
+  common,
+  containerModel,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
 }:
 
 let
   interfaceKeyForRenderedName =
     renderedName:
-    lib.findFirst
-      (
-        ifName: ifName == renderedName || renderedInterfaceNames.${ifName} == renderedName
-      )
-      null
-      interfaceNames;
+    lib.findFirst (
+      ifName: ifName == renderedName || renderedInterfaceNames.${ifName} == renderedName
+    ) null interfaceNames;
 
   backingRefFor =
     iface:
@@ -60,17 +57,22 @@ let
   isCoreTransitInterface = classFlag "coreTransit";
 
   networkBehavior =
-    if builtins.isAttrs (containerModel.networkBehavior or null) then containerModel.networkBehavior else { };
+    if builtins.isAttrs (containerModel.networkBehavior or null) then
+      containerModel.networkBehavior
+    else
+      { };
 
   isSelector = networkBehavior.isSelector or false;
   isUpstreamSelector = networkBehavior.isUpstreamSelector or false;
   isPolicy = networkBehavior.isPolicy or false;
+  isAccessGateway = networkBehavior.isAccessGateway or false;
 in
 {
   inherit
     isSelector
     isUpstreamSelector
     isPolicy
+    isAccessGateway
     isDownstreamSelectorAccessInterface
     isDownstreamSelectorPolicyInterface
     isUpstreamSelectorCoreInterface

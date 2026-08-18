@@ -7,6 +7,7 @@
   networkManagerInterfaces,
   keepInterfaceRoutesInMain,
   isUpstreamSelectorCoreInterface,
+  isAccessGateway,
   advertisedOnlinkRoutesByInterface,
   policyRoutingByInterface,
   mkRoute,
@@ -187,7 +188,7 @@ let
     && !(isPolicyOnlyRoute route)
     && !(isDefaultRoute route)
     && (route._s88IntentKind or null) == "internal-reachability"
-    && routeReturnsToInterfaceLane iface route
+    && (routeReturnsToInterfaceLane iface route || isAccessGateway)
     && routeGatewayExplicitlyMatchesInterface iface route;
 
   nixosOwnsInterface =
