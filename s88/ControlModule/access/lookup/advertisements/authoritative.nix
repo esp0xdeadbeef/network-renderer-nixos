@@ -162,24 +162,29 @@ let
                 "source"
                 "sourceFamily"
               ];
-              unexpectedKeys = lib.filter
-                (name: !(builtins.elem name allowedKeys))
-                (builtins.attrNames publication);
-              namespace = requireNonEmptyString
-                "${entryPath}.reservationSource.namePublication.namespace"
-                (publication.namespace or null);
-              ownerScope = requireNonEmptyString
-                "${entryPath}.reservationSource.namePublication.ownerScope"
-                (publication.ownerScope or null);
-              requesterScopes = requireStringList
-                "${entryPath}.reservationSource.namePublication.requesterScopes"
-                (publication.requesterScopes or null);
-              recordClasses = requireStringList
-                "${entryPath}.reservationSource.namePublication.recordClasses"
-                (publication.recordClasses or null);
-              invalidRecordClasses = lib.filter
-                (recordClass: !(builtins.elem recordClass [ "A" "AAAA" "PTR" ]))
-                recordClasses;
+              unexpectedKeys = lib.filter (name: !(builtins.elem name allowedKeys)) (
+                builtins.attrNames publication
+              );
+              namespace = requireNonEmptyString "${entryPath}.reservationSource.namePublication.namespace" (
+                publication.namespace or null
+              );
+              ownerScope = requireNonEmptyString "${entryPath}.reservationSource.namePublication.ownerScope" (
+                publication.ownerScope or null
+              );
+              requesterScopes =
+                requireStringList "${entryPath}.reservationSource.namePublication.requesterScopes"
+                  (publication.requesterScopes or null);
+              recordClasses = requireStringList "${entryPath}.reservationSource.namePublication.recordClasses" (
+                publication.recordClasses or null
+              );
+              invalidRecordClasses = lib.filter (
+                recordClass:
+                !(builtins.elem recordClass [
+                  "A"
+                  "AAAA"
+                  "PTR"
+                ])
+              ) recordClasses;
               _knownFields =
                 if unexpectedKeys == [ ] then
                   true
@@ -215,9 +220,9 @@ let
                   true
                 else
                   throw "CPM renderer contract update required: ${entryPath}.reservationSource.namePublication must remain local-only";
-              publicationDenialDiagnostic = requireNonEmptyString
-                "${entryPath}.reservationSource.namePublication.publicationDenialDiagnostic"
-                (publication.publicationDenialDiagnostic or null);
+              publicationDenialDiagnostic =
+                requireNonEmptyString "${entryPath}.reservationSource.namePublication.publicationDenialDiagnostic"
+                  (publication.publicationDenialDiagnostic or null);
             in
             builtins.seq _knownFields (
               builtins.seq _source (
@@ -461,6 +466,7 @@ in
           adv.domain
         else
           throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcp4[].domain, cannot default to 'lan.'";
+      classlessRoutes = if adv ? classlessRoutes then adv.classlessRoutes else [ ];
       subnetId = idx + 1;
     }
     // lib.optionalAttrs (reservationSource != null) { inherit reservationSource; }
@@ -542,6 +548,7 @@ in
       onLink = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].onLink" (
         adv.onLink or null
       );
+      moreSpecificRoutes = if adv ? moreSpecificRoutes then asStringList adv.moreSpecificRoutes else [ ];
       autonomous =
         requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].autonomous"
           (adv.autonomous or null);
