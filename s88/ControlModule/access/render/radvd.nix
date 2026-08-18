@@ -1,7 +1,7 @@
-{ lib
-, pkgs
-, scope
-,
+{
+  lib,
+  pkgs,
+  scope,
 }:
 
 let
@@ -106,6 +106,12 @@ let
         AdvDNSSLLifetime 600;
       };
     ''}
+    ${lib.concatMapStrings (prefix: ''
+      route ${prefix} {
+        AdvRoutePreference medium;
+        AdvRouteLifetime 600;
+      };
+    '') (scope.moreSpecificRoutes or [ ])}
     ${lib.concatMapStrings (prefix: ''
       prefix ${prefix} {
         AdvOnLink ${flag onLink};
