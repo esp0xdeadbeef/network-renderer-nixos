@@ -9,34 +9,29 @@
 
 let
   common = import ./container-networks/common.nix { inherit lib; };
-  providerOverlayRuntimeInterfaces = import ./provider-overlay-runtime-interfaces.nix { inherit lib; };
+  providerOverlayRuntimeInterfaces = import ./provider-overlay-runtime-interfaces.nix {
+    inherit lib;
+  };
 
   attrsOrEmpty = value: if builtins.isAttrs value then value else { };
   listOrEmpty = value: if builtins.isList value then value else [ ];
 
   baseInterfaces = containerModel.interfaces or { };
   pppoeService = attrsOrEmpty ((attrsOrEmpty (containerModel.services or null)).pppoe or null);
-  pppoeOwnedInterfaceNames =
-    lib.unique (
-      lib.filter
-        (name: builtins.isString name && name != "")
-        [
-          ((attrsOrEmpty (pppoeService.client or null)).interface or null)
-          ((attrsOrEmpty (pppoeService.server or null)).interface or null)
-        ]
-    );
-  pppoeMarkedInterfaces =
-    lib.mapAttrs
-      (
-        name: iface:
-        if builtins.elem name pppoeOwnedInterfaceNames then
-          iface // { _s88PppoeOwned = true; }
-        else
-          iface
-      )
-      baseInterfaces;
+  pppoeOwnedInterfaceNames = lib.unique (
+    lib.filter (name: builtins.isString name && name != "") [
+      ((attrsOrEmpty (pppoeService.client or null)).interface or null)
+      ((attrsOrEmpty (pppoeService.server or null)).interface or null)
+    ]
+  );
+  pppoeMarkedInterfaces = lib.mapAttrs (
+    name: iface:
+    if builtins.elem name pppoeOwnedInterfaceNames then iface // { _s88PppoeOwned = true; } else iface
+  ) baseInterfaces;
   runtimeInterfaces = attrsOrEmpty (
-    (attrsOrEmpty ((attrsOrEmpty (containerModel.runtimeTarget or null)).effectiveRuntimeRealization or null)).interfaces or null
+    (attrsOrEmpty (
+      (attrsOrEmpty (containerModel.runtimeTarget or null)).effectiveRuntimeRealization or null
+    )).interfaces or null
   );
 
   addressListForInterface =
@@ -61,22 +56,21 @@ let
 
   providerOverlayRoutes = import ./container-networks/provider-overlay-routes.nix;
 
-  providerInterfaces =
-    providerOverlayRuntimeInterfaces.materializeMissingProviderOverlayInterfaces {
-      inherit runtimeInterfaces;
-      renderedInterfaces = baseInterfaces;
-      decorate =
-        { iface, ... }:
-        {
-          addresses = addressListForInterface iface;
-          routes = providerOverlayRoutes.normalize (routeListForInterface iface);
-          materialization = (attrsOrEmpty (iface.materialization or null)) // {
-            nixos = (attrsOrEmpty ((attrsOrEmpty (iface.materialization or null)).nixos or null)) // {
-              ownsInterface = false;
-            };
+  providerInterfaces = providerOverlayRuntimeInterfaces.materializeMissingProviderOverlayInterfaces {
+    inherit runtimeInterfaces;
+    renderedInterfaces = baseInterfaces;
+    decorate =
+      { iface, ... }:
+      {
+        addresses = addressListForInterface iface;
+        routes = providerOverlayRoutes.normalize (routeListForInterface iface);
+        materialization = (attrsOrEmpty (iface.materialization or null)) // {
+          nixos = (attrsOrEmpty ((attrsOrEmpty (iface.materialization or null)).nixos or null)) // {
+            ownsInterface = false;
           };
         };
-    };
+      };
+  };
 
   interfaces = pppoeMarkedInterfaces // providerInterfaces;
   interfaceView = import ./container-networks/interface-view.nix {
@@ -206,10 +200,15 @@ let
       isExternalValidationDelegatedPrefixRoute
       delegatedPrefixSourceForRoute
       ;
-    inherit (dynamicWan) mkDynamicWanNetworkConfig mkDynamicWanDhcpV4Config mkDynamicWanIpv6AcceptRAConfig needsIpv6AcceptRA;
+    inherit (dynamicWan)
+      mkDynamicWanNetworkConfig
+      mkDynamicWanDhcpV4Config
+      mkDynamicWanIpv6AcceptRAConfig
+      needsIpv6AcceptRA
+      ;
     inherit (advertisements) advertisedOnlinkRoutesByInterface;
     inherit (policyRouting) policyRoutingByInterface;
-    inherit (classes) keepInterfaceRoutesInMain isUpstreamSelectorCoreInterface;
+    inherit (classes) keepInterfaceRoutesInMain isUpstreamSelectorCoreInterface isAccessGateway;
   };
 
   dynamicSourceForwardRules =
@@ -225,8 +224,12 @@ let
               inIf:
               map (outIf: {
                 inherit sourceFile inIf outIf;
-                action = pair.action or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.action required by CPM provider contract, cannot default to 'accept'");
-                family = pair.family or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.family required by CPM provider contract, cannot default to 6");
+                action =
+                  pair.action
+                    or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.action required by CPM provider contract, cannot default to 'accept'");
+                family =
+                  pair.family
+                    or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.family required by CPM provider contract, cannot default to 6");
                 comment = pair.comment or "runtime-routed-prefix-public-egress";
               }) (pair."out" or [ ])
             ) (pair."in" or [ ])
@@ -234,11 +237,11 @@ let
       )
       (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
 
-  dynamicDestinationForwardRules =
-    import ./container-networks/runtime-destination-forwarding.nix {
-      inherit lib;
-      pairs = if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ];
-    };
+  dynamicDestinationForwardRules = import ./container-networks/runtime-destination-forwarding.nix {
+    inherit lib;
+    pairs =
+      if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ];
+  };
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };
     networks =
