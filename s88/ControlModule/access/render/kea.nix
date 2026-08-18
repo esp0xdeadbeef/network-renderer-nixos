@@ -119,10 +119,7 @@ let
 
               name = "classless-static-route";
               data = builtins.concatStringsSep ", " (
-                lib.concatMap (r: [
-                  r.destination
-                  r.router
-                ]) (scope.classlessRoutes or [ ])
+                map (r: "${r.destination} - ${r.router}") (scope.classlessRoutes or [ ])
               );
             }
           ];
