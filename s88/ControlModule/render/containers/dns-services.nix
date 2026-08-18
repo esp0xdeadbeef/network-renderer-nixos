@@ -124,7 +124,7 @@ else
       if forwardLocalZones == [ ] then
         [ ]
       else
-        map (zone: "${zone.name} ${(builtins.head forwardLocalZones).name}") reverseLocalZones;
+        map (zone: "\"${zone.name} ${(builtins.head forwardLocalZones).name}\"") reverseLocalZones;
     protectedReservationIncludes = map (
       publication: publication.configFile
     ) protectedReservationPublications;
