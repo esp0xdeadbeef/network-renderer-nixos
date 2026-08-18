@@ -116,15 +116,16 @@ else
       (map (addr: "\"${name} IN A ${addr}\"") a) ++ (map (addr: "\"${name} IN AAAA ${addr}\"") aaaa)
     ) localRecords;
 
-    forwardLocalZones = lib.filter (zone: lib.hasSuffix ".home.arpa." zone.name) localZones;
-    reverseLocalZones = lib.filter (
-      zone: lib.hasSuffix ".in-addr.arpa." zone.name || lib.hasSuffix ".ip6.arpa." zone.name
-    ) localZones;
-    localDataPtrSettings =
-      if forwardLocalZones == [ ] then
-        [ ]
-      else
-        map (zone: "\"${zone.name} ${(builtins.head forwardLocalZones).name}\"") reverseLocalZones;
+    localDataPtrSettings = lib.concatMap (
+      record:
+      let
+        name = record.name;
+        a = if builtins.isList (record.a or null) then lib.filter builtins.isString record.a else [ ];
+        aaaa =
+          if builtins.isList (record.aaaa or null) then lib.filter builtins.isString record.aaaa else [ ];
+      in
+      (map (addr: "\"${addr} ${name}\"") a) ++ (map (addr: "\"${addr} ${name}\"") aaaa)
+    ) localRecords;
     protectedReservationIncludes = map (
       publication: publication.configFile
     ) protectedReservationPublications;
