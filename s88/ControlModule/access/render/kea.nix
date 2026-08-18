@@ -117,7 +117,7 @@ let
           ++ lib.optionals ((scope.classlessRoutes or [ ]) != [ ]) [
             {
 
-              name = "rfc3442-classless-static-routes";
+              name = "classless-static-routes";
               data = builtins.concatStringsSep ", " (
                 lib.concatMap (r: [
                   r.destination
