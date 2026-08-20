@@ -29,14 +29,16 @@ let
         exit 0
       fi
 
-      ${pkgs.nftables}/bin/nft -a list chain inet router forward \
-        | ${pkgs.gawk}/bin/awk -v comment="$comment" 'index($0, "comment \"" comment "\"") { print $NF }' \
-        | while read -r handle; do
-            [ -n "$handle" ] && ${pkgs.nftables}/bin/nft delete rule inet router forward handle "$handle" || true
-          done
+      handle="$(${pkgs.nftables}/bin/nft -a list chain inet router forward \
+        | ${pkgs.gawk}/bin/awk -v comment="$comment" 'index($0, "comment \"" comment "\"") { print $NF; exit }')"
 
-      ${pkgs.nftables}/bin/nft add rule inet router forward \
-        iifname "$in_if" oifname "$out_if" ${familyExpr} "$prefix" ${action} comment "$comment"
+      if [ -n "$handle" ]; then
+        ${pkgs.nftables}/bin/nft replace rule inet router forward handle "$handle" \
+          iifname "$in_if" oifname "$out_if" ${familyExpr} "$prefix" ${action} comment "$comment"
+      else
+        ${pkgs.nftables}/bin/nft add rule inet router forward \
+          iifname "$in_if" oifname "$out_if" ${familyExpr} "$prefix" ${action} comment "$comment"
+      fi
     '';
 
   ruleServices = lib.listToAttrs (
