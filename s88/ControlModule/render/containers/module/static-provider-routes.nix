@@ -7,11 +7,10 @@
 
 let
   providerInterfacePath = interfaceName: "/sys/class/net/${interfaceName}";
-  providerInterfaces =
-    lib.unique (
-      (map (route: route.interfaceName) staticProviderRoutes)
-      ++ (map (rule: rule.outputInterfaceName) staticProviderPolicyRules)
-    );
+  providerInterfaces = lib.unique (
+    (map (route: route.interfaceName) staticProviderRoutes)
+    ++ (map (rule: rule.outputInterfaceName) staticProviderPolicyRules)
+  );
 
   routeCommand =
     route:
@@ -90,10 +89,7 @@ let
           " table ${lib.escapeShellArg (toString rule.Table)}";
     in
     ''
-      while ${familyCommand.binary} rule del${fromArg}${toArg}${iifArg} priority ${priority} 2>/dev/null; do
-        true
-      done
-      ${familyCommand.binary} rule add${fromArg}${toArg}${iifArg}${table} priority ${priority}
+      ${familyCommand.binary} rule replace${fromArg}${toArg}${iifArg}${table} priority ${priority}
     '';
 
   routeServices = builtins.listToAttrs (
@@ -193,14 +189,12 @@ let
       interfaceName:
       let
         serviceName = "s88-provider-interface-${interfaceName}";
-        routeUnitNames =
-          map (route: "s88-${route.name}.service") (
-            lib.filter (route: route.interfaceName == interfaceName) staticProviderRoutes
-          );
-        ruleUnitNames =
-          map (rule: "s88-${rule.name}.service") (
-            lib.filter (rule: rule.outputInterfaceName == interfaceName) staticProviderPolicyRules
-          );
+        routeUnitNames = map (route: "s88-${route.name}.service") (
+          lib.filter (route: route.interfaceName == interfaceName) staticProviderRoutes
+        );
+        ruleUnitNames = map (rule: "s88-${rule.name}.service") (
+          lib.filter (rule: rule.outputInterfaceName == interfaceName) staticProviderPolicyRules
+        );
         unitNames = routeUnitNames ++ ruleUnitNames;
         startUnits = lib.concatMapStringsSep " " lib.escapeShellArg unitNames;
       in
