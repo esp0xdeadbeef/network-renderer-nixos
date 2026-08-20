@@ -31,3 +31,4 @@ work/
 
 # Keep committed CPM fixtures for the test suite.
 !tests/fixtures/**/*.json
+flake.lock
