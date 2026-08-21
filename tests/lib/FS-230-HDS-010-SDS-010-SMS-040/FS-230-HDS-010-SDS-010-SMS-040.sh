@@ -81,10 +81,10 @@ result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
   in {
     preserved = (builtins.head pairs).destinationRuntimeAddresses == [ runtimeDestination ];
     failClosedPlaceholder = lib.hasInfix
-      "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"allow-wan-to-nebula-ipv6\""
+      "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"allow-wan-to-nebula-ipv6 udp/4242\""
       ruleset
       && lib.hasInfix
-        "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"allow-wan-to-nebula-ipv6\""
+        "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"allow-wan-to-nebula-ipv6 udp/4242\""
         explicitRuleset;
     noBroadTuple =
       !(lib.hasInfix "oifname \"core\" meta nfproto ipv6 meta l4proto udp" ruleset)
@@ -102,7 +102,7 @@ result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
       protocol = "udp";
       destinationPort = 4242;
       action = "accept";
-      comment = "allow-wan-to-nebula-ipv6";
+      comment = "allow-wan-to-nebula-ipv6 udp/4242";
       family = 6;
       returnBehavior = "stateful-return";
       translationMode = "none";
@@ -169,7 +169,7 @@ full_row_result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     exactProtectedRuleFor = name:
       let ruleset = rulesetFor name;
       in
-      lib.hasInfix "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"${relationId}\"" ruleset
+      lib.hasInfix "ip6 daddr ::/128 meta nfproto ipv6 meta l4proto udp udp dport { 4242 } accept comment \"${relationId} udp/4242\"" ruleset
       && !(lib.hasInfix "tcp dport { 4242 }" ruleset);
     noTranslationFor = name:
       let

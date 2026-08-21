@@ -59,13 +59,37 @@ let
         action = normalizeAction (
           if rule ? action && builtins.isString rule.action then rule.action else "accept"
         );
-        comment =
+        baseComment =
           if builtins.isString (rule.relationId or null) then
             rule.relationId
           else if builtins.isString (rule.comment or null) then
             rule.comment
           else
             null;
+        # FS-220 / FS-230: a public-ingress relation may carry several tuples
+        # (protocol + port). The runtime destination placeholder rule is
+        # located and replaced at runtime by its nftables comment, so the
+        # comment must be unique per tuple rather than shared per relationId.
+        runtimeTupleKey =
+          if
+            builtins.isList (rule.destinationRuntimeAddresses or null)
+            && rule.destinationRuntimeAddresses != [ ]
+          then
+            builtins.concatStringsSep "," (
+              map
+                (m:
+                  "${m.proto or "any"}/${builtins.concatStringsSep "+" (map builtins.toString (m.dports or [ ]))}")
+                (builtins.filter builtins.isAttrs (rule.matches or [ ]))
+            )
+          else
+            "";
+        comment =
+          if baseComment == null || baseComment == "" then
+            baseComment
+          else if runtimeTupleKey == "" then
+            baseComment
+          else
+            "${baseComment} ${runtimeTupleKey}";
         ruleName = if comment != null && comment != "" then comment else builtins.toJSON rule;
         isReturnRule = (rule.returnRule or null) == true || (rule.direction or null) == "relation-reverse";
         connectionState =
