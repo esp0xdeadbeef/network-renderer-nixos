@@ -197,10 +197,15 @@ let
           partOf = [ "${systemdUnitName}.service" ];
           serviceConfig = {
             Type = "simple";
+            # Fail-closed interface wait: refuse to run dhcpcd until ppp0
+            # exists (FS-800). ppp0 only appears once the PPPoE link is up,
+            # which can take several discovery retries. RestartSec must stay
+            # above systemd's start-limit window, otherwise the wait loop
+            # trips the start rate limit and the unit is stopped.
             ExecStartPre = "${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg pppName}";
             ExecStart = "${pkgs.dhcpcd}/bin/dhcpcd -6 -d -B -f /etc/s88/pppoe-ipv6-${sanitizeName logicalIf}.conf ${lib.escapeShellArg pppName}";
             Restart = "always";
-            RestartSec = "2s";
+            RestartSec = "5s";
           };
         };
         peer = {
