@@ -92,7 +92,11 @@ let
       while ${familyCommand.binary} rule del${fromArg}${toArg}${iifArg} priority ${priority} 2>/dev/null; do
         true
       done
-      ${familyCommand.binary} rule add${fromArg}${toArg}${iifArg}${table} priority ${priority}
+      # `ip rule add` is not idempotent; treat EEXIST as success so shared
+      # prefixes across rules do not fail the unit and hit the start limit.
+      err="$(${familyCommand.binary} rule add${fromArg}${toArg}${iifArg}${table} priority ${priority} 2>&1)" || {
+        printf '%s\n' "$err" | ${pkgs.gnugrep}/bin/grep -q "File exists" || { printf '%s\n' "$err" >&2; exit 1; }
+      }
     '';
 
   routeServices = builtins.listToAttrs (
