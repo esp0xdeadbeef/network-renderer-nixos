@@ -70,6 +70,8 @@ let
         # (protocol + port). The runtime destination placeholder rule is
         # located and replaced at runtime by its nftables comment, so the
         # comment must be unique per tuple rather than shared per relationId.
+        # The tuple suffix is passed to `nft ... comment $comment` unquoted,
+        # so it must stay a single nft token: no spaces or slashes.
         runtimeTupleKey =
           if
             builtins.isList (rule.destinationRuntimeAddresses or null)
@@ -78,7 +80,7 @@ let
             builtins.concatStringsSep "," (
               map
                 (m:
-                  "${m.proto or "any"}/${builtins.concatStringsSep "+" (map builtins.toString (m.dports or [ ]))}")
+                  "${m.proto or "any"}-${builtins.concatStringsSep "-" (map builtins.toString (m.dports or [ ]))}")
                 (builtins.filter builtins.isAttrs (rule.matches or [ ]))
             )
           else
@@ -89,7 +91,7 @@ let
           else if runtimeTupleKey == "" then
             baseComment
           else
-            "${baseComment} ${runtimeTupleKey}";
+            "${baseComment}-${runtimeTupleKey}";
         ruleName = if comment != null && comment != "" then comment else builtins.toJSON rule;
         isReturnRule = (rule.returnRule or null) == true || (rule.direction or null) == "relation-reverse";
         connectionState =
