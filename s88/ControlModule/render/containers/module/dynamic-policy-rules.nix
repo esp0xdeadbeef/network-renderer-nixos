@@ -44,10 +44,23 @@ let
           true
         done
 
+        # `ip rule add` is not idempotent and returns EEXIST when an equal
+        # rule is already present. Multiple runtime sources can map to the
+        # same prefix (e.g. several tenants sharing one delegated /48), so
+        # treat EEXIST as success instead of failing the unit and tripping
+        # systemd's start rate limit.
+        add_rule() {
+          err="$($ip_cmd rule "$@" 2>&1)" && return 0
+          case "$err" in
+            *"File exists"*) return 0 ;;
+            *) printf '%s\n' "$err" >&2; return 1 ;;
+          esac
+        }
+
         if [ -n "$suppress" ]; then
-          $ip_cmd rule add from "$prefix" iif "$interface" table main suppress_prefixlength "$suppress" priority "$priority"
+          add_rule add from "$prefix" iif "$interface" table main suppress_prefixlength "$suppress" priority "$priority"
         else
-          $ip_cmd rule add from "$prefix" iif "$interface" table "$table" priority "$priority"
+          add_rule add from "$prefix" iif "$interface" table "$table" priority "$priority"
         fi
       '';
     in
