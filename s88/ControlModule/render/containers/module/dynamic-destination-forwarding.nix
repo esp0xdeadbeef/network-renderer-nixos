@@ -9,11 +9,16 @@ let
     index: rule:
     let
       name = "s88-runtime-destination-forward-${builtins.toString index}";
-      action = if rule.action == "drop" then "drop" else if rule.action == "accept" then "accept" else
-        throw "FS-230-HDS-010-SDS-010-SMS-040: unsupported runtime destination action";
+      action =
+        if rule.action == "drop" then
+          "drop"
+        else if rule.action == "accept" then
+          "accept"
+        else
+          throw "FS-230-HDS-010-SDS-010-SMS-040: unsupported runtime destination action";
     in
     pkgs.writeShellScript name ''
-      set -eu
+      set -u
 
       source_file=${lib.escapeShellArg rule.sourceFile}
       in_if=${lib.escapeShellArg rule.inIf}
@@ -23,23 +28,26 @@ let
       comment=${lib.escapeShellArg rule.comment}
 
       if [ ! -r "$source_file" ]; then
-        echo "diagnostic.runtime-public-ingress-address-invalid: protected runtime source unavailable" >&2
-        exit 1
+        echo "diagnostic.runtime-public-ingress-address-invalid: protected runtime source unavailable (deferring)" >&2
+        exit 0
       fi
 
-      address="$(${pkgs.python3Minimal}/bin/python3 ${./runtime-delegated-prefix.py} \
+      if ! address="$(${pkgs.python3Minimal}/bin/python3 ${./runtime-delegated-prefix.py} \
         --source "$source_file" \
         --family 6 \
         --delegated-prefix-length ${lib.escapeShellArg (toString rule.delegatedPrefixLength)} \
         --tenant-prefix-length ${lib.escapeShellArg (toString rule.perTenantPrefixLength)} \
         --slot ${lib.escapeShellArg (toString rule.slot)} \
-        --interface-identifier ${lib.escapeShellArg rule.interfaceIdentifier})"
+        --interface-identifier ${lib.escapeShellArg rule.interfaceIdentifier})"; then
+        echo "diagnostic.runtime-public-ingress-address-invalid: failed to derive delegated prefix (deferring)" >&2
+        exit 0
+      fi
 
       handles="$(${pkgs.nftables}/bin/nft -a list chain inet router forward \
         | ${pkgs.gawk}/bin/awk -v comment="$comment" 'index($0, "comment \"" comment "\"") { print $NF }')"
       if [ "$(printf '%s\n' "$handles" | ${pkgs.gnugrep}/bin/grep -c .)" -ne 1 ]; then
-        echo "diagnostic.runtime-public-ingress-placeholder-invalid: exact rule owner missing or ambiguous" >&2
-        exit 1
+        echo "diagnostic.runtime-public-ingress-placeholder-invalid: exact rule owner missing or ambiguous (deferring)" >&2
+        exit 0
       fi
 
       ${pkgs.nftables}/bin/nft replace rule inet router forward handle "$handles" \
