@@ -40,10 +40,14 @@ let
           ip_cmd="${pkgs.iproute2}/bin/ip"
         fi
 
+        while $ip_cmd rule del from "$prefix" iif "$interface" priority "$priority" 2>/dev/null; do
+          true
+        done
+
         if [ -n "$suppress" ]; then
-          $ip_cmd rule replace from "$prefix" iif "$interface" table main suppress_prefixlength "$suppress" priority "$priority"
+          $ip_cmd rule add from "$prefix" iif "$interface" table main suppress_prefixlength "$suppress" priority "$priority"
         else
-          $ip_cmd rule replace from "$prefix" iif "$interface" table "$table" priority "$priority"
+          $ip_cmd rule add from "$prefix" iif "$interface" table "$table" priority "$priority"
         fi
       '';
     in

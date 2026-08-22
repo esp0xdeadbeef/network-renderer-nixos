@@ -89,7 +89,10 @@ let
           " table ${lib.escapeShellArg (toString rule.Table)}";
     in
     ''
-      ${familyCommand.binary} rule replace${fromArg}${toArg}${iifArg}${table} priority ${priority}
+      while ${familyCommand.binary} rule del${fromArg}${toArg}${iifArg} priority ${priority} 2>/dev/null; do
+        true
+      done
+      ${familyCommand.binary} rule add${fromArg}${toArg}${iifArg}${table} priority ${priority}
     '';
 
   routeServices = builtins.listToAttrs (
