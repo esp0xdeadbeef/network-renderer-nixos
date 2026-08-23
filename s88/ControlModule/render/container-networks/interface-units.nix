@@ -102,6 +102,15 @@ let
 
   isMainTableDefaultRoute = route: isMainTableRoute route && isDefaultRoute route;
 
+  isRoutedDefaultRoute =
+    route:
+    builtins.isAttrs route
+    && ((route.intent or { }).kind or null) == "default-reachability"
+    && (route.dst or null) != null
+    && (route.dst or null) != "0.0.0.0/0"
+    && (route.dst or null) != "::/0"
+    && (route.dst or null) != "0000:0000:0000:0000:0000:0000:0000:0000/0";
+
   localOriginEgressRuleFor =
     ifName: interfaceName: iface:
     let
@@ -221,6 +230,13 @@ let
           serviceIngressMainRawRoutes = lib.filter (
             route: isServiceIngressMainRoute route && routeGatewayMatchesInterface iface route
           ) staticRawRoutes;
+          routedDefaultMainRawRoutes =
+            if keepStaticRoutesInMain then
+              [ ]
+            else
+              lib.filter (
+                route: isRoutedDefaultRoute route && routeGatewayMatchesInterface iface route
+              ) staticRawRoutes;
           staticRawRoutes = lib.filter (
             route: !(isExternalValidationDelegatedPrefixRoute route) && !(isPolicyOnlyRoute route)
           ) rawRoutes;
@@ -239,6 +255,7 @@ let
             ++ (lib.optionals (!keepStaticRoutesInMain) (
               lib.filter (route: route != null) (map mkRoute serviceIngressMainRawRoutes)
             ))
+            ++ (lib.filter (route: route != null) (map mkRoute routedDefaultMainRawRoutes))
             ++ policyMainRoutes
             ++ diagnosticMainRoutes
             ++ (lib.filter (route: route != null) (
