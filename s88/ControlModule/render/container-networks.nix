@@ -16,6 +16,14 @@ let
   attrsOrEmpty = value: if builtins.isAttrs value then value else { };
   listOrEmpty = value: if builtins.isList value then value else [ ];
 
+  firewallTableName =
+    let
+      ruleset = if builtins.isString firewallRuleset then firewallRuleset else "";
+      afterTable = builtins.elemAt (lib.splitString "table inet " ruleset) 1;
+      name = builtins.elemAt (lib.splitString " " afterTable) 0;
+    in
+    if name == "" then "router" else name;
+
   baseInterfaces = containerModel.interfaces or { };
   pppoeService = attrsOrEmpty ((attrsOrEmpty (containerModel.services or null)).pppoe or null);
   pppoeOwnedInterfaceNames = lib.unique (
@@ -285,6 +293,7 @@ let
     inherit (interfaceUnits) staticProviderPolicyRules;
     inherit dynamicSourceForwardRules;
     inherit dynamicDestinationForwardRules;
+    inherit firewallTableName;
     dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
   };
 in

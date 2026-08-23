@@ -2,6 +2,7 @@
   lib,
   pkgs,
   dynamicSourceForwardRules,
+  tableName ? "router",
 }:
 
 let
@@ -39,14 +40,14 @@ let
         exit 0
       fi
 
-      handle="$(${pkgs.nftables}/bin/nft -a list chain inet router forward \
+      handle="$(${pkgs.nftables}/bin/nft -a list chain inet ${tableName} forward \
         | ${pkgs.gawk}/bin/awk -v comment="$comment" 'index($0, "comment \"" comment "\"") { print $NF; exit }')"
 
       if [ -n "$handle" ]; then
-        ${pkgs.nftables}/bin/nft replace rule inet router forward handle "$handle" \
+        ${pkgs.nftables}/bin/nft replace rule inet ${tableName} forward handle "$handle" \
           iifname "$in_if" oifname "$out_if" ${familyExpr} "$prefix" ${action} comment "$comment"
       else
-        ${pkgs.nftables}/bin/nft add rule inet router forward \
+        ${pkgs.nftables}/bin/nft add rule inet ${tableName} forward \
           iifname "$in_if" oifname "$out_if" ${familyExpr} "$prefix" ${action} comment "$comment"
       fi
     '';
