@@ -1,9 +1,10 @@
-{ lib
-, interfaceView ? null
-, forwardingIntent ? null
-, communicationContract ? { }
-, endpointMap ? { }
-, ...
+{
+  lib,
+  interfaceView ? null,
+  forwardingIntent ? null,
+  communicationContract ? { },
+  endpointMap ? { },
+  ...
 }:
 
 let
@@ -45,27 +46,23 @@ let
 
   localAdapterNames = sortedStrings (
     map (entry: entry.name) (
-      lib.filter
-        (
-          entry:
-          let
-            sourceKind = sourceKindOf entry;
-          in
-          sourceKind != "wan" && sourceKind != "p2p"
-        )
-        interfaceEntries
+      lib.filter (
+        entry:
+        let
+          sourceKind = sourceKindOf entry;
+        in
+        sourceKind != "wan" && sourceKind != "p2p"
+      ) interfaceEntries
     )
   );
 
   uplinkNames = if p2pNames != [ ] then p2pNames else wanNames;
 
   localSet = builtins.listToAttrs (
-    map
-      (name: {
-        inherit name;
-        value = true;
-      })
-      localAdapterNames
+    map (name: {
+      inherit name;
+      value = true;
+    }) localAdapterNames
   );
 
   keepLocalOnly = ifNames: lib.filter (ifName: builtins.hasAttr ifName localSet) ifNames;
@@ -114,6 +111,10 @@ let
   inputRules = [
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
+    ''
+    ''
+      icmp type { echo-request } accept comment "allow-icmp-echo"
+      icmpv6 type { echo-request } accept comment "allow-icmpv6-echo"
     ''
   ];
 in
