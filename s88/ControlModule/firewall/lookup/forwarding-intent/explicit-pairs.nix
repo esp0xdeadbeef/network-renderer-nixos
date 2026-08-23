@@ -66,22 +66,16 @@ let
             rule.comment
           else
             null;
-        # FS-220 / FS-230: a public-ingress relation may carry several tuples
-        # (protocol + port). The runtime destination placeholder rule is
-        # located and replaced at runtime by its nftables comment, so the
-        # comment must be unique per tuple rather than shared per relationId.
-        # The tuple suffix is passed to `nft ... comment $comment` unquoted,
-        # so it must stay a single nft token: no spaces or slashes.
+
         runtimeTupleKey =
           if
             builtins.isList (rule.destinationRuntimeAddresses or null)
             && rule.destinationRuntimeAddresses != [ ]
           then
             builtins.concatStringsSep "," (
-              map
-                (m:
-                  "${m.proto or "any"}-${builtins.concatStringsSep "-" (map builtins.toString (m.dports or [ ]))}")
-                (builtins.filter builtins.isAttrs (rule.matches or [ ]))
+              map (
+                m: "${m.proto or "any"}-${builtins.concatStringsSep "-" (map builtins.toString (m.dports or [ ]))}"
+              ) (builtins.filter builtins.isAttrs (rule.matches or [ ]))
             )
           else
             "";
@@ -107,10 +101,7 @@ let
           else
             true;
         transportAuthority = rule.transportAuthority or null;
-        # FS-310-HDS-010-SDS-010-SMS-130: Rules with admissible=false are
-        # CPM selector-handoff provenance markers, not authorized packet
-        # transport rules. Skip them rather than throwing — the renderer must
-        # not materialize them, but their presence in the model is expected.
+
         isAdmissible =
           if transportAuthority == null then
             true
@@ -122,61 +113,66 @@ let
       if inIfs == [ ] || outIfs == [ ] || !isAdmissible then
         null
       else
-        builtins.seq _validateReturnRule ({
-          "in" = inIfs;
-          "out" = outIfs;
-          inherit action;
-        }
-        // lib.optionalAttrs (connectionState != null) {
-          inherit connectionState;
-        }
-        // lib.optionalAttrs isReturnRule {
-          returnRule = true;
-        }
-        // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
-          trafficType = rule.trafficType;
-        }
-        // lib.optionalAttrs (builtins.isString (rule.returnBehavior or null)) {
-          returnBehavior = rule.returnBehavior;
-        }
-        // lib.optionalAttrs (builtins.isString (rule.translationMode or null)) {
-          translationMode = rule.translationMode;
-        }
-        // lib.optionalAttrs (builtins.isString (rule.sourcePreservation or null)) {
-          sourcePreservation = rule.sourcePreservation;
-        }
-        // lib.optionalAttrs (builtins.isBool (rule.destinationTranslation or null)) {
-          destinationTranslation = rule.destinationTranslation;
-        }
-        // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
-          sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
-        }
-        // lib.optionalAttrs (builtins.isList (rule.sourcePrefixes or null)) {
-          sourcePrefixes = lib.filter (
-            value:
-            (builtins.isString value && value != "")
-            || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
-          ) rule.sourcePrefixes;
-        }
-        // lib.optionalAttrs (builtins.isList (rule.destinationPrefixes or null)) {
-          destinationPrefixes = lib.filter (
-            value:
-            (builtins.isString value && value != "")
-            || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
-          ) rule.destinationPrefixes;
-        }
-        // lib.optionalAttrs (builtins.isList (rule.destinationRuntimeAddresses or null)) {
-          destinationRuntimeAddresses = lib.filter builtins.isAttrs rule.destinationRuntimeAddresses;
-        }
-        // lib.optionalAttrs (builtins.isList (rule.matches or null)) {
-          matches = lib.filter builtins.isAttrs rule.matches;
-        }
-        // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
-          family = rule.family;
-        }
-        // lib.optionalAttrs (comment != null && comment != "") {
-          inherit comment;
-        });
+        builtins.seq _validateReturnRule (
+          {
+            "in" = inIfs;
+            "out" = outIfs;
+            inherit action;
+          }
+          // lib.optionalAttrs (connectionState != null) {
+            inherit connectionState;
+          }
+          // lib.optionalAttrs isReturnRule {
+            returnRule = true;
+          }
+          // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
+            trafficType = rule.trafficType;
+          }
+          // lib.optionalAttrs (builtins.isString (rule.returnBehavior or null)) {
+            returnBehavior = rule.returnBehavior;
+          }
+          // lib.optionalAttrs (builtins.isString (rule.translationMode or null)) {
+            translationMode = rule.translationMode;
+          }
+          // lib.optionalAttrs (builtins.isString (rule.sourcePreservation or null)) {
+            sourcePreservation = rule.sourcePreservation;
+          }
+          // lib.optionalAttrs (builtins.isBool (rule.destinationTranslation or null)) {
+            destinationTranslation = rule.destinationTranslation;
+          }
+          // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
+            sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
+          }
+          // lib.optionalAttrs (builtins.isList (rule.sourceRuntimePrefixes or null)) {
+            sourceRuntimePrefixes = lib.filter (value: builtins.isAttrs value) rule.sourceRuntimePrefixes;
+          }
+          // lib.optionalAttrs (builtins.isList (rule.sourcePrefixes or null)) {
+            sourcePrefixes = lib.filter (
+              value:
+              (builtins.isString value && value != "")
+              || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
+            ) rule.sourcePrefixes;
+          }
+          // lib.optionalAttrs (builtins.isList (rule.destinationPrefixes or null)) {
+            destinationPrefixes = lib.filter (
+              value:
+              (builtins.isString value && value != "")
+              || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
+            ) rule.destinationPrefixes;
+          }
+          // lib.optionalAttrs (builtins.isList (rule.destinationRuntimeAddresses or null)) {
+            destinationRuntimeAddresses = lib.filter builtins.isAttrs rule.destinationRuntimeAddresses;
+          }
+          // lib.optionalAttrs (builtins.isList (rule.matches or null)) {
+            matches = lib.filter builtins.isAttrs rule.matches;
+          }
+          // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
+            family = rule.family;
+          }
+          // lib.optionalAttrs (comment != null && comment != "") {
+            inherit comment;
+          }
+        );
 
   fromRules = lib.filter (pair: pair != null) (
     map normalizeForwardRule (
