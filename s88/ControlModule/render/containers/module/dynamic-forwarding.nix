@@ -11,6 +11,7 @@ let
       name = "s88-dynamic-forward-${builtins.toString index}";
       familyExpr = if (rule.family or 6) == 4 then "ip saddr" else "ip6 saddr";
       action = if (rule.action or "accept") == "drop" then "drop" else "accept";
+      deriveTenantPrefix = rule.deriveTenantPrefix or false;
     in
     ''
       set -eu
@@ -24,7 +25,16 @@ let
         exit 0
       fi
 
-      prefix="$(${pkgs.coreutils}/bin/head -n 1 "$source_file" | ${pkgs.coreutils}/bin/tr -d '[:space:]')"
+      if [ "${if deriveTenantPrefix then "1" else "0"}" = "1" ]; then
+        prefix="$(${pkgs.python3Minimal}/bin/python3 ${./runtime-delegated-prefix.py} \
+          --source "$source_file" \
+          --family 6 \
+          --delegated-prefix-length ${lib.escapeShellArg (toString rule.delegatedPrefixLength)} \
+          --tenant-prefix-length ${lib.escapeShellArg (toString rule.perTenantPrefixLength)} \
+          --slot ${lib.escapeShellArg (toString rule.slot)})"
+      else
+        prefix="$(${pkgs.coreutils}/bin/head -n 1 "$source_file" | ${pkgs.coreutils}/bin/tr -d '[:space:]')"
+      fi
       if [ -z "$prefix" ]; then
         exit 0
       fi
@@ -52,6 +62,7 @@ let
           pkgs.nftables
           pkgs.coreutils
           pkgs.gawk
+          pkgs.python3Minimal
         ];
         serviceConfig = {
           Type = "oneshot";

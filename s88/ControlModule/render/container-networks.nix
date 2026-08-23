@@ -212,8 +212,10 @@ let
   };
 
   dynamicSourceForwardRules =
-    lib.concatMap
-      (
+    let
+      pairs =
+        if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ];
+      fromSourceFiles = lib.concatMap (
         pair:
         if !(builtins.isAttrs pair) || !(builtins.isList (pair.sourceFiles or null)) then
           [ ]
@@ -234,8 +236,34 @@ let
               }) (pair."out" or [ ])
             ) (pair."in" or [ ])
           ) pair.sourceFiles
-      )
-      (if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ]);
+      ) pairs;
+      fromSourceRuntimePrefixes = lib.concatMap (
+        pair:
+        if !(builtins.isAttrs pair) || !(builtins.isList (pair.sourceRuntimePrefixes or null)) then
+          [ ]
+        else
+          lib.concatMap (
+            runtimePrefix:
+            lib.concatMap (
+              inIf:
+              map (outIf: {
+                sourceFile = runtimePrefix.sourceFile or null;
+                inherit inIf outIf;
+                action =
+                  pair.action
+                    or (throw "FS-310-HDS-030-SDS-010-SMS-111: pair.action required by CPM provider contract, cannot default to 'accept'");
+                family = runtimePrefix.family or 6;
+                comment = pair.comment or "runtime-routed-prefix-public-egress";
+                deriveTenantPrefix = true;
+                delegatedPrefixLength = runtimePrefix.delegatedPrefixLength or null;
+                perTenantPrefixLength = runtimePrefix.perTenantPrefixLength or null;
+                slot = runtimePrefix.slot or null;
+              }) (pair."out" or [ ])
+            ) (pair."in" or [ ])
+          ) pair.sourceRuntimePrefixes
+      ) pairs;
+    in
+    fromSourceFiles ++ fromSourceRuntimePrefixes;
 
   dynamicDestinationForwardRules = import ./container-networks/runtime-destination-forwarding.nix {
     inherit lib;
