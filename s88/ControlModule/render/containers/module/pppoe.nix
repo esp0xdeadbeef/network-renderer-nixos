@@ -1,4 +1,3 @@
-# GAMP-ID: FS-800-HDS-030-SDS-020-SMS-020
 {
   lib,
   pkgs,
@@ -150,10 +149,7 @@ let
           else
             "";
         defaultRoute6Lines =
-          if clientIpv6Config != null && clientIpv6Config.defaultRoute then
-            "defaultroute6"
-          else
-            "";
+          if clientIpv6Config != null && clientIpv6Config.defaultRoute then "defaultroute6" else "";
         usePeerDns = clientConfig.usePeerDns or true;
         peerDns = import ./pppoe/client-peer-dns.nix {
           inherit
@@ -173,7 +169,12 @@ let
         '';
       in
       {
-        inherit peerName systemdUnitName starterServiceName starterTimerName;
+        inherit
+          peerName
+          systemdUnitName
+          starterServiceName
+          starterTimerName
+          ;
         dhcpcdConfigName = "s88/pppoe-ipv6-${sanitizeName logicalIf}.conf";
         dhcpcdConfig = lib.optionalString (clientIpv6Config != null) ''
           duid
@@ -191,17 +192,16 @@ let
         pdService = lib.optionalAttrs (clientIpv6Config != null) {
           description = "Acquire DHCPv6 prefix delegation on ${pppName}";
           wantedBy = [ "multi-user.target" ];
-          after = [ "nftables.service" "${systemdUnitName}.service" ];
-          requires = [ "nftables.service" "${systemdUnitName}.service" ];
-          bindsTo = [ "${systemdUnitName}.service" ];
+          after = [
+            "nftables.service"
+            "${systemdUnitName}.service"
+          ];
+          wants = [ "${systemdUnitName}.service" ];
+          requires = [ "nftables.service" ];
           partOf = [ "${systemdUnitName}.service" ];
           serviceConfig = {
             Type = "simple";
-            # Fail-closed interface wait: refuse to run dhcpcd until ppp0
-            # exists (FS-800). ppp0 only appears once the PPPoE link is up,
-            # which can take several discovery retries. RestartSec must stay
-            # above systemd's start-limit window, otherwise the wait loop
-            # trips the start rate limit and the unit is stopped.
+
             ExecStartPre = "${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg pppName}";
             ExecStart = "${pkgs.dhcpcd}/bin/dhcpcd -6 -d -B -f /etc/s88/pppoe-ipv6-${sanitizeName logicalIf}.conf ${lib.escapeShellArg pppName}";
             Restart = "always";
@@ -266,7 +266,10 @@ let
         starterService = {
           description = "Start S88 PPPoE client ${peerName}";
           wantedBy = [ "multi-user.target" ];
-          after = [ "network-online.target" "s88-rename-interfaces.service" ];
+          after = [
+            "network-online.target"
+            "s88-rename-interfaces.service"
+          ];
           wants = [ "network-online.target" ];
           serviceConfig = {
             Type = "oneshot";
@@ -407,7 +410,8 @@ in
     environment.systemPackages = [
       pkgs.ppp
       pkgs.rp-pppoe
-    ] ++ lib.optional (clientIpv6Config != null) pkgs.dhcpcd;
+    ]
+    ++ lib.optional (clientIpv6Config != null) pkgs.dhcpcd;
     services.pppd = lib.optionalAttrs (clientPeer != null) {
       enable = true;
       package = pkgs.ppp;
@@ -427,8 +431,10 @@ in
       // lib.optionalAttrs (clientIpv6Config != null) {
         ${clientPeer.dhcpcdConfigName}.text = clientPeer.dhcpcdConfig;
       };
-    networking.nftables.ruleset = lib.mkAfter (lib.optionalString (clientIpv6Config != null) ''
-      add rule inet router input iifname ${lib.escapeShellArg clientConfig.runtimeInterface} ip6 saddr fe80::/10 udp sport 547 udp dport 546 counter accept comment "s88-pppoe-dhcpv6-pd-replies"
-    '');
+    networking.nftables.ruleset = lib.mkAfter (
+      lib.optionalString (clientIpv6Config != null) ''
+        add rule inet router input iifname ${lib.escapeShellArg clientConfig.runtimeInterface} ip6 saddr fe80::/10 udp sport 547 udp dport 546 counter accept comment "s88-pppoe-dhcpv6-pd-replies"
+      ''
+    );
   };
 }
