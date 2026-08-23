@@ -99,6 +99,10 @@ let
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
     ''
+    ''
+      icmp type { echo-request } accept comment "allow-icmp-echo"
+      icmpv6 type { echo-request } accept comment "allow-icmpv6-echo"
+    ''
   ]
   ++ lib.optional (interfaceSet.overlayIngressNames != [ ]) ''
     iifname ${renderInterfaceSet interfaceSet.overlayIngressNames} accept comment "allow-overlay-to-core"
