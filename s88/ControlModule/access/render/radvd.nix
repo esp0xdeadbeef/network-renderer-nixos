@@ -19,6 +19,7 @@ let
   otherConfig = requireBool "otherConfig" (scope.otherConfig or null);
   onLink = requireBool "onLink" (scope.onLink or null);
   autonomous = requireBool "autonomous" (scope.autonomous or null);
+  defaultRoute = requireBool "defaultRoute" (scope.defaultRoute or null);
   delegatedPrefixSourceFile =
     if delegatedPrefix != null && builtins.isString (delegatedPrefix.sourceFile or null) then
       delegatedPrefix.sourceFile
@@ -94,6 +95,9 @@ let
     ''}
       MinRtrAdvInterval 10;
       MaxRtrAdvInterval 30;
+    ${lib.optionalString (!defaultRoute) ''
+      AdvDefaultLifetime 0;
+    ''}
       AdvManagedFlag ${flag managed};
       AdvOtherConfigFlag ${flag otherConfig};
     ${lib.optionalString (scope.rdnss != [ ]) ''
