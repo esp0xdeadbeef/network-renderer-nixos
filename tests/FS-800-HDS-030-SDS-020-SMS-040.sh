@@ -29,6 +29,7 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
       otherConfig = false;
       onLink = true;
       autonomous = true;
+      defaultRoute = true;
     };
     render = scope: import (repoRoot + "/s88/ControlModule/access/render/ra-path-mtu.nix") { inherit scope; };
     nominal = render (baseScope // { pathMtu = contract; });
@@ -58,7 +59,13 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
       pkgs = mockPkgs;
       scope = baseScope // { pathMtu = contract; };
     };
+    moduleNoDefault = import (repoRoot + "/s88/ControlModule/access/render/radvd.nix") {
+      inherit lib;
+      pkgs = mockPkgs;
+      scope = baseScope // { defaultRoute = false; };
+    };
     generated = module.systemd.services."radvd-generate-test".serviceConfig.ExecStart;
+    generatedNoDefault = moduleNoDefault.systemd.services."radvd-generate-test".serviceConfig.ExecStart;
     require = condition: message: if condition then true else throw message;
   in
   if
@@ -72,6 +79,10 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
       "CPM ambiguity diagnostic was not projected by the renderer"
     && require (!invalid.success)
       "invalid IPv6 path MTU was accepted"
+    && require (lib.hasInfix "AdvDefaultLifetime 0" generatedNoDefault)
+      "renderer did not disable the default router lifetime when the CPM denied an IPv6 default route"
+    && require (!(lib.hasInfix "AdvDefaultLifetime 0" generated))
+      "renderer disabled the default router lifetime when the CPM allowed an IPv6 default route"
   then "ok" else throw "unreachable"
 ' >/dev/null
 

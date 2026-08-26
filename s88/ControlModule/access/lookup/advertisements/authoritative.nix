@@ -549,6 +549,9 @@ in
         adv.onLink or null
       );
       moreSpecificRoutes = if adv ? moreSpecificRoutes then asStringList adv.moreSpecificRoutes else [ ];
+      defaultRoute =
+        requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].defaultRoute"
+          (adv.defaultRoute or null);
       autonomous =
         requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].autonomous"
           (adv.autonomous or null);
