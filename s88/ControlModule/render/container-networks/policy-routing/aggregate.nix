@@ -27,7 +27,6 @@
   policyRoutingAllocations,
   forTarget,
   forTargetRules,
-  forwardTargetsFor,
 }:
 
 let
@@ -121,7 +120,10 @@ builtins.foldl'
       isMultipathDownstream =
         isPolicy
         && isPolicyDownstreamInterface interfaceName
-        && builtins.length (forwardTargetsFor interfaceName) > 1;
+        &&
+          builtins.length (
+            lib.filter (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) routeSourceIfNames
+          ) > 1;
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);

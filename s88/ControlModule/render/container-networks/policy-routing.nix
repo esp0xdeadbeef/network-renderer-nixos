@@ -199,7 +199,7 @@ let
     policyRoutingAllocations = lib.mapAttrs (
       _: iface: if iface ? policyRoutingAllocation then iface.policyRoutingAllocation else null
     ) interfaces;
-    inherit (routeSources) forTarget forTargetRules forwardTargetsFor;
+    inherit (routeSources) forTarget forTargetRules;
   };
   effectiveRuntimeRealization =
     if
