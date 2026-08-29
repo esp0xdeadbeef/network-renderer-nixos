@@ -243,5 +243,12 @@ let
   };
 in
 {
-  policyRoutingByInterface = policyRoutingWithRelationSelection;
+  policyRoutingByInterface =
+    let
+      merged = import ./policy-routing/multipath-merge.nix {
+        inherit lib;
+        routesByInterface = policyRoutingWithRelationSelection.routes or { };
+      };
+    in
+    policyRoutingWithRelationSelection // { routes = merged; };
 }
