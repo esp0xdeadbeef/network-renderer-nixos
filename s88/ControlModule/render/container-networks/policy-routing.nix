@@ -246,7 +246,7 @@ in
   policyRoutingByInterface =
     let
       merged = import ./policy-routing/multipath-merge.nix {
-        inherit lib;
+        inherit lib renderedInterfaceNames;
         routesByInterface = policyRoutingWithRelationSelection.routes or { };
       };
     in
