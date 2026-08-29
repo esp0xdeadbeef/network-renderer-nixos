@@ -122,7 +122,11 @@ builtins.foldl'
         && isPolicyDownstreamInterface interfaceName
         &&
           builtins.length (
-            lib.filter (name: isPolicyUpstreamInterface renderedInterfaceNames.${name}) routeSourceIfNames
+            lib.filter (
+              name:
+              isPolicyUpstreamInterface renderedInterfaceNames.${name}
+              && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name}
+            ) interfaceNames
           ) > 1;
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
