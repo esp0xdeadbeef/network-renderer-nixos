@@ -117,19 +117,7 @@ builtins.foldl'
           && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName)
         );
 
-      isMultipathDownstream =
-        true
-        # DEBUG
-        && isPolicy
-        && isPolicyDownstreamInterface interfaceName
-        &&
-          builtins.length (
-            lib.filter (
-              name:
-              isPolicyUpstreamInterface renderedInterfaceNames.${name}
-              && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name}
-            ) interfaceNames
-          ) > 1;
+      isMultipathDownstream = true; # DEBUG-FORCE
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
