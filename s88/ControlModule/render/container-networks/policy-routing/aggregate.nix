@@ -116,8 +116,6 @@ builtins.foldl'
           isUpstreamSelectorCoreInterface interfaceName
           && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName)
         );
-
-      isMultipathDownstream = true; # DEBUG-FORCE
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
@@ -228,7 +226,6 @@ builtins.foldl'
           sourceIfName == ifName
           && isReturnSideSelfIngress
           && !(isUpstreamSelectorCoreInterface interfaceName)
-          && !isMultipathDownstream
         then
           [ ]
         else if
