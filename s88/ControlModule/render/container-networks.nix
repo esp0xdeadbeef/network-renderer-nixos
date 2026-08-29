@@ -86,6 +86,23 @@ let
   };
   renderedInterfaceNames = interfaceView.renderedInterfaceNames;
 
+  runtimeInterfaceToContainerName = lib.listToAttrs (
+    lib.filter
+      (entry: entry.name != null && entry.name != "" && entry.value != null && entry.value != "")
+      (
+        map (
+          name:
+          let
+            iface = interfaces.${name} or { };
+          in
+          {
+            name = iface.renderedIfName or null;
+            value = iface.containerInterfaceName or (iface.interfaceName or null);
+          }
+        ) (builtins.attrNames interfaces)
+      )
+  );
+
   networkManagerInterfaces =
     if
       containerModel ? networkManagerWanInterfaces
@@ -159,6 +176,7 @@ let
       ;
     inherit (routeRender) mkRoute;
     inherit (routeRender) isExternalValidationDelegatedPrefixRoute;
+    inherit runtimeInterfaceToContainerName;
   };
 
   fs370Validation = import ./container-networks/policy-routing/fs370-validation.nix {

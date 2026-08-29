@@ -2,15 +2,9 @@
   lib,
   containerModel,
   forwardingIntent ? null,
+  runtimeInterfaceToContainerName ? { },
 }:
-# CODE trace:
-# FS-310-HDS-010-SDS-010-SMS-130.
-# CMC-FUNC-POLICY-ROUTING-001.
-#
-# This ControlModule classifies explicit CPM forwarding accepts before route
-# selection. L4/service-only accepts remain firewall material unless CPM also
-# supplies source scope; otherwise Linux RPDB would route traffic that the model
-# only allowed at firewall/L4 scope.
+
 let
   forwardingIntentData =
     if forwardingIntent != null && builtins.isAttrs forwardingIntent then forwardingIntent else { };
@@ -61,18 +55,28 @@ let
       rule
     else
       let
+        containerNameFor =
+          runtimeName:
+          if builtins.isString runtimeName && runtimeName != "" then
+            runtimeInterfaceToContainerName.${runtimeName} or runtimeName
+          else
+            runtimeName;
         fromInterface =
           if builtins.isString (rule.fromInterface or null) && rule.fromInterface != "" then
-            rule.fromInterface
-          else if builtins.isAttrs (rule.from or null) && builtins.isString (rule.from.runtimeInterface or null) then
-            rule.from.runtimeInterface
+            containerNameFor rule.fromInterface
+          else if
+            builtins.isAttrs (rule.from or null) && builtins.isString (rule.from.runtimeInterface or null)
+          then
+            containerNameFor rule.from.runtimeInterface
           else
             null;
         toInterface =
           if builtins.isString (rule.toInterface or null) && rule.toInterface != "" then
-            rule.toInterface
-          else if builtins.isAttrs (rule.to or null) && builtins.isString (rule.to.runtimeInterface or null) then
-            rule.to.runtimeInterface
+            containerNameFor rule.toInterface
+          else if
+            builtins.isAttrs (rule.to or null) && builtins.isString (rule.to.runtimeInterface or null)
+          then
+            containerNameFor rule.to.runtimeInterface
           else
             null;
       in
@@ -83,8 +87,7 @@ let
 
   explicitForwardingRules =
     map normalizeRuleInterfaces (
-      (runtimeForwardingIntent.rules or [ ])
-      ++ (forwardingIntentData.rules or [ ])
+      (runtimeForwardingIntent.rules or [ ]) ++ (forwardingIntentData.rules or [ ])
     )
     ++ (explicitPairsToRules (runtimeForwardingIntent.normalizedExplicitForwardPairs or [ ]))
     ++ (explicitPairsToRules (forwardingIntentData.normalizedExplicitForwardPairs or [ ]));
@@ -126,18 +129,12 @@ let
 
   hasSpecificTrafficType =
     rule:
-    builtins.isString (rule.trafficType or null)
-    && rule.trafficType != ""
-    && rule.trafficType != "any";
+    builtins.isString (rule.trafficType or null) && rule.trafficType != "" && rule.trafficType != "any";
 
   hasLayer4Scope =
-    rule:
-    hasSpecificTrafficType rule
-    || (builtins.isList (rule.match or null) && rule.match != [ ]);
+    rule: hasSpecificTrafficType rule || (builtins.isList (rule.match or null) && rule.match != [ ]);
 
-  routeSelectableForwardingRule =
-    rule:
-    !(hasLayer4Scope rule) || hasSourceScope rule;
+  routeSelectableForwardingRule = rule: !(hasLayer4Scope rule) || hasSourceScope rule;
 
   matchingAcceptForwardingRules =
     fromName: toName:
@@ -156,11 +153,7 @@ in
 
   hasAcceptForwardingRuleForRoute =
     fromName: toName: route:
-    builtins.any
-      (
-        rule:
-        routeSelectableForwardingRule rule
-        && ruleMatchesFamily rule route
-      )
-      (matchingAcceptForwardingRules fromName toName);
+    builtins.any (rule: routeSelectableForwardingRule rule && ruleMatchesFamily rule route) (
+      matchingAcceptForwardingRules fromName toName
+    );
 }
