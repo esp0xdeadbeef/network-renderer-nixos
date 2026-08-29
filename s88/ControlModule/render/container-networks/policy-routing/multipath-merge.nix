@@ -14,11 +14,17 @@ let
       toString (route.Destination or "")
     }|${toString (route.Metric or "")}";
 
+  isDefaultDestination =
+    route:
+    (route.Destination or "") == "0.0.0.0/0"
+    || (route.Destination or "") == "::/0"
+    || (route.Destination or "") == "0000:0000:0000:0000:0000:0000:0000:0000/0";
+
   grouped = lib.groupBy routeKey flat;
 
   mergedGroups = lib.concatMap (
     group:
-    if builtins.length group < 2 then
+    if builtins.length group < 2 || !(isDefaultDestination (builtins.head group)) then
       group
     else
       let
