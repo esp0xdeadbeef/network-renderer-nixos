@@ -117,17 +117,6 @@ builtins.foldl'
           && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName)
         );
 
-      isMultipathDownstream =
-        isPolicy
-        && isPolicyDownstreamInterface interfaceName
-        &&
-          builtins.length (
-            lib.filter (
-              name:
-              isPolicyUpstreamInterface renderedInterfaceNames.${name}
-              && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name}
-            ) interfaceNames
-          ) > 1;
       effectiveMainSourceScope = sourceScope // {
         staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
         sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
@@ -143,7 +132,7 @@ builtins.foldl'
           sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
           ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
           baseScope =
-            if sourceIfName == ifName && isReturnSideSelfIngress && !isMultipathDownstream then
+            if sourceIfName == ifName && isReturnSideSelfIngress then
               emptyScope
             else if isCoreToCoreReturnSideIngress sourceIfName then
               emptyScope
@@ -238,7 +227,6 @@ builtins.foldl'
           sourceIfName == ifName
           && isReturnSideSelfIngress
           && !(isUpstreamSelectorCoreInterface interfaceName)
-          && !isMultipathDownstream
         then
           [ ]
         else if
