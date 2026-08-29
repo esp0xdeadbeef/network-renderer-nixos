@@ -1,28 +1,28 @@
-{ lib
-, containerModel
-, common
-, forwardingIntent ? null
-, firewallRuleset ? null
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-, laneAccessForRenderedName
-, upstreamLanesMatch
-, isSelector
-, isUpstreamSelector
-, isPolicy
-, isDownstreamSelectorAccessInterface
-, isDownstreamSelectorPolicyInterface
-, isUpstreamSelectorCoreInterface
-, isUpstreamSelectorPolicyInterface
-, isPolicyDownstreamInterface
-, isPolicyUpstreamInterface
-, isOverlayInterface
-, isCoreTransitInterface
-, mkRoute
-, isExternalValidationDelegatedPrefixRoute
-, sourceKindForRenderedName
-,
+{
+  lib,
+  containerModel,
+  common,
+  forwardingIntent ? null,
+  firewallRuleset ? null,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
+  laneAccessForRenderedName,
+  upstreamLanesMatch,
+  isSelector,
+  isUpstreamSelector,
+  isPolicy,
+  isDownstreamSelectorAccessInterface,
+  isDownstreamSelectorPolicyInterface,
+  isUpstreamSelectorCoreInterface,
+  isUpstreamSelectorPolicyInterface,
+  isPolicyDownstreamInterface,
+  isPolicyUpstreamInterface,
+  isOverlayInterface,
+  isCoreTransitInterface,
+  mkRoute,
+  isExternalValidationDelegatedPrefixRoute,
+  sourceKindForRenderedName,
 }:
 let
   peers = import ./policy-routing/peers.nix {
@@ -101,7 +101,12 @@ let
     policyRoutingSources = containerModel.policyRoutingSources or { };
   };
   sourcePrefixes = import ./policy-routing/source-prefixes.nix {
-    inherit lib containerModel laneAccessForRenderedName sourceKindForRenderedName;
+    inherit
+      lib
+      containerModel
+      laneAccessForRenderedName
+      sourceKindForRenderedName
+      ;
   };
   forwardingSourceScope = import ./policy-routing/forwarding-source-scope.nix {
     inherit lib forwardingRulesResolved;
@@ -191,9 +196,10 @@ let
       dynamicPolicyRulesFor
       hasAcceptForwardingRule
       ;
-    policyRoutingAllocations =
-      lib.mapAttrs (_: iface: if iface ? policyRoutingAllocation then iface.policyRoutingAllocation else null) interfaces;
-    inherit (routeSources) forTarget forTargetRules;
+    policyRoutingAllocations = lib.mapAttrs (
+      _: iface: if iface ? policyRoutingAllocation then iface.policyRoutingAllocation else null
+    ) interfaces;
+    inherit (routeSources) forTarget forTargetRules forwardTargetsFor;
   };
   effectiveRuntimeRealization =
     if
@@ -218,19 +224,15 @@ let
     else
       throw "FS-270-HDS-010-SDS-010-SMS-020: effectiveRuntimeRealization.routeSelectionRules must be a list";
   relationRuleKeys = builtins.attrNames relationSelectionRules.rulesByInterface;
-  allRuleKeys = lib.unique (
-    (builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys
-  );
+  allRuleKeys = lib.unique ((builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys);
   policyRoutingWithRelationSelection = aggregatePolicyRouting // {
     rules = builtins.listToAttrs (
-      map
-        (ifName: {
-          name = ifName;
-          value =
-            (aggregatePolicyRouting.rules.${ifName} or [ ])
-            ++ (relationSelectionRules.rulesByInterface.${ifName} or [ ]);
-        })
-        allRuleKeys
+      map (ifName: {
+        name = ifName;
+        value =
+          (aggregatePolicyRouting.rules.${ifName} or [ ])
+          ++ (relationSelectionRules.rulesByInterface.${ifName} or [ ]);
+      }) allRuleKeys
     );
   };
 in
