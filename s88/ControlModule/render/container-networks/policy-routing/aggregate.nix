@@ -118,7 +118,9 @@ builtins.foldl'
         );
 
       isMultipathDownstream =
-        isPolicy
+        true
+        # DEBUG
+        && isPolicy
         && isPolicyDownstreamInterface interfaceName
         &&
           builtins.length (
