@@ -143,7 +143,7 @@ builtins.foldl'
           sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
           ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
           baseScope =
-            if sourceIfName == ifName && isReturnSideSelfIngress then
+            if sourceIfName == ifName && isReturnSideSelfIngress && !isMultipathDownstream then
               emptyScope
             else if isCoreToCoreReturnSideIngress sourceIfName then
               emptyScope
