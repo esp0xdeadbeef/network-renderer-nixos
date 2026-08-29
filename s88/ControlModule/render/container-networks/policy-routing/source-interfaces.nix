@@ -206,6 +206,4 @@ in
       lib.unique unitSources
     else
       selfSources;
-
-  forwardTargetsFor = acceptedForwardTargetsFor;
 }
