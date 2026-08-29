@@ -1,13 +1,13 @@
-{ lib
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-, addressForFamily
-, ipv4PeerFor31
-, ipv6PeerFor127
-, policyRoutingSources ? { }
-, forwardingRules ? [ ]
-,
+{
+  lib,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
+  addressForFamily,
+  ipv4PeerFor31,
+  ipv6PeerFor127,
+  policyRoutingSources ? { },
+  forwardingRules ? [ ],
 }:
 
 let
@@ -34,12 +34,10 @@ let
       targetPeer4 = interfacePeerForFamily 4 targetIface;
       targetPeer6 = interfacePeerForFamily 6 targetIface;
     in
-    builtins.any
-      (
-        route:
-        builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route)
-      )
-      routes;
+    builtins.any (
+      route:
+      builtins.isAttrs route && (routeUsesGateway targetPeer4 route || routeUsesGateway targetPeer6 route)
+    ) routes;
 
   namesFor =
     name:
@@ -61,8 +59,7 @@ let
 
   isServiceDnsReachabilityRoute =
     route:
-    builtins.isAttrs route
-    && (((route.intent or { }).kind or null) == "service-dns-reachability");
+    builtins.isAttrs route && (((route.intent or { }).kind or null) == "service-dns-reachability");
 
   laneForInterface =
     name:
@@ -95,9 +92,9 @@ let
 
   interfaceHasServiceDnsRouteFor =
     targetName: sourceName:
-    builtins.any
-      (route: isServiceDnsReachabilityRoute route && serviceRouteMatchesTargetLane targetName route)
-      (routeList ((interfaces.${sourceName} or { }).routes or [ ]));
+    builtins.any (
+      route: isServiceDnsReachabilityRoute route && serviceRouteMatchesTargetLane targetName route
+    ) (routeList ((interfaces.${sourceName} or { }).routes or [ ]));
 
   interfaceKeyFor =
     name:
@@ -113,29 +110,25 @@ let
 
   hasAcceptForwardingRule =
     fromNames: toNames:
-    builtins.any
-      (
-        rule:
-        builtins.isAttrs rule
-        && (rule.action or null) == "accept"
-        && routeSelectableForwardingRule rule
-        && builtins.elem (rule.fromInterface or null) fromNames
-        && builtins.elem (rule.toInterface or null) toNames
-      )
-      forwardingRules;
+    builtins.any (
+      rule:
+      builtins.isAttrs rule
+      && (rule.action or null) == "accept"
+      && routeSelectableForwardingRule rule
+      && builtins.elem (rule.fromInterface or null) fromNames
+      && builtins.elem (rule.toInterface or null) toNames
+    ) forwardingRules;
 
   hasServiceDnsForwardingRule =
     fromNames: toNames:
-    builtins.any
-      (
-        rule:
-        builtins.isAttrs rule
-        && (rule.action or null) == "accept"
-        && (rule.trafficType or null) == "dns"
-        && builtins.elem (rule.fromInterface or null) fromNames
-        && builtins.elem (rule.toInterface or null) toNames
-      )
-      forwardingRules;
+    builtins.any (
+      rule:
+      builtins.isAttrs rule
+      && (rule.action or null) == "accept"
+      && (rule.trafficType or null) == "dns"
+      && builtins.elem (rule.fromInterface or null) fromNames
+      && builtins.elem (rule.toInterface or null) toNames
+    ) forwardingRules;
 
   hasSourceScope =
     rule:
@@ -144,21 +137,14 @@ let
 
   hasSpecificTrafficType =
     rule:
-    builtins.isString (rule.trafficType or null)
-    && rule.trafficType != ""
-    && rule.trafficType != "any";
+    builtins.isString (rule.trafficType or null) && rule.trafficType != "" && rule.trafficType != "any";
 
   hasLayer4Scope =
-    rule:
-    hasSpecificTrafficType rule
-    || (builtins.isList (rule.match or null) && rule.match != [ ]);
+    rule: hasSpecificTrafficType rule || (builtins.isList (rule.match or null) && rule.match != [ ]);
 
   routeSelectableForwardingRule =
     rule:
-    # Linux RPDB rules can select on ingress and source scope here, but not on
-    # trafficType/L4 ports. A trafficType-only allow still belongs in firewall
-    # materialization; it must not create an unscoped routing rule that steals
-    # all traffic from the same ingress interface.
+
     !(hasLayer4Scope rule) || hasSourceScope rule;
 
   acceptedForwardSourcesFor =
@@ -180,13 +166,11 @@ let
     let
       sourceNames = lib.unique ([ targetName ] ++ interfaceKeysForRenderedName targetName);
     in
-    lib.filter
-      (
-        name:
-        hasServiceDnsForwardingRule sourceNames (namesFor name)
-        && interfaceHasServiceDnsRouteFor targetName name
-      )
-      interfaceNames;
+    lib.filter (
+      name:
+      hasServiceDnsForwardingRule sourceNames (namesFor name)
+      && interfaceHasServiceDnsRouteFor targetName name
+    ) interfaceNames;
 in
 {
   forTarget =
@@ -200,9 +184,13 @@ in
       serviceDnsForwardTargets = serviceDnsForwardTargetsFor targetName;
     in
     if unitSources != null then
-      lib.unique (unitSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets)
+      lib.unique (
+        unitSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets
+      )
     else
-      lib.unique (selfSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets);
+      lib.unique (
+        selfSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets
+      );
 
   forTargetRules =
     targetName:
@@ -218,4 +206,6 @@ in
       lib.unique unitSources
     else
       selfSources;
+
+  forwardTargetsFor = acceptedForwardTargetsFor;
 }
