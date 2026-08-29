@@ -23,13 +23,19 @@
   mkRoute,
   isExternalValidationDelegatedPrefixRoute,
   sourceKindForRenderedName,
+  runtimeInterfaceToContainerName ? { },
 }:
 let
   peers = import ./policy-routing/peers.nix {
     inherit lib common;
   };
   forwardingRuleSet = import ./policy-routing/forwarding-rules.nix {
-    inherit lib containerModel forwardingIntent;
+    inherit
+      lib
+      containerModel
+      forwardingIntent
+      runtimeInterfaceToContainerName
+      ;
   };
   inherit (forwardingRuleSet)
     forwardingRulesResolved
