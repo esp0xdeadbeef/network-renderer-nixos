@@ -192,7 +192,7 @@ builtins.foldl'
           else
             (policyRoutingAllocationFor outputIfName).tableId;
       };
-      routesByInterfacePreferred = lib.mapAttrs (_: serviceDnsRoutes.prefer) routesByInterface;
+      routesByInterfacePreferred = serviceDnsRoutes.preferAcrossInterfaces routesByInterface;
       localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
       localOriginRoutesByInterface = localOriginDns.routesByInterface tableId localOriginSourceIfNames;
       localOriginRules =
