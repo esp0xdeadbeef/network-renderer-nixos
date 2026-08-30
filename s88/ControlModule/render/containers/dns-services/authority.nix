@@ -63,6 +63,12 @@ let
 
   registeredUpstreams = attrsList (dnsService.registeredUpstreams or [ ]);
 
+  dnsFile =
+    if dnsService ? dnsFile && builtins.isString dnsService.dnsFile && dnsService.dnsFile != "" then
+      dnsService.dnsFile
+    else
+      null;
+
   upstreamResolvers = attrsList (dnsService.upstreamResolvers or [ ]);
   namedCoreResolvers = builtins.filter (
     resolver: (resolver.kind or null) == "named-core-resolver"
@@ -166,10 +172,11 @@ let
           && (legacyForwarders == [ ] || sameStrings legacyForwarders namedCoreAddresses)
         )
         || (registeredUpstreams != [ ] && legacyForwarders == [ ] && namedCoreResolvers == [ ])
+        || (dnsFile != null && legacyForwarders == [ ] && namedCoreResolvers == [ ])
       then
         true
       else
-        fail "DNS_RENDERER_CONTRACT_DIVERGENCE" "forwarding mode lacks one dual-stack named-core resolver or one registered upstream, or disagrees with the legacy projection"
+        fail "DNS_RENDERER_CONTRACT_DIVERGENCE" "forwarding mode lacks one dual-stack named-core resolver, one registered upstream, or a provider DNS file, or disagrees with the legacy projection"
     else if recursionMode == "iterative" then
       if legacyForwarders == [ ] && namedCoreResolvers == [ ] then
         true
@@ -230,6 +237,7 @@ builtins.seq _fatalWarnings (
             reproducibilityWarnings
             warningCodes
             rootForwarders
+            dnsFile
             localForwardZones
             requesterPolicies
             localOnlyPolicy
