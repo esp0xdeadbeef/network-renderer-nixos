@@ -303,6 +303,9 @@ let
       // hostBridgeWan.networks
       // (pppoeVlanBridge.networks or { })
       // interfaceUnits.interfaceUnits;
+    hasMultipathRoute = lib.any (
+      network: lib.any (route: (route.MultiPathRoute or null) != null) (network.routes or [ ])
+    ) (builtins.attrValues interfaceUnits.interfaceUnits);
     ipv6AcceptRAInterfaces = lib.unique (
       hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
     );
