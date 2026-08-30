@@ -166,7 +166,7 @@ let
     if recursionMode == "forwarding" then
       if
         (
-          builtins.length namedCoreResolvers == 1
+          builtins.length namedCoreResolvers >= 1
           && builtins.all validNamedCoreResolver namedCoreResolvers
           && familyComplete namedCoreAddresses
           && (legacyForwarders == [ ] || sameStrings legacyForwarders namedCoreAddresses)
