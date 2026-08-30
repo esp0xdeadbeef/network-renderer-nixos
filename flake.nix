@@ -5,11 +5,19 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     nixos-network-compiler.url = "github:esp0xdeadbeef/nixos-network-compiler";
+    nixos-network-compiler.inputs.network-labs.follows = "network-labs";
 
     network-control-plane-model.url = "github:esp0xdeadbeef/network-control-plane-model";
+    network-control-plane-model.inputs.network-labs.follows = "network-labs";
+    network-control-plane-model.inputs.network-forwarding-model.follows = "network-forwarding-model";
+
+    network-compiler.url = "github:esp0xdeadbeef/network-compiler";
+    network-compiler.inputs.network-labs.follows = "network-labs";
 
     network-forwarding-model.url = "github:esp0xdeadbeef/network-forwarding-model";
     network-forwarding-model.inputs.nixpkgs.follows = "nixpkgs";
+    network-forwarding-model.inputs.network-labs.follows = "network-labs";
+    network-forwarding-model.inputs.network-compiler.follows = "network-compiler";
 
     network-realization-model.url = "github:esp0xdeadbeef/network-realization-model";
     network-realization-model.inputs.nixpkgs.follows = "nixpkgs";
@@ -107,15 +115,15 @@
             platformBinding = rendererInput.validatedPlatformBinding or null;
           };
           hostCompatibilityDiagnostics =
-            import ./s88/ControlModule/render/host-compatibility-diagnostics.nix {
-              inherit lib config;
-              vmNicHandled = vmNicRender.handled;
-            };
-          modelContractDiagnostics =
-            import ./s88/ControlModule/render/model-contract-diagnostics.nix {
-              inherit lib hostName;
-              controlPlane = effectiveCpm;
-            };
+            import ./s88/ControlModule/render/host-compatibility-diagnostics.nix
+              {
+                inherit lib config;
+                vmNicHandled = vmNicRender.handled;
+              };
+          modelContractDiagnostics = import ./s88/ControlModule/render/model-contract-diagnostics.nix {
+            inherit lib hostName;
+            controlPlane = effectiveCpm;
+          };
 
           mgmtHost =
             if effectiveCpm != null && effectiveCpm ? deploymentHosts then
@@ -224,15 +232,21 @@
               { };
 
           mgmtNetdevs =
-            if hostManagementRender.handled then { }
-            else if renderedHasMgmtVlan then { }
-            else legacyMgmtNetdevs;
+            if hostManagementRender.handled then
+              { }
+            else if renderedHasMgmtVlan then
+              { }
+            else
+              legacyMgmtNetdevs;
 
           mgmtNetworks =
             hostManagementRender.networks
-            // (if hostManagementRender.handled || renderedHasMgmtVlan || renderedHasNativeMgmt
-                then { }
-                else legacyMgmtNetworks);
+            // (
+              if hostManagementRender.handled || renderedHasMgmtVlan || renderedHasNativeMgmt then
+                { }
+              else
+                legacyMgmtNetworks
+            );
 
           mgmtDhcpOverride =
             if !hostManagementRender.handled && renderedHasMgmtVlan && legacyMgmtManageDhcp then
@@ -287,25 +301,34 @@
             ++ hostCompatibilityDiagnostics.warnings
             ++ modelContractDiagnostics.warnings;
 
-          # FS-560: Force evaluation of container Unbound server settings
-          # before parity contract assertions check them.  Reading these
-          # specific paths forces NixOS to evaluate the container submodule
-          # configs, so when legacy-parity-contract.nix accesses
-          # config.containers.<name>.config.services.unbound.settings.server
-          # it finds fully-evaluated values instead of empty thunks.
-          assertions = let
-            v2_server = config.containers.access-vlan2.config.services.unbound.settings.server or {};
-            v2_lz = v2_server.local-zone or [];
-            v2_ld = v2_server.local-data or [];
-            v2_inc = v2_server.include or [];
-            v3_server = config.containers.access-vlan3.config.services.unbound.settings.server or {};
-            v3_lz = v3_server.local-zone or [];
-            v3_acl = v3_server.access-control or [];
-            core_server = config.containers.core.config.services.unbound.settings.server or {};
-            core_acl = core_server.access-control or [];
-            core_fwd = config.containers.core.config.services.unbound.settings.forward-zone or [];
-            forced = builtins.deepSeq [ v2_lz v2_ld v2_inc v3_lz v3_acl core_acl core_fwd ] true;
-          in [ { assertion = forced; message = "container DNS config evaluated for parity contract"; } ];
+          assertions =
+            let
+              v2_server = config.containers.access-vlan2.config.services.unbound.settings.server or { };
+              v2_lz = v2_server.local-zone or [ ];
+              v2_ld = v2_server.local-data or [ ];
+              v2_inc = v2_server.include or [ ];
+              v3_server = config.containers.access-vlan3.config.services.unbound.settings.server or { };
+              v3_lz = v3_server.local-zone or [ ];
+              v3_acl = v3_server.access-control or [ ];
+              core_server = config.containers.core.config.services.unbound.settings.server or { };
+              core_acl = core_server.access-control or [ ];
+              core_fwd = config.containers.core.config.services.unbound.settings.forward-zone or [ ];
+              forced = builtins.deepSeq [
+                v2_lz
+                v2_ld
+                v2_inc
+                v3_lz
+                v3_acl
+                core_acl
+                core_fwd
+              ] true;
+            in
+            [
+              {
+                assertion = forced;
+                message = "container DNS config evaluated for parity contract";
+              }
+            ];
 
           networking.useNetworkd = lib.mkIf hostRequiresNetworkd true;
           systemd.network.enable = lib.mkIf hostRequiresNetworkd true;
@@ -314,19 +337,21 @@
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
           systemd.network.networks = renderedNetworks // mgmtNetworks // mgmtDhcpOverride;
-          containers = let
-            # FS-560: Force the Unbound settings inside each container
-            # to be strict before NixOS module assertions evaluate.
-            # Without this forced evaluation, config.containers.<name>
-            # returns lazy thunks that the parity contract can't read.
-            forcedContainers = builtins.mapAttrs (cn: ccfg:
-              if builtins.isAttrs (ccfg.config or null) then
-                let _force = builtins.deepSeq
-                  (ccfg.config.services.unbound.settings or null) null;
-                in ccfg
-              else ccfg
-            ) renderedContainers;
-          in forcedContainers;
+          containers =
+            let
+
+              forcedContainers = builtins.mapAttrs (
+                cn: ccfg:
+                if builtins.isAttrs (ccfg.config or null) then
+                  let
+                    _force = builtins.deepSeq (ccfg.config.services.unbound.settings or null) null;
+                  in
+                  ccfg
+                else
+                  ccfg
+              ) renderedContainers;
+            in
+            forcedContainers;
 
           systemd.services = builtins.listToAttrs (
             map (name: {
