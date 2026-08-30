@@ -112,7 +112,11 @@ let
       containerModel
       laneAccessForRenderedName
       sourceKindForRenderedName
+      interfaces
+      interfaceNames
+      renderedInterfaceNames
       ;
+    inherit (peers) addressForFamily ipv4PeerFor31 ipv6PeerFor127;
   };
   forwardingSourceScope = import ./policy-routing/forwarding-source-scope.nix {
     inherit lib forwardingRulesResolved;
