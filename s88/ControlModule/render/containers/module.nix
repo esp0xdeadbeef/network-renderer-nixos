@@ -117,6 +117,14 @@ in
         interfaces = containerNetworkRender.ipv6AcceptRAInterfaces or [ ];
       };
     })
+    (lib.optionalAttrs (containerNetworkRender.hasMultipathRoute or false) {
+      boot.kernel.sysctl = {
+
+        "net.ipv4.fib_multipath_use_neigh" = 1;
+        "net.ipv4.fib_multipath_hash_policy" = 1;
+        "net.ipv6.fib_multipath_hash_policy" = 1;
+      };
+    })
     interfaceRenames.config
     edgeServices
     dnsServices
