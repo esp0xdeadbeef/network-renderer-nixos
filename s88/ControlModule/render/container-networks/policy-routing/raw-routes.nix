@@ -241,7 +241,16 @@ let
     )
     && (
       !(isPolicyOnlyRoute route)
-      || (routeMatchesInterfaceLane interfaceName route && outputIfName == targetIfName)
+      || (
+        routeMatchesInterfaceLane interfaceName route
+        && (
+          !(
+            isServiceDnsReachabilityRoute route
+            || ((route.intent or { }).kind or null) == "service-endpoint-reachability"
+          )
+          || outputIfName == targetIfName
+        )
+      )
     )
   ) staticPolicyRoutes;
   routeSelectableAcceptedOutputRoutes = lib.filter (
