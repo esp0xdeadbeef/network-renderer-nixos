@@ -191,6 +191,12 @@ let
       owner = prefixOwnerForRoute route;
     in
     builtins.isString laneAccess && laneAccess != "" && owner == laneAccess;
+
+  isFabricHostRoute =
+    route:
+    isHostDestination (route.dst or route.Destination or null)
+    && ((route.intent or { }).kind or null) == "internal-reachability";
+
   isDiagnosticMainRoute =
     iface: route:
     builtins.isAttrs route
@@ -230,6 +236,9 @@ let
           serviceIngressMainRawRoutes = lib.filter (
             route: isServiceIngressMainRoute route && routeGatewayMatchesInterface iface route
           ) staticRawRoutes;
+          fabricHostMainRoutes = lib.filter (
+            route: isFabricHostRoute route && routeGatewayMatchesInterface iface route
+          ) staticRawRoutes;
           routedDefaultMainRawRoutes =
             if keepStaticRoutesInMain then
               [ ]
@@ -254,6 +263,9 @@ let
             ))
             ++ (lib.optionals (!keepStaticRoutesInMain) (
               lib.filter (route: route != null) (map mkRoute serviceIngressMainRawRoutes)
+            ))
+            ++ (lib.optionals (!keepStaticRoutesInMain) (
+              lib.filter (route: route != null) (map mkRoute fabricHostMainRoutes)
             ))
             ++ (lib.filter (route: route != null) (map mkRoute routedDefaultMainRawRoutes))
             ++ policyMainRoutes
