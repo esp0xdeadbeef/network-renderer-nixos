@@ -74,6 +74,17 @@ else
       } > "$out_file"
     '';
 
+    dnsEgressRoutingMaterializer = pkgs.writeShellScriptBin "dns-egress-routing-materializer" ''
+      set -euo pipefail
+      table_id="$1"
+      fwmark="$2"
+      priority="$3"
+      ifname="$4"
+      ip rule add priority "$priority" fwmark "$fwmark" lookup "$table_id" 2>/dev/null || true
+      ip route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+      ip -6 route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+    '';
+
     requesterAccessControl = lib.concatMap (
       policy:
       map (cidr: "${cidr} ${policy.action}") (lib.filter builtins.isString (policy.sourcePrefixes or [ ]))
@@ -291,13 +302,15 @@ else
         "nft-allow-dns-service.service"
       ]
       ++ protectedReservationGeneratorUnits
-      ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service");
+      ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
+      ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service");
       after = [
         "network-online.target"
         "nft-allow-dns-service.service"
       ]
       ++ protectedReservationGeneratorUnits
-      ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service");
+      ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
+      ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service");
       requires = protectedReservationGeneratorUnits;
     };
 
@@ -329,6 +342,17 @@ else
         RemainAfterExit = true;
         RuntimeDirectory = "unbound";
         ExecStart = "${dnsFileForwarderMaterializer}/bin/dns-file-forwarder-materializer ${dnsFile} /run/unbound/provider-forwarders.conf";
+      };
+    };
+
+    systemd.services.dns-egress-routing = lib.optionalAttrs (dnsEgressPolicy != null) {
+      description = "Materialize DNS runtime-origin egress policy routing";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "unbound.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${dnsEgressRoutingMaterializer}/bin/dns-egress-routing-materializer ${toString dnsEgressPolicy.tableId} ${toString dnsEgressPolicy.firewallMark} ${toString dnsEgressPolicy.rulePriority} ${dnsEgressPolicy.runtimeIfName}";
       };
     };
 
