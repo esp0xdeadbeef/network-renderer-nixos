@@ -69,7 +69,8 @@ let
   laneForInterface =
     iface:
     let
-      lane = backingRefForInterface iface;
+      ref = backingRefForInterface iface;
+      lane = if builtins.isAttrs ref then (ref.lane or { }) else { };
     in
     if builtins.isAttrs lane then lane else { };
 
