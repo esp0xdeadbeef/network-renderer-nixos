@@ -140,8 +140,13 @@ let
         fi
         ${pkgs.nftables}/bin/nft add table inet s88_dns_egress
         ${pkgs.nftables}/bin/nft 'add chain inet s88_dns_egress output { type route hook output priority mangle; policy accept; }'
-        ${pkgs.nftables}/bin/nft add rule inet s88_dns_egress output meta l4proto udp udp dport 53 meta mark set ${mark} comment "select-modeled-dns-egress"
-        ${pkgs.nftables}/bin/nft add rule inet s88_dns_egress output meta l4proto tcp tcp dport 53 meta mark set ${mark} comment "select-modeled-dns-egress"
+
+
+
+
+
+        ${pkgs.nftables}/bin/nft add rule inet s88_dns_egress output meta skuid "unbound" udp dport 53 meta mark set ${mark} comment "select-modeled-dns-egress"
+        ${pkgs.nftables}/bin/nft add rule inet s88_dns_egress output meta skuid "unbound" tcp dport 53 meta mark set ${mark} comment "select-modeled-dns-egress"
       '';
 in
 {
