@@ -398,8 +398,13 @@ else
     throw "NixOS DNS renderer DNS_RENDERER_CONTRACT_DIVERGENCE: CPM DNS runtime-origin egress lacks one complete model-owned policy-routing selection; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
   else if !validationAuthorityComplete then
     throw "NixOS DNS renderer DNS_VALIDATION_AUTHORITY_EXTERNAL: controlled iterative authority is missing its harness scope or disagrees with the selected model-owned egress; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-045"
-  else if strictEgressFlag && forwarders == [ ] && registeredUpstreamsList == [ ] then
-    throw "NixOS DNS renderer DNS_STRICT_EGRESS_NO_UPSTREAM: strictEgress requires at least one static forwarder or registered upstream; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
+  else if
+    strictEgressFlag
+    && forwarders == [ ]
+    && registeredUpstreamsList == [ ]
+    && dnsAuthority.dnsFile == null
+  then
+    throw "NixOS DNS renderer DNS_STRICT_EGRESS_NO_UPSTREAM: strictEgress requires at least one static forwarder, registered upstream, or provider DNS file; address material is intentionally omitted; GAMP: FS-540-HDS-010-SDS-010-SMS-035"
   else
     rec {
       inherit
@@ -422,6 +427,7 @@ else
         localForwardZones
         requesterPolicies
         localOnlyPolicy
+        dnsFile
         ;
       listen4 = lib.filter (value: builtins.isString value && lib.hasInfix "." value) listenAddresses;
       listen6 = lib.filter (value: builtins.isString value && lib.hasInfix ":" value) listenAddresses;

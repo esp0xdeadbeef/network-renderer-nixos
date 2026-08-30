@@ -37,6 +37,7 @@ else
       infraHostTtl
       infraLameTtl
       strictEgress
+      dnsFile
       ;
 
     controlledAuthority = validationAuthority != null;
@@ -56,6 +57,22 @@ else
         )
       else
         null;
+
+    dnsFileForwarderMaterializer = pkgs.writeShellScriptBin "dns-file-forwarder-materializer" ''
+      set -euo pipefail
+      dns_file="$1"
+      out_file="$2"
+      {
+        echo 'forward-zone:'
+        echo '  name: "."'
+        tr ',' '\n' < "$dns_file" \
+          | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+          | grep -v '^$' \
+          | while read -r addr; do
+              echo "  forward-addr: $addr"
+            done
+      } > "$out_file"
+    '';
 
     requesterAccessControl = lib.concatMap (
       policy:
@@ -262,6 +279,9 @@ else
       }
       // lib.optionalAttrs (registeredUpstreams != [ ]) {
         include = [ "/run/unbound/registered-upstream.conf" ];
+      }
+      // lib.optionalAttrs (dnsFile != null) {
+        include = [ "/run/unbound/provider-forwarders.conf" ];
       };
     };
 
@@ -270,12 +290,14 @@ else
         "network-online.target"
         "nft-allow-dns-service.service"
       ]
-      ++ protectedReservationGeneratorUnits;
+      ++ protectedReservationGeneratorUnits
+      ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service");
       after = [
         "network-online.target"
         "nft-allow-dns-service.service"
       ]
-      ++ protectedReservationGeneratorUnits;
+      ++ protectedReservationGeneratorUnits
+      ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service");
       requires = protectedReservationGeneratorUnits;
     };
 
@@ -295,6 +317,18 @@ else
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = "${registeredUpstreamMaterializer}/bin/dns-registered-upstream-materializer ${registeredUpstreamSourceFiles}";
+      };
+    };
+
+    systemd.services.dns-provider-forwarders = lib.optionalAttrs (dnsFile != null) {
+      description = "Materialize provider DNS forwarders into unbound";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "unbound.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        RuntimeDirectory = "unbound";
+        ExecStart = "${dnsFileForwarderMaterializer}/bin/dns-file-forwarder-materializer ${dnsFile} /run/unbound/provider-forwarders.conf";
       };
     };
 
