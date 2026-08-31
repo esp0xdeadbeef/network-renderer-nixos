@@ -144,8 +144,11 @@ in
     in
     if isWan && ipv4Dhcp then
 
-      {
-        ClientIdentifier = "mac";
+      lib.optionalAttrs (builtins.isString (ipv4Contract.clientIdentifier or null)) {
+        ClientIdentifier = ipv4Contract.clientIdentifier;
+      }
+      // lib.optionalAttrs (builtins.isBool (ipv4Contract.sendHostname or null)) {
+        SendHostname = ipv4Contract.sendHostname;
       }
       // lib.optionalAttrs (tableId != null) { RouteTable = tableId; }
     else
