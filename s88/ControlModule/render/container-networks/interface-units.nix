@@ -113,19 +113,8 @@ let
 
   localOriginEgressRuleFor =
     ifName: interfaceName: iface:
-    let
-      tableId = policyRuleDhcpTableForInterface ifName interfaceName;
-      networkConfig = mkDynamicWanNetworkConfig iface;
-      isDynamicWan = (networkConfig.DHCP or "no") != "no";
-    in
-    if isDynamicWan && tableId != null then
-      {
-        Family = "both";
-        Priority = 32765;
-        Table = tableId;
-      }
-    else
-      null;
+
+    null;
 
   policyRuleDhcpTableForInterface =
     ifName: interfaceName:
