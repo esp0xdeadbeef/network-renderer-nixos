@@ -89,7 +89,7 @@ in
         && !pppoeOwned
         && !hasStaticIpv4
         && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp");
-      noClientId = (ipv4Contract.clientIdentifier or null) == "none";
+      noClientId = (ipv4Contract.dhcpClient or "systemd") != "systemd";
       ipv6Enabled = ipv6Contract ? enable && (ipv6Contract.enable or false);
       ipv6Dhcp =
         ipv6Enabled
@@ -143,7 +143,15 @@ in
         && !pppoeOwned
         && !hasStaticIpv4
         && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp");
-      noClientId = (ipv4Contract.clientIdentifier or null) == "none";
+      dhcpClient = ipv4Contract.dhcpClient or "systemd";
+      _dhcpClientValid =
+        builtins.elem dhcpClient [
+          "systemd"
+          "udhcpc"
+          "dhcpcd"
+        ]
+        || throw "invalid ipv4.dhcpClient '${dhcpClient}'; expected systemd, udhcpc or dhcpcd";
+      noClientId = builtins.seq _dhcpClientValid (dhcpClient != "systemd");
       ifaceTableId = policyTableFor iface;
       tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
