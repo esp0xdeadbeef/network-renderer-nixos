@@ -1,26 +1,9 @@
-{
-  lib,
-  roles,
-  normalizedExplicitForwardPairs,
-  nodeForwarding,
-  nodeForwardingEnabled,
-  natEnabled,
-  nat4Enabled,
-  nat6Enabled,
-}:
+{ lib, roles, normalizedExplicitForwardPairs, nodeForwarding, nodeForwardingEnabled, natEnabled, nat4Enabled, nat6Enabled }:
 
 let
   maybePair =
     inIfs: outIfs: comment:
-    if inIfs != [ ] && outIfs != [ ] then
-      {
-        "in" = inIfs;
-        "out" = outIfs;
-        action = "accept";
-        inherit comment;
-      }
-    else
-      null;
+    if inIfs != [ ] && outIfs != [ ] then { "in" = inIfs; "out" = outIfs; action = "accept"; inherit comment; } else null;
 
   accessForwardPairs =
     if normalizedExplicitForwardPairs != [ ] then
@@ -35,7 +18,8 @@ let
     if normalizedExplicitForwardPairs != [ ] then
       normalizedExplicitForwardPairs
     else if hasExplicitCoreForwarding then
-
+      # Corrected CPM authority present but no admitted pair survived:
+      # fail closed, never invent core-lan-to-wan from roles.
       [ ]
     else
       lib.filter (pair: pair != null) [
@@ -54,6 +38,15 @@ let
     && nodeForwarding ? rules
     && builtins.isList nodeForwarding.rules;
 
+  # FS-270-HDS-010-SDS-010-SMS-010: when the CPM hands off explicit core
+  # forwarding authority, that authority is exhaustive for interface-pair
+  # transit. A core node whose corrected CPM output denies a transit surface
+  # (or every transit surface: rules == [ ]) must not recover forwarding for
+  # it from role-derived core-lan-to-wan pair invention — that would
+  # resurrect the denied public-to-internal bypass class (2026-07-15
+  # ens3<->ppp0) from topology provenance. Faithful realization renders
+  # exactly the CPM-authorized rules; fail-closed realization renders no
+  # lan-to-wan pair beyond them.
   hasExplicitCoreForwarding =
     (nodeForwarding.mode or null) == "explicit-core-forwarding"
     && nodeForwarding ? rules
@@ -91,36 +84,18 @@ let
       coreNatInterfaces;
 in
 {
-  inherit
-    accessForwardPairs
-    coreNatInterfaces
-    coreNat4Interfaces
-    coreNat6Interfaces
-    ;
+  inherit accessForwardPairs coreNatInterfaces coreNat4Interfaces coreNat6Interfaces;
   coreNat4SourcePrefixes = roles.explicitNat4SourcePrefixes;
   coreNat6SourcePrefixes = roles.explicitNat6SourcePrefixes;
   coreForwardPairs = baseCoreForwardPairs ++ overlayCoreForwardPairs;
-  downstreamSelectorForwardPairs =
-    if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
-  upstreamSelectorForwardPairs =
-    if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
+  downstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
+  upstreamSelectorForwardPairs = if normalizedExplicitForwardPairs != [ ] then normalizedExplicitForwardPairs else [ ];
   accessClampMssInterfaces =
-    if roles.explicitClampMssInterfaces != [ ] then
-      roles.explicitClampMssInterfaces
-    else if roles.resolvedTransitNames == [ ] then
-      roles.resolvedWanNames
-    else
-      [ ];
+    if roles.explicitClampMssInterfaces != [ ] then roles.explicitClampMssInterfaces else if roles.resolvedTransitNames == [ ] then roles.resolvedWanNames else [ ];
   coreClampMssInterfaces =
-    if roles.explicitClampMssInterfaces != [ ] then
-      roles.explicitClampMssInterfaces
-    else
-
-      lib.unique (coreNatInterfaces ++ roles.overlayInterfaceNames);
+    if roles.explicitClampMssInterfaces != [ ] then roles.explicitClampMssInterfaces else if coreNatInterfaces != [ ] then coreNatInterfaces else [ ];
   authoritativeAccessForwarding =
-    normalizedExplicitForwardPairs != [ ]
-    || nodeForwardingEnabled == false
-    || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
+    normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || (roles.explicitLocalAdapterNames != [ ] && roles.explicitUplinkNames != [ ]);
   authoritativeCoreForwarding =
     normalizedExplicitForwardPairs != [ ]
     || hasExplicitCoreForwarding
@@ -134,11 +109,7 @@ in
     || natEnabled == false
     || (natEnabled == true && roles.explicitExitEligibleNames != [ ]);
   authoritativeDownstreamSelectorForwarding =
-    normalizedExplicitForwardPairs != [ ]
-    || nodeForwardingEnabled == false
-    || hasExplicitSelectorForwarding;
+    normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || hasExplicitSelectorForwarding;
   authoritativeUpstreamSelectorForwarding =
-    normalizedExplicitForwardPairs != [ ]
-    || nodeForwardingEnabled == false
-    || hasExplicitSelectorForwarding;
+    normalizedExplicitForwardPairs != [ ] || nodeForwardingEnabled == false || hasExplicitSelectorForwarding;
 }
