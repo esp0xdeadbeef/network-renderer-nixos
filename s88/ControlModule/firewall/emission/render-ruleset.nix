@@ -130,8 +130,7 @@ let
     else if static != [ ] || !validRuntime then
       throw "FS-230-HDS-010-SDS-010-SMS-040: runtime IPv6 destination must be one protected /128 source with no static destination"
     else
-      # Fail-closed placeholder. The runtime service replaces this exact rule
-      # in place, preserving the CPM-defined rule order.
+
       [ "ip6 daddr ::/128" ];
 
   renderRawMatch =
@@ -328,6 +327,7 @@ in
     chain forward {
       type filter hook forward priority mangle; policy accept;
       oifname ${renderIfExpr clampIfs} tcp flags syn tcp option maxseg size set rt mtu
+      iifname ${renderIfExpr clampIfs} tcp flags syn tcp option maxseg size set rt mtu
     }
   }
 ''
