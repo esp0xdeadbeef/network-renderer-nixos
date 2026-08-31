@@ -93,6 +93,15 @@ let
       wanUplinkName
       ;
   };
+  noClientIdDhcp = import ./module/no-clientid-dhcp.nix {
+    inherit
+      lib
+      pkgs
+      renderedModel
+      uplinks
+      wanUplinkName
+      ;
+  };
 in
 {
   imports = base.imports;
@@ -131,6 +140,7 @@ in
     mdnsServices
     bgpServices
     pppoeServices.config
+    noClientIdDhcp.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
       networking.nftables.ruleset = firewallArg.ruleset;

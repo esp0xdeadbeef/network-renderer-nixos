@@ -89,6 +89,7 @@ in
         && !pppoeOwned
         && !hasStaticIpv4
         && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp");
+      noClientId = (ipv4Contract.clientIdentifier or null) == "none";
       ipv6Enabled = ipv6Contract ? enable && (ipv6Contract.enable or false);
       ipv6Dhcp =
         ipv6Enabled
@@ -101,7 +102,10 @@ in
         && !hasStaticIpv6
         && ((ipv6Contract.acceptRA or false) || (ipv6Contract.method or null) == "slaac");
       dhcpMode =
-        if ipv4Dhcp && ipv6Dhcp then
+        if noClientId then
+
+          "no"
+        else if ipv4Dhcp && ipv6Dhcp then
           "yes"
         else if ipv4Dhcp then
           "ipv4"
@@ -139,10 +143,11 @@ in
         && !pppoeOwned
         && !hasStaticIpv4
         && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp");
+      noClientId = (ipv4Contract.clientIdentifier or null) == "none";
       ifaceTableId = policyTableFor iface;
       tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
-    if isWan && ipv4Dhcp then
+    if isWan && ipv4Dhcp && !noClientId then
 
       lib.optionalAttrs (builtins.isString (ipv4Contract.clientIdentifier or null)) {
         ClientIdentifier = ipv4Contract.clientIdentifier;
