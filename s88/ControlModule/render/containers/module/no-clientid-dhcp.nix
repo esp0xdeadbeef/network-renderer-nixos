@@ -44,14 +44,17 @@ let
     else
       { };
 
-  noClientIdWan = builtins.filter (
+  dhcpClientFor =
     logicalName:
     let
-      iface = interfaces.${logicalName};
       uplink = assignedUplinkFor logicalName;
       ipv4 = attrsOrEmpty (uplink.ipv4 or null);
     in
-    (iface.sourceKind or null) == "wan" && (ipv4.clientIdentifier or null) == "none"
+    ipv4.dhcpClient or "systemd";
+
+  nonSystemdWan = builtins.filter (
+    logicalName:
+    (interfaces.${logicalName}.sourceKind or null) == "wan" && (dhcpClientFor logicalName) != "systemd"
   ) (builtins.attrNames interfaces);
 
   sanitizeName = value: builtins.replaceStrings [ "/" ":" "." "@" ] [ "-" "-" "-" "-" ] value;
@@ -60,25 +63,33 @@ let
     logicalName:
     let
       ifaceName = ifaceNameFor logicalName;
+      client = dhcpClientFor logicalName;
       unit = "s88-udhcpc-${sanitizeName logicalName}";
+      exec =
+        if client == "udhcpc" then
+          "${pkgs.busybox}/bin/udhcpc -C -R -i ${lib.escapeShellArg ifaceName} -f"
+        else if client == "dhcpcd" then
+          "${pkgs.dhcpcd}/bin/dhcpcd -4 --noclientid ${lib.escapeShellArg ifaceName}"
+        else
+          throw "invalid ipv4.dhcpClient '${client}' for ${logicalName}; expected udhcpc or dhcpcd";
     in
     {
       name = unit;
       value = {
-        description = "DHCPv4 without client-id on ${ifaceName}";
+        description = "DHCPv4 (${client}, no client-id) on ${ifaceName}";
         wantedBy = [ "multi-user.target" ];
         after = [ "network-pre.target" ];
         serviceConfig = {
           Type = "simple";
           Restart = "always";
           RestartSec = 3;
-          ExecStart = "${pkgs.busybox}/bin/udhcpc -C -R -i ${lib.escapeShellArg ifaceName} -f";
+          ExecStart = exec;
         };
       };
     };
 in
 {
-  config = lib.mkIf (noClientIdWan != [ ]) {
-    systemd.services = builtins.listToAttrs (map serviceFor noClientIdWan);
+  config = lib.mkIf (nonSystemdWan != [ ]) {
+    systemd.services = builtins.listToAttrs (map serviceFor nonSystemdWan);
   };
 }
