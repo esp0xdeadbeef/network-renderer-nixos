@@ -142,10 +142,12 @@ in
       ifaceTableId = policyTableFor iface;
       tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
-    if isWan && ipv4Dhcp && tableId != null then
+    if isWan && ipv4Dhcp then
+
       {
-        RouteTable = tableId;
+        ClientIdentifier = "mac";
       }
+      // lib.optionalAttrs (tableId != null) { RouteTable = tableId; }
     else
       { };
 
