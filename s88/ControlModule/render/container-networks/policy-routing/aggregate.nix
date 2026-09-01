@@ -81,7 +81,10 @@ builtins.foldl'
               && hasAcceptForwardingRule renderedInterfaceNames.${name} interfaceName
             ) interfaceNames
           );
-      sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
+      sourceIfNames =
+        lib.trace
+          "DEBUG srcifaces iface=${interfaceName} base=${builtins.toJSON baseSourceIfNames} policyIngress=${builtins.toJSON policyIngressLocalSourceIfNames}"
+          (lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames));
       sourceScope = sourcePrefixes.forInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
       scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
