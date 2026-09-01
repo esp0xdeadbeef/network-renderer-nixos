@@ -275,7 +275,7 @@ let
             builtins.trace "ECMP-DEBUG ifName=${interfaceName} sourceIfName=${sourceIfName} targetIfName=${toString targetIfName} self=${toString (sourceIfName == targetIfName)} fwd=${toString (hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName})} proj=${toString (policyOnlyProjection.mayProject interfaceName sourceIfName)} core=${toString (isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName)} policy=${toString (isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName)}" true
           );
     in
-    builtins.seq _debug (
+    builtins.deepSeq _debug (
       if sourceIfName == targetIfName then
         explicitAcceptedOutputRoutes
       else if
