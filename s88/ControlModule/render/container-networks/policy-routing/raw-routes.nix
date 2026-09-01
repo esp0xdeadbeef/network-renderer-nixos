@@ -104,10 +104,18 @@ let
         (
           lib.filter (
             route:
-            builtins.isAttrs route
-            && (isDefaultRoute route || isPolicyOnlyRoute route)
-            && routeMatchesInterfaceLane interfaceName route
-            && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+            builtins.trace
+              "DEBUG eftdr iface=${interfaceName} src=${sourceIfName} dst=${route.dst or null} laneMatch=${builtins.toJSON (routeMatchesInterfaceLane interfaceName route)} fwd=${
+                builtins.toJSON (
+                  hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+                )
+              }"
+              (
+                builtins.isAttrs route
+                && (isDefaultRoute route || isPolicyOnlyRoute route)
+                && routeMatchesInterfaceLane interfaceName route
+                && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+              )
           ) (interfaces.${sourceIfName}.routes or [ ])
         )
     else
