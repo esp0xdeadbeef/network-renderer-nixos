@@ -135,9 +135,14 @@ let
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
     ''
-    ''
-      meta l4proto udp udp dport 3784 accept comment "allow-core-bfd"
-    ''
+    (
+      if builtins.any (t: (t.name or null) == "bfd") (communicationContract.trafficTypes or [ ]) then
+        ''
+          meta l4proto udp udp dport 3784 accept comment "allow-core-bfd"
+        ''
+      else
+        throw "intent communicationContract.trafficTypes must declare a 'bfd' traffic type (udp/3784) when the upstream-selector gates core lanes with BFD"
+    )
   ];
 in
 if interfaceEntries == [ ] then

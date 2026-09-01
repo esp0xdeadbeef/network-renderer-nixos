@@ -95,6 +95,9 @@ let
         lib.subtractLists interfaceSet.overlayIngressNames interfaceSet.forwardEgressNames
       );
 
+  hasTrafficType =
+    name: builtins.any (t: (t.name or null) == name) (communicationContract.trafficTypes or [ ]);
+
   inputRules = [
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
@@ -106,12 +109,17 @@ let
   ++ lib.optional (overlayUnderlayNames != [ ] && underlayInput.udpPorts != [ ]) ''
     iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-overlay-underlay-to-core"
   ''
-  ++ lib.optional (overlayUnderlayNames != [ ]) ''
+  ++ lib.optional (overlayUnderlayNames != [ ] && hasTrafficType "icmp") ''
     iifname ${renderInterfaceSet overlayUnderlayNames} meta nfproto ipv4 ip protocol icmp accept comment "allow-selector-lane-health-probe"
   ''
-  ++ lib.optional (overlayUnderlayNames != [ ]) ''
-    iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport 3784 accept comment "allow-selector-bfd"
-  '';
+  ++ lib.optional (overlayUnderlayNames != [ ]) (
+    if hasTrafficType "bfd" then
+      ''
+        iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport 3784 accept comment "allow-selector-bfd"
+      ''
+    else
+      throw "intent communicationContract.trafficTypes must declare a 'bfd' traffic type (udp/3784) when the upstream-selector gates core lanes with BFD"
+  );
 
 in
 if interfaceSet.wanNames == [ ] && interfaceSet.lanNames == [ ] then
