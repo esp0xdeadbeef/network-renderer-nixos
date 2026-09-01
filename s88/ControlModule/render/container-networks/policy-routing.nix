@@ -145,7 +145,6 @@ let
       isUpstreamSelectorPolicyInterface
       isPolicyDownstreamInterface
       isPolicyUpstreamInterface
-      isAccessHostInterface
       ;
     inherit
       returnRoutes
