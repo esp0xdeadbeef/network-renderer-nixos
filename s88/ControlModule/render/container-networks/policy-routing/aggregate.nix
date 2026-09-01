@@ -81,10 +81,7 @@ builtins.foldl'
               && hasAcceptForwardingRule renderedInterfaceNames.${name} interfaceName
             ) interfaceNames
           );
-      sourceIfNames =
-        lib.trace
-          "DEBUG srcifaces iface=${interfaceName} base=${builtins.toJSON baseSourceIfNames} policyIngress=${builtins.toJSON policyIngressLocalSourceIfNames}"
-          (lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames));
+      sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
       sourceScope = sourcePrefixes.forInterface interfaceName;
       forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
       scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
@@ -187,19 +184,15 @@ builtins.foldl'
         sourceIfNames = routeSourceIfNames;
         tableForOutputIfName =
           outputIfName:
-          builtins.trace
-            "DEBUG tableFor iface=${interfaceName} hostFacing=${builtins.toJSON (isAccessHostInterface interfaceName)} out=${outputIfName}"
-            (
-              if
-                isPolicy
-                || isUpstreamSelectorCoreInterface interfaceName
-                || isUpstreamSelectorPolicyInterface interfaceName
-                || isAccessHostInterface interfaceName
-              then
-                tableId
-              else
-                (policyRoutingAllocationFor outputIfName).tableId
-            );
+          if
+            isPolicy
+            || isUpstreamSelectorCoreInterface interfaceName
+            || isUpstreamSelectorPolicyInterface interfaceName
+            || isAccessHostInterface interfaceName
+          then
+            tableId
+          else
+            (policyRoutingAllocationFor outputIfName).tableId;
       };
       routesByInterfacePreferred = serviceDnsRoutes.preferAcrossInterfaces routesByInterface;
       localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
