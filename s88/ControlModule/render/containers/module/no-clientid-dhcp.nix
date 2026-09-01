@@ -78,7 +78,7 @@ let
         case "$1" in
           bound|renew)
             if [ -n "''${ip:-}" ]; then
-              ip addr add "''${ip}/''${mask:-24}" dev "$interface" 2>/dev/null || true
+              ip addr add "''${ip}/''${subnet:-24}" dev "$interface" 2>/dev/null || true
             fi
             if [ -n "''${dns:-}" ]; then
               : > /run/wan-dns.conf
@@ -109,6 +109,10 @@ let
         description = "DHCPv4 (${client}, no client-id) on ${ifaceName}";
         wantedBy = [ "multi-user.target" ];
         after = [ "network-pre.target" ];
+        path = [
+          pkgs.iproute2
+          pkgs.coreutils
+        ];
         serviceConfig = {
           Type = "simple";
           Restart = "always";
