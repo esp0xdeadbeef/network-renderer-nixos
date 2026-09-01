@@ -108,6 +108,9 @@ let
   ''
   ++ lib.optional (overlayUnderlayNames != [ ]) ''
     iifname ${renderInterfaceSet overlayUnderlayNames} meta nfproto ipv4 ip protocol icmp accept comment "allow-selector-lane-health-probe"
+  ''
+  ++ lib.optional (overlayUnderlayNames != [ ]) ''
+    iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport 3784 accept comment "allow-selector-bfd"
   '';
 
 in
