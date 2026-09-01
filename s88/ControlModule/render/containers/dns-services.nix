@@ -364,6 +364,10 @@ else
       description = "Materialize DNS runtime-origin egress policy routing";
       wantedBy = [ "multi-user.target" ];
       before = [ "unbound.service" ];
+      path = [
+        pkgs.iproute2
+        pkgs.coreutils
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -374,21 +378,6 @@ else
     systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
       "10-${dnsEgressPolicy.runtimeIfName}" = {
         matchConfig.Name = dnsEgressPolicy.runtimeIfName;
-
-        routes = [
-          {
-            routeConfig = {
-              Destination = "0.0.0.0/0";
-              Table = dnsEgressPolicy.tableId;
-            };
-          }
-          {
-            routeConfig = {
-              Destination = "::/0";
-              Table = dnsEgressPolicy.tableId;
-            };
-          }
-        ];
         routingPolicyRules = [
           {
             Family = "ipv4";
