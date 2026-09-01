@@ -322,20 +322,22 @@ let
         );
         multipathRoutes = lib.filter (route: (route.MultiPathRoute or null) != null) allRoutes;
       in
-      lib.concatMap (
-        route:
-        map (
-          member:
-          let
-            parts = lib.splitString "@" member;
-          in
-          {
-            destination = route.Destination or null;
-            gateway = builtins.head parts;
-            interface = builtins.elemAt parts 1;
-          }
-        ) route.MultiPathRoute
-      ) multipathRoutes;
+      lib.unique (
+        lib.concatMap (
+          route:
+          map (
+            member:
+            let
+              parts = lib.splitString "@" member;
+            in
+            {
+              destination = route.Destination or null;
+              gateway = builtins.head parts;
+              interface = builtins.elemAt parts 1;
+            }
+          ) route.MultiPathRoute
+        ) multipathRoutes
+      );
     fabricBfdPeers =
       let
         p2pPeers = import ./container-networks/policy-routing/peers.nix { inherit lib common; };
