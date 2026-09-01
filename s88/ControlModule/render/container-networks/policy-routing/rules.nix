@@ -53,23 +53,15 @@ let
       tableRule
       mainFallbackRule
     ];
-
-  localOriginRule = {
-    Family = "both";
-    Priority = tableRulePriority;
-    Table = tableId;
-  };
   unscopedRules = lib.concatMap rulesForIngress ingressInterfaces;
 in
 if sourceIfNames == [ ] then
   [ ]
 else if destinationScoped then
-  [ localOriginRule ]
-  ++ lib.concatMap (prefix: map (destinationScopeRule prefix) unscopedRules) destinationPrefixes
+  lib.concatMap (prefix: map (destinationScopeRule prefix) unscopedRules) destinationPrefixes
 else if scoped then
-  [ localOriginRule ]
-  ++ lib.concatMap (
+  lib.concatMap (
     prefix: (map (scopeRule prefix) unscopedRules) ++ (map (destinationScopeRule prefix) unscopedRules)
   ) sourcePrefixes
 else
-  unscopedRules ++ [ localOriginRule ]
+  unscopedRules
