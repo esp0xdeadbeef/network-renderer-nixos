@@ -87,7 +87,15 @@ else
 
       for _ in $(seq 1 60); do
         if ip link show "$ifname" >/dev/null 2>&1; then
-          ip route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+
+
+
+          gw="$(ip -4 route show default dev "$ifname" 2>/dev/null | tr -s ' ' | cut -d' ' -f3 | head -1)"
+          if [ -n "$gw" ] && [ "$gw" != "via" ]; then
+            ip route replace default via "$gw" dev "$ifname" table "$table_id" 2>/dev/null || true
+          else
+            ip route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+          fi
           ip -6 route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
           exit 0
         fi
