@@ -102,6 +102,9 @@ let
       wanUplinkName
       ;
   };
+  linkInit = import ./module/link-init.nix {
+    inherit lib pkgs renderedModel;
+  };
 in
 {
   imports = base.imports;
@@ -148,6 +151,7 @@ in
     bgpServices
     pppoeServices.config
     noClientIdDhcp.config
+    linkInit.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
       networking.nftables.ruleset = firewallArg.ruleset;
