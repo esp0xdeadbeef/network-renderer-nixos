@@ -402,7 +402,6 @@ else
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        RuntimeDirectory = "unbound";
         ExecStart = "${dnsOutgoingInterfaceMaterializer}/bin/dns-outgoing-interface-materializer /run/unbound/outgoing-interfaces.conf ${lib.concatStringsSep " " (map lib.escapeShellArg outgoingInterfaces)}";
       };
     };
@@ -414,7 +413,6 @@ else
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        RuntimeDirectory = "unbound";
         ExecStart = "${dnsFileForwarderMaterializer}/bin/dns-file-forwarder-materializer ${dnsFile} /run/unbound/provider-forwarders.conf";
       };
     };
