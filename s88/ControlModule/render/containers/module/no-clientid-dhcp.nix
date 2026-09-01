@@ -60,13 +60,12 @@ let
   sanitizeName = value: builtins.replaceStrings [ "/" ":" "." "@" ] [ "-" "-" "-" "-" ] value;
 
   udhcpcScript = pkgs.writeShellScript "s88-udhcpc-script" ''
-    set -eu
+    set -e
     action="$1"
     case "$action" in
       config)
         ip -4 addr flush dev "$interface" 2>/dev/null || true
-        ip -4 addr add "$ip/$subnet" broadcast "$broadcast" dev "$interface" 2>/dev/null || \
-          ip -4 addr add "$ip/$subnet" dev "$interface"
+        ip -4 addr add "$ip/$subnet" dev "$interface"
         ip link set "$interface" up
         if [ -n "$router" ]; then
           ip -4 route replace default via "$router" dev "$interface" onlink
@@ -78,7 +77,7 @@ let
         ip link set "$interface" up
         ;;
       leasefail | nak)
-        echo "udhcpc: $action: $message" >&2
+        echo "udhcpc: $action: ${"message:-"}" >&2
         ;;
     esac
     exit 0
