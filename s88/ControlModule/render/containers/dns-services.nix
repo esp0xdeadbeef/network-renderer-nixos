@@ -204,8 +204,6 @@ else
       map (entry: lib.escapeShellArg entry.sourceFile) registeredUpstreams
     );
 
-    hasForwarders = forwarders != [ ] || registeredUpstreams != [ ] || dnsFile != null;
-
     formatReproducibilityWarning =
       warning:
       let
@@ -413,15 +411,14 @@ else
       };
     };
 
-    systemd.services.dns-upstream-health = lib.optionalAttrs hasForwarders {
-      description = "Restart unbound when its modeled forwarders become reachable again";
+    systemd.services.dns-upstream-health = {
+      description = "Restart unbound when the DNS chain recovers";
       wantedBy = [ "multi-user.target" ];
       after = [ "unbound.service" ];
       path = with pkgs; [
         coreutils
         dnsutils
         gnugrep
-        gnused
         systemd
       ];
       serviceConfig = {
@@ -429,27 +426,28 @@ else
         ExecStart = pkgs.writeShellScript "dns-upstream-health" ''
           set -euo pipefail
           flag=/run/unbound-upstream-down
+          dig=${pkgs.dnsutils}/bin/dig
+
+          up=1
+
+
+
+          if ! "$dig" +short +time=2 +tries=1 localhost A @127.0.0.1 | ${pkgs.gnugrep}/bin/grep -q .; then
+            up=0
+          fi
 
 
 
 
 
-
-          targets="127.0.0.1"
-          for f in /etc/unbound/unbound.conf /run/unbound/registered-upstream.conf /run/unbound/provider-forwarders.conf; do
-            [ -r "$f" ] || continue
-            targets="$targets $(${pkgs.gnugrep}/bin/grep -E '^[[:space:]]*forward-addr: ' "$f" | ${pkgs.gnused}/bin/sed 's/.*forward-addr: //' | ${pkgs.gnugrep}/bin/grep -v ':' || true)"
-          done
-
-          ok=0
-          for t in $targets; do
-            if ${pkgs.dnsutils}/bin/dig +short +time=2 +tries=1 google.com @"$t" | ${pkgs.gnugrep}/bin/grep -q .; then
-              ok=1
-              break
+          if [ "${if forwarders != [ ] then "1" else "0"}" = "1" ]; then
+            probe="health-$(cat /proc/sys/kernel/random/uuid).invalid"
+            if "$dig" +time=3 +tries=1 "$probe" @127.0.0.1 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q SERVFAIL; then
+              up=0
             fi
-          done
+          fi
 
-          if [ "$ok" = 0 ]; then
+          if [ "$up" = 0 ]; then
             : > "$flag"
             exit 0
           fi
@@ -463,8 +461,8 @@ else
       };
     };
 
-    systemd.timers.dns-upstream-health = lib.optionalAttrs hasForwarders {
-      description = "Periodic DNS forwarder reachability check";
+    systemd.timers.dns-upstream-health = {
+      description = "Periodic DNS chain health check";
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnBootSec = "45s";
