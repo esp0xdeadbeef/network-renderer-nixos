@@ -107,18 +107,35 @@ else
 
 
 
-          gw="$(ip -4 route show default dev "$ifname" 2>/dev/null | tr -s ' ' | cut -d' ' -f3 | head -1)"
-          if [ -n "$gw" ] && [ "$gw" != "via" ]; then
-            ip route replace default via "$gw" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
-          else
-            ip route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+
+
+          v4default="$(ip -4 route show default table main 2>/dev/null | head -1)"
+          v6default="$(ip -6 route show default table main 2>/dev/null | head -1)"
+          v4dev="$(printf '%s\n' "$v4default" | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+          v4via="$(printf '%s\n' "$v4default" | awk '{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}')"
+          v6dev="$(printf '%s\n' "$v6default" | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
+          v6via="$(printf '%s\n' "$v6default" | awk '{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}')"
+          if [ -n "$v4dev" ]; then
+            if [ -n "$v4via" ]; then
+              ip route replace default via "$v4via" dev "$v4dev" onlink table "$table_id" 2>/dev/null || true
+            else
+              ip route replace default dev "$v4dev" table "$table_id" 2>/dev/null || true
+            fi
           fi
-          ip -6 route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
-          exit 0
+          if [ -n "$v6dev" ]; then
+            if [ -n "$v6via" ]; then
+              ip -6 route replace default via "$v6via" dev "$v6dev" table "$table_id" 2>/dev/null || true
+            else
+              ip -6 route replace default dev "$v6dev" table "$table_id" 2>/dev/null || true
+            fi
+          fi
+          if [ -n "$v4dev" ] || [ -n "$v6dev" ]; then
+            exit 0
+          fi
         fi
         sleep 1
       done
-      echo "[dns-egress-routing] $ifname never appeared; no default in table $table_id" >&2
+      echo "[dns-egress-routing] no main-table default route appeared; no default in table $table_id" >&2
       exit 1
     '';
 
