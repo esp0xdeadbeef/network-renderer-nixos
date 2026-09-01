@@ -64,7 +64,7 @@ let
     && !(builtins.elem (route.dst or null) targetServiceDnsDestinations)
   ) (interfaces.${sourceIfName}.routes or [ ]);
   explicitAcceptedNonDefaultRoutes = lib.filter (
-    route: hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
+    route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
   ) explicitNonDefaultRoutes;
   upstreamCoreReturnRoutes =
     if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
@@ -107,7 +107,7 @@ let
             builtins.isAttrs route
             && (isDefaultRoute route || isPolicyOnlyRoute route)
             && routeMatchesInterfaceLane interfaceName route
-            && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
+            && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
           ) (interfaces.${sourceIfName}.routes or [ ])
         )
     else
@@ -254,7 +254,7 @@ let
     )
   ) staticPolicyRoutes;
   routeSelectableAcceptedOutputRoutes = lib.filter (
-    route: hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
+    route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
   ) explicitAcceptedOutputRoutes;
   serviceDnsAcceptedOutputRoutes = lib.filter (
     route: isServiceDnsReachabilityRoute route && routeMatchesInterfaceLane interfaceName route
@@ -270,13 +270,13 @@ let
     else if
       isPolicy
       && isPolicyDownstreamInterface interfaceName
-      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
       && builtins.any (route: builtins.isAttrs route && isDefaultRoute route) (
         interfaces.${sourceIfName}.routes or [ ]
       )
     then
       explicitAcceptedOutputRoutes
-    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
+    else if hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName then
       acceptedForwardOutputRoutes
     else if
       policyOnlyProjection.mayProject interfaceName sourceIfName
