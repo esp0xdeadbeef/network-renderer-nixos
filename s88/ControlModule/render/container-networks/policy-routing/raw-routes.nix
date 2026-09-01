@@ -64,7 +64,7 @@ let
     && !(builtins.elem (route.dst or null) targetServiceDnsDestinations)
   ) (interfaces.${sourceIfName}.routes or [ ]);
   explicitAcceptedNonDefaultRoutes = lib.filter (
-    route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+    route: hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
   ) explicitNonDefaultRoutes;
   upstreamCoreReturnRoutes =
     if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
@@ -107,7 +107,7 @@ let
             builtins.isAttrs route
             && (isDefaultRoute route || isPolicyOnlyRoute route)
             && routeMatchesInterfaceLane interfaceName route
-            && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+            && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
           ) (interfaces.${sourceIfName}.routes or [ ])
         )
     else
@@ -121,7 +121,7 @@ let
             route:
             builtins.isAttrs route
             && isDefaultRoute route
-            && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${name} interfaceName route
+            && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${name} route
           ) (interfaces.${name}.routes or [ ])
         else
           [ ]
@@ -254,7 +254,7 @@ let
     )
   ) staticPolicyRoutes;
   routeSelectableAcceptedOutputRoutes = lib.filter (
-    route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+    route: hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${sourceIfName} route
   ) explicitAcceptedOutputRoutes;
   serviceDnsAcceptedOutputRoutes = lib.filter (
     route: isServiceDnsReachabilityRoute route && routeMatchesInterfaceLane interfaceName route
@@ -265,21 +265,18 @@ let
     else
       serviceDnsAcceptedOutputRoutes;
   scopedSourceRoutes =
-    let
-      _dbg = builtins.trace "raw-routes dbg if=${toString interfaceName} src=${toString sourceIfName} target=${toString targetIfName} hasFwd=${toString (hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName)} mayProject=${toString (policyOnlyProjection.mayProject interfaceName sourceIfName)} policyRoutes=${toString (builtins.length (lib.filter isPolicyOnlyRoute explicitAcceptedOutputRoutes))}" null;
-    in
     if sourceIfName == targetIfName then
       explicitAcceptedOutputRoutes
     else if
       isPolicy
       && isPolicyDownstreamInterface interfaceName
-      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
       && builtins.any (route: builtins.isAttrs route && isDefaultRoute route) (
         interfaces.${sourceIfName}.routes or [ ]
       )
     then
       explicitAcceptedOutputRoutes
-    else if hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName then
+    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
       acceptedForwardOutputRoutes
     else if
       policyOnlyProjection.mayProject interfaceName sourceIfName
