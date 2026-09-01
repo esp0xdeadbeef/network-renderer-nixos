@@ -110,6 +110,14 @@ let
     coreLaneInterfaces = containerNetworkRender.coreLaneInterfaces or [ ];
     renderedInterfaceNames = containerNetworkRender.renderedInterfaceNames or { };
   };
+  frrEcmp = import ./module/frr-ecmp.nix {
+    inherit
+      lib
+      pkgs
+      containerName
+      containerNetworkRender
+      ;
+  };
 in
 {
   imports = base.imports;
@@ -158,6 +166,7 @@ in
     noClientIdDhcp.config
     linkInit.config
     upstreamLaneHealth.config
+    frrEcmp.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
       networking.nftables.ruleset = firewallArg.ruleset;

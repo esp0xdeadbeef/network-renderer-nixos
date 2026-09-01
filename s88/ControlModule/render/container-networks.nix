@@ -315,6 +315,41 @@ let
     hasMultipathRoute = lib.any (
       network: lib.any (route: (route.MultiPathRoute or null) != null) (network.routes or [ ])
     ) (builtins.attrValues interfaceUnits.interfaceUnits);
+    ecmpMembers =
+      let
+        allRoutes = lib.concatLists (
+          lib.mapAttrsToList (_: rs: rs) (policyRouting.policyRoutingByInterface.routes or { })
+        );
+        multipathRoutes = lib.filter (route: (route.MultiPathRoute or null) != null) allRoutes;
+      in
+      lib.concatMap (
+        route:
+        map (
+          member:
+          let
+            parts = lib.splitString "@" member;
+          in
+          {
+            destination = route.Destination or null;
+            gateway = builtins.head parts;
+            interface = builtins.elemAt parts 1;
+          }
+        ) route.MultiPathRoute
+      ) multipathRoutes;
+    fabricBfdPeers =
+      let
+        p2pPeers = import ./container-networks/policy-routing/peers.nix { inherit lib common; };
+        fabricIfNames = lib.filter (
+          name: classes.isUpstreamSelectorCoreInterface (renderedInterfaceNames.${name})
+        ) interfaceView.interfaceNames;
+      in
+      lib.unique (
+        lib.filter (peer: peer != null) (
+          map (
+            name: p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }))
+          ) fabricIfNames
+        )
+      );
     ipv6AcceptRAInterfaces = lib.unique (
       hostBridgeWan.ipv6AcceptRAInterfaces ++ interfaceUnits.ipv6AcceptRAInterfaces
     );
