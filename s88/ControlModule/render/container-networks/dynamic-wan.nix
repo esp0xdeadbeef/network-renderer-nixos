@@ -120,6 +120,10 @@ in
         IPv6AcceptRA = ipv6AcceptRA;
         LinkLocalAddressing = if ipv6AcceptRA || ipv6Dhcp then "ipv6" else "no";
       }
+      // lib.optionalAttrs noClientId {
+
+        KeepConfiguration = "yes";
+      }
     else
       {
         IPv6AcceptRA = false;
