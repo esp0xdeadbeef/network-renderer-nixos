@@ -80,6 +80,9 @@ let
             if [ -n "''${ip:-}" ]; then
               ip addr add "''${ip}/''${subnet:-24}" dev "$interface" 2>/dev/null || true
             fi
+            if [ -n "''${router:-}" ]; then
+              ip route add default via "''${router%% *}" dev "$interface" 2>/dev/null || true
+            fi
             if [ -n "''${dns:-}" ]; then
               : > /run/wan-dns.conf
               for d in $dns; do
