@@ -204,6 +204,8 @@ else
       map (entry: lib.escapeShellArg entry.sourceFile) registeredUpstreams
     );
 
+    hasForwarders = registeredUpstreams != [ ] || dnsFile != null;
+
     formatReproducibilityWarning =
       warning:
       let
@@ -408,6 +410,63 @@ else
             Table = dnsEgressPolicy.tableId;
           }
         ];
+      };
+    };
+
+    systemd.services.dns-upstream-health = lib.optionalAttrs hasForwarders {
+      description = "Restart unbound when its modeled forwarders become reachable again";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "unbound.service" ];
+      path = with pkgs; [
+        coreutils
+        gnugrep
+        gnused
+        iputils
+        systemd
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "dns-upstream-health" ''
+          set -euo pipefail
+          flag=/run/unbound-upstream-down
+
+          reachable=0
+          for f in /run/unbound/registered-upstream.conf /run/unbound/provider-forwarders.conf; do
+            [ -r "$f" ] || continue
+            while read -r addr; do
+              case "$addr" in
+                *:*) continue ;;
+              esac
+              [ -n "$addr" ] || continue
+              if ${pkgs.iputils}/bin/ping -c1 -W1 -n "$addr" >/dev/null 2>&1; then
+                reachable=1
+                break 2
+              fi
+            done < <(${pkgs.gnugrep}/bin/grep '^  forward-addr: ' "$f" | ${pkgs.gnused}/bin/sed 's/.*forward-addr: //')
+          done
+
+          if [ "$reachable" = 0 ]; then
+            : > "$flag"
+            exit 0
+          fi
+
+          if [ -f "$flag" ]; then
+            rm -f "$flag"
+            systemctl restart unbound
+            echo "[dns-upstream-health] forwarder recovered; restarted unbound to drop stale failure cache" >&2
+          fi
+        '';
+      };
+    };
+
+    systemd.timers.dns-upstream-health = lib.optionalAttrs hasForwarders {
+      description = "Periodic DNS forwarder reachability check";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "45s";
+        OnUnitActiveSec = "30s";
+        AccuracySec = "5s";
+        Unit = "dns-upstream-health.service";
       };
     };
 
