@@ -81,8 +81,20 @@ else
       priority="$3"
       ifname="$4"
       ip rule add priority "$priority" fwmark "$fwmark" lookup "$table_id" 2>/dev/null || true
-      ip route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
-      ip -6 route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+
+
+
+
+      for _ in $(seq 1 60); do
+        if ip link show "$ifname" >/dev/null 2>&1; then
+          ip route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+          ip -6 route replace default dev "$ifname" table "$table_id" 2>/dev/null || true
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "[dns-egress-routing] $ifname never appeared; no default in table $table_id" >&2
+      exit 1
     '';
 
     requesterAccessControl = lib.concatMap (
