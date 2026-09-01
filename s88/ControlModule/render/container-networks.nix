@@ -318,25 +318,17 @@ let
     ecmpMembers =
       let
         allRoutes = lib.concatLists (
-          lib.mapAttrsToList (_: rs: rs) (policyRouting.policyRoutingByInterface.routes or { })
+          lib.mapAttrsToList (_: iface: ((iface.routes.ipv4 or [ ]) ++ (iface.routes.ipv6 or [ ]))) interfaces
         );
-        multipathRoutes = lib.filter (route: (route.MultiPathRoute or null) != null) allRoutes;
+        multipathRoutes = lib.filter (
+          route: (route.multipath or null) != null && (route.multipath.authority or null) != null
+        ) allRoutes;
       in
       lib.unique (
-        lib.concatMap (
-          route:
-          map (
-            member:
-            let
-              parts = lib.splitString "@" member;
-            in
-            {
-              destination = route.Destination or null;
-              gateway = builtins.head parts;
-              interface = builtins.elemAt parts 1;
-            }
-          ) route.MultiPathRoute
-        ) multipathRoutes
+        map (route: {
+          destination = route.dst or null;
+          gateway = route.via4 or route.via6;
+        }) multipathRoutes
       );
     fabricBfdPeers =
       let
