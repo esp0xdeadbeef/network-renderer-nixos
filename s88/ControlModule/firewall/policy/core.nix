@@ -105,6 +105,9 @@ let
   ''
   ++ lib.optional (overlayUnderlayNames != [ ] && underlayInput.udpPorts != [ ]) ''
     iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport ${renderPortSet underlayInput.udpPorts} accept comment "allow-overlay-underlay-to-core"
+  ''
+  ++ lib.optional (overlayUnderlayNames != [ ]) ''
+    iifname ${renderInterfaceSet overlayUnderlayNames} meta nfproto ipv4 ip protocol icmp accept comment "allow-selector-lane-health-probe"
   '';
 
 in
