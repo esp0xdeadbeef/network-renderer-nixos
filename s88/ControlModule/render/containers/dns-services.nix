@@ -204,7 +204,7 @@ else
       map (entry: lib.escapeShellArg entry.sourceFile) registeredUpstreams
     );
 
-    hasForwarders = registeredUpstreams != [ ] || dnsFile != null;
+    hasForwarders = forwarders != [ ] || registeredUpstreams != [ ] || dnsFile != null;
 
     formatReproducibilityWarning =
       warning:
@@ -431,7 +431,7 @@ else
           flag=/run/unbound-upstream-down
 
           reachable=0
-          for f in /run/unbound/registered-upstream.conf /run/unbound/provider-forwarders.conf; do
+          for f in /etc/unbound/unbound.conf /run/unbound/registered-upstream.conf /run/unbound/provider-forwarders.conf; do
             [ -r "$f" ] || continue
             while read -r addr; do
               case "$addr" in
@@ -442,7 +442,7 @@ else
                 reachable=1
                 break 2
               fi
-            done < <(${pkgs.gnugrep}/bin/grep '^  forward-addr: ' "$f" | ${pkgs.gnused}/bin/sed 's/.*forward-addr: //')
+            done < <(${pkgs.gnugrep}/bin/grep -E '^[[:space:]]*forward-addr: ' "$f" | ${pkgs.gnused}/bin/sed 's/.*forward-addr: //')
           done
 
           if [ "$reachable" = 0 ]; then
