@@ -317,9 +317,7 @@ let
     ) (builtins.attrValues interfaceUnits.interfaceUnits);
     ecmpMembers =
       let
-        allRoutes = lib.concatLists (
-          lib.mapAttrsToList (_: iface: ((iface.routes.ipv4 or [ ]) ++ (iface.routes.ipv6 or [ ]))) interfaces
-        );
+        allRoutes = lib.concatLists (lib.mapAttrsToList (_: iface: (iface.routes or [ ])) interfaces);
         multipathRoutes = lib.filter (
           route: (route.multipath or null) != null && (route.multipath.authority or null) != null
         ) allRoutes;
