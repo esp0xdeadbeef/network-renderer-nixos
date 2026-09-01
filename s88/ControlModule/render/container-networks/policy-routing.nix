@@ -192,6 +192,7 @@ let
       isUpstreamSelectorPolicyInterface
       isPolicyUpstreamInterface
       isPolicyDownstreamInterface
+      isAccessHostInterface
       sourceReachabilityRoutes
       sourcePrefixes
       forwardingSourceScope
