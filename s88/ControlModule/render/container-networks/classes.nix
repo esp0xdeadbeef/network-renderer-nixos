@@ -56,6 +56,7 @@ let
   isPolicyUpstreamInterface = classFlag "exitFacing";
   isOverlayInterface = classFlag "overlay";
   isCoreTransitInterface = classFlag "coreTransit";
+  isAccessHostInterface = classFlag "hostFacing";
 
   networkBehavior =
     if builtins.isAttrs (containerModel.networkBehavior or null) then
@@ -83,6 +84,7 @@ in
     isPolicyUpstreamInterface
     isOverlayInterface
     isCoreTransitInterface
+    isAccessHostInterface
     ;
 
   keepInterfaceRoutesInMain = networkBehavior.keepInterfaceRoutesInMain or true;

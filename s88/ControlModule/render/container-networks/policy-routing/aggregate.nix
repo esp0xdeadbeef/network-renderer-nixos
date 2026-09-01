@@ -8,6 +8,7 @@
   isUpstreamSelectorPolicyInterface,
   isPolicyUpstreamInterface,
   isPolicyDownstreamInterface,
+  isAccessHostInterface,
   sourceReachabilityRoutes,
   sourcePrefixes,
   forwardingSourceScope,
@@ -187,6 +188,7 @@ builtins.foldl'
             isPolicy
             || isUpstreamSelectorCoreInterface interfaceName
             || isUpstreamSelectorPolicyInterface interfaceName
+            || isAccessHostInterface interfaceName
           then
             tableId
           else
