@@ -22,12 +22,19 @@ let
   selectorConfig =
     let
       peers = lib.unique (map (member: member.gateway) ecmpMembers);
-      bfdPeers = lib.concatMapStrings (peer: ''
-        peer ${peer}
-         profile fast
-         no shutdown
-        !
-      '') peers;
+      bfdPeers = lib.concatMapStrings (
+        peer:
+        let
+          member = builtins.head (lib.filter (m: m.gateway == peer) ecmpMembers);
+          ifaceLine = if member.interface == null then "" else " interface ${member.interface}";
+        in
+        ''
+          peer ${peer}${ifaceLine}
+           profile fast
+           no shutdown
+          !
+        ''
+      ) peers;
       staticRoutes = lib.concatMapStrings (
         member:
         let
@@ -52,8 +59,8 @@ let
 
   coreConfig =
     let
-      bfdPeers = lib.concatMapStrings (peer: ''
-        peer ${peer}
+      bfdPeers = lib.concatMapStrings (entry: ''
+        peer ${entry.peer} interface ${entry.interface}
          no shutdown
         !
       '') fabricBfdPeers;

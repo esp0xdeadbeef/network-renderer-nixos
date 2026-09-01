@@ -321,11 +321,23 @@ let
         multipathRoutes = lib.filter (
           route: (route.multipath or null) != null && (route.multipath.authority or null) != null
         ) allRoutes;
+        p2pPeers = import ./container-networks/policy-routing/peers.nix { inherit lib common; };
+        interfaceForGateway =
+          gateway:
+          let
+            matches = lib.filter (
+              name:
+              (p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }))) == gateway
+              || (p2pPeers.ipv6PeerFor127 (p2pPeers.addressForFamily 6 (interfaces.${name} or { }))) == gateway
+            ) interfaceView.interfaceNames;
+          in
+          if matches == [ ] then null else renderedInterfaceNames.${builtins.head matches};
       in
       lib.unique (
         map (route: {
           destination = route.dst or null;
           gateway = route.via4 or route.via6;
+          interface = interfaceForGateway (route.via4 or route.via6);
         }) multipathRoutes
       );
     fabricBfdPeers =
@@ -338,7 +350,17 @@ let
       lib.unique (
         lib.filter (peer: peer != null) (
           map (
-            name: p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }))
+            name:
+            let
+              peer = p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }));
+            in
+            if peer == null then
+              null
+            else
+              {
+                peer = peer;
+                interface = renderedInterfaceNames.${name};
+              }
           ) fabricIfNames
         )
       );
