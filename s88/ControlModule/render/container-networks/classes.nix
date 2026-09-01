@@ -50,6 +50,7 @@ let
   isDownstreamSelectorAccessInterface = classFlag "edgeFacing";
   isDownstreamSelectorPolicyInterface = classFlag "fabricFacing";
   isUpstreamSelectorCoreInterface = classFlag "coreFacing";
+  isUpstreamSelectorUplinkLane = classFlag "uplinkLane";
   isUpstreamSelectorPolicyInterface = classFlag "exitFacing";
   isPolicyDownstreamInterface = classFlag "fabricFacing";
   isPolicyUpstreamInterface = classFlag "exitFacing";
@@ -76,6 +77,7 @@ in
     isDownstreamSelectorAccessInterface
     isDownstreamSelectorPolicyInterface
     isUpstreamSelectorCoreInterface
+    isUpstreamSelectorUplinkLane
     isUpstreamSelectorPolicyInterface
     isPolicyDownstreamInterface
     isPolicyUpstreamInterface
