@@ -51,7 +51,7 @@ let
       ifName = interfaceKeyForRenderedName renderedName;
       iface = if ifName == null then { } else interfaces.${ifName} or { };
     in
-    iface.hostFacing or false;
+    iface.sourceKind or null == "tenant" || iface.hostFacing or false;
 
   classFlag = flag: name: (interfaceClassForRenderedName name).${flag} or false;
 
