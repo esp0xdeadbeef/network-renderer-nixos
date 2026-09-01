@@ -336,7 +336,7 @@ else
       ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
       ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service");
       requires = protectedReservationGeneratorUnits;
-      preStart = pkgs.writeShellScript "unbound-wait-includes" ''
+      preStart = ''
         set -euo pipefail
         for _ in $(seq 1 60); do
           missing=0
