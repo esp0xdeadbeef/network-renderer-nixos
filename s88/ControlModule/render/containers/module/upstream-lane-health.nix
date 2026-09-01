@@ -49,7 +49,7 @@ let
           fi
         fi
         if [ -n "$peer" ]; then
-          ip route replace 1.1.1.1/32 via "$peer" dev "$lane" 2>/dev/null || true
+          ip route replace 1.1.1.1/32 via "$peer" dev "$lane" onlink 2>/dev/null || true
         fi
         sleep 1
         if ${pkgs.iputils}/bin/ping -c1 -W2 -I "$lane" 1.1.1.1 >/dev/null 2>&1; then
