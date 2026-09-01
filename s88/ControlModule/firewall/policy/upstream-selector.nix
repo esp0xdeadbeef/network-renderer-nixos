@@ -1,8 +1,9 @@
-{ lib
-, communicationContract ? { }
-, interfaceView ? null
-, forwardingIntent ? null
-, ...
+{
+  lib,
+  communicationContract ? { },
+  interfaceView ? null,
+  forwardingIntent ? null,
+  ...
 }:
 
 let
@@ -45,22 +46,19 @@ let
 
   trafficTypeDefinitions =
     if communicationContract ? trafficTypes && builtins.isList communicationContract.trafficTypes then
-      builtins.listToAttrs
-        (
-          map
-            (trafficType: {
-              name = trafficType.name;
-              value = trafficType;
-            })
-            (
-              lib.filter
-                (
-                  trafficType:
-                  builtins.isAttrs trafficType && trafficType ? name && builtins.isString trafficType.name
-                )
-                communicationContract.trafficTypes
-            )
-        )
+      builtins.listToAttrs (
+        map
+          (trafficType: {
+            name = trafficType.name;
+            value = trafficType;
+          })
+          (
+            lib.filter (
+              trafficType:
+              builtins.isAttrs trafficType && trafficType ? name && builtins.isString trafficType.name
+            ) communicationContract.trafficTypes
+          )
+      )
     else
       { };
 
@@ -122,21 +120,23 @@ let
 
   forwardRules =
     if useExplicitForwarding then
-      import ./explicit-forwarding.nix
-        {
-          inherit
-            lib
-            escapeComment
-            renderTrafficType
-            forwardingIntent
-            ;
-        }
+      import ./explicit-forwarding.nix {
+        inherit
+          lib
+          escapeComment
+          renderTrafficType
+          forwardingIntent
+          ;
+      }
     else
       [ ];
 
   inputRules = [
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
+    ''
+    ''
+      meta l4proto udp udp dport 3784 accept comment "allow-core-bfd"
     ''
   ];
 in
