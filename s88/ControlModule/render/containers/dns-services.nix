@@ -336,6 +336,19 @@ else
       ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
       ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service");
       requires = protectedReservationGeneratorUnits;
+      preStart = pkgs.writeShellScript "unbound-wait-includes" ''
+        set -euo pipefail
+        for _ in $(seq 1 60); do
+          missing=0
+          ${lib.optionalString (dnsFile != null) ''
+            [ -f /run/unbound/provider-forwarders.conf ] || missing=1
+          ''}
+          [ "$missing" = 0 ] && exit 0
+          sleep 1
+        done
+        echo "[unbound] timeout waiting for the DNS include files" >&2
+        exit 1
+      '';
     };
 
     systemd.services.dns-registered-upstream = lib.optionalAttrs (registeredUpstreams != [ ]) {
