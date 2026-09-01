@@ -22,7 +22,7 @@ let
   selectorConfig =
     let
       peers = lib.unique (map (member: member.gateway) ecmpMembers);
-      bfdPeers = lib.concatMapStrings (
+      ecmpBfdPeers = lib.concatMapStrings (
         peer:
         let
           member = builtins.head (lib.filter (m: m.gateway == peer) ecmpMembers);
@@ -36,6 +36,26 @@ let
           !
         ''
       ) peers;
+      ecmpGateways = lib.unique (map (member: member.gateway) ecmpMembers);
+      fabricBfd = lib.concatMapStrings (
+        entry:
+        let
+          localLine =
+            if entry ? localAddress && entry.localAddress != null then
+              " local-address ${entry.localAddress}"
+            else
+              "";
+        in
+
+        if builtins.elem entry.peer ecmpGateways then
+          ""
+        else
+          ''
+            peer ${entry.peer} interface ${entry.interface}${localLine}
+             no shutdown
+            !
+          ''
+      ) fabricBfdPeers;
       staticRoutes = lib.concatMapStrings (
         member:
         let
@@ -53,7 +73,8 @@ let
       !
       bfd
       ${bfdFastProfile}
-      ${bfdPeers}
+      ${ecmpBfdPeers}
+      ${fabricBfd}
       !
       ${staticRoutes}
     '';
