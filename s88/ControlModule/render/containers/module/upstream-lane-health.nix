@@ -30,8 +30,13 @@ let
         if ! ip link show "$lane" >/dev/null 2>&1; then
           exit 0
         fi
+
+
+
+        ip link set "$lane" up 2>/dev/null || true
+        sleep 1
         if ${pkgs.iputils}/bin/ping -c1 -W2 -I "$lane" 1.1.1.1 >/dev/null 2>&1; then
-          ip link set "$lane" up 2>/dev/null || true
+          exit 0
         else
           ip link set "$lane" down 2>/dev/null || true
           echo "[lane-health] $lane egress probe failed; gated the lane" >&2
