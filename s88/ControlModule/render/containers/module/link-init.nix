@@ -90,6 +90,11 @@ let
 in
 {
   config = lib.mkIf (wanWithMac != [ ]) {
-    systemd.services = builtins.listToAttrs (map serviceFor wanWithMac);
+    systemd.services = builtins.listToAttrs (map serviceFor wanWithMac) // {
+      systemd-networkd = {
+        after = map (name: "${(serviceFor name).name}.service") wanWithMac;
+        requires = map (name: "${(serviceFor name).name}.service") wanWithMac;
+      };
+    };
   };
 }
