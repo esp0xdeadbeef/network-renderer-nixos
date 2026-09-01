@@ -50,13 +50,14 @@ let
         fi
         if [ -n "$peer" ]; then
           ip route replace "$peer/32" dev "$lane" 2>/dev/null || true
+          ip route replace 1.1.1.1/32 via "$peer" dev "$lane" 2>/dev/null || true
         fi
         sleep 1
-        if [ -n "$peer" ] && ${pkgs.iputils}/bin/ping -c1 -W2 -I "$lane" "$peer" >/dev/null 2>&1; then
+        if [ -n "$peer" ] && ${pkgs.iputils}/bin/ping -c1 -W2 -I "$ipv4" 1.1.1.1 >/dev/null 2>&1; then
           exit 0
         else
           ip link set "$lane" down 2>/dev/null || true
-          echo "[lane-health] $lane peer probe failed; gated the lane" >&2
+          echo "[lane-health] $lane egress probe failed; gated the lane" >&2
         fi
       '';
     };
