@@ -33,7 +33,24 @@ let
 
 
 
+
         ip link set "$lane" up 2>/dev/null || true
+
+
+
+
+        addr="$(ip -4 -o addr show "$lane" 2>/dev/null | cut -d' ' -f4 | head -1)"
+        peer=""
+        if [ -n "$addr" ]; then
+          ipv4="''${addr%/*}"
+          prefix="''${addr#*/}"
+          if [ "$prefix" = "31" ]; then
+            peer="''${ipv4%.*}.$(( ''${ipv4##*.} ^ 1 ))"
+          fi
+        fi
+        if [ -n "$peer" ]; then
+          ip route replace 1.1.1.1/32 via "$peer" dev "$lane" 2>/dev/null || true
+        fi
         sleep 1
         if ${pkgs.iputils}/bin/ping -c1 -W2 -I "$lane" 1.1.1.1 >/dev/null 2>&1; then
           exit 0
