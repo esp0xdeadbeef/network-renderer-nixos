@@ -1,20 +1,19 @@
-{ lib
-, renderedInterfaceNames
-, isSelector
-, isUpstreamSelector
-, isDownstreamSelectorPolicyInterface
-, isUpstreamSelectorPolicyInterface
-,
+{
+  lib,
+  renderedInterfaceNames,
+  isSelector,
+  isUpstreamSelector,
+  isDownstreamSelectorPolicyInterface,
+  isUpstreamSelectorPolicyInterface,
 }:
 
 interfaceName: tableId: tableRulePriority: mainSuppressPriority: sourceIfNames: sourcePrefixes: destinationPrefixes:
 let
-  ingressInterfaces =
-    lib.unique (
-      map (name: renderedInterfaceNames.${name} or name) (
-        if sourceIfNames == [ ] then [ ] else sourceIfNames
-      )
-    );
+  ingressInterfaces = lib.unique (
+    map (name: renderedInterfaceNames.${name} or name) (
+      if sourceIfNames == [ ] then [ ] else sourceIfNames
+    )
+  );
   tableRuleFor = incomingInterface: {
     Family = "both";
     IncomingInterface = incomingInterface;
@@ -54,18 +53,23 @@ let
       tableRule
       mainFallbackRule
     ];
+
+  localOriginRule = {
+    Family = "both";
+    Priority = tableRulePriority;
+    Table = tableId;
+  };
   unscopedRules = lib.concatMap rulesForIngress ingressInterfaces;
 in
 if sourceIfNames == [ ] then
   [ ]
 else if destinationScoped then
-  lib.concatMap (prefix: map (destinationScopeRule prefix) unscopedRules) destinationPrefixes
+  [ localOriginRule ]
+  ++ lib.concatMap (prefix: map (destinationScopeRule prefix) unscopedRules) destinationPrefixes
 else if scoped then
-  lib.concatMap
-    (
-      prefix:
-      (map (scopeRule prefix) unscopedRules) ++ (map (destinationScopeRule prefix) unscopedRules)
-    )
-    sourcePrefixes
+  [ localOriginRule ]
+  ++ lib.concatMap (
+    prefix: (map (scopeRule prefix) unscopedRules) ++ (map (destinationScopeRule prefix) unscopedRules)
+  ) sourcePrefixes
 else
-  unscopedRules
+  unscopedRules ++ [ localOriginRule ]
