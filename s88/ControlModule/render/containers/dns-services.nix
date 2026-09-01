@@ -62,6 +62,7 @@ else
       set -euo pipefail
       dns_file="$1"
       out_file="$2"
+      mkdir -p "$(dirname "$out_file")"
       {
         echo 'forward-zone:'
         echo '  name: "."'
