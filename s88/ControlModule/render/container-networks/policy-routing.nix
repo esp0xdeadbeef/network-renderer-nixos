@@ -20,6 +20,7 @@
   isPolicyUpstreamInterface,
   isOverlayInterface,
   isCoreTransitInterface,
+  isAccessHostInterface,
   mkRoute,
   isExternalValidationDelegatedPrefixRoute,
   sourceKindForRenderedName,
@@ -144,6 +145,7 @@ let
       isUpstreamSelectorPolicyInterface
       isPolicyDownstreamInterface
       isPolicyUpstreamInterface
+      isAccessHostInterface
       ;
     inherit
       returnRoutes

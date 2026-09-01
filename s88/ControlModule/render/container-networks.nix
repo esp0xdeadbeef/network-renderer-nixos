@@ -173,6 +173,7 @@ let
       isPolicyUpstreamInterface
       isOverlayInterface
       isCoreTransitInterface
+      isAccessHostInterface
       ;
     inherit (routeRender) mkRoute;
     inherit (routeRender) isExternalValidationDelegatedPrefixRoute;
