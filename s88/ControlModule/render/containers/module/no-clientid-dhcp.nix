@@ -65,9 +65,29 @@ let
       ifaceName = ifaceNameFor logicalName;
       client = dhcpClientFor logicalName;
       unit = "s88-udhcpc-${sanitizeName logicalName}";
+      udhcpcScript = pkgs.writeShellScript "s88-udhcpc-script" ''
+        set -euo pipefail
+        case "$1" in
+          bound|renew)
+            if [ -n "''${ip:-}" ]; then
+              ip addr add "''${ip}/''${mask:-24}" dev "$interface" 2>/dev/null || true
+            fi
+            if [ -n "''${dns:-}" ]; then
+              : > /run/wan-dns.conf
+              for d in $dns; do
+                echo "nameserver $d" >> /run/wan-dns.conf
+              done
+            fi
+            ;;
+          deconfig)
+            : > /run/wan-dns.conf
+            ;;
+        esac
+        exit 0
+      '';
       exec =
         if client == "udhcpc" then
-          "${pkgs.busybox}/bin/udhcpc -C -R -i ${lib.escapeShellArg ifaceName} -f"
+          "${pkgs.busybox}/bin/udhcpc -C -R -O dns -s ${udhcpcScript} -i ${lib.escapeShellArg ifaceName} -f"
         else if client == "dhcpcd" then
           "${pkgs.dhcpcd}/bin/dhcpcd -4 --noclientid ${lib.escapeShellArg ifaceName}"
         else
