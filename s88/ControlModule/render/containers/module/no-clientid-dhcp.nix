@@ -52,6 +52,14 @@ let
     in
     ipv4.dhcpClient or "systemd";
 
+  dhcpOptionsFor =
+    logicalName:
+    let
+      uplink = assignedUplinkFor logicalName;
+      ipv4 = attrsOrEmpty (uplink.ipv4 or null);
+    in
+    if builtins.isList (ipv4.dhcpOptions or null) then ipv4.dhcpOptions else [ ];
+
   nonSystemdWan = builtins.filter (
     logicalName:
     (interfaces.${logicalName}.sourceKind or null) == "wan" && (dhcpClientFor logicalName) != "systemd"
@@ -87,7 +95,9 @@ let
       '';
       exec =
         if client == "udhcpc" then
-          "${pkgs.busybox}/bin/udhcpc -C -R -O dns -s ${udhcpcScript} -i ${lib.escapeShellArg ifaceName} -f"
+          "${pkgs.busybox}/bin/udhcpc -C -R ${
+            lib.concatMapStringsSep " " (opt: "-O ${opt}") (dhcpOptionsFor logicalName)
+          } -s ${udhcpcScript} -i ${lib.escapeShellArg ifaceName} -f"
         else if client == "dhcpcd" then
           "${pkgs.dhcpcd}/bin/dhcpcd -4 --noclientid ${lib.escapeShellArg ifaceName}"
         else
