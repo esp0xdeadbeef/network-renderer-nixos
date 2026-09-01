@@ -132,6 +132,13 @@ in
         "net.ipv4.fib_multipath_use_neigh" = 1;
         "net.ipv4.fib_multipath_hash_policy" = 1;
         "net.ipv6.fib_multipath_hash_policy" = 1;
+
+        "net.ipv4.neigh.default.base_reachable_time_ms" = 3000;
+        "net.ipv4.neigh.default.delay_first_probe_time" = 1;
+        "net.ipv4.neigh.default.gc_stale_time" = 15;
+        "net.ipv6.neigh.default.base_reachable_time_ms" = 3000;
+        "net.ipv6.neigh.default.delay_first_probe_time" = 1;
+        "net.ipv6.neigh.default.gc_stale_time" = 15;
       };
     })
     interfaceRenames.config
