@@ -45,6 +45,14 @@ let
     in
     if builtins.isAttrs ifaceClass then ifaceClass else { };
 
+  hostFacingForRenderedName =
+    renderedName:
+    let
+      ifName = interfaceKeyForRenderedName renderedName;
+      iface = if ifName == null then { } else interfaces.${ifName} or { };
+    in
+    iface.hostFacing or false;
+
   classFlag = flag: name: (interfaceClassForRenderedName name).${flag} or false;
 
   isDownstreamSelectorAccessInterface = classFlag "edgeFacing";
@@ -56,7 +64,7 @@ let
   isPolicyUpstreamInterface = classFlag "exitFacing";
   isOverlayInterface = classFlag "overlay";
   isCoreTransitInterface = classFlag "coreTransit";
-  isAccessHostInterface = classFlag "hostFacing";
+  isAccessHostInterface = hostFacingForRenderedName;
 
   networkBehavior =
     if builtins.isAttrs (containerModel.networkBehavior or null) then
