@@ -74,8 +74,7 @@ let
     && (acquisition.ipv4 or null) == "dhcp"
     && (acquisition.ipv6 or null) == "disabled"
     && (acquisition.acceptRA or false) == false
-    && (acquisition.useDns or null) == false
-    && (acquisition.defaultRoute or null) == false;
+    && (acquisition.useDns or null) == false;
   invalidRuntimeWarning =
     lib.optional (runtimeTarget != null && !complete)
       "FS-982-HDS-010-SDS-010-SMS-120: HOST_MANAGEMENT_RUNTIME_TARGET_INVALID [control-plane-model]: the selected record is incomplete or widens address-acquisition authority; host-management output is suppressed";
@@ -110,7 +109,7 @@ let
     };
     dhcpV4Config = (existingNetwork.dhcpV4Config or { }) // {
       UseDNS = false;
-      UseRoutes = false;
+      UseRoutes = true;
     };
   };
 in
