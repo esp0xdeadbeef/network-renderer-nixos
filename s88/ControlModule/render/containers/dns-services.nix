@@ -419,9 +419,9 @@ else
       after = [ "unbound.service" ];
       path = with pkgs; [
         coreutils
+        dnsutils
         gnugrep
         gnused
-        iputils
         systemd
       ];
       serviceConfig = {
@@ -430,22 +430,26 @@ else
           set -euo pipefail
           flag=/run/unbound-upstream-down
 
-          reachable=0
+
+
+
+
+
+          targets="127.0.0.1"
           for f in /etc/unbound/unbound.conf /run/unbound/registered-upstream.conf /run/unbound/provider-forwarders.conf; do
             [ -r "$f" ] || continue
-            while read -r addr; do
-              case "$addr" in
-                *:*) continue ;;
-              esac
-              [ -n "$addr" ] || continue
-              if ${pkgs.iputils}/bin/ping -c1 -W1 -n "$addr" >/dev/null 2>&1; then
-                reachable=1
-                break 2
-              fi
-            done < <(${pkgs.gnugrep}/bin/grep -E '^[[:space:]]*forward-addr: ' "$f" | ${pkgs.gnused}/bin/sed 's/.*forward-addr: //')
+            targets="$targets $(${pkgs.gnugrep}/bin/grep -E '^[[:space:]]*forward-addr: ' "$f" | ${pkgs.gnused}/bin/sed 's/.*forward-addr: //' | ${pkgs.gnugrep}/bin/grep -v ':' || true)"
           done
 
-          if [ "$reachable" = 0 ]; then
+          ok=0
+          for t in $targets; do
+            if ${pkgs.dnsutils}/bin/dig +short +time=2 +tries=1 google.com @"$t" | ${pkgs.gnugrep}/bin/grep -q .; then
+              ok=1
+              break
+            fi
+          done
+
+          if [ "$ok" = 0 ]; then
             : > "$flag"
             exit 0
           fi
@@ -453,7 +457,7 @@ else
           if [ -f "$flag" ]; then
             rm -f "$flag"
             systemctl restart unbound
-            echo "[dns-upstream-health] forwarder recovered; restarted unbound to drop stale failure cache" >&2
+            echo "[dns-upstream-health] DNS chain recovered; restarted unbound to drop stale failure cache" >&2
           fi
         '';
       };
