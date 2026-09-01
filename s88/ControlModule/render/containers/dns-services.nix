@@ -248,6 +248,9 @@ else
           "do-ip4" = true;
           "do-ip6" = true;
           "infra-host-ttl" = if infraHostTtl != null then infraHostTtl else 60;
+
+          "msg-cache-size" = "128m";
+          "rrset-cache-size" = "256m";
         }
         // lib.optionalAttrs (infraLameTtl != null) {
           "infra-lame-ttl" = infraLameTtl;
