@@ -265,43 +265,31 @@ let
     else
       serviceDnsAcceptedOutputRoutes;
   scopedSourceRoutes =
-    let
-      _routes = (interfaces.${sourceIfName}.routes or { });
-      _routeList =
-        if builtins.isList _routes then _routes else (_routes.ipv4 or [ ]) ++ (_routes.ipv6 or [ ]);
-      _debug =
-        lib.optional (builtins.any (r: builtins.isAttrs r && (r.dst or null) == "0.0.0.0/0") _routeList)
-          (
-            builtins.trace "ECMP-DEBUG ifName=${interfaceName} sourceIfName=${sourceIfName} targetIfName=${toString targetIfName} self=${toString (sourceIfName == targetIfName)} fwd=${toString (hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName})} proj=${toString (policyOnlyProjection.mayProject interfaceName sourceIfName)} core=${toString (isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName)} policy=${toString (isUpstreamSelector && isUpstreamSelectorPolicyInterface interfaceName)}" true
-          );
-    in
-    builtins.deepSeq _debug (
-      if sourceIfName == targetIfName then
-        explicitAcceptedOutputRoutes
-      else if
-        isPolicy
-        && isPolicyDownstreamInterface interfaceName
-        && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
-        && builtins.any (route: builtins.isAttrs route && isDefaultRoute route) (
-          interfaces.${sourceIfName}.routes or [ ]
-        )
-      then
-        explicitAcceptedOutputRoutes
-      else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
-        acceptedForwardOutputRoutes
-      else if
-        policyOnlyProjection.mayProject interfaceName sourceIfName
-        && isUpstreamSelector
-        && isUpstreamSelectorPolicyInterface interfaceName
-      then
-        lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
-      else if policyOnlyProjection.mayProject interfaceName sourceIfName then
-        lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
-      else
-        lib.filter (
-          route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)
-        ) explicitAcceptedOutputRoutes
-    );
+    if sourceIfName == targetIfName then
+      explicitAcceptedOutputRoutes
+    else if
+      isPolicy
+      && isPolicyDownstreamInterface interfaceName
+      && hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName}
+      && builtins.any (route: builtins.isAttrs route && isDefaultRoute route) (
+        interfaces.${sourceIfName}.routes or [ ]
+      )
+    then
+      explicitAcceptedOutputRoutes
+    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
+      acceptedForwardOutputRoutes
+    else if
+      policyOnlyProjection.mayProject interfaceName sourceIfName
+      && isUpstreamSelector
+      && isUpstreamSelectorPolicyInterface interfaceName
+    then
+      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
+    else if policyOnlyProjection.mayProject interfaceName sourceIfName then
+      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
+    else
+      lib.filter (
+        route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)
+      ) explicitAcceptedOutputRoutes;
 in
 lib.filter builtins.isAttrs (
   map (
