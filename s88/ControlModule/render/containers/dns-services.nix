@@ -84,10 +84,10 @@ else
       for iface in "$@"; do
         ip -4 -o addr show "$iface" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
           [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
-        done
+        done || true
         ip -6 -o addr show "$iface" scope global 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
           [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
-        done
+        done || true
       done
     '';
 
@@ -394,6 +394,8 @@ else
     systemd.services.dns-outgoing-interfaces = lib.optionalAttrs (outgoingInterfaces != [ ]) {
       description = "Resolve the DNS outgoing adapters to their addresses";
       wantedBy = [ "multi-user.target" ];
+      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ];
       before = [ "unbound.service" ];
       path = [
         pkgs.iproute2
