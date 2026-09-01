@@ -360,7 +360,7 @@ else
 
 
 
-        ${pkgs.unbound}/bin/unbound-anchor -a /var/lib/unbound/root.key -f /run/wan-dns.conf || echo "Root anchor updated!"
+        ${pkgs.coreutils}/bin/timeout 3 ${pkgs.unbound}/bin/unbound-anchor -a /var/lib/unbound/root.key -f /run/wan-dns.conf || echo "Root anchor updated!"
         ${pkgs.unbound}/bin/unbound-control-setup -d /var/lib/unbound
         for _ in $(seq 1 60); do
           missing=0
