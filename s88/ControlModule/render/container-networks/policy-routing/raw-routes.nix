@@ -265,6 +265,9 @@ let
     else
       serviceDnsAcceptedOutputRoutes;
   scopedSourceRoutes =
+    let
+      _dbg = builtins.trace "raw-routes dbg if=${toString interfaceName} src=${toString sourceIfName} target=${toString targetIfName} hasFwd=${toString (hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName)} mayProject=${toString (policyOnlyProjection.mayProject interfaceName sourceIfName)} policyRoutes=${toString (builtins.length (lib.filter isPolicyOnlyRoute explicitAcceptedOutputRoutes))}" null;
+    in
     if sourceIfName == targetIfName then
       explicitAcceptedOutputRoutes
     else if
