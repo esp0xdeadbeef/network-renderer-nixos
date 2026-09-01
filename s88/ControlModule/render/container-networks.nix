@@ -347,7 +347,9 @@ let
             in
             {
               interface = renderedInterfaceNames.${name};
-              localAddress = p2pPeers.addressForFamily family (interfaces.${name} or { });
+
+              localAddress =
+                if family == 6 then null else p2pPeers.addressForFamily family (interfaces.${name} or { });
             };
       in
       lib.unique (
