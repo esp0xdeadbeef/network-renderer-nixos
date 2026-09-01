@@ -39,7 +39,7 @@ let
 
 
 
-        addr="$(ip -4 -o addr show "$lane" 2>/dev/null | cut -d' ' -f4 | head -1)"
+        addr="$(ip -4 -o addr show "$lane" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | head -1)"
         peer=""
         if [ -n "$addr" ]; then
           ipv4="''${addr%/*}"
