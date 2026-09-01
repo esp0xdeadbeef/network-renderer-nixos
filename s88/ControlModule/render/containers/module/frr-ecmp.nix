@@ -27,9 +27,10 @@ let
         let
           member = builtins.head (lib.filter (m: m.gateway == peer) ecmpMembers);
           ifaceLine = if member.interface == null then "" else " interface ${member.interface}";
+          localLine = if member.localAddress == null then "" else " local-address ${member.localAddress}";
         in
         ''
-          peer ${peer}${ifaceLine}
+          peer ${peer}${ifaceLine}${localLine}
            profile fast
            no shutdown
           !
@@ -59,11 +60,21 @@ let
 
   coreConfig =
     let
-      bfdPeers = lib.concatMapStrings (entry: ''
-        peer ${entry.peer} interface ${entry.interface}
-         no shutdown
-        !
-      '') fabricBfdPeers;
+      bfdPeers = lib.concatMapStrings (
+        entry:
+        let
+          localLine =
+            if entry ? localAddress && entry.localAddress != null then
+              " local-address ${entry.localAddress}"
+            else
+              "";
+        in
+        ''
+          peer ${entry.peer} interface ${entry.interface}${localLine}
+           no shutdown
+          !
+        ''
+      ) fabricBfdPeers;
     in
     ''
       frr defaults traditional

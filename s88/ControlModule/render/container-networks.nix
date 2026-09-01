@@ -322,23 +322,48 @@ let
           route: (route.multipath or null) != null && (route.multipath.authority or null) != null
         ) allRoutes;
         p2pPeers = import ./container-networks/policy-routing/peers.nix { inherit lib common; };
-        interfaceForGateway =
+        interfaceAndLocalForGateway =
           gateway:
           let
+            family = if lib.hasInfix ":" gateway then 6 else 4;
             matches = lib.filter (
               name:
-              (p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }))) == gateway
-              || (p2pPeers.ipv6PeerFor127 (p2pPeers.addressForFamily 6 (interfaces.${name} or { }))) == gateway
+              (
+                if family == 6 then
+                  p2pPeers.ipv6PeerFor127 (p2pPeers.addressForFamily 6 (interfaces.${name} or { }))
+                else
+                  p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }))
+              ) == gateway
             ) interfaceView.interfaceNames;
           in
-          if matches == [ ] then null else renderedInterfaceNames.${builtins.head matches};
+          if matches == [ ] then
+            {
+              interface = null;
+              localAddress = null;
+            }
+          else
+            let
+              name = builtins.head matches;
+            in
+            {
+              interface = renderedInterfaceNames.${name};
+              localAddress = p2pPeers.addressForFamily family (interfaces.${name} or { });
+            };
       in
       lib.unique (
-        map (route: {
-          destination = route.dst or null;
-          gateway = route.via4 or route.via6;
-          interface = interfaceForGateway (route.via4 or route.via6);
-        }) multipathRoutes
+        map (
+          route:
+          let
+            gateway = route.via4 or route.via6;
+            loc = interfaceAndLocalForGateway gateway;
+          in
+          {
+            destination = route.dst or null;
+            inherit gateway;
+            interface = loc.interface;
+            localAddress = loc.localAddress;
+          }
+        ) multipathRoutes
       );
     fabricBfdPeers =
       let
@@ -360,6 +385,7 @@ let
               {
                 peer = peer;
                 interface = renderedInterfaceNames.${name};
+                localAddress = p2pPeers.addressForFamily 4 (interfaces.${name} or { });
               }
           ) fabricIfNames
         )
