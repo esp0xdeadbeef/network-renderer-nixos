@@ -374,6 +374,21 @@ else
     systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
       "10-${dnsEgressPolicy.runtimeIfName}" = {
         matchConfig.Name = dnsEgressPolicy.runtimeIfName;
+
+        routes = [
+          {
+            routeConfig = {
+              Destination = "0.0.0.0/0";
+              Table = dnsEgressPolicy.tableId;
+            };
+          }
+          {
+            routeConfig = {
+              Destination = "::/0";
+              Table = dnsEgressPolicy.tableId;
+            };
+          }
+        ];
         routingPolicyRules = [
           {
             Family = "ipv4";

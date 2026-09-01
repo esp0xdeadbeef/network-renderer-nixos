@@ -177,6 +177,8 @@ in
     else
       true;
 
+  timeoutStartSec = "10min";
+
   privateNetwork = true;
 
   hostBridge =
