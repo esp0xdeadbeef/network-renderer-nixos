@@ -187,15 +187,19 @@ builtins.foldl'
         sourceIfNames = routeSourceIfNames;
         tableForOutputIfName =
           outputIfName:
-          if
-            isPolicy
-            || isUpstreamSelectorCoreInterface interfaceName
-            || isUpstreamSelectorPolicyInterface interfaceName
-            || isAccessHostInterface interfaceName
-          then
-            tableId
-          else
-            (policyRoutingAllocationFor outputIfName).tableId;
+          builtins.trace
+            "DEBUG tableFor iface=${interfaceName} hostFacing=${builtins.toJSON (isAccessHostInterface interfaceName)} out=${outputIfName}"
+            (
+              if
+                isPolicy
+                || isUpstreamSelectorCoreInterface interfaceName
+                || isUpstreamSelectorPolicyInterface interfaceName
+                || isAccessHostInterface interfaceName
+              then
+                tableId
+              else
+                (policyRoutingAllocationFor outputIfName).tableId
+            );
       };
       routesByInterfacePreferred = serviceDnsRoutes.preferAcrossInterfaces routesByInterface;
       localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
