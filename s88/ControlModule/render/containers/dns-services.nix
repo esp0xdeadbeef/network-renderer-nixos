@@ -354,6 +354,7 @@ else
       ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service")
       ++ (lib.optional (outgoingInterfaces != [ ]) "dns-outgoing-interfaces.service");
       requires = protectedReservationGeneratorUnits;
+      serviceConfig.RuntimeDirectoryPreserve = true;
       preStart = lib.mkForce ''
         set -euo pipefail
 
