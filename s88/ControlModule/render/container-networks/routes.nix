@@ -50,6 +50,7 @@ in
           }
           // lib.optionalAttrs (route ? table && builtins.isInt route.table) { Table = route.table; }
           // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) { Metric = route.metric; }
+          // lib.optionalAttrs (!(route ? metric && builtins.isInt route.metric)) { Metric = 50; }
           // lib.optionalAttrs ((route.policyOnly or false) == true) { _s88PolicyOnly = true; }
         else
           null
@@ -66,6 +67,7 @@ in
             }
         // lib.optionalAttrs (route ? table && builtins.isInt route.table) { Table = route.table; }
         // lib.optionalAttrs (route ? metric && builtins.isInt route.metric) { Metric = route.metric; }
+        // lib.optionalAttrs (!(route ? metric && builtins.isInt route.metric)) { Metric = 50; }
         // lib.optionalAttrs ((route.policyOnly or false) == true) { _s88PolicyOnly = true; }
         //
           lib.optionalAttrs
