@@ -105,6 +105,11 @@ let
   linkInit = import ./module/link-init.nix {
     inherit lib pkgs renderedModel;
   };
+  upstreamLaneHealth = import ./module/upstream-lane-health.nix {
+    inherit lib pkgs;
+    coreLaneInterfaces = containerNetworkRender.coreLaneInterfaces or [ ];
+    renderedInterfaceNames = containerNetworkRender.renderedInterfaceNames or { };
+  };
 in
 {
   imports = base.imports;
@@ -152,6 +157,7 @@ in
     pppoeServices.config
     noClientIdDhcp.config
     linkInit.config
+    upstreamLaneHealth.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
       networking.nftables.ruleset = firewallArg.ruleset;

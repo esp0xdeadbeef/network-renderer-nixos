@@ -303,6 +303,14 @@ let
       // hostBridgeWan.networks
       // (pppoeVlanBridge.networks or { })
       // interfaceUnits.interfaceUnits;
+    coreLaneInterfaces =
+      if classes.isUpstreamSelector then
+        lib.filter (
+          name: classes.isUpstreamSelectorCoreInterface (renderedInterfaceNames.${name})
+        ) interfaceView.interfaceNames
+      else
+        [ ];
+    inherit renderedInterfaceNames;
     hasMultipathRoute = lib.any (
       network: lib.any (route: (route.MultiPathRoute or null) != null) (network.routes or [ ])
     ) (builtins.attrValues interfaceUnits.interfaceUnits);
