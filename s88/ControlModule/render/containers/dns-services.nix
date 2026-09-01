@@ -75,6 +75,22 @@ else
       } > "$out_file"
     '';
 
+    dnsOutgoingInterfaceMaterializer = pkgs.writeShellScriptBin "dns-outgoing-interface-materializer" ''
+      set -euo pipefail
+      out_file="$1"
+      shift
+      mkdir -p "$(dirname "$out_file")"
+      : > "$out_file"
+      for iface in "$@"; do
+        ip -4 -o addr show "$iface" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
+          [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
+        done
+        ip -6 -o addr show "$iface" scope global 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
+          [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
+        done
+      done
+    '';
+
     dnsEgressRoutingMaterializer = pkgs.writeShellScriptBin "dns-egress-routing-materializer" ''
       set -euo pipefail
       table_id="$1"
@@ -296,7 +312,7 @@ else
           include = protectedReservationIncludes;
         }
         // lib.optionalAttrs (outgoingInterfaces != [ ]) {
-          "outgoing-interface" = outgoingInterfaces;
+          include = [ "/run/unbound/outgoing-interfaces.conf" ];
         };
         forward-zone =
           lib.optional (forwarders != [ ]) {
@@ -327,14 +343,16 @@ else
       ]
       ++ protectedReservationGeneratorUnits
       ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
-      ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service");
+      ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service")
+      ++ (lib.optional (outgoingInterfaces != [ ]) "dns-outgoing-interfaces.service");
       after = [
         "network-online.target"
         "nft-allow-dns-service.service"
       ]
       ++ protectedReservationGeneratorUnits
       ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
-      ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service");
+      ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service")
+      ++ (lib.optional (outgoingInterfaces != [ ]) "dns-outgoing-interfaces.service");
       requires = protectedReservationGeneratorUnits;
       preStart = ''
         set -euo pipefail
@@ -342,6 +360,9 @@ else
           missing=0
           ${lib.optionalString (dnsFile != null) ''
             [ -f /run/unbound/provider-forwarders.conf ] || missing=1
+          ''}
+          ${lib.optionalString (outgoingInterfaces != [ ]) ''
+            [ -f /run/unbound/outgoing-interfaces.conf ] || missing=1
           ''}
           [ "$missing" = 0 ] && exit 0
           sleep 1
@@ -367,6 +388,22 @@ else
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = "${registeredUpstreamMaterializer}/bin/dns-registered-upstream-materializer ${registeredUpstreamSourceFiles}";
+      };
+    };
+
+    systemd.services.dns-outgoing-interfaces = lib.optionalAttrs (outgoingInterfaces != [ ]) {
+      description = "Resolve the DNS outgoing adapters to their addresses";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "unbound.service" ];
+      path = [
+        pkgs.iproute2
+        pkgs.coreutils
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        RuntimeDirectory = "unbound";
+        ExecStart = "${dnsOutgoingInterfaceMaterializer}/bin/dns-outgoing-interface-materializer /run/unbound/outgoing-interfaces.conf ${lib.concatStringsSep " " (map lib.escapeShellArg outgoingInterfaces)}";
       };
     };
 
