@@ -217,6 +217,12 @@ let
   isProviderCreatedInterface =
     iface: (iface.sourceKind or null) == "overlay" && !nixosOwnsInterface iface;
 
+  isPppoeSessionInterface =
+    iface:
+    (iface.sourceKind or null) == "pppoe-session"
+    || ((iface.connectivity or { }).sourceKind or null) == "pppoe-session"
+    || ((iface.backingRef or { }).kind or null) == "pppoe-session";
+
   interfaceUnits = builtins.listToAttrs (
     lib.filter (entry: entry != null) (
       lib.imap0 (
@@ -299,7 +305,7 @@ let
               linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
                 MTUBytes = iface.mtu;
               };
-              address = iface.addresses or [ ];
+              address = if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]);
               routes = map stripRouteMetadata (
                 lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
               );
