@@ -354,8 +354,13 @@ else
       ++ (lib.optional (dnsEgressPolicy != null) "dns-egress-routing.service")
       ++ (lib.optional (outgoingInterfaces != [ ]) "dns-outgoing-interfaces.service");
       requires = protectedReservationGeneratorUnits;
-      preStart = ''
+      preStart = lib.mkForce ''
         set -euo pipefail
+
+
+
+        ${pkgs.unbound}/bin/unbound-anchor -a -r /run/systemd/resolve/stub-resolv.conf /var/lib/unbound/root.key || echo "Root anchor updated!"
+        ${pkgs.unbound}/bin/unbound-control-setup -d /var/lib/unbound
         for _ in $(seq 1 60); do
           missing=0
           ${lib.optionalString (dnsFile != null) ''
