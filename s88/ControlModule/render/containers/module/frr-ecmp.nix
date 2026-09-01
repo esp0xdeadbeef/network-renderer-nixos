@@ -79,7 +79,6 @@ in
 {
   config = lib.mkIf (frrConfig != null) {
     services.frr = {
-      staticd.enable = true;
       bfdd.enable = true;
       config = frrConfig;
     };
