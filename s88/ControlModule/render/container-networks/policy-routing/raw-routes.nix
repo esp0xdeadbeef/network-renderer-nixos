@@ -99,6 +99,7 @@ let
           route
           // lib.optionalAttrs (isDefaultRoute route) {
             metric = route.metric or 50;
+            _s88ForwardTargetDefault = true;
           }
         )
         (

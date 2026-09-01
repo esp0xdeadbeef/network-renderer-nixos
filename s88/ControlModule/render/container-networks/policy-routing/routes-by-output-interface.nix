@@ -8,13 +8,12 @@
   tableForOutputIfName ? (_outputIfName: tableId),
 }:
 let
-  rawPolicyRoutes =
-    builtins.concatMap (
-      sourceIfName:
-      map (route: route // { _s88PolicySourceIfName = sourceIfName; }) (
-        rawRoutesForPolicyTable tableId interfaceName sourceIfName
-      )
-    ) sourceIfNames;
+  rawPolicyRoutes = builtins.concatMap (
+    sourceIfName:
+    map (route: route // { _s88PolicySourceIfName = sourceIfName; }) (
+      rawRoutesForPolicyTable tableId interfaceName sourceIfName
+    )
+  ) sourceIfNames;
 in
 builtins.foldl' (
   routesAcc: rawRoute:
@@ -22,7 +21,16 @@ builtins.foldl' (
     sourceIfName = rawRoute._s88PolicySourceIfName;
     outputIfName = routeOutputInterface sourceIfName rawRoute;
     outputTableId = tableForOutputIfName outputIfName;
-    renderedRoute = mkRoute ((builtins.removeAttrs rawRoute [ "_s88PolicySourceIfName" ]) // { table = outputTableId; });
+    forwardTargetDefault = rawRoute._s88ForwardTargetDefault or false;
+    renderedRoute = mkRoute (
+      (builtins.removeAttrs rawRoute [
+        "_s88PolicySourceIfName"
+        "_s88ForwardTargetDefault"
+      ])
+      // {
+        table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+      }
+    );
   in
   if renderedRoute == null then
     routesAcc
