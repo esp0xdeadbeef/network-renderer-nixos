@@ -306,7 +306,7 @@ let
     coreLaneInterfaces =
       if classes.isUpstreamSelector then
         lib.filter (
-          name: classes.isUpstreamSelectorCoreInterface (renderedInterfaceNames.${name})
+          name: classes.isUpstreamSelectorUplinkLane (renderedInterfaceNames.${name})
         ) interfaceView.interfaceNames
       else
         [ ];
