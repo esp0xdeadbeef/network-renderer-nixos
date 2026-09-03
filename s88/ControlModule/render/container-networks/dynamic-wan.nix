@@ -174,11 +174,10 @@ in
   mkDynamicWanIpv6AcceptRAConfig =
     iface: fallbackTableId:
     let
-      isWan = (iface.sourceKind or null) == "wan";
       ifaceTableId = policyTableFor iface;
       tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
-    if isWan && ipv6AcceptRAFor iface then
+    if ipv6AcceptRAFor iface then
       {
 
         UseRoutes = false;
