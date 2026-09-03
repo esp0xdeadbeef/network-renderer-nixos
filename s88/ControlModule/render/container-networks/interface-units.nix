@@ -153,6 +153,8 @@ let
     builtins.removeAttrs route [
       "_s88PolicyOnly"
       "_s88IntentKind"
+      "_s88Multipath"
+      "_s88Table"
       "sourceFile"
       "delegatedPrefix"
       "family"

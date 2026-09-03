@@ -317,9 +317,12 @@ let
     ) (builtins.attrValues interfaceUnits.interfaceUnits);
     ecmpMembers =
       let
-        allRoutes = lib.concatLists (lib.mapAttrsToList (_: iface: (iface.routes or [ ])) interfaces);
+        allRoutes = lib.concatLists (
+          lib.mapAttrsToList (_: routes: listOrEmpty routes) (policyRouting.rawRoutesByInterface or { })
+        );
         multipathRoutes = lib.filter (
-          route: (route.multipath or null) != null && (route.multipath.authority or null) != null
+          route:
+          builtins.isAttrs (route._s88Multipath or null) && ((route._s88Multipath.authority or null) != null)
         ) allRoutes;
         p2pPeers = import ./container-networks/policy-routing/peers.nix { inherit lib common; };
         interfaceAndLocalForGateway =
@@ -352,13 +355,13 @@ let
           route:
           let
             gateway =
-              route.via4 or route.via6 or throw
-                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing a gateway (via4/via6)";
+              route.Gateway or throw
+                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing a gateway";
             table =
-              route.table or throw
+              route._s88Table or throw
                 "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its policy routing table";
             destination =
-              route.dst or throw
+              route.Destination or throw
                 "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its destination prefix";
             loc = interfaceAndLocalForGateway gateway;
           in
