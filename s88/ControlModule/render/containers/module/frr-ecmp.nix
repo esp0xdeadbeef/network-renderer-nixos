@@ -28,7 +28,7 @@ let
           member = builtins.head (lib.filter (m: m.gateway == peer) ecmpMembers);
         in
         ''
-          peer ${peer} interface ${member.interface} local-address ${member.localAddress}
+          peer ${peer} interface ${member.interface}
            profile fast
            no shutdown
           !
@@ -58,21 +58,12 @@ let
 
   coreConfig =
     let
-      bfdPeers = lib.concatMapStrings (
-        entry:
-        let
-          localLine =
-            if entry ? localAddress && entry.localAddress != null then
-              " local-address ${entry.localAddress}"
-            else
-              "";
-        in
-        ''
-          peer ${entry.peer} interface ${entry.interface}${localLine}
-           no shutdown
-          !
-        ''
-      ) fabricBfdPeers;
+      bfdPeers = lib.concatMapStrings (entry: ''
+        peer ${entry.peer} interface ${entry.interface}
+         profile fast
+         no shutdown
+        !
+      '') fabricBfdPeers;
     in
     ''
       frr defaults traditional
@@ -80,6 +71,7 @@ let
       service integrated-vtysh-config
       !
       bfd
+      ${bfdFastProfile}
       ${bfdPeers}
       !
     '';
