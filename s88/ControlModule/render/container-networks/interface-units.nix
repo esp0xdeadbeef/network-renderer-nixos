@@ -54,6 +54,9 @@ let
     in
     if family == 6 then peers.ipv6PeerFor127 address else peers.ipv4PeerFor31 address;
 
+  isPointToPointIf =
+    iface: lib.any (a: lib.hasSuffix "/127" a || lib.hasSuffix "/31" a) (iface.addresses or [ ]);
+
   routeGatewayMatchesInterface =
     iface: route:
     let
@@ -296,6 +299,9 @@ let
               matchConfig.Name = interfaceName;
               networkConfig = {
                 ConfigureWithoutCarrier = true;
+              }
+              // lib.optionalAttrs (isPointToPointIf iface) {
+                IPv6DuplicateAddressDetection = false;
               }
               // mkDynamicWanNetworkConfig iface;
               dhcpV4Config = mkDynamicWanDhcpV4Config iface (
