@@ -29,10 +29,28 @@ let
     else
       null;
 
-  networkdManagedInterfaces = lib.filter (
-    interfaceName:
-    builtins.isString interfaceName && !(builtins.elem interfaceName networkManagerWanInterfaces)
-  ) (map interfaceNameFor (builtins.attrValues (renderedModel.interfaces or { })));
+  networkdManagedInterfaces =
+    lib.filter
+      (
+        interfaceName:
+        builtins.isString interfaceName
+        && interfaceName != ""
+        && !(builtins.elem interfaceName networkManagerWanInterfaces)
+      )
+      (
+        lib.unique (
+          lib.concatLists (
+            map (iface: [
+              (iface.containerInterfaceName or null)
+              (iface.renderedIfName or null)
+              (iface.runtimeIfName or null)
+              (iface.hostInterfaceName or null)
+              (iface.interfaceName or null)
+              (iface.ifName or null)
+            ]) (builtins.attrValues (renderedModel.interfaces or { }))
+          )
+        )
+      );
 
   connections = builtins.listToAttrs (
     map (interfaceName: {
