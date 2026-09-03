@@ -47,7 +47,7 @@ let
               (iface.hostInterfaceName or null)
               (iface.interfaceName or null)
               (iface.ifName or null)
-            ]) (builtins.attrValues (renderedModel.interfaces or { }))
+            ]) (builtins.attrValues (renderedModel.renderedInterfaces or renderedModel.interfaces or { }))
           )
         )
       );
