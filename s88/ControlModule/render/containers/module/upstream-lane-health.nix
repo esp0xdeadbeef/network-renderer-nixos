@@ -27,6 +27,7 @@ let
       script = ''
         set -euo pipefail
         lane=${lib.escapeShellArg lane}
+        marker=/run/s88-lane-health-${sanitize lane}.was-up
         if ! ip link show "$lane" >/dev/null 2>&1; then
           exit 0
         fi
@@ -53,10 +54,18 @@ let
         fi
         sleep 1
         if [ -n "$peer" ] && ${pkgs.iputils}/bin/ping -c1 -W2 -I "$lane" "$peer" >/dev/null 2>&1; then
+          touch "$marker"
           exit 0
-        else
+        fi
+
+
+
+        if [ -e "$marker" ]; then
           ip link set "$lane" down 2>/dev/null || true
-          echo "[lane-health] $lane peer probe failed; gated the lane" >&2
+          rm -f "$marker"
+          echo "[lane-health] $lane peer probe failed after it was up; gated the lane" >&2
+        else
+          echo "[lane-health] $lane peer not reachable yet; leaving lane up" >&2
         fi
       '';
     };
