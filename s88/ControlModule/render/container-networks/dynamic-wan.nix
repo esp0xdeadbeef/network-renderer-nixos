@@ -180,7 +180,7 @@ in
     if ipv6AcceptRAFor iface then
       {
 
-        UseRoutes = false;
+        UseRoutePrefix = false;
       }
       // lib.optionalAttrs (tableId != null) { RouteTable = tableId; }
     else
