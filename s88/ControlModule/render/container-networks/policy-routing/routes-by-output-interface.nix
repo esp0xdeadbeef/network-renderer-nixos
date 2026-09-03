@@ -31,12 +31,21 @@ builtins.foldl' (
         table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
       }
     );
+    annotatedRoute =
+      if renderedRoute == null then
+        null
+      else
+        renderedRoute
+        // {
+          _s88Multipath = rawRoute.multipath or null;
+          _s88Table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+        };
   in
-  if renderedRoute == null then
+  if annotatedRoute == null then
     routesAcc
   else
     routesAcc
     // {
-      ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ renderedRoute ];
+      ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ annotatedRoute ];
     }
 ) { } rawPolicyRoutes

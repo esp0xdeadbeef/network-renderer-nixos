@@ -253,4 +253,6 @@ in
       };
     in
     policyRoutingWithRelationSelection // { routes = merged; };
+
+  rawRoutesByInterface = policyRoutingWithRelationSelection.routes or { };
 }
