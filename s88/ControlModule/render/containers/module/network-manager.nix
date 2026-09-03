@@ -30,26 +30,40 @@ let
       null;
 
   networkdManagedInterfaces =
-    lib.filter
-      (
-        interfaceName:
-        builtins.isString interfaceName
-        && interfaceName != ""
-        && !(builtins.elem interfaceName networkManagerWanInterfaces)
-      )
-      (
-        lib.unique (
-          lib.concatLists (
-            map (iface: [
-              (iface.containerInterfaceName or null)
-              (iface.renderedIfName or null)
-              (iface.runtimeIfName or null)
-              (iface.hostInterfaceName or null)
-              (iface.interfaceName or null)
-              (iface.ifName or null)
-            ]) (builtins.attrValues (renderedModel.renderedInterfaces or renderedModel.interfaces or { }))
-          )
+    builtins.trace
+      "NM-DEBUG wanIfs=${builtins.toJSON networkManagerWanInterfaces} ifKeys=${
+        builtins.toJSON (builtins.attrNames (renderedModel.interfaces or { }))
+      } rIfKeys=${builtins.toJSON (builtins.attrNames (renderedModel.renderedInterfaces or { }))} names=${
+        builtins.toJSON (
+          map (i: [
+            (i.containerInterfaceName or null)
+            (i.renderedIfName or null)
+            (i.runtimeIfName or null)
+          ]) (builtins.attrValues (renderedModel.renderedInterfaces or renderedModel.interfaces or { }))
         )
+      }"
+      (
+        lib.filter
+          (
+            interfaceName:
+            builtins.isString interfaceName
+            && interfaceName != ""
+            && !(builtins.elem interfaceName networkManagerWanInterfaces)
+          )
+          (
+            lib.unique (
+              lib.concatLists (
+                map (iface: [
+                  (iface.containerInterfaceName or null)
+                  (iface.renderedIfName or null)
+                  (iface.runtimeIfName or null)
+                  (iface.hostInterfaceName or null)
+                  (iface.interfaceName or null)
+                  (iface.ifName or null)
+                ]) (builtins.attrValues (renderedModel.renderedInterfaces or renderedModel.interfaces or { }))
+              )
+            )
+          )
       );
 
   connections = builtins.listToAttrs (
