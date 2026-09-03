@@ -301,7 +301,7 @@ let
                 ConfigureWithoutCarrier = true;
               }
               // lib.optionalAttrs (isPointToPointIf iface) {
-                IPv6DuplicateAddressDetection = false;
+                IPv6DuplicateAddressDetection = 0;
               }
               // mkDynamicWanNetworkConfig iface;
               dhcpV4Config = mkDynamicWanDhcpV4Config iface (
