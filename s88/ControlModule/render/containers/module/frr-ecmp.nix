@@ -40,7 +40,7 @@ let
           family = if lib.hasInfix ":" member.destination then "ipv6" else "ip";
         in
         ''
-          ${family} route ${member.destination} ${member.gateway} table ${member.table} bfd
+          ${family} route ${member.destination} ${member.gateway} table ${builtins.toString member.table} bfd
         ''
       ) ecmpMembers;
     in
