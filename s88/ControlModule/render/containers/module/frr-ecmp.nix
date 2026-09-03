@@ -84,9 +84,11 @@ let
     else
       null;
 
-  bfdInterfaces = lib.unique (
-    (map (member: member.interface) ecmpMembers) ++ (map (entry: entry.interface) fabricBfdPeers)
-  );
+  bfdInterfaces =
+    if ecmpMembers != [ ] then
+      lib.unique (map (member: member.interface) ecmpMembers)
+    else
+      lib.unique (map (entry: entry.interface) fabricBfdPeers);
 
   waitForAddresses = ''
     for _iface in ${lib.concatStringsSep " " bfdInterfaces}; do
