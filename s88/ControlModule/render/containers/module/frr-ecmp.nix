@@ -107,13 +107,14 @@ in
     systemd.services.frr = {
       path = [ pkgs.iproute2 ];
       preStart = waitForAddresses;
-
       wantedBy = lib.mkForce [ ];
+
+      startLimitIntervalSec = lib.mkForce 0;
     };
     systemd.timers.s88-frr = {
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnBootSec = "25s";
+        OnBootSec = "5s";
         Unit = "frr.service";
       };
     };
