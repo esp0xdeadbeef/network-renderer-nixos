@@ -300,9 +300,6 @@ let
               networkConfig = {
                 ConfigureWithoutCarrier = true;
               }
-              // lib.optionalAttrs (isPointToPointIf iface) {
-                IPv6DuplicateAddressDetection = 0;
-              }
               // mkDynamicWanNetworkConfig iface;
               dhcpV4Config = mkDynamicWanDhcpV4Config iface (
                 policyRuleDhcpTableForInterface ifName interfaceName
@@ -313,7 +310,14 @@ let
               linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
                 MTUBytes = iface.mtu;
               };
-              address = if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]);
+              addresses = map (addr: {
+                addressConfig = {
+                  Address = addr;
+                }
+                // lib.optionalAttrs (isPointToPointIf iface) {
+                  DuplicateAddressDetection = "none";
+                };
+              }) (if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]));
               routes = map stripRouteMetadata (
                 lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
               );

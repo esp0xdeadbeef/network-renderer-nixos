@@ -118,12 +118,5 @@ in
         Unit = "frr.service";
       };
     };
-
-    boot.kernel.sysctl = {
-      "net.ipv6.conf.all.dad_transmits" = 0;
-      "net.ipv6.conf.default.dad_transmits" = 0;
-      "net.ipv6.conf.all.accept_dad" = 0;
-      "net.ipv6.conf.default.accept_dad" = 0;
-    };
   };
 }
