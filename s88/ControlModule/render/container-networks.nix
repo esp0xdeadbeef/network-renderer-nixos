@@ -384,23 +384,28 @@ let
         fabricIfNames = lib.filter (
           name: classes.isUpstreamSelectorCoreInterface (renderedInterfaceNames.${name})
         ) interfaceView.interfaceNames;
+        peersForFamily =
+          family: name:
+          let
+            localAddress = p2pPeers.addressForFamily family (interfaces.${name} or { });
+            peer =
+              if family == 6 then p2pPeers.ipv6PeerFor127 localAddress else p2pPeers.ipv4PeerFor31 localAddress;
+          in
+          if peer == null || localAddress == null then
+            null
+          else
+            {
+              inherit peer;
+              interface = renderedInterfaceNames.${name};
+              inherit localAddress;
+            };
       in
       lib.unique (
-        lib.filter (peer: peer != null) (
-          map (
-            name:
-            let
-              peer = p2pPeers.ipv4PeerFor31 (p2pPeers.addressForFamily 4 (interfaces.${name} or { }));
-            in
-            if peer == null then
-              null
-            else
-              {
-                peer = peer;
-                interface = renderedInterfaceNames.${name};
-                localAddress = p2pPeers.addressForFamily 4 (interfaces.${name} or { });
-              }
-          ) fabricIfNames
+        lib.filter (entry: entry != null) (
+          lib.concatMap (name: [
+            (peersForFamily 4 name)
+            (peersForFamily 6 name)
+          ]) fabricIfNames
         )
       );
     ipv6AcceptRAInterfaces = lib.unique (
