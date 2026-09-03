@@ -92,11 +92,8 @@ let
 
   waitForAddresses = ''
     for _iface in ${lib.concatStringsSep " " bfdInterfaces}; do
-      for _try in $(seq 1 120); do
-        if ip -6 -o addr show dev "$_iface" 2>/dev/null | grep 'scope global' | grep -qv tentative; then
-          break
-        fi
-        sleep 0.25
+      while ! ip -6 -o addr show dev "$_iface" 2>/dev/null | grep 'scope global' | grep -qv tentative; do
+        sleep 0.5
       done
     done
   '';
@@ -111,6 +108,7 @@ in
       after = [ "network.target" ];
       before = lib.mkForce [ ];
       preStart = waitForAddresses;
+      serviceConfig.TimeoutSec = lib.mkForce 300;
     };
   };
 }
