@@ -355,14 +355,20 @@ let
           route:
           let
             gateway =
-              route.Gateway or throw
-                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing a gateway";
+              if route ? Gateway && builtins.isString route.Gateway then
+                route.Gateway
+              else
+                throw "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing a gateway";
             table =
-              route._s88Table or throw
-                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its policy routing table";
+              if route ? _s88Table && builtins.isInt route._s88Table then
+                route._s88Table
+              else
+                throw "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its policy routing table";
             destination =
-              route.Destination or throw
-                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its destination prefix";
+              if route ? Destination && builtins.isString route.Destination then
+                route.Destination
+              else
+                throw "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its destination prefix";
             loc = interfaceAndLocalForGateway gateway;
           in
           {
