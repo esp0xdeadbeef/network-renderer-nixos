@@ -83,12 +83,30 @@ let
       coreConfig
     else
       null;
+
+  bfdInterfaces =
+    if ecmpMembers != [ ] then
+      lib.unique (map (member: member.interface) ecmpMembers)
+    else
+      lib.unique (map (entry: entry.interface) fabricBfdPeers);
+
+  waitForAddresses = ''
+    for _iface in ${lib.concatStringsSep " " bfdInterfaces}; do
+      while ! ip -6 -o addr show dev "$_iface" 2>/dev/null | grep 'scope global' | grep -qv tentative; do
+        sleep 0.5
+      done
+    done
+  '';
 in
 {
   config = lib.mkIf (frrConfig != null) {
     services.frr = {
       bfdd.enable = true;
       config = frrConfig;
+    };
+    systemd.services.frr = {
+      path = [ pkgs.iproute2 ];
+      preStart = waitForAddresses;
     };
   };
 }
