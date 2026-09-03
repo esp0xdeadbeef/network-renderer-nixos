@@ -107,6 +107,7 @@ in
     systemd.services.frr = {
       after = [ "network.target" ];
       before = lib.mkForce [ ];
+      path = [ pkgs.iproute2 ];
       preStart = waitForAddresses;
       serviceConfig.TimeoutSec = lib.mkForce 300;
     };
