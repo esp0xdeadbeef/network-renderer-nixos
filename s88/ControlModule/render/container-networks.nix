@@ -355,7 +355,7 @@ let
               route.via4 or route.via6 or throw
                 "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing a gateway (via4/via6)";
             table =
-              route.Table or throw
+              route.table or throw
                 "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its policy routing table";
             destination =
               route.dst or throw
