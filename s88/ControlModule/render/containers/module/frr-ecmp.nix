@@ -28,7 +28,7 @@ let
           member = builtins.head (lib.filter (m: m.gateway == peer) ecmpMembers);
         in
         ''
-          peer ${peer} interface ${member.interface}
+          peer ${peer} interface ${member.interface} local-address ${member.localAddress}
            profile fast
            no shutdown
           !
@@ -59,7 +59,7 @@ let
   coreConfig =
     let
       bfdPeers = lib.concatMapStrings (entry: ''
-        peer ${entry.peer} interface ${entry.interface}
+        peer ${entry.peer} interface ${entry.interface} local-address ${entry.localAddress}
          profile fast
          no shutdown
         !
@@ -83,12 +83,32 @@ let
       coreConfig
     else
       null;
+
+  bfdInterfaces = lib.unique (
+    (map (member: member.interface) ecmpMembers) ++ (map (entry: entry.interface) fabricBfdPeers)
+  );
+
+  waitForAddresses = ''
+    for _iface in ${lib.concatStringsSep " " bfdInterfaces}; do
+      for _try in $(seq 1 120); do
+        if ip -6 -o addr show dev "$_iface" 2>/dev/null | grep 'scope global' | grep -qv tentative; then
+          break
+        fi
+        sleep 0.25
+      done
+    done
+  '';
 in
 {
   config = lib.mkIf (frrConfig != null) {
     services.frr = {
       bfdd.enable = true;
       config = frrConfig;
+    };
+    systemd.services.frr = {
+      after = [ "network.target" ];
+      before = lib.mkForce [ ];
+      preStart = waitForAddresses;
     };
   };
 }
