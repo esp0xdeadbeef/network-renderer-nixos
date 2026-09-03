@@ -310,14 +310,15 @@ let
               linkConfig = lib.optionalAttrs (builtins.isInt (iface.mtu or null)) {
                 MTUBytes = iface.mtu;
               };
-              addresses = map (addr: {
-                addressConfig = {
+              addresses = map (
+                addr:
+                {
                   Address = addr;
                 }
                 // lib.optionalAttrs (isPointToPointIf iface) {
                   DuplicateAddressDetection = "none";
-                };
-              }) (if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]));
+                }
+              ) (if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]));
               routes = map stripRouteMetadata (
                 lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
               );
