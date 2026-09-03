@@ -178,10 +178,12 @@ in
       ifaceTableId = policyTableFor iface;
       tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
-    if isWan && ipv6AcceptRAFor iface && tableId != null then
+    if isWan && ipv6AcceptRAFor iface then
       {
-        RouteTable = tableId;
+
+        UseRoutes = false;
       }
+      // lib.optionalAttrs (tableId != null) { RouteTable = tableId; }
     else
       { };
 
