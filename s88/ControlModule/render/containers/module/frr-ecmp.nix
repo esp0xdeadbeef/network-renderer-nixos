@@ -26,11 +26,9 @@ let
         peer:
         let
           member = builtins.head (lib.filter (m: m.gateway == peer) ecmpMembers);
-          ifaceLine = if member.interface == null then "" else " interface ${member.interface}";
-          localLine = if member.localAddress == null then "" else " local-address ${member.localAddress}";
         in
         ''
-          peer ${peer}${ifaceLine}${localLine}
+          peer ${peer} interface ${member.interface} local-address ${member.localAddress}
            profile fast
            no shutdown
           !
@@ -42,7 +40,7 @@ let
           family = if lib.hasInfix ":" member.destination then "ipv6" else "ip";
         in
         ''
-          ${family} route ${member.destination} ${member.gateway} bfd
+          ${family} route ${member.destination} ${member.gateway} table ${member.table} bfd
         ''
       ) ecmpMembers;
     in

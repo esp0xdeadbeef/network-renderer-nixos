@@ -40,25 +40,8 @@ let
       if builtins.length gateways < 2 then
         group
       else
-        let
 
-          multipathMembers = lib.sort (a: b: a < b) (
-            map (
-              route:
-              "${route.Gateway}@${
-                renderedInterfaceNames.${route._s88MultipathSourceIf} or route._s88MultipathSourceIf
-              }"
-            ) group
-          );
-        in
-        [
-          (
-            (builtins.removeAttrs head [ "Gateway" ])
-            // {
-              MultiPathRoute = multipathMembers;
-            }
-          )
-        ]
+        [ ]
   ) (builtins.attrValues grouped);
 
   redistributed = builtins.foldl' (
