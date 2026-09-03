@@ -337,10 +337,7 @@ let
             ) interfaceView.interfaceNames;
           in
           if matches == [ ] then
-            {
-              interface = null;
-              localAddress = null;
-            }
+            throw "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP gateway ${gateway} does not resolve to a modeled p2p interface; declare the peer interface in the CPM forwarding model instead of assuming one"
           else
             let
               name = builtins.head matches;
@@ -354,12 +351,19 @@ let
         map (
           route:
           let
-            gateway = route.via4 or route.via6;
+            gateway =
+              route.via4 or route.via6 or throw
+                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing a gateway (via4/via6)";
+            table =
+              route.Table or throw
+                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its policy routing table";
+            destination =
+              route.dst or throw
+                "FS-481-HDS-010-SDS-010-SMS-045: multipath ECMP member is missing its destination prefix";
             loc = interfaceAndLocalForGateway gateway;
           in
           {
-            destination = route.dst or null;
-            inherit gateway;
+            inherit destination gateway table;
             interface = loc.interface;
             localAddress = loc.localAddress;
           }
