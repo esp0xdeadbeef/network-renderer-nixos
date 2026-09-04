@@ -57,8 +57,8 @@ in
       else
         {
           Gateway = gateway;
+          GatewayOnLink = true;
         }
-        // lib.optionalAttrs (!destinationIsIpv6) { GatewayOnLink = true; }
         // lib.optionalAttrs (destination != null) { Destination = destination; }
         //
           lib.optionalAttrs (builtins.isString (route.preferredSource or null) && route.preferredSource != "")
