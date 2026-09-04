@@ -428,6 +428,8 @@ else
     systemd.services.dns-outgoing-interfaces = lib.optionalAttrs (outgoingInterfaces != [ ]) {
       description = "Resolve the DNS outgoing adapters to their addresses";
       wantedBy = [ "multi-user.target" ];
+      wants = [ "network-online.target" ];
+      after = [ "network-online.target" ];
       before = [ "unbound.service" ];
       path = [
         pkgs.iproute2
