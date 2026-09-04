@@ -236,6 +236,9 @@ builtins.foldl'
           && scopeHasEntries forwardingMainScope
         then
           [ ]
+        else if isCoreToCoreReturnSideIngress sourceIfName then
+
+          lib.optionals (destinationScope != [ ]) destinationScopedRules
         else if destinationScope != [ ] && sourceScopeForRule != [ ] then
           destinationScopedRules ++ sourceScopedRules
         else
