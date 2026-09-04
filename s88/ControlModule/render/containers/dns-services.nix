@@ -81,13 +81,21 @@ else
       shift
       mkdir -p "$(dirname "$out_file")"
       : > "$out_file"
-      for iface in "$@"; do
-        ip -4 -o addr show "$iface" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
-          [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
-        done || true
-        ip -6 -o addr show "$iface" scope global 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
-          [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
-        done || true
+      for value in "$@"; do
+        if ip -4 -o addr show "$value" >/dev/null 2>&1 || ip -6 -o addr show "$value" >/dev/null 2>&1; then
+
+
+          ip -4 -o addr show "$value" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
+            [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
+          done || true
+          ip -6 -o addr show "$value" scope global 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
+            [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
+          done || true
+        else
+
+
+          echo "outgoing-interface: $value" >> "$out_file"
+        fi
       done
     '';
 
