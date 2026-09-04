@@ -82,20 +82,23 @@ else
       mkdir -p "$(dirname "$out_file")"
       : > "$out_file"
       for value in "$@"; do
-        if ip -4 -o addr show "$value" >/dev/null 2>&1 || ip -6 -o addr show "$value" >/dev/null 2>&1; then
+        case "$value" in
+          *.*.*.*|*:*)
 
 
-          ip -4 -o addr show "$value" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
-            [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
-          done || true
-          ip -6 -o addr show "$value" scope global 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
-            [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
-          done || true
-        else
+            echo "outgoing-interface: $value" >> "$out_file"
+            ;;
+          *)
 
 
-          echo "outgoing-interface: $value" >> "$out_file"
-        fi
+            ip -4 -o addr show "$value" 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
+              [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
+            done || true
+            ip -6 -o addr show "$value" scope global 2>/dev/null | tr -s ' ' | cut -d' ' -f4 | cut -d'/' -f1 | while read -r ip; do
+              [ -n "$ip" ] && echo "outgoing-interface: $ip" >> "$out_file"
+            done || true
+            ;;
+        esac
       done
     '';
 
