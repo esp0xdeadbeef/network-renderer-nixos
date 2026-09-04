@@ -460,6 +460,7 @@ else
       path = [
         pkgs.iproute2
         pkgs.coreutils
+        pkgs.gawk
       ];
       serviceConfig = {
         Type = "oneshot";
