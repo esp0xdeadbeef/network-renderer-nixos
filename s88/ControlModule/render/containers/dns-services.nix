@@ -113,6 +113,11 @@ else
 
 
 
+
+      if ip -4 route show default table "$table_id" 2>/dev/null | grep -q . || ip -6 route show default table "$table_id" 2>/dev/null | grep -q .; then
+        exit 0
+      fi
+
       for _ in $(seq 1 60); do
         if ip link show "$ifname" >/dev/null 2>&1; then
 
