@@ -73,14 +73,22 @@ def load_device(path: Path) -> dict[str, Any]:
     """Read one protected device identity record.
 
     The protected source is a yaml-derived single identity value. The sops
-    delivery layer extracts the `mac` field and writes a bare MAC string to
-    this path; the renderer wraps it back into the canonical record shape
+    delivery layer extracts the identity field and writes it as a bare
+    string: a MAC for an IPv4 reservation, or a DUID for an IPv6
+    reservation. The renderer wraps it back into the canonical record shape
     for the join below.
     """
     with path.open("r", encoding="utf-8") as source_handle:
         raw = source_handle.read().strip()
-    require(MAC.fullmatch(raw) is not None)
-    record = {"mac": raw.lower()}
+    if MAC.fullmatch(raw) is not None:
+        record = {"mac": raw.lower()}
+    else:
+        compact = raw.replace(":", "").replace("-", "")
+        require(
+            len(compact) % 2 == 0 and DUID.fullmatch(compact) is not None,
+            DIAGNOSTIC,
+        )
+        record = {"duid": raw}
     require(isinstance(record, dict))
     require(set(record).issubset(DEVICE_FIELDS))
     return record
