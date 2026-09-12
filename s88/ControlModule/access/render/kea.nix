@@ -79,6 +79,26 @@ let
         }
   ) (scope.reservations or [ ]);
 
+  interfaceMtu =
+    let
+      raw = scope.interfaceMtu or null;
+    in
+    if raw == null then
+      null
+    else if
+      builtins.isAttrs raw
+      && builtins.isInt (raw.value or null)
+      && raw.value >= 1280
+      && raw.value <= 65535
+      && (raw.source or null) == "inventory-overlay"
+      && (raw.sourceService or null) == "wireguard"
+      && builtins.isList (raw.sourceOverlays or null)
+      && raw.sourceOverlays != [ ]
+    then
+      raw
+    else
+      throw "FS-470-HDS-010-SDS-010-SMS-090: renderer rejected an invalid DHCPv4 interface-MTU contract";
+
   configJson = builtins.toJSON {
     Dhcp4 = {
       "interfaces-config" = {
@@ -112,6 +132,12 @@ let
             {
               name = "domain-name";
               data = scope.domain;
+            }
+          ]
+          ++ lib.optionals (interfaceMtu != null) [
+            {
+              name = "interface-mtu";
+              data = builtins.toString interfaceMtu.value;
             }
           ]
           ++ lib.optionals ((scope.classlessRoutes or [ ]) != [ ]) [
@@ -311,10 +337,31 @@ in
       before = [ "unbound.service" ];
       after = [ "gen-kea-${scope.fileStem}.service" ];
       requires = [ "gen-kea-${scope.fileStem}.service" ];
+      path = [
+        pkgs.coreutils
+        pkgs.unbound
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = "${pkgs.bash}/bin/sh -c 'mkdir -p /run/unbound && ln -sf ${protectedNamePublicationFile} /run/unbound/s-router-prod-${scope.fileStem}-local.conf'";
+        ExecStart = pkgs.writeShellScript "gen-${scope.fileStem}-unbound-local-data" ''
+          set -euo pipefail
+          mkdir -p /run/unbound
+          out=/run/unbound/s-router-prod-${scope.fileStem}-local.conf
+          src=${protectedNamePublicationFile}
+          empty=/run/protected-reservation-dns/${scope.fileStem}.empty.conf
+
+
+
+
+          if [ -f "$src" ] && unbound-checkconf "$src" >/dev/null 2>&1; then
+            ln -sfn "$src" "$out"
+          else
+            : > "$empty"
+            ln -sfn "$empty" "$out"
+            echo "[gen-${scope.fileStem}-unbound-local-data] generated protected-reservation DNS fragment is invalid; publishing an empty stub (reservation names unavailable)" >&2
+          fi
+        '';
       };
     };
   });

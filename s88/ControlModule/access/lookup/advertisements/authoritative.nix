@@ -470,6 +470,12 @@ in
       subnetId = idx + 1;
     }
     // lib.optionalAttrs (reservationSource != null) { inherit reservationSource; }
+    // lib.optionalAttrs (builtins.isAttrs (adv.interfaceMtu or null)) {
+      interfaceMtu = adv.interfaceMtu;
+    }
+    // lib.optionalAttrs (builtins.isAttrs (adv.interfaceMtuDiagnostic or null)) {
+      interfaceMtuDiagnostic = adv.interfaceMtuDiagnostic;
+    }
   ) (builtins.length authoritativeDhcp4);
 
   authoritativeDhcpv6Scopes = builtins.genList (
