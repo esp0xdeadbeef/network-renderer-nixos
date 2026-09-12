@@ -341,9 +341,6 @@ else
         // lib.optionalAttrs (localDataPtrSettings != [ ]) {
           "local-data-ptr" = localDataPtrSettings;
         }
-        // lib.optionalAttrs (protectedReservationIncludes != [ ]) {
-          "include-toplevel" = protectedReservationIncludes;
-        }
         // lib.optionalAttrs (outgoingInterfaces != [ ]) {
           include = [ "/run/unbound/outgoing-interfaces.conf" ];
         };
@@ -366,6 +363,10 @@ else
       }
       // lib.optionalAttrs (dnsFile != null) {
         include = [ "/run/unbound/provider-forwarders.conf" ];
+      }
+
+      // lib.optionalAttrs (protectedReservationIncludes != [ ]) {
+        "include-toplevel" = protectedReservationIncludes;
       };
     };
 
