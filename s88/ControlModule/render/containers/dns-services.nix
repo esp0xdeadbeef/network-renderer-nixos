@@ -342,7 +342,7 @@ else
           "local-data-ptr" = localDataPtrSettings;
         }
         // lib.optionalAttrs (protectedReservationIncludes != [ ]) {
-          include = protectedReservationIncludes;
+          "include-toplevel" = protectedReservationIncludes;
         }
         // lib.optionalAttrs (outgoingInterfaces != [ ]) {
           include = [ "/run/unbound/outgoing-interfaces.conf" ];
