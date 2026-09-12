@@ -147,13 +147,8 @@ grep -Fx '  local-data: "private-device.client.lan. IN A 10.20.20.10"' "${dns_ou
 grep -Fx '  local-data-ptr: "10.20.20.10 private-device.client.lan."' "${dns_output}" >/dev/null \
   || fail "FAIL protected-reservation-name-materialization: IPv4 PTR record missing"
 
-# IPv6 (AAAA / IPv6 PTR) publication is not implemented yet. Keep the
-# checks as optional observations so they can be tightened once the
-# DHCPv6/SLAAC materialization path lands.
-grep -Fx '  local-data: "private-device.client.lan. IN AAAA fd42:20::1234:5678:9abc:def0"' "${dns_output}" >/dev/null 2>&1 \
-  || echo "NOTE protected-reservation-name-materialization: AAAA publication not yet materialized"
-grep -Fx '  local-data-ptr: "fd42:20::1234:5678:9abc:def0 private-device.client.lan."' "${dns_output}" >/dev/null 2>&1 \
-  || echo "NOTE protected-reservation-name-materialization: IPv6 PTR publication not yet materialized"
+# IPv6 (AAAA / IPv6 PTR) is materialized from a separate --family ipv6 run
+# below; an --family ipv4 run only has IPv4 address material.
 
 [[ "$(stat -c '%a' "${dns_output}")" == "640" ]] \
   || fail "FAIL protected-reservation-name-materialization: Unbound publication is not mode 0640"
@@ -232,4 +227,66 @@ grep -F 'diagnostic.runtime-reservation-secret-record-invalid' "${tmp}/escaped.e
 if grep -F -e 'escape.other' -e '10.20.20.10' "${tmp}/escaped.err" >/dev/null; then
   fail "FAIL protected-reservation-name-materialization: rejection disclosed protected values"
 fi
-pass "FS-560 protected reservation A/PTR materialization"
+# IPv6 identity materialization: a DUID device file joins to a DHCPv6
+# template reservation and publishes AAAA + IPv6 PTR records.
+v6_source_dir="${tmp}/source-v6"
+v6_template="${tmp}/kea-template-v6.json"
+v6_kea_output="${tmp}/runtime/kea-v6.json"
+v6_dns_output="${tmp}/runtime-dns/client-v6.conf"
+mkdir -p "${v6_source_dir}"
+printf '%s' '00:01:00:01:23:45:67:89:00:11:22:33:44:55' >"${v6_source_dir}/opaque-v6"
+printf '%s' '{"Dhcp6":{"subnet6":[{"reservations":[{"reservation-handle":"opaque-v6","ip-addresses":["fd42:20::1234:5678:9abc:def0"],"hostname":"private-device-v6"}]}]}}' >"${v6_template}"
+
+python3 "${materializer}" \
+  --family ipv6 \
+  --subnet fd42:20::/64 \
+  --pool 'fd42:20::100 - fd42:20::1ff' \
+  --source "${v6_source_dir}" \
+  --template "${v6_template}" \
+  --output "${v6_kea_output}" \
+  --lease-directory "${tmp}/leases-v6" \
+  --dns-output "${v6_dns_output}" \
+  --dns-namespace client.lan. \
+  --dns-record-class AAAA \
+  --dns-record-class PTR \
+  --dns-group "$(id -gn)"
+
+grep -Fx '  local-data: "private-device-v6.client.lan. IN AAAA fd42:20::1234:5678:9abc:def0"' "${v6_dns_output}" >/dev/null \
+  || fail "FAIL protected-reservation-name-materialization: AAAA record missing"
+grep -Fx '  local-data-ptr: "fd42:20::1234:5678:9abc:def0 private-device-v6.client.lan."' "${v6_dns_output}" >/dev/null \
+  || fail "FAIL protected-reservation-name-materialization: IPv6 PTR record missing"
+[[ "$(stat -c '%a' "${v6_dns_output}")" == "640" ]] \
+  || fail "FAIL protected-reservation-name-materialization: IPv6 Unbound publication is not mode 0640"
+[[ "$(stat -c '%G' "${v6_dns_output}")" == "$(id -gn)" ]] \
+  || fail "FAIL protected-reservation-name-materialization: IPv6 Unbound publication group is wrong"
+if grep -F '00:01:00:01:23:45:67:89:00:11:22:33:44:55' "${v6_dns_output}" >/dev/null; then
+  fail "FAIL protected-reservation-name-materialization: IPv6 DUID identity leaked into Unbound data"
+fi
+jq -e '.Dhcp6.subnet6[0].reservations[0].duid == "00:01:00:01:23:45:67:89:00:11:22:33:44:55"' "${v6_kea_output}" >/dev/null \
+  || fail "FAIL protected-reservation-name-materialization: DHCPv6 reservation DUID was not materialized"
+
+# An invalid IPv6 identity file must still fail redacted.
+printf '%s' 'not-an-identity' >"${v6_source_dir}/opaque-v6-bad"
+printf '%s' '{"Dhcp6":{"subnet6":[{"reservations":[{"reservation-handle":"opaque-v6-bad","ip-addresses":["fd42:20::1234:5678:9abc:def1"],"hostname":"bad-v6"}]}]}}' >"${v6_template}"
+if python3 "${materializer}" \
+  --family ipv6 \
+  --subnet fd42:20::/64 \
+  --pool 'fd42:20::100 - fd42:20::1ff' \
+  --source "${v6_source_dir}" \
+  --template "${v6_template}" \
+  --output "${tmp}/bad-v6-kea.json" \
+  --lease-directory "${tmp}/bad-v6-leases" \
+  --dns-output "${tmp}/bad-v6.conf" \
+  --dns-namespace client.lan. \
+  --dns-record-class AAAA \
+  --dns-group "$(id -gn)" \
+  >"${tmp}/bad-v6.out" 2>"${tmp}/bad-v6.err"; then
+  fail "FAIL protected-reservation-name-materialization: invalid IPv6 identity was accepted"
+fi
+grep -F 'diagnostic.runtime-reservation-secret-record-invalid' "${tmp}/bad-v6.err" >/dev/null \
+  || fail "FAIL protected-reservation-name-materialization: invalid IPv6 identity diagnostic was not redacted"
+if grep -F -e 'bad-v6' -e 'not-an-identity' -e 'fd42:20::1234:5678:9abc:def1' "${tmp}/bad-v6.err" >/dev/null; then
+  fail "FAIL protected-reservation-name-materialization: invalid IPv6 identity rejection disclosed protected values"
+fi
+
+pass "FS-560 protected reservation A/AAAA/PTR materialization"
