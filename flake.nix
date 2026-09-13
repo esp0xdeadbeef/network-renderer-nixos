@@ -8,6 +8,7 @@
     nixos-network-compiler.inputs.network-labs.follows = "network-labs";
 
     network-control-plane-model.url = "github:esp0xdeadbeef/network-control-plane-model";
+    network-control-plane-model.inputs.nixpkgs.follows = "nixpkgs";
     network-control-plane-model.inputs.network-labs.follows = "network-labs";
     network-control-plane-model.inputs.network-forwarding-model.follows = "network-forwarding-model";
 
