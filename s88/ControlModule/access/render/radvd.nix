@@ -105,8 +105,8 @@ let
         AdvRDNSSLifetime 600;
       };
     ''}
-    ${lib.optionalString (scope.domain != "") ''
-      DNSSL ${scope.domain} {
+    ${lib.optionalString (scope.domainSearch != [ ]) ''
+      DNSSL ${builtins.concatStringsSep " " scope.domainSearch} {
         AdvDNSSLLifetime 600;
       };
     ''}
