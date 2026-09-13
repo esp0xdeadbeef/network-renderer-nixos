@@ -65,6 +65,8 @@ result="$(REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
 
 jq -e '
   (.pppdOptions | contains("defaultroute6"))
+  and (.pppdOptions | contains("lcp-echo-interval 10"))
+  and (.pppdOptions | contains("lcp-echo-failure 15"))
   and (.dhcpcdConfig | contains("nohook resolv.conf"))
   and (.dhcpcdConfig | contains("noipv6rs"))
   and (.dhcpcdConfig | contains("noipv4"))
