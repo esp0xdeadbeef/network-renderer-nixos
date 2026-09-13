@@ -108,50 +108,48 @@ else
       fwmark="$2"
       priority="$3"
       ifname="$4"
+      shift 4
+
+
       ip rule add priority "$priority" fwmark "$fwmark" lookup "$table_id" 2>/dev/null || true
 
+      iface_gateway() {
 
 
+        local family="$1" ipbin="$2"
+        if [ "$family" = "ipv6" ]; then
+          $ipbin route show default dev "$ifname" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+        else
+          $ipbin route show default dev "$ifname" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+        fi
+      }
 
+      install_routes() {
+        local ipbin family destination gw spec
+        for spec in "$@"; do
+          [ -n "$spec" ] || continue
+          family="''\${spec%% *}"
+          destination="''\${spec#* }"
+          if [ "$family" = "ipv6" ]; then ipbin="ip -6"; else ipbin="ip"; fi
+          gw="$(iface_gateway "$family" "$ipbin")"
+          if [ -n "$gw" ]; then
+            $ipbin route replace "$destination" via "$gw" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
+          else
+            $ipbin route replace "$destination" dev "$ifname" table "$table_id" 2>/dev/null || true
+          fi
+        done
+      }
 
-      if ip -4 route show default table "$table_id" 2>/dev/null | grep -q . || ip -6 route show default table "$table_id" 2>/dev/null | grep -q .; then
-        exit 0
-      fi
+      install_routes "$@"
 
       for _ in $(seq 1 60); do
         if ip link show "$ifname" >/dev/null 2>&1; then
-
-
-
-
-
-          v4default="$(ip -4 route show default table main 2>/dev/null | head -1)"
-          v6default="$(ip -6 route show default table main 2>/dev/null | head -1)"
-          v4dev="$(printf '%s\n' "$v4default" | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
-          v4via="$(printf '%s\n' "$v4default" | awk '{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}')"
-          v6dev="$(printf '%s\n' "$v6default" | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')"
-          v6via="$(printf '%s\n' "$v6default" | awk '{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}')"
-          if [ -n "$v4dev" ]; then
-            if [ -n "$v4via" ]; then
-              ip route replace default via "$v4via" dev "$v4dev" onlink table "$table_id" 2>/dev/null || true
-            else
-              ip route replace default dev "$v4dev" table "$table_id" 2>/dev/null || true
-            fi
-          fi
-          if [ -n "$v6dev" ]; then
-            if [ -n "$v6via" ]; then
-              ip -6 route replace default via "$v6via" dev "$v6dev" table "$table_id" 2>/dev/null || true
-            else
-              ip -6 route replace default dev "$v6dev" table "$table_id" 2>/dev/null || true
-            fi
-          fi
-          if [ -n "$v4dev" ] || [ -n "$v6dev" ]; then
-            exit 0
-          fi
+          install_routes "$@"
+          exit 0
         fi
         sleep 1
       done
-      echo "[dns-egress-routing] no main-table default route appeared; no default in table $table_id" >&2
+      echo "[dns-egress-routing] egress interface $ifname did not appear for precomputed default routes" >&2
       exit 1
     '';
 
@@ -471,7 +469,11 @@ else
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = "${dnsEgressRoutingMaterializer}/bin/dns-egress-routing-materializer ${toString dnsEgressPolicy.tableId} ${toString dnsEgressPolicy.firewallMark} ${toString dnsEgressPolicy.rulePriority} ${dnsEgressPolicy.runtimeIfName}";
+        ExecStart =
+          "${dnsEgressRoutingMaterializer}/bin/dns-egress-routing-materializer ${toString dnsEgressPolicy.tableId} ${toString dnsEgressPolicy.firewallMark} ${toString dnsEgressPolicy.rulePriority} ${dnsEgressPolicy.runtimeIfName}"
+          + lib.concatMapStrings (route: " '${route.family} ${route.destination}'") (
+            dnsEgressPolicy.defaultRoutes or [ ]
+          );
       };
     };
 
