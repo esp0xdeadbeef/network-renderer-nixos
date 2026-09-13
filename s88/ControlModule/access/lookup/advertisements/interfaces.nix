@@ -174,6 +174,12 @@ let
       dhcp4Domain = stringField dhcp4Settings [ "domain" "domainName" ] (
         throw "network-renderer-nixos: DHCP4 advertisement '${ifName}' lacks the modeled DNS domain; the canonical bundle must carry the intent-declared tenant domain (no renderer-local default)"
       );
+
+      dhcp4DomainSearch =
+        let
+          ds = stringListField dhcp4Settings [ "domainSearch" ] [ ];
+        in
+        if ds != [ ] then ds else (if dhcp4Domain != null then [ dhcp4Domain ] else [ ]);
       radvdPrefixes = stringListField radvdSettings [ "prefixes" ] (
         if advertisedIpv6Prefixes != [ ] then
           advertisedIpv6Prefixes
@@ -188,6 +194,12 @@ let
       radvdDomain = stringField radvdSettings [ "domain" "dnssl" "domainName" ] (
         throw "network-renderer-nixos: IPv6 RA advertisement '${ifName}' lacks the modeled DNS domain; the canonical bundle must carry the intent-declared tenant domain (no renderer-local default)"
       );
+
+      radvdDomainSearch =
+        let
+          ds = stringListField radvdSettings [ "domainSearch" ] [ ];
+        in
+        if ds != [ ] then ds else (if radvdDomain != null then [ radvdDomain ] else [ ]);
       dhcp4Renderable =
         dhcp4EnabledRequested
         && interfaceName != null
@@ -228,6 +240,7 @@ let
         router = dhcp4Router;
         dnsServers = dhcp4DnsServers;
         domain = dhcp4Domain;
+        domainSearch = dhcp4DomainSearch;
       };
     }
     // lib.optionalAttrs radvdRenderable {
@@ -239,6 +252,7 @@ let
         prefixes = radvdPrefixes;
         rdnss = radvdRdnss;
         domain = radvdDomain;
+        domainSearch = radvdDomainSearch;
       };
     };
 in

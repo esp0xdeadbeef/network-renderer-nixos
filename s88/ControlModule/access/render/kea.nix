@@ -133,6 +133,11 @@ let
               name = "domain-name";
               data = scope.domain;
             }
+            {
+
+              name = "domain-search";
+              data = builtins.concatStringsSep ", " scope.domainSearch;
+            }
           ]
           ++ lib.optionals (interfaceMtu != null) [
             {

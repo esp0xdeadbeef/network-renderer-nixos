@@ -94,7 +94,7 @@ let
             }
             {
               name = "domain-search";
-              data = scope.domain;
+              data = builtins.concatStringsSep ", " scope.domainSearch;
             }
           ];
           inherit reservations;
@@ -131,7 +131,10 @@ let
       "--dns-group"
       "unbound"
     ]
-    ++ lib.concatMap (recordClass: [ "--dns-record-class" recordClass ]) namePublication.recordClasses
+    ++ lib.concatMap (recordClass: [
+      "--dns-record-class"
+      recordClass
+    ]) namePublication.recordClasses
   );
   genConfig = "${pkgs.python3Minimal}/bin/python3 ${./runtime-reservation-materializer.py} ${lib.escapeShellArgs materializerArgs}";
 
@@ -158,7 +161,10 @@ in
 
   systemd.services."gen-kea-dhcp6-${scope.fileStem}" = {
     wantedBy = [ "multi-user.target" ];
-    before = [ "kea-dhcp6-${scope.fileStem}.service" ] ++ lib.optional protectedNamePublicationEnabled "unbound.service";
+    before = [
+      "kea-dhcp6-${scope.fileStem}.service"
+    ]
+    ++ lib.optional protectedNamePublicationEnabled "unbound.service";
     serviceConfig = {
       Type = "oneshot";
       ExecStartPre = [

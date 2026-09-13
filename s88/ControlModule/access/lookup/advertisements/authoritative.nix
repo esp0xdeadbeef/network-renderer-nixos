@@ -449,6 +449,11 @@ in
         else
           null;
       reservationSource = reservationSourceFor "ipv4" entryPath adv;
+      domain =
+        if builtins.isString (adv.domain or null) && adv.domain != "" then
+          adv.domain
+        else
+          throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcp4[].domain, cannot default to 'lan.'";
     in
     {
       serviceName = "lan-${stem}";
@@ -461,11 +466,9 @@ in
       pool = poolStringFrom (adv.pool or null);
       reservations = reservationsFor "dhcp4" entryPath adv;
       dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
-      domain =
-        if builtins.isString (adv.domain or null) && adv.domain != "" then
-          adv.domain
-        else
-          throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcp4[].domain, cannot default to 'lan.'";
+      inherit domain;
+
+      domainSearch = if adv ? domainSearch then asStringList adv.domainSearch else [ domain ];
       classlessRoutes = if adv ? classlessRoutes then adv.classlessRoutes else [ ];
       subnetId = idx + 1;
     }
@@ -498,6 +501,11 @@ in
         inherit adv interfaceName idx;
       };
       reservationSource = reservationSourceFor "ipv6" entryPath adv;
+      domain =
+        if builtins.isString (adv.domain or null) && adv.domain != "" then
+          adv.domain
+        else
+          throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcpv6[].domain, cannot default to 'lan.'";
     in
     {
       serviceName = "lan-${stem}";
@@ -510,11 +518,8 @@ in
       pool = poolStringFrom (adv.pool or null);
       reservations = reservationsFor "dhcpv6" entryPath adv;
       dnsServers = if adv ? dnsServers then asStringList adv.dnsServers else [ ];
-      domain =
-        if builtins.isString (adv.domain or null) && adv.domain != "" then
-          adv.domain
-        else
-          throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.dhcpv6[].domain, cannot default to 'lan.'";
+      inherit domain;
+      domainSearch = if adv ? domainSearch then asStringList adv.domainSearch else [ domain ];
       subnetId = idx + 1;
     }
     // lib.optionalAttrs (reservationSource != null) { inherit reservationSource; }
@@ -545,6 +550,8 @@ in
           builtins.head dnssl
         else
           throw "FS-310-HDS-010-SDS-010-SMS-110: CPM must provide DHCP domain in advertisements.ipv6Ra[].dnssl, cannot default to 'lan.'";
+
+      domainSearch = if adv ? domainSearch then asStringList adv.domainSearch else dnssl;
       managed = requireBool "runtimeTarget.advertisements.ipv6Ra[${builtins.toString idx}].managed" (
         adv.managed or null
       );
