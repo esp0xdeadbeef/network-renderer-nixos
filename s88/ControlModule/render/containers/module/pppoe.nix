@@ -253,6 +253,11 @@ let
             ${peerDns.options}
             persist
             maxfail 0
+
+
+
+            lcp-echo-interval 10
+            lcp-echo-failure 15
             +ipv6
             ipv6cp-accept-local
             ipv6cp-accept-remote
