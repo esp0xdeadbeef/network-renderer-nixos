@@ -33,6 +33,10 @@ Status: CPM emits overlay termination nodes + per-node overlay IPs.
 ## Renderer Strictness / Validation Boundaries
 
 - Do not duplicate compiler/forwarding-model/CPM semantic validation.
+- The renderer entry consumes only the canonical realization bundle (the
+  CPM-derived "04-control-plane" output). Pre-CPM artifacts (compiler output,
+  forwarding model, raw CPM) are diagnostics only and must never become render
+  execution input.
 - Fail only on renderer-local invariants:
   - malformed CPM input schema for fields this renderer consumes
   - missing runtime realization fields required to emit NixOS artifacts
