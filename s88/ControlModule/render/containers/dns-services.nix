@@ -133,6 +133,11 @@ else
           if [ "$family" = "ipv6" ]; then ipbin="ip -6"; else ipbin="ip"; fi
           gw="$(iface_gateway "$family" "$ipbin")"
           if [ -n "$gw" ]; then
+
+
+
+
+
             $ipbin route replace "$destination" via "$gw" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
           else
             $ipbin route replace "$destination" dev "$ifname" table "$table_id" 2>/dev/null || true
