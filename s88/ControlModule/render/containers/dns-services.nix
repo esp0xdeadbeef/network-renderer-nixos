@@ -145,16 +145,45 @@ else
         done
       }
 
-      install_routes "$@"
+
+
+
+
+      ready() {
+        ip link show "$ifname" >/dev/null 2>&1 || return 1
+        local family spec default has_change has_via
+        for spec in "$@"; do
+          family="''${spec%% *}"
+          if [ "$family" = "ipv6" ]; then
+            default="$(ip -6 route show default dev "$ifname" 2>/dev/null)"
+          else
+            default="$(ip route show default dev "$ifname" 2>/dev/null)"
+          fi
+          has_change=0
+          [ -n "$default" ] && has_change=1
+          has_via=0
+          [ -n "$default" ] && [ "$(printf '%s' "$default" | grep -c " via ")" != "0" ] && has_via=1
+
+
+          if [ "$has_change" = "0" ]; then
+            return 1
+          fi
+          if [ "$has_via" = "1" ]; then
+            return 0
+          fi
+
+        done
+        return 0
+      }
 
       for _ in $(seq 1 60); do
-        if ip link show "$ifname" >/dev/null 2>&1; then
+        if ready "$@"; then
           install_routes "$@"
           exit 0
         fi
         sleep 1
       done
-      echo "[dns-egress-routing] egress interface $ifname did not appear for precomputed default routes" >&2
+      echo "[dns-egress-routing] egress interface $ifname did not become ready (device or next-hop) for precomputed default routes" >&2
       exit 1
     '';
 
