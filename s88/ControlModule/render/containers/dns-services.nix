@@ -176,7 +176,9 @@ else
         return 0
       }
 
-      for _ in $(seq 1 60); do
+
+
+      for _ in $(seq 1 300); do
         if ready "$@"; then
           install_routes "$@"
           exit 0
@@ -503,6 +505,9 @@ else
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+
+        Restart = "on-failure";
+        RestartSec = 5;
         ExecStart =
           "${dnsEgressRoutingMaterializer}/bin/dns-egress-routing-materializer ${toString dnsEgressPolicy.tableId} ${toString dnsEgressPolicy.firewallMark} ${toString dnsEgressPolicy.rulePriority} ${dnsEgressPolicy.runtimeIfName}"
           + lib.concatMapStrings (route: " '${route.family} ${route.destination}'") (
