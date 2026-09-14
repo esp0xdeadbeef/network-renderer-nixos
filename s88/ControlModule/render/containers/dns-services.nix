@@ -148,16 +148,28 @@ else
     ) namespaceFallbackDecisions;
     protectedReservationLocalZoneSettings =
       let
+
+        namespaceIsForwarded =
+          publication:
+          builtins.any (
+            zone:
+            builtins.isAttrs zone
+            && (zone.name or "") == publication.namespace
+            && (zone.type or "static") == "transparent"
+          ) localZones
+          || builtins.any (
+            zone: builtins.isAttrs zone && (zone.name or "") == publication.namespace
+          ) localForwardZones;
         conflicts = lib.filter (
           publication:
           builtins.any (
-            zone: zone.name == publication.namespace && (zone.type or "static") != "static"
+            zone: zone.name == publication.namespace && (zone.type or "static") == "static"
           ) localZones
-          || builtins.any (zone: zone.name == publication.namespace) localForwardZones
+          && namespaceIsForwarded publication
         ) protectedReservationPublications;
-        forwardZones = map (
-          publication: "${publication.namespace} static"
-        ) protectedReservationPublications;
+        forwardZones = map (publication: "${publication.namespace} static") (
+          builtins.filter (p: !(namespaceIsForwarded p)) protectedReservationPublications
+        );
 
         reverseZones = lib.filter (z: z != null) (
           map (
