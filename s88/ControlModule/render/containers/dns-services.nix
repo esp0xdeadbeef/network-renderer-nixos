@@ -111,90 +111,31 @@ else
       shift 4
 
 
+
+
+
+
+
+
+
+
       ip rule add priority "$priority" fwmark "$fwmark" lookup "$table_id" 2>/dev/null || true
 
-      iface_gateway() {
-
-
-        local family="$1" ipbin="$2"
-
-
-
-
-
-        if [ "$family" = "ipv6" ]; then
-          $ipbin route show default dev "$ifname" table "$table_id" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+      for spec in "$@"; do
+        [ -n "$spec" ] || continue
+        family="''${spec%% *}"
+        rest="''${spec#* }"
+        destination="''${rest%% *}"
+        if [ "''${rest#* }" = "$rest" ]; then
+          via=""
         else
-          $ipbin route show default dev "$ifname" table "$table_id" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+          via="''${rest#* }"
         fi
-      }
-
-      install_routes() {
-        local ipbin family destination gw spec
-        for spec in "$@"; do
-          [ -n "$spec" ] || continue
-          family="''\${spec%% *}"
-          destination="''\${spec#* }"
-          if [ "$family" = "ipv6" ]; then ipbin="ip -6"; else ipbin="ip"; fi
-          gw="$(iface_gateway "$family" "$ipbin")"
-          if [ -n "$gw" ]; then
-
-
-
-
-
-            $ipbin route replace "$destination" via "$gw" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
-          else
-            $ipbin route replace "$destination" dev "$ifname" table "$table_id" 2>/dev/null || true
-          fi
-        done
-      }
-
-
-
-
-
-      ready() {
-        ip link show "$ifname" >/dev/null 2>&1 || return 1
-        local family spec default has_change has_via
-        for spec in "$@"; do
-          family="''${spec%% *}"
-
-
-
-          if [ "$family" = "ipv6" ]; then
-            default="$(ip -6 route show default dev "$ifname" table "$table_id" 2>/dev/null)"
-          else
-            default="$(ip route show default dev "$ifname" table "$table_id" 2>/dev/null)"
-          fi
-          has_change=0
-          [ -n "$default" ] && has_change=1
-          has_via=0
-          [ -n "$default" ] && [ "$(printf '%s' "$default" | grep -c " via ")" != "0" ] && has_via=1
-
-
-          if [ "$has_change" = "0" ]; then
-            return 1
-          fi
-          if [ "$has_via" = "1" ]; then
-            return 0
-          fi
-
-        done
-        return 0
-      }
-
-
-
-      for _ in $(seq 1 300); do
-        if ready "$@"; then
-          install_routes "$@"
-          exit 0
+        if [ "$family" = "ipv6" ]; then ipbin="ip -6"; else ipbin="ip"; fi
+        if [ -n "$via" ]; then
+          $ipbin route replace "$destination" via "$via" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
         fi
-        sleep 1
       done
-      echo "[dns-egress-routing] egress interface $ifname did not become ready (device or next-hop) for precomputed default routes" >&2
-      exit 1
     '';
 
     requesterAccessControl = lib.concatMap (
@@ -413,6 +354,7 @@ else
     };
 
     systemd.services.unbound = {
+
       wants = [
         "network-online.target"
         "nft-allow-dns-service.service"
@@ -504,7 +446,6 @@ else
     systemd.services.dns-egress-routing = lib.optionalAttrs (dnsEgressPolicy != null) {
       description = "Materialize DNS runtime-origin egress policy routing";
       wantedBy = [ "multi-user.target" ];
-      before = [ "unbound.service" ];
       path = [
         pkgs.iproute2
         pkgs.coreutils
@@ -513,14 +454,14 @@ else
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-
-        Restart = "on-failure";
-        RestartSec = 5;
         ExecStart =
           "${dnsEgressRoutingMaterializer}/bin/dns-egress-routing-materializer ${toString dnsEgressPolicy.tableId} ${toString dnsEgressPolicy.firewallMark} ${toString dnsEgressPolicy.rulePriority} ${dnsEgressPolicy.runtimeIfName}"
-          + lib.concatMapStrings (route: " '${route.family} ${route.destination}'") (
-            dnsEgressPolicy.defaultRoutes or [ ]
-          );
+          + lib.concatMapStrings (
+            route:
+            " '${route.family} ${route.destination}${
+               lib.optionalString (route.via or null != null) " ${route.via}"
+             }'"
+          ) (dnsEgressPolicy.defaultRoutes or [ ]);
       };
     };
 
