@@ -117,10 +117,15 @@ else
 
 
         local family="$1" ipbin="$2"
+
+
+
+
+
         if [ "$family" = "ipv6" ]; then
-          $ipbin route show default dev "$ifname" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+          $ipbin route show default dev "$ifname" table "$table_id" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
         else
-          $ipbin route show default dev "$ifname" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
+          $ipbin route show default dev "$ifname" table "$table_id" 2>/dev/null | awk '/ via /{for(i=1;i<=NF;i++) if($i=="via"){print $(i+1); exit}}'
         fi
       }
 
@@ -154,10 +159,13 @@ else
         local family spec default has_change has_via
         for spec in "$@"; do
           family="''${spec%% *}"
+
+
+
           if [ "$family" = "ipv6" ]; then
-            default="$(ip -6 route show default dev "$ifname" 2>/dev/null)"
+            default="$(ip -6 route show default dev "$ifname" table "$table_id" 2>/dev/null)"
           else
-            default="$(ip route show default dev "$ifname" 2>/dev/null)"
+            default="$(ip route show default dev "$ifname" table "$table_id" 2>/dev/null)"
           fi
           has_change=0
           [ -n "$default" ] && has_change=1
