@@ -45,14 +45,6 @@ let
     else
       { };
 
-  policyTableFor =
-    iface:
-    let
-      allocation = iface.policyRoutingAllocation or { };
-      tableId = allocation.tableId or null;
-    in
-    if builtins.isInt tableId && tableId > 0 then tableId else null;
-
   ipv6AcceptRAFor =
     iface:
     let
@@ -131,7 +123,7 @@ in
       };
 
   mkDynamicWanDhcpV4Config =
-    iface: fallbackTableId:
+    iface:
     let
       isWan = (iface.sourceKind or null) == "wan";
       addresses = iface.addresses or [ ];
@@ -156,8 +148,6 @@ in
         ]
         || throw "invalid ipv4.dhcpClient '${dhcpClient}'; expected systemd, udhcpc or dhcpcd";
       noClientId = builtins.seq _dhcpClientValid (dhcpClient != "systemd");
-      ifaceTableId = policyTableFor iface;
-      tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
     in
     if isWan && ipv4Dhcp && !noClientId then
 
@@ -167,22 +157,17 @@ in
       // lib.optionalAttrs (builtins.isBool (ipv4Contract.sendHostname or null)) {
         SendHostname = ipv4Contract.sendHostname;
       }
-      // lib.optionalAttrs (tableId != null) { RouteTable = tableId; }
+
     else
       { };
 
   mkDynamicWanIpv6AcceptRAConfig =
-    iface: fallbackTableId:
-    let
-      ifaceTableId = policyTableFor iface;
-      tableId = if ifaceTableId != null then ifaceTableId else fallbackTableId;
-    in
+    iface:
     if ipv6AcceptRAFor iface then
       {
 
         UseRoutePrefix = false;
       }
-      // lib.optionalAttrs (tableId != null) { RouteTable = tableId; }
     else
       { };
 
