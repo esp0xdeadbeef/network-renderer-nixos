@@ -103,13 +103,18 @@ let
           }
         )
         (
-          lib.filter (
-            route:
-            builtins.isAttrs route
-            && (isDefaultRoute route || isPolicyOnlyRoute route)
-            && routeMatchesInterfaceLane interfaceName route
-            && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
-          ) (interfaces.${sourceIfName}.routes or [ ])
+          lib.filter
+            (
+              route:
+              builtins.isAttrs route
+              && (isDefaultRoute route || isPolicyOnlyRoute route)
+              && routeMatchesInterfaceLane interfaceName route
+              && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+            )
+            (
+
+              (interfaces.${sourceIfName}.routes or [ ]) ++ (interfaces.${targetIfName}.routes or [ ])
+            )
         )
     else
       [ ];
