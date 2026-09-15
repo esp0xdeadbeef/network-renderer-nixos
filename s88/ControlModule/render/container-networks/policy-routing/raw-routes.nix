@@ -92,56 +92,32 @@ let
     else
       [ ];
   explicitForwardTargetDefaultRoutes =
-    let
-      _src0 = builtins.filter (
-        r: builtins.isAttrs r && ((r.dst or "") == "0.0.0.0/0" || (r.dst or "") == "::/0")
-      ) (interfaces.${sourceIfName}.routes or [ ]);
-      _tgt0 = builtins.filter (
-        r: builtins.isAttrs r && ((r.dst or "") == "0.0.0.0/0" || (r.dst or "") == "::/0")
-      ) (interfaces.${targetIfName}.routes or [ ]);
-      _h = builtins.trace (
-        "FTD t="
-        + toString tableId
-        + " src="
-        + sourceIfName
-        + " tgt="
-        + toString targetIfName
-        + " if="
-        + interfaceName
-        + " src0="
-        + builtins.toJSON (map (r: r.dst) _src0)
-        + " tgt0="
-        + builtins.toJSON (map (r: r.dst) _tgt0)
-      ) true;
-    in
-    builtins.seq _h (
-      if targetIfName != null && sourceIfName != targetIfName then
-        map
-          (
-            route:
-            route
-            // lib.optionalAttrs (isDefaultRoute route) {
-              metric = route.metric or 50;
-              _s88ForwardTargetDefault = true;
-            }
-          )
-          (
-            lib.filter
-              (
-                route:
-                builtins.isAttrs route
-                && (isDefaultRoute route || isPolicyOnlyRoute route)
-                && routeMatchesInterfaceLane interfaceName route
-                && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
-              )
-              (
+    if targetIfName != null && sourceIfName != targetIfName then
+      map
+        (
+          route:
+          route
+          // lib.optionalAttrs (isDefaultRoute route) {
+            metric = route.metric or 50;
+            _s88ForwardTargetDefault = true;
+          }
+        )
+        (
+          lib.filter
+            (
+              route:
+              builtins.isAttrs route
+              && (isDefaultRoute route || isPolicyOnlyRoute route)
+              && routeMatchesInterfaceLane interfaceName route
+              && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+            )
+            (
 
-                (interfaces.${sourceIfName}.routes or [ ]) ++ (interfaces.${targetIfName}.routes or [ ])
-              )
-          )
-      else
-        [ ]
-    );
+              (interfaces.${sourceIfName}.routes or [ ]) ++ (interfaces.${targetIfName}.routes or [ ])
+            )
+        )
+    else
+      [ ];
   policyDownstreamDefaultRoutes =
     if isPolicy && isPolicyDownstreamInterface interfaceName then
       lib.concatMap (
@@ -283,15 +259,17 @@ let
       )
     )
   ) staticPolicyRoutes;
+
+  acceptedOutputRoutes = explicitAcceptedOutputRoutes ++ explicitForwardTargetDefaultRoutes;
   routeSelectableAcceptedOutputRoutes = lib.filter (
     route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
-  ) explicitAcceptedOutputRoutes;
+  ) acceptedOutputRoutes;
   serviceDnsAcceptedOutputRoutes = lib.filter (
     route: isServiceDnsReachabilityRoute route && routeMatchesInterfaceLane interfaceName route
-  ) explicitAcceptedOutputRoutes;
+  ) acceptedOutputRoutes;
   acceptedForwardOutputRoutes =
     if routeSelectableAcceptedOutputRoutes != [ ] then
-      explicitAcceptedOutputRoutes
+      acceptedOutputRoutes
     else
       serviceDnsAcceptedOutputRoutes;
   scopedSourceRoutes =
@@ -305,7 +283,7 @@ let
         interfaces.${sourceIfName}.routes or [ ]
       )
     then
-      explicitAcceptedOutputRoutes
+      acceptedOutputRoutes
     else if hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName then
       acceptedForwardOutputRoutes
     else if
@@ -313,9 +291,9 @@ let
       && isUpstreamSelector
       && isUpstreamSelectorPolicyInterface interfaceName
     then
-      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
+      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) acceptedOutputRoutes
     else if policyOnlyProjection.mayProject interfaceName sourceIfName then
-      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) explicitAcceptedOutputRoutes
+      lib.filter (route: !(isDefaultRoute route) || isPolicyOnlyRoute route) acceptedOutputRoutes
     else
       lib.filter (
         route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)
