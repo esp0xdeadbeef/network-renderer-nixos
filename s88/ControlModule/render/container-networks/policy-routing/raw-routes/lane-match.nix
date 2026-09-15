@@ -1,8 +1,8 @@
-{ lib
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-,
+{
+  lib,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
 }:
 let
   interfaceLane =
@@ -27,7 +27,10 @@ in
     interfaceName: route:
     let
       targetLane = interfaceLane interfaceName;
-      routeLane = route.lane or { };
+      rawRouteLane = route.lane or null;
+
+      routeLane =
+        if builtins.isAttrs rawRouteLane && rawRouteLane != { } then rawRouteLane else targetLane;
       targetAccess = laneAccess targetLane;
       routeAccess = laneAccess routeLane;
     in
