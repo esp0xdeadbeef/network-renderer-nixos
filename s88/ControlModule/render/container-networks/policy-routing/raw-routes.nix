@@ -274,7 +274,7 @@ let
       serviceDnsAcceptedOutputRoutes;
   scopedSourceRoutes =
     if sourceIfName == targetIfName then
-      explicitAcceptedOutputRoutes
+      acceptedOutputRoutes
     else if
       isPolicy
       && isPolicyDownstreamInterface interfaceName
