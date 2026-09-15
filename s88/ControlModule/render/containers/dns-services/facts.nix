@@ -180,7 +180,19 @@ let
     ++ stringList (dnsService.allowFrom or [ ])
   );
 
-  forwarders = dnsAuthority.rootForwarders;
+  forwardingGateway =
+    if
+      builtins.isAttrs (dnsService.validationAuthority or null)
+      && builtins.isAttrs ((dnsService.validationAuthority).forwardingGateway or null)
+      && ((dnsService.validationAuthority).forwardingGateway.enable or false)
+    then
+      (dnsService.validationAuthority).forwardingGateway
+    else
+      null;
+
+  forwarders =
+    dnsAuthority.rootForwarders
+    ++ (if forwardingGateway != null then stringList (forwardingGateway.upstreamDns or [ ]) else [ ]);
 
   interfaces =
     if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces then
@@ -419,6 +431,7 @@ else
         protectedReservationPublications
         infraHostTtl
         infraLameTtl
+        forwardingGateway
         ;
       inherit (dnsAuthority)
         recursionMode
