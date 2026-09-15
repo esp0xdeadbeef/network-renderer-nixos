@@ -22,14 +22,33 @@ builtins.foldl' (
     outputIfName = routeOutputInterface sourceIfName rawRoute;
     outputTableId = tableForOutputIfName outputIfName;
     forwardTargetDefault = rawRoute._s88ForwardTargetDefault or false;
-    renderedRoute = mkRoute (
-      (builtins.removeAttrs rawRoute [
-        "_s88PolicySourceIfName"
-        "_s88ForwardTargetDefault"
-      ])
-      // {
-        table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
-      }
+    _is0 =
+      builtins.isAttrs rawRoute
+      && ((rawRoute.dst or "") == "0.0.0.0/0" || (rawRoute.dst or "") == "::/0");
+    _t = builtins.trace (
+      "RBOI dst="
+      + (toString (rawRoute.dst or "?"))
+      + " src="
+      + sourceIfName
+      + " out="
+      + outputIfName
+      + " ftd="
+      + builtins.toJSON forwardTargetDefault
+      + " table="
+      + builtins.toJSON (rawRoute.table or null)
+      + " outputTable="
+      + builtins.toJSON outputTableId
+    ) true;
+    renderedRoute = builtins.seq _t (
+      mkRoute (
+        (builtins.removeAttrs rawRoute [
+          "_s88PolicySourceIfName"
+          "_s88ForwardTargetDefault"
+        ])
+        // {
+          table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+        }
+      )
     );
     annotatedRoute =
       if renderedRoute == null then
