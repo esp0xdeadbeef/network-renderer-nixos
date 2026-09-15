@@ -37,6 +37,19 @@ let
     else
       null;
   bridge = if authority == null then null else authority.provider.bridge;
+  forwardingGateway =
+    let
+      fg = if authority == null then { } else (authority.forwardingGateway or { });
+    in
+    if (fg.enable or false) && builtins.isString (fg.upstreamInterface or null) then
+      {
+        enable = true;
+        upstream = fg.upstreamInterface;
+        ipv4Prefix = authority.provider.ipv4.address;
+        ipv6Prefix = authority.provider.ipv6.prefix;
+      }
+    else
+      { enable = false; };
   rootAddresses = if authority == null then [ ] else authority.root.ipv4 ++ authority.root.ipv6;
   delegationAddresses =
     if authority == null then [ ] else authority.delegation.ipv4 ++ authority.delegation.ipv6;
@@ -90,9 +103,6 @@ else
       ++ map (address: "${address}/32") (authority.root.ipv4 ++ authority.delegation.ipv4)
       ++ map (address: "${address}/128") (authority.root.ipv6 ++ authority.delegation.ipv6);
 
-      # Router Advertisements must originate from a link-local address. The
-      # generic isolated bridge disables link-local addressing, so the
-      # controlled provider authority must opt back in explicitly.
       networkConfig.LinkLocalAddressing = lib.mkForce "ipv6";
     };
 
@@ -133,4 +143,23 @@ else
         67
       ];
     };
+  }
+  // lib.optionalAttrs forwardingGateway.enable {
+
+    boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+    networking.nftables.enable = true;
+    networking.nftables.ruleset = ''
+      table inet gateway_nat {
+        chain forward {
+          type filter hook forward priority filter; policy accept;
+          iifname "${bridge}" oifname "${forwardingGateway.upstream}" accept
+          iifname "${forwardingGateway.upstream}" oifname "${bridge}" ct state established,related accept
+        }
+        chain postrouting {
+          type nat hook postrouting priority srcnat; policy accept;
+          oifname "${forwardingGateway.upstream}" ip saddr ${forwardingGateway.ipv4Prefix} masquerade
+          oifname "${forwardingGateway.upstream}" ip6 saddr ${forwardingGateway.ipv6Prefix} masquerade
+        }
+      }
+    '';
   }
