@@ -260,7 +260,24 @@ let
     )
   ) staticPolicyRoutes;
 
-  acceptedOutputRoutes = explicitAcceptedOutputRoutes ++ explicitForwardTargetDefaultRoutes;
+  sameInterfaceTargetDefaultRoutes =
+    if targetIfName != null && sourceIfName == targetIfName then
+      map (route: route // { _s88ForwardTargetDefault = true; }) (
+        lib.filter (
+          route:
+          builtins.isAttrs route
+          && isDefaultRoute route
+          && routeMatchesInterfaceLane interfaceName route
+          && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+        ) (interfaces.${sourceIfName}.routes or [ ])
+      )
+    else
+      [ ];
+
+  acceptedOutputRoutes =
+    explicitAcceptedOutputRoutes
+    ++ explicitForwardTargetDefaultRoutes
+    ++ sameInterfaceTargetDefaultRoutes;
   routeSelectableAcceptedOutputRoutes = lib.filter (
     route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
   ) acceptedOutputRoutes;
