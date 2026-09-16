@@ -1,13 +1,14 @@
-{ lib
-, system
-, hostName
-, hostContext
-, intent
-, globalInventory
-, compilerOut
-, forwardingOut
-, controlPlaneOut
-, renderedHostNetwork
+{
+  lib,
+  system,
+  hostName,
+  hostContext,
+  intent,
+  globalInventory,
+  compilerOut,
+  forwardingOut,
+  controlPlaneOut,
+  renderedHostNetwork,
 }:
 
 let
@@ -31,9 +32,11 @@ let
     path: value:
     let
       current =
-        if builtins.isAttrs value
+        if
+          builtins.isAttrs value
           && value ? trafficPathValidation
-          && builtins.isAttrs value.trafficPathValidation then
+          && builtins.isAttrs value.trafficPathValidation
+        then
           [
             {
               modelPath = path;
@@ -45,9 +48,9 @@ let
 
       children =
         if builtins.isAttrs value then
-          concatMap
-            (name: collectTrafficPathValidations (path ++ [ name ]) value.${name})
-            (sortedAttrNames value)
+          concatMap (name: collectTrafficPathValidations (path ++ [ name ]) value.${name}) (
+            sortedAttrNames value
+          )
         else
           [ ];
     in
@@ -55,75 +58,75 @@ let
 
   controlPlaneData = controlPlaneOut.control_plane_model.data or { };
 
-  trafficPathValidations =
-    collectTrafficPathValidations [ "controlPlaneOut" "control_plane_model" "data" ] controlPlaneData;
+  trafficPathValidations = collectTrafficPathValidations [
+    "controlPlaneOut"
+    "control_plane_model"
+    "data"
+  ] controlPlaneData;
 
   pathRows =
     key:
-    concatMap
-      (record:
-        let
-          paths = record.trafficPathValidation.${key} or [ ];
-        in
-        if builtins.isList paths then
-          map
-            (pathData: {
-              inherit (record) modelPath;
-              inherit pathData;
-            })
-            paths
-        else
-          [ ])
-      trafficPathValidations;
+    concatMap (
+      record:
+      let
+        paths = record.trafficPathValidation.${key} or [ ];
+      in
+      if builtins.isList paths then
+        map (pathData: {
+          inherit (record) modelPath;
+          inherit pathData;
+        }) paths
+      else
+        [ ]
+    ) trafficPathValidations;
 
   validPathRows = pathRows "validPaths";
   invalidPathRows = pathRows "invalidPaths";
   firstValidRow = if validPathRows == [ ] then null else builtins.head validPathRows;
   firstInvalidRow = if invalidPathRows == [ ] then null else builtins.head invalidPathRows;
 
-  diagnosticRows =
-    concatMap
-      (record:
+  diagnosticRows = concatMap (
+    record:
+    let
+      raw = record.trafficPathValidation.diagnostics or [ ];
+    in
+    if builtins.isList raw then
+      map (diagnostic: {
+        inherit (record) modelPath;
+        inherit diagnostic;
+      }) raw
+    else if builtins.isAttrs raw then
+      map (
+        name:
         let
-          raw = record.trafficPathValidation.diagnostics or [ ];
+          value = raw.${name};
         in
-        if builtins.isList raw then
-          map
-            (diagnostic: {
-              inherit (record) modelPath;
-              inherit diagnostic;
-            })
-            raw
-        else if builtins.isAttrs raw then
-          map
-            (name:
-              let
-                value = raw.${name};
-              in
+        {
+          inherit (record) modelPath;
+          diagnostic =
+            if builtins.isAttrs value then
+              value // { diagnosticName = name; }
+            else
               {
-                inherit (record) modelPath;
-                diagnostic =
-                  if builtins.isAttrs value then
-                    value // { diagnosticName = name; }
-                  else
-                    {
-                      diagnosticName = name;
-                      diagnosticValue = value;
-                    };
-              })
-            (sortedAttrNames raw)
-        else
-          [ ])
-      trafficPathValidations;
+                diagnosticName = name;
+                diagnosticValue = value;
+              };
+        }
+      ) (sortedAttrNames raw)
+    else
+      [ ]
+  ) trafficPathValidations;
 
   firstDiagnosticRow = if diagnosticRows == [ ] then null else builtins.head diagnosticRows;
 
   diagnosticString =
     diagnostic: field: fallback:
-    if builtins.isAttrs diagnostic
+    if
+      builtins.isAttrs diagnostic
       && builtins.hasAttr field diagnostic
       && builtins.isString diagnostic.${field}
-      && diagnostic.${field} != "" then
+      && diagnostic.${field} != ""
+    then
       diagnostic.${field}
     else
       fallback;
@@ -151,9 +154,18 @@ let
           source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.validPaths";
           modelPath = firstValidRow.modelPath;
           decision = {
-            result = firstNonEmptyString [ (path.action or "") (path.pathAction or "") ] "modeled";
-            trafficClass = firstNonEmptyString [ (path.trafficType or "") (path.protocol or "") ] "unknown";
-            selectedPath = firstNonEmptyString [ (path.relationId or "") (path.p2pIsolationKey or "") ] (pathLabel firstValidRow.modelPath);
+            result = firstNonEmptyString [
+              (path.action or "")
+              (path.pathAction or "")
+            ] "modeled";
+            trafficClass = firstNonEmptyString [
+              (path.trafficType or "")
+              (path.protocol or "")
+            ] "unknown";
+            selectedPath = firstNonEmptyString [
+              (path.relationId or "")
+              (path.p2pIsolationKey or "")
+            ] (pathLabel firstValidRow.modelPath);
             egressSurface = path.nodePath or (path.stagePath or [ ]);
             returnBehavior = path.returnBehavior or "unspecified";
             serviceExposure = path.destination or "unknown";
@@ -173,23 +185,17 @@ let
           source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.diagnostics";
           modelPath = firstDiagnosticRow.modelPath;
           diagnostic = {
-            reason =
-              firstNonEmptyString
-                [
-                  (diagnosticString diagnostic "message" "")
-                  (diagnosticString diagnostic "reason" "")
-                  (diagnosticString diagnostic "code" "")
-                ]
-                "traffic-path-validation-diagnostic";
+            reason = firstNonEmptyString [
+              (diagnosticString diagnostic "message" "")
+              (diagnosticString diagnostic "reason" "")
+              (diagnosticString diagnostic "code" "")
+            ] "traffic-path-validation-diagnostic";
             reasonClass = diagnosticReasonClass diagnostic;
-            firstBlocker =
-              firstNonEmptyString
-                [
-                  (diagnosticString diagnostic "relatedPath" "")
-                  (diagnosticString diagnostic "firstBlocker" "")
-                  (diagnosticString diagnostic "pathAction" "")
-                ]
-                (pathLabel firstDiagnosticRow.modelPath);
+            firstBlocker = firstNonEmptyString [
+              (diagnosticString diagnostic "relatedPath" "")
+              (diagnosticString diagnostic "firstBlocker" "")
+              (diagnosticString diagnostic "pathAction" "")
+            ] (pathLabel firstDiagnosticRow.modelPath);
           };
         }
       ]
@@ -201,9 +207,15 @@ let
           source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.invalidPaths";
           modelPath = firstInvalidRow.modelPath;
           diagnostic = {
-            reason = firstNonEmptyString [ (firstInvalidRow.pathData.reason or "") (firstInvalidRow.pathData.code or "") ] "invalid-traffic-path";
+            reason = firstNonEmptyString [
+              (firstInvalidRow.pathData.reason or "")
+              (firstInvalidRow.pathData.code or "")
+            ] "invalid-traffic-path";
             reasonClass = "invalid-path";
-            firstBlocker = firstNonEmptyString [ (firstInvalidRow.pathData.relationId or "") (firstInvalidRow.pathData.p2pIsolationKey or "") ] (pathLabel firstInvalidRow.modelPath);
+            firstBlocker = firstNonEmptyString [
+              (firstInvalidRow.pathData.relationId or "")
+              (firstInvalidRow.pathData.p2pIsolationKey or "")
+            ] (pathLabel firstInvalidRow.modelPath);
           };
         }
       ]
@@ -263,7 +275,13 @@ let
 
       s88Debug =
         if specialArgs ? s88Debug && builtins.isAttrs specialArgs.s88Debug then
-          sanitizeDebug specialArgs.s88Debug
+          let
+            d = sanitizeDebug specialArgs.s88Debug;
+          in
+          lib.optionalAttrs (d ? roleName) { inherit (d) roleName; }
+          // {
+            unitName = d.unitName or containerName;
+          }
         else
           { };
 
@@ -299,12 +317,10 @@ let
     };
 
   sanitizedContainers = builtins.listToAttrs (
-    map
-      (containerName: {
-        name = containerName;
-        value = sanitizeContainer containerName renderedHostNetwork.containers.${containerName};
-      })
-      (sortedAttrNames (renderedHostNetwork.containers or { }))
+    map (containerName: {
+      name = containerName;
+      value = sanitizeContainer containerName renderedHostNetwork.containers.${containerName};
+    }) (sortedAttrNames (renderedHostNetwork.containers or { }))
   );
 in
 {
