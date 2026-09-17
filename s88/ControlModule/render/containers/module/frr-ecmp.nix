@@ -107,9 +107,14 @@ in
     systemd.services.frr = {
       path = [ pkgs.iproute2 ];
       preStart = waitForAddresses;
-      wantedBy = lib.mkForce [ ];
+      # The renderer drives frr from the s88-frr timer (OnBootSec below) so
+      # networkd has a head start and the BFD interfaces carry addresses. This
+      # is a fallback, not a lock: the weakest priority (mkOptionDefault,
+      # weaker than mkDefault) lets a host or operator re-add frr to
+      # multi-user.target normally.
+      wantedBy = lib.mkOptionDefault [ ];
 
-      startLimitIntervalSec = lib.mkForce 0;
+      startLimitIntervalSec = lib.mkDefault 0;
     };
     systemd.timers.s88-frr = {
       wantedBy = [ "timers.target" ];
