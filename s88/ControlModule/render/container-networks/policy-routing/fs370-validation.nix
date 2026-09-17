@@ -3,6 +3,16 @@
 let
   peers = import ./peers.nix { inherit lib common; };
 
+  # FS-984/FS-370: `lib.hasInfix` compiles to `builtins.match ".*X.*"`.
+  # Running that regex over a full emitted firewall ruleset (tens of KB) makes
+  # the Nix regex engine recurse and overflow the evaluator stack
+  # (s-router-cobalt / s-router-neon). The ruleset is line-oriented and each
+  # line is short, so search line by line instead.
+  rulesetContains =
+    needle: ruleset:
+    builtins.isString ruleset
+    && builtins.any (line: lib.hasInfix needle line) (lib.splitString "\n" ruleset);
+
   attrsOrEmpty = value: if builtins.isAttrs value then value else { };
   listOrEmpty = value: if builtins.isList value then value else [ ];
 
@@ -120,9 +130,10 @@ let
 
   reverseRulePresent =
     ruleset: lane:
-    builtins.isString ruleset
-    && lib.hasInfix "iifname \"${lane.policyInterface}\" oifname \"${lane.accessInterface}\"" ruleset
-    && lib.hasInfix "accept comment \"${lane.comment}\"" ruleset;
+    rulesetContains
+      "iifname \"${lane.policyInterface}\" oifname \"${lane.accessInterface}\""
+      ruleset
+    && rulesetContains "accept comment \"${lane.comment}\"" ruleset;
 
   forceChecks =
     checks:
@@ -216,7 +227,7 @@ rec {
             throw "${traceId}: prohibited-default-route diagnostic for ${nodeName}: policy rule uses To=${(builtins.head catchAllRules).To or "unknown"} on ${((builtins.head catchAllRules).IncomingInterface or "unknown")}"
         )
         (
-          if !(builtins.isString ruleset) || !(lib.hasInfix "selector-handoff" ruleset) || !(lib.hasInfix "no-uplink" ruleset) then
+          if !(rulesetContains "selector-handoff" ruleset) || !(rulesetContains "no-uplink" ruleset) then
             true
           else
             throw "${traceId}: wrong-comment diagnostic for ${nodeName}: selector handoff nft comment collapsed to no-uplink"
