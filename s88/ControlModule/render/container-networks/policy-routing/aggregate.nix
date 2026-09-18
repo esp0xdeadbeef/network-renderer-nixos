@@ -211,10 +211,15 @@ builtins.foldl'
           # reaching the destination access edge. The modeled relation selector
           # owns the lateral forward leg; the same-access fabric pairing still
           # needs its destination-scope rule.
+          sourceRenderedOrSelf =
+            let
+              r = renderedInterfaceNames.${sourceIfName} or null;
+            in
+            if r != null then r else sourceIfName;
           crossesAccess =
             isDownstreamSelectorAccessInterface interfaceName
-            && isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName};
-          _diag = builtins.trace "DSAGG iface=${interfaceName} src=${sourceIfName} srcRendered=${toString (renderedInterfaceNames.${sourceIfName} or null)} edge=${builtins.toString (isDownstreamSelectorAccessInterface interfaceName)} policy=${builtins.toString (isDownstreamSelectorPolicyInterface (renderedInterfaceNames.${sourceIfName} or null))} cross=${builtins.toString crossesAccess}" true;
+            && isDownstreamSelectorPolicyInterface sourceRenderedOrSelf;
+          _diag = builtins.trace "DSAGG iface=${interfaceName} src=${sourceIfName} srcR=${sourceRenderedOrSelf} edge=${builtins.toString (isDownstreamSelectorAccessInterface interfaceName)} policy=${builtins.toString (isDownstreamSelectorPolicyInterface sourceRenderedOrSelf)} cross=${builtins.toString crossesAccess}" true;
           routesForTargetOutput = routesByInterface.${ifName} or [ ];
           routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
         in
