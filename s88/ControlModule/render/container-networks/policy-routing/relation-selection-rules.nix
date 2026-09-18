@@ -63,7 +63,14 @@ let
           true;
       incomingKey = interfaceKeyForIdentity "incomingInterface" (selector.incomingInterface or null);
       policyKey = interfaceKeyForIdentity "policyInterface" (selector.policyInterface or null);
-      allocation = interfaces.${policyKey}.policyRoutingAllocation or null;
+      # FS-315-HDS-010-SDS-010-SMS-020: the destination prefix's reachability
+      # route is owned by the far-side lane (`routeInterface`), and the rule's
+      # table is that lane's table (the ingress lane only supplies the `iif`).
+      # Fall back to the policy lane for selectors that name no route lane.
+      routeKey = interfaceKeyForIdentity "routeInterface" (
+        selector.routeInterface or selector.policyInterface or null
+      );
+      allocation = interfaces.${routeKey}.policyRoutingAllocation or null;
       _allocation =
         if !(builtins.isAttrs allocation) then
           throw "${traceId}: selected policy interface lacks CPM policyRoutingAllocation"
@@ -93,7 +100,7 @@ let
           throw "${traceId}: lateral service route selector must not grant default or transitive egress authority"
         else
           true;
-      routes = interfaces.${policyKey}.routes or [ ];
+      routes = interfaces.${routeKey}.routes or [ ];
       routeList =
         if builtins.isList routes then
           routes
