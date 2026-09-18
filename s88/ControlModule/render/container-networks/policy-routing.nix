@@ -192,6 +192,8 @@ let
       isPolicyUpstreamInterface
       isPolicyDownstreamInterface
       isAccessHostInterface
+      isDownstreamSelectorAccessInterface
+      laneAccessForRenderedName
       sourceReachabilityRoutes
       sourcePrefixes
       forwardingSourceScope

@@ -9,6 +9,8 @@
   isPolicyUpstreamInterface,
   isPolicyDownstreamInterface,
   isAccessHostInterface,
+  isDownstreamSelectorAccessInterface,
+  laneAccessForRenderedName,
   sourceReachabilityRoutes,
   sourcePrefixes,
   forwardingSourceScope,
@@ -202,16 +204,48 @@ builtins.foldl'
       destinationScopeForIngress =
         sourceIfName:
         let
+          # FS-315-HDS-010-SDS-010-SMS-020: a downstream access-edge interface
+          # must not be told to route a destination prefix that arrives on a
+          # policy lane back into its own table: that table is a fabric lane
+          # whose default points at the policy, so the packet loops instead of
+          # reaching the destination access edge. The modeled relation selector
+          # owns the lateral forward leg; the same-access fabric pairing still
+          # needs its destination-scope rule.
+          sourceRenderedOrSelf =
+            let
+              r = renderedInterfaceNames.${sourceIfName} or null;
+            in
+            if r != null then r else sourceIfName;
+          crossesAccess =
+            isDownstreamSelectorAccessInterface interfaceName
+            && isDownstreamSelectorPolicyInterface sourceRenderedOrSelf;
+          _diag = true;
           routesForTargetOutput = routesByInterface.${ifName} or [ ];
           routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
         in
-        lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
-          (ruleSourceScopeForIngress sourceIfName).staticPrefixes
-        );
+        if crossesAccess then
+          [ ]
+        else
+          lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
+            (ruleSourceScopeForIngress sourceIfName).staticPrefixes
+          );
       rulesForThisInterface = lib.concatMap (
         sourceIfName:
         let
-          destinationScope = if sourceIfName == ifName then [ ] else destinationScopeForIngress sourceIfName;
+          ownPrefixes = (sourcePrefixes.forInterface interfaceName).staticPrefixes;
+          ownPrefixSet = map (p: p.prefix) ownPrefixes;
+          # FS-315-HDS-010-SDS-010-SMS-020: a downstream access-edge interface
+          # only owns the routes for the access it serves. Restrict its
+          # destination-scope rules to prefixes that interface actually owns, so
+          # a prefix belonging to a different access is never routed back into
+          # this fabric lane (whose default points at the policy, looping the
+          # packet).
+          destinationScope =
+            if sourceIfName == ifName then
+              [ ]
+            else
+              lib.filter (prefix: builtins.elem prefix.prefix ownPrefixSet)
+                (destinationScopeForIngress sourceIfName);
           sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
           destinationScopedRules =
             policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
@@ -270,8 +304,19 @@ builtins.foldl'
           (tableRuleFor prefix)
           (mainFallbackRuleFor prefix)
         ]) forwardingMainScope.staticPrefixes;
+      ownReachabilityPrefixes = map (p: p.prefix) (sourcePrefixes.forInterface interfaceName).staticPrefixes;
+      # FS-315-HDS-010-SDS-010-SMS-020: a destination-scoped selector rule
+      # (`To`) may only be installed on an interface that owns that destination
+      # prefix's reachability. A `To=<prefix>` rule for another access's prefix
+      # would route it into this fabric lane, whose default points at the policy
+      # and loops the packet instead of reaching the destination access edge.
+      dropForeignDestinationRule =
+        rule:
+        (rule.To or null) == null || builtins.elem rule.To ownReachabilityPrefixes;
       allRulesForThisInterface = lib.unique (
-        rulesForThisInterface ++ forwardingIngressRules ++ localOriginRules
+        builtins.filter dropForeignDestinationRule (
+          rulesForThisInterface ++ forwardingIngressRules ++ localOriginRules
+        )
       );
       hasMainLookupRuleForSource =
         source:
