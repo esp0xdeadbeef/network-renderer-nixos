@@ -232,14 +232,27 @@ let
     else
       throw "FS-270-HDS-010-SDS-010-SMS-020: effectiveRuntimeRealization.routeSelectionRules must be a list";
   relationRuleKeys = builtins.attrNames relationSelectionRules.rulesByInterface;
-  allRuleKeys = lib.unique ((builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys);
+  targetOriginatedSelection =
+    import ./policy-routing/target-originated-selection.nix {
+      inherit
+        lib
+        interfaces
+        renderedInterfaceNames
+        ;
+      targetOriginatedSelection = effectiveRuntimeRealization.targetOriginatedSelection or null;
+    };
+  targetOriginatedRuleKeys = builtins.attrNames targetOriginatedSelection.rulesByInterface;
+  allRuleKeys = lib.unique (
+    (builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys ++ targetOriginatedRuleKeys
+  );
   policyRoutingWithRelationSelection = aggregatePolicyRouting // {
     rules = builtins.listToAttrs (
       map (ifName: {
         name = ifName;
         value =
           (aggregatePolicyRouting.rules.${ifName} or [ ])
-          ++ (relationSelectionRules.rulesByInterface.${ifName} or [ ]);
+          ++ (relationSelectionRules.rulesByInterface.${ifName} or [ ])
+          ++ (targetOriginatedSelection.rulesByInterface.${ifName} or [ ]);
       }) allRuleKeys
     );
   };
