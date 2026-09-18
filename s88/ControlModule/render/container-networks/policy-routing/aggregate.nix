@@ -220,7 +220,6 @@ builtins.foldl'
           routesForTargetOutput = routesByInterface.${ifName} or [ ];
           routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
         in
-        builtins.trace "DIAG-DS crosses=${builtins.toString crossesAccess} iface=${interfaceName} target=${builtins.toString targetAccess} src=${sourceIfName} srcRendered=${renderedInterfaceNames.${sourceIfName}} srcAccess=${builtins.toString sourceAccess} isDSPolicy=${builtins.toString (isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName})}"
         if crossesAccess then
           [ ]
         else
