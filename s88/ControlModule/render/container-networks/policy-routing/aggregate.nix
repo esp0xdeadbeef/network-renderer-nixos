@@ -219,22 +219,33 @@ builtins.foldl'
           crossesAccess =
             isDownstreamSelectorAccessInterface interfaceName
             && isDownstreamSelectorPolicyInterface sourceRenderedOrSelf;
-          _diag = builtins.trace "DSAGG iface=${interfaceName} src=${sourceIfName} srcR=${sourceRenderedOrSelf} edge=${builtins.toString (isDownstreamSelectorAccessInterface interfaceName)} policy=${builtins.toString (isDownstreamSelectorPolicyInterface sourceRenderedOrSelf)} cross=${builtins.toString crossesAccess}" true;
+          _diag = true;
           routesForTargetOutput = routesByInterface.${ifName} or [ ];
           routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
         in
-        builtins.seq _diag (
-          if crossesAccess then
-            [ ]
-          else
-            lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
-              (ruleSourceScopeForIngress sourceIfName).staticPrefixes
-            )
-        );
+        if crossesAccess then
+          [ ]
+        else
+          lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
+            (ruleSourceScopeForIngress sourceIfName).staticPrefixes
+          );
       rulesForThisInterface = lib.concatMap (
         sourceIfName:
         let
-          destinationScope = if sourceIfName == ifName then [ ] else destinationScopeForIngress sourceIfName;
+          ownPrefixes = (sourcePrefixes.forInterface interfaceName).staticPrefixes;
+          ownPrefixSet = map (p: p.prefix) ownPrefixes;
+          # FS-315-HDS-010-SDS-010-SMS-020: a downstream access-edge interface
+          # only owns the routes for the access it serves. Restrict its
+          # destination-scope rules to prefixes that interface actually owns, so
+          # a prefix belonging to a different access is never routed back into
+          # this fabric lane (whose default points at the policy, looping the
+          # packet).
+          destinationScope =
+            if sourceIfName == ifName then
+              [ ]
+            else
+              lib.filter (prefix: builtins.elem prefix.prefix ownPrefixSet)
+                (destinationScopeForIngress sourceIfName);
           sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
           destinationScopedRules =
             policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
