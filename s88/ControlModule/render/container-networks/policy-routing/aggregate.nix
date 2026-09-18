@@ -214,15 +214,18 @@ builtins.foldl'
           crossesAccess =
             isDownstreamSelectorAccessInterface interfaceName
             && isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName};
+          _diag = builtins.trace "DSAGG iface=${interfaceName} src=${sourceIfName} srcRendered=${toString (renderedInterfaceNames.${sourceIfName} or null)} edge=${builtins.toString (isDownstreamSelectorAccessInterface interfaceName)} policy=${builtins.toString (isDownstreamSelectorPolicyInterface (renderedInterfaceNames.${sourceIfName} or null))} cross=${builtins.toString crossesAccess}" true;
           routesForTargetOutput = routesByInterface.${ifName} or [ ];
           routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
         in
-        if crossesAccess then
-          [ ]
-        else
-          lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
-            (ruleSourceScopeForIngress sourceIfName).staticPrefixes
-          );
+        builtins.seq _diag (
+          if crossesAccess then
+            [ ]
+          else
+            lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
+              (ruleSourceScopeForIngress sourceIfName).staticPrefixes
+            )
+        );
       rulesForThisInterface = lib.concatMap (
         sourceIfName:
         let
