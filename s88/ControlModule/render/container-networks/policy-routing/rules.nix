@@ -38,11 +38,12 @@ let
     };
   destinationScopeRule =
     prefix: rule:
+    builtins.trace "RR-TORULE table=${toString tableId} prefix=${prefix.prefix} iif=${rule.IncomingInterface or "?"}" (
     rule
     // {
       Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
       To = prefix.prefix;
-    };
+    });
   rulesForIngress =
     incomingInterface:
     let
