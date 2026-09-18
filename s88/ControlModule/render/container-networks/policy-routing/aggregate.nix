@@ -9,6 +9,7 @@
   isPolicyUpstreamInterface,
   isPolicyDownstreamInterface,
   isAccessHostInterface,
+  isDownstreamSelectorAccessInterface,
   laneAccessForRenderedName,
   sourceReachabilityRoutes,
   sourcePrefixes,
@@ -203,20 +204,16 @@ builtins.foldl'
       destinationScopeForIngress =
         sourceIfName:
         let
-          sourceAccess = laneAccessForRenderedName renderedInterfaceNames.${sourceIfName};
-          targetAccess = laneAccessForRenderedName interfaceName;
           # FS-315-HDS-010-SDS-010-SMS-020: a downstream access-edge interface
           # must not be told to route a destination prefix that arrives on a
-          # *different* access's policy lane back into its own table: that table
-          # is a fabric lane whose default points at the policy, so the packet
-          # loops instead of reaching the destination access edge. The modeled
-          # relation selector owns the lateral forward leg; the same-access
-          # fabric pairing still needs its destination-scope rule.
+          # policy lane back into its own table: that table is a fabric lane
+          # whose default points at the policy, so the packet loops instead of
+          # reaching the destination access edge. The modeled relation selector
+          # owns the lateral forward leg; the same-access fabric pairing still
+          # needs its destination-scope rule.
           crossesAccess =
-            isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName}
-            && sourceAccess != null
-            && targetAccess != null
-            && sourceAccess != targetAccess;
+            isDownstreamSelectorAccessInterface interfaceName
+            && isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName};
           routesForTargetOutput = routesByInterface.${ifName} or [ ];
           routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
         in
