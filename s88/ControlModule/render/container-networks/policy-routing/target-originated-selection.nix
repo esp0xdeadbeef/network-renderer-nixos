@@ -47,16 +47,35 @@ let
       throw "${traceId}: targetOriginatedSelection.source must be 'control-plane-model'"
     else if !(builtins.isInt (selection.tableId or null)) || selection.tableId <= 0 then
       throw "${traceId}: targetOriginatedSelection.tableId must be a positive integer"
-    else if !(builtins.isInt (selection.priority or null)) || selection.priority <= 0 then
-      throw "${traceId}: targetOriginatedSelection.priority must be a positive integer"
+    else if
+      !(builtins.isInt (selection.mainSelectionPriority or null)) || selection.mainSelectionPriority <= 0
+    then
+      throw "${traceId}: targetOriginatedSelection.mainSelectionPriority must be a positive integer"
+    else if !(builtins.isInt (selection.selectionPriority or null)) || selection.selectionPriority <= 0 then
+      throw "${traceId}: targetOriginatedSelection.selectionPriority must be a positive integer"
+    else if selection.selectionPriority <= selection.mainSelectionPriority then
+      throw "${traceId}: targetOriginatedSelection context selection must follow the main fallthrough"
     else
       true;
 
-  rule = {
-    Family = "both";
-    Priority = selection.priority;
-    Table = selection.tableId;
-  };
+  # Connected/local routes must win for the target's own traffic (its on-link
+  # fabric peers live in the main table). The main fallthrough selection
+  # returns no route for prefixes main does not own and the kernel then tries
+  # the context-table selection, which carries the modeled reachability.
+  rules = [
+    {
+      Family = "both";
+      Priority = selection.mainSelectionPriority;
+      Table = 254;
+    }
+    {
+      Family = "both";
+      Priority = selection.selectionPriority;
+      Table = selection.tableId;
+    }
+  ];
+
+  rule = rules;
 in
 builtins.seq _shape {
   rulesByInterface =
@@ -64,6 +83,6 @@ builtins.seq _shape {
       { }
     else
       {
-        ${ownerInterfaceForKey} = [ rule ];
+        ${ownerInterfaceForKey} = rules;
       };
 }
