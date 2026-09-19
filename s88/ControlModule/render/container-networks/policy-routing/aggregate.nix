@@ -196,6 +196,30 @@ builtins.foldl'
             (policyRoutingAllocationFor outputIfName).tableId;
       };
       routesByInterfacePreferred = serviceDnsRoutes.preferAcrossInterfaces routesByInterface;
+      # FS-315-HDS-010-SDS-010-SMS-020: the set of next hops the realization can
+      # forward to shall equal the set the modeled reachability admits. A
+      # multi-core scope (e.g. clients-vpn selecting both the onyx and opal
+      # exits) models reachability to *every* selected core's service, so each
+      # of the scope's per-exit lane tables must carry the service-dns routes of
+      # the whole scope -- not only the route whose gateway matches that lane.
+      # Otherwise a query ingressing one exit lane cannot reach the other core's
+      # DNS and falls back to the default exit.
+      laneScopeKey = ifName: laneAccessForRenderedName ifName;
+      scopeSiblings =
+        let
+          scope = laneScopeKey ifName;
+        in
+        if scope == null then
+          [ ]
+        else
+          lib.filter (n: n != ifName && laneScopeKey n == scope) interfaceNames;
+      siblingServiceDnsRoutes = lib.concatMap (
+        sibling:
+        lib.filter (route: ((route.intent or { }).kind or null) == "service-dns-reachability") (
+          routesByInterfacePreferred.${sibling} or [ ]
+        )
+      ) scopeSiblings;
+      routesByInterfaceScoped = lib.mapAttrs (_: routes: routes ++ siblingServiceDnsRoutes) routesByInterfacePreferred;
       localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
       localOriginRoutesByInterface = localOriginDns.routesByInterface tableId localOriginSourceIfNames;
       localOriginRules =
@@ -344,9 +368,9 @@ builtins.foldl'
             routesAcc
             // {
               ${outputIfName} =
-                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfacePreferred.${outputIfName} or [ ]);
+                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfaceScoped.${outputIfName} or [ ]);
             }
-          ) acc.routes (builtins.attrNames routesByInterfacePreferred);
+          ) acc.routes (builtins.attrNames routesByInterfaceScoped);
         in
         builtins.foldl' (
           routesAcc: outputIfName:
