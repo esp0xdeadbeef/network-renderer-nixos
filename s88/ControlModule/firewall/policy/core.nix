@@ -139,6 +139,7 @@ else
       nat6SourcePrefixes
       clampMssInterfaces
       ;
+    clampMssMtuByName = interfaceSet.mtuByName;
     inherit (renderedNat)
       natPostroutingRules4
       natPostroutingRules6
