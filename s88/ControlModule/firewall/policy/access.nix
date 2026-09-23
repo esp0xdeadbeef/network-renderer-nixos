@@ -1,9 +1,10 @@
-{ lib
-, interfaceView ? null
-, forwardingIntent ? null
-, communicationContract ? { }
-, endpointMap ? { }
-, ...
+{
+  lib,
+  interfaceView ? null,
+  forwardingIntent ? null,
+  communicationContract ? { },
+  endpointMap ? { },
+  ...
 }:
 
 let
@@ -45,27 +46,23 @@ let
 
   localAdapterNames = sortedStrings (
     map (entry: entry.name) (
-      lib.filter
-        (
-          entry:
-          let
-            sourceKind = sourceKindOf entry;
-          in
-          sourceKind != "wan" && sourceKind != "p2p"
-        )
-        interfaceEntries
+      lib.filter (
+        entry:
+        let
+          sourceKind = sourceKindOf entry;
+        in
+        sourceKind != "wan" && sourceKind != "p2p"
+      ) interfaceEntries
     )
   );
 
   uplinkNames = if p2pNames != [ ] then p2pNames else wanNames;
 
   localSet = builtins.listToAttrs (
-    map
-      (name: {
-        inherit name;
-        value = true;
-      })
-      localAdapterNames
+    map (name: {
+      inherit name;
+      value = true;
+    }) localAdapterNames
   );
 
   keepLocalOnly = ifNames: lib.filter (ifName: builtins.hasAttr ifName localSet) ifNames;
@@ -111,6 +108,19 @@ let
     else
       [ ];
 
+  mtuByName = builtins.listToAttrs (
+    map
+      (entry: {
+        name = entry.name;
+        value = entry.iface.mtu;
+      })
+      (
+        lib.filter (
+          entry: builtins.isAttrs (entry.iface or null) && builtins.isInt (entry.iface.mtu or null)
+        ) interfaceEntries
+      )
+  );
+
   inputRules = [
     ''
       icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment "allow-ipv6-nd-ra"
@@ -126,5 +136,6 @@ else
     outputPolicy = "accept";
     forwardPolicy = "drop";
     inherit inputRules forwardPairs clampMssInterfaces;
+    clampMssMtuByName = mtuByName;
     forwardRules = relationRules;
   }

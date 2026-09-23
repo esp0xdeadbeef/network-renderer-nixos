@@ -18,6 +18,7 @@
   natPostroutingRules4 ? [ ],
   natPostroutingRules6 ? [ ],
   clampMssInterfaces ? [ ],
+  clampMssMtuByName ? { },
 }:
 
 let
@@ -263,6 +264,34 @@ let
   postrouting4 = lib.filter (rule: builtins.isString rule && rule != "") natPostroutingRules4;
   postrouting6 = lib.filter (rule: builtins.isString rule && rule != "") natPostroutingRules6;
   clampIfs = sortedStrings clampMssInterfaces;
+
+  clampMtuFor =
+    ifName:
+    let
+      mtu = clampMssMtuByName.${ifName} or null;
+    in
+    if builtins.isInt mtu && mtu > 0 then mtu else null;
+
+  renderClampIngress =
+    ifs:
+    lib.concatStringsSep "\n" (
+      map (
+        ifName:
+        let
+          mtu = clampMtuFor ifName;
+        in
+        if mtu == null then
+          ''iifname "${ifName}" tcp flags syn tcp option maxseg size set rt mtu''
+        else
+          ''iifname "${ifName}" meta nfproto ipv4 tcp flags syn tcp option maxseg size set ${
+            toString (lib.max 0 (mtu - 40))
+          }''
+          + "\n"
+          + ''iifname "${ifName}" meta nfproto ipv6 tcp flags syn tcp option maxseg size set ${
+            toString (lib.max 0 (mtu - 60))
+          }''
+      ) ifs
+    );
 in
 ''
   table inet ${tableName} {
@@ -323,11 +352,11 @@ in
 ''
 + lib.optionalString (clampIfs != [ ]) ''
 
-  table inet mangle {
-    chain forward {
-      type filter hook forward priority mangle; policy accept;
-      oifname ${renderIfExpr clampIfs} tcp flags syn tcp option maxseg size set rt mtu
-      iifname ${renderIfExpr clampIfs} tcp flags syn tcp option maxseg size set rt mtu
+    table inet mangle {
+      chain forward {
+        type filter hook forward priority mangle; policy accept;
+        oifname ${renderIfExpr clampIfs} tcp flags syn tcp option maxseg size set rt mtu
+  ${renderClampIngress clampIfs}
+      }
     }
-  }
 ''
