@@ -61,6 +61,7 @@ let
   dynamicDestinationForwarding = import ./module/dynamic-destination-forwarding.nix {
     inherit lib pkgs;
     dynamicDestinationForwardRules = containerNetworkRender.dynamicDestinationForwardRules or [ ];
+    tableName = containerNetworkRender.firewallTableName or "router";
   };
 
   dynamicPolicyRules = import ./module/dynamic-policy-rules.nix {

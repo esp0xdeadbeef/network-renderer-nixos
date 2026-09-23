@@ -2,6 +2,7 @@
   lib,
   pkgs,
   dynamicDestinationForwardRules,
+  tableName ? "router",
 }:
 
 let
@@ -43,14 +44,14 @@ let
         exit 0
       fi
 
-      handles="$(${pkgs.nftables}/bin/nft -a list chain inet router forward \
+      handles="$(${pkgs.nftables}/bin/nft -a list chain inet ${tableName} forward \
         | ${pkgs.gawk}/bin/awk -v comment="$comment" 'index($0, "comment \"" comment "\"") { print $NF }')"
       if [ "$(printf '%s\n' "$handles" | ${pkgs.gnugrep}/bin/grep -c .)" -ne 1 ]; then
         echo "diagnostic.runtime-public-ingress-placeholder-invalid: exact rule owner missing or ambiguous (deferring)" >&2
         exit 0
       fi
 
-      ${pkgs.nftables}/bin/nft replace rule inet router forward handle "$handles" \
+      ${pkgs.nftables}/bin/nft replace rule inet ${tableName} forward handle "$handles" \
         iifname "$in_if" oifname "$out_if" meta nfproto ipv6 \
         ip6 daddr "$address" meta l4proto "$protocol" \
         "$protocol" dport "$destination_port" ${action} comment "$comment"
