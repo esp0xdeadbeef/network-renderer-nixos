@@ -11,6 +11,10 @@
     network-control-plane-model.inputs.nixpkgs.follows = "nixpkgs";
     network-control-plane-model.inputs.network-labs.follows = "network-labs";
     network-control-plane-model.inputs.network-forwarding-model.follows = "network-forwarding-model";
+    # Propagate our compiler (and its NFM) all the way down the control-plane
+    # model's forwarding-model input so a compiler contract fix actually
+    # reaches the CPM compile.
+    network-control-plane-model.inputs.network-forwarding-model.inputs.network-compiler.follows = "network-compiler";
 
     network-compiler.url = "github:esp0xdeadbeef/network-compiler";
     network-compiler.inputs.network-labs.follows = "network-labs";

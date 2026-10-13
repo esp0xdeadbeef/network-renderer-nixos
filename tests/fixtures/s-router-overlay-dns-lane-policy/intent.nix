@@ -147,6 +147,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "s-router-core-isp-a";
             };
             id = "allow-wan-to-dmz-nebula";
             returnBehavior = "one-way";
@@ -671,6 +672,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "s-router-core-isp-a";
                           };
             id = "allow-sitec-wan-to-dmz-nebula";
             priority = 128;
