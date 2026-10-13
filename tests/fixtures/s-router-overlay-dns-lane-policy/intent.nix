@@ -248,6 +248,16 @@
           {
             match = [
               {
+                dports = [ 3784 ];
+                family = "any";
+                proto = "udp";
+              }
+            ];
+            name = "bfd";
+          }
+          {
+            match = [
+              {
                 dports = [ 53 ];
                 family = "any";
                 proto = "udp";
@@ -611,8 +621,7 @@
             priority = 101;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {
@@ -626,8 +635,7 @@
             priority = 111;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "dns";
           }
           {
@@ -656,8 +664,7 @@
             priority = 100;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {
@@ -705,8 +712,7 @@
             priority = 99;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "dns";
           }
           {
@@ -960,8 +966,7 @@
             priority = 90;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "dns";
           }
           {
@@ -975,8 +980,7 @@
             priority = 100;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {

@@ -355,6 +355,16 @@
           {
             match = [
               {
+                dports = [ 3784 ];
+                family = "any";
+                proto = "udp";
+              }
+            ];
+            name = "bfd";
+          }
+          {
+            match = [
+              {
                 family = "any";
                 proto = "icmp";
               }
@@ -786,8 +796,7 @@
             priority = 25;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "dns";
           }
           {
@@ -801,8 +810,7 @@
             priority = 100;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {
@@ -816,8 +824,7 @@
             priority = 101;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {
@@ -846,8 +853,7 @@
             priority = 110;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "dns";
           }
           {
@@ -1273,8 +1279,7 @@
             action = "allow";
             from = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             id = "allow-lab-wan-icmp-anywhere";
             returnBehavior = "one-way";
             priority = 6;
@@ -1395,8 +1400,7 @@
             priority = 25;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "dns";
           }
           {
@@ -1445,8 +1449,7 @@
             priority = 100;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {
@@ -1459,8 +1462,7 @@
             priority = 101;
             to = {
               kind = "external";
-              name = "wan";
-            };
+                          };
             trafficType = "any";
           }
           {
