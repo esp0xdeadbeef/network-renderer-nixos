@@ -16,18 +16,21 @@
       prefixes = [
         {
           kind = "tenant";
+          dnsDomain = "lan.";
           name = "mgmt";
           ipv4 = "10.20.10.0/24";
           ipv6 = "fd42:dead:beef:10::/64";
         }
         {
           kind = "tenant";
+          dnsDomain = "lan.";
           name = "admin";
           ipv4 = "10.20.15.0/24";
           ipv6 = "fd42:dead:beef:15::/64";
         }
         {
           kind = "tenant";
+          dnsDomain = "lan.";
           name = "client";
           ipv4 = "10.20.20.0/24";
           ipv6 = "fd42:dead:beef:20::/64";
@@ -50,6 +53,16 @@
 
     communicationContract = {
       trafficTypes = [
+          {
+            match = [
+              {
+                dports = [ 3784 ];
+                family = "any";
+                proto = "udp";
+              }
+            ];
+            name = "bfd";
+          }
         {
           name = "icmp";
           match = [
@@ -204,7 +217,6 @@
           };
           to = {
             kind = "external";
-            name = "wan";
           };
           trafficType = "web";
           action = "deny";
@@ -224,7 +236,6 @@
           };
           to = {
             kind = "external";
-            name = "wan";
           };
           trafficType = "any";
           action = "allow";
@@ -236,7 +247,7 @@
           priority = 110;
           from = {
             kind = "external";
-            name = "wan";
+            scope = "s-router-core-wan";
           };
           to = {
             kind = "service";
@@ -252,10 +263,11 @@
           priority = 115;
           from = {
             kind = "external";
-            name = "wan";
+            scope = "s-router-core-wan";
           };
           to = {
             kind = "tenant";
+            dnsDomain = "lan.";
             name = "mgmt";
           };
           trafficType = "icmp";
@@ -268,7 +280,7 @@
           priority = 120;
           from = {
             kind = "external";
-            name = "wan";
+            scope = "s-router-core-wan";
           };
           to = {
             kind = "service";
@@ -320,6 +332,7 @@
           attachments = [
             {
               kind = "tenant";
+              dnsDomain = "lan.";
               name = "mgmt";
             }
           ];
@@ -330,6 +343,7 @@
           attachments = [
             {
               kind = "tenant";
+              dnsDomain = "lan.";
               name = "admin";
             }
           ];
@@ -340,6 +354,7 @@
           attachments = [
             {
               kind = "tenant";
+              dnsDomain = "lan.";
               name = "client";
             }
           ];

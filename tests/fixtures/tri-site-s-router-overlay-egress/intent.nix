@@ -23,6 +23,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
             };
             id = "allow-site-wan-icmp-anywhere";
             returnBehavior = "one-way";
@@ -285,6 +286,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
             };
             id = "allow-wan-to-dmz-nebula";
             returnBehavior = "one-way";
@@ -752,6 +754,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
                           };
             id = "allow-edge-wan-icmp-anywhere";
             returnBehavior = "one-way";
@@ -874,6 +877,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
                           };
             id = "allow-wan-to-dmz-nebula";
             returnBehavior = "one-way";
@@ -903,6 +907,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
                           };
             id = "allow-wan-to-home-hostile-4444";
             returnBehavior = "one-way";
@@ -917,6 +922,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
                           };
             id = "allow-wan-to-lab-client-4445";
             returnBehavior = "one-way";
@@ -931,6 +937,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
                           };
             id = "allow-wan-to-edge-client-4446";
             returnBehavior = "one-way";
@@ -1279,6 +1286,7 @@
             action = "allow";
             from = {
               kind = "external";
+              scope = "home-example-router-core-isp-a";
                           };
             id = "allow-lab-wan-icmp-anywhere";
             returnBehavior = "one-way";
