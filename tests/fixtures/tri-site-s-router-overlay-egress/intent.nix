@@ -23,10 +23,6 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             id = "allow-site-wan-icmp-anywhere";
             returnBehavior = "one-way";
@@ -144,10 +140,6 @@
             priority = 24;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "dns";
           }
@@ -166,10 +158,6 @@
             priority = 25;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "dns";
           }
@@ -183,10 +171,6 @@
             priority = 26;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "any";
           }
@@ -250,10 +234,6 @@
             priority = 100;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "any";
           }
@@ -283,10 +263,6 @@
             priority = 101;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "any";
           }
@@ -309,10 +285,6 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             id = "allow-wan-to-dmz-nebula";
             returnBehavior = "one-way";
@@ -334,10 +306,6 @@
             priority = 130;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "nebula";
           }
@@ -352,10 +320,6 @@
             priority = 131;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "nebula-runtime";
           }
@@ -778,8 +742,7 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             id = "allow-edge-wan-icmp-anywhere";
             returnBehavior = "one-way";
             priority = 6;
@@ -898,16 +861,14 @@
             priority = 120;
             to = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             trafficType = "any";
           }
           {
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             id = "allow-wan-to-dmz-nebula";
             returnBehavior = "one-way";
             priority = 125;
@@ -936,8 +897,7 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             id = "allow-wan-to-home-hostile-4444";
             returnBehavior = "one-way";
             priority = 130;
@@ -951,8 +911,7 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             id = "allow-wan-to-lab-client-4445";
             returnBehavior = "one-way";
             priority = 131;
@@ -966,8 +925,7 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             id = "allow-wan-to-edge-client-4446";
             returnBehavior = "one-way";
             priority = 132;
@@ -1561,8 +1519,7 @@
             priority = 130;
             to = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             trafficType = "nebula";
           }
         ];

@@ -68,10 +68,6 @@
             priority = 16;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "dns";
           }
@@ -90,10 +86,6 @@
             priority = 20;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "dns";
           }
@@ -113,10 +105,6 @@
             priority = 100;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "any";
           }
@@ -159,10 +147,6 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             id = "allow-wan-to-dmz-nebula";
             returnBehavior = "one-way";
@@ -216,10 +200,6 @@
             priority = 22;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "dns";
           }
@@ -234,10 +214,6 @@
             priority = 103;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "any";
           }
@@ -252,10 +228,6 @@
             priority = 118;
             to = {
               kind = "external";
-              uplinks = [
-                "isp-a"
-                "isp-b"
-              ];
             };
             trafficType = "nebula";
           }
@@ -692,8 +664,7 @@
             action = "allow";
             from = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             id = "allow-sitec-wan-to-dmz-nebula";
             priority = 128;
             publicIngressTupleAuthority = {
@@ -749,8 +720,7 @@
             priority = 133;
             to = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             trafficType = "nebula";
           }
         ];
@@ -1110,8 +1080,7 @@
             priority = 117;
             to = {
               kind = "external";
-              uplinks = [ "wan" ];
-            };
+                          };
             trafficType = "nebula-storage";
           }
         ];
