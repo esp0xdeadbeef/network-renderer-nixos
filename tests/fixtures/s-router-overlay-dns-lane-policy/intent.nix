@@ -1148,6 +1148,16 @@
           {
             match = [
               {
+                dports = [ 3784 ];
+                family = "any";
+                proto = "udp";
+              }
+            ];
+            name = "bfd";
+          }
+          {
+            match = [
+              {
                 dports = [ 53 ];
                 family = "any";
                 proto = "udp";

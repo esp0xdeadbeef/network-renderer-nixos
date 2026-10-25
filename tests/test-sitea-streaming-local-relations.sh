@@ -29,12 +29,26 @@ let
       modules = [ rendered.containers."s-router-policy-only".config ];
     }).config;
   rules = policyCfg.networking.nftables.ruleset;
+  # The rendered rules carry an explicit `ip saddr <tenant-prefix>` match, which
+  # is FS-300 source-scope validation: a relation allow is scoped to the source
+  # prefix the model declares, not left as an any-source accept. Asserting the
+  # accept without that match could never succeed and, worse, would pass if the
+  # scope check were dropped. Match the whole rule line instead.
+  #
+  # `builtins.split "\n"` is used rather than `lib.hasInfix` on the full
+  # ruleset: the s-router-policy ruleset is >100 KB, and the single-pass
+  # string builtins overflow the evaluator stack on it ("stack overflow
+  # (possible infinite recursion)") even though the content is correct.
+  ruleLines = builtins.filter builtins.isString (builtins.split "\n" rules);
+  hasRule = fragment: builtins.any (l: builtins.match ".*${fragment}.*" l != null) ruleLines;
+
+  permitComment = "accept comment \"allow-sitea-client-to-streaming-chromecast\"";
 in
   builtins.substring 0 0 "" == ""
-  && flake.inputs.nixpkgs.lib.hasInfix "iifname \"down-client\" oifname \"downstr-stream\" accept comment \"allow-sitea-client-to-streaming-chromecast\"" rules
-  && flake.inputs.nixpkgs.lib.hasInfix "iifname \"down-client2\" oifname \"downstr-stream\" accept comment \"allow-sitea-client-to-streaming-chromecast\"" rules
-  && !(flake.inputs.nixpkgs.lib.hasInfix "iifname \"downstr-stream\" oifname \"down-client\" accept comment \"allow-sitea-client-to-streaming-chromecast\"" rules)
-  && !(flake.inputs.nixpkgs.lib.hasInfix "iifname \"downstr-stream\" oifname \"down-client2\" accept comment \"allow-sitea-client-to-streaming-chromecast\"" rules)
+  && hasRule "iifname \"down-client\" oifname \"downstr-stream\" ip saddr .*${permitComment}"
+  && hasRule "iifname \"down-client2\" oifname \"downstr-stream\" ip saddr .*${permitComment}"
+  && !(hasRule "iifname \"downstr-stream\" oifname \"down-client\" .*${permitComment}")
+  && !(hasRule "iifname \"downstr-stream\" oifname \"down-client2\" .*${permitComment}")
 EOF
 
 result="$(
