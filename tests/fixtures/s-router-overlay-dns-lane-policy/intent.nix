@@ -229,6 +229,7 @@
             priority = 118;
             to = {
               kind = "external";
+              scope = "s-router-core-isp-a";
             };
             trafficType = "nebula";
           }
@@ -307,36 +308,42 @@
             ipv6 = "fd42:dead:beef:10::/64";
             kind = "tenant";
             name = "mgmt";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.20.15.0/24";
             ipv6 = "fd42:dead:beef:15::/64";
             kind = "tenant";
             name = "admin";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.20.20.0/24";
             ipv6 = "fd42:dead:beef:20::/64";
             kind = "tenant";
             name = "client";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.20.40.0/24";
             ipv6 = "fd42:dead:beef:40::/64";
             kind = "tenant";
             name = "client2";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.20.30.0/24";
             ipv6 = "fd42:dead:beef:30::/64";
             kind = "tenant";
             name = "dmz";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.20.50.0/24";
             ipv6 = "fd42:dead:beef:50::/64";
             kind = "tenant";
             name = "streaming";
+            dnsDomain = "lan.";
           }
         ];
       };
@@ -411,6 +418,10 @@
         ];
         nodes = {
           s-router-access-admin = {
+            selects = [
+              "isp-a"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -420,6 +431,10 @@
             role = "access";
           };
           s-router-access-client = {
+            selects = [
+              "isp-a"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -429,6 +444,10 @@
             role = "access";
           };
           s-router-access-client2 = {
+            selects = [
+              "isp-a"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -447,6 +466,11 @@
             role = "access";
           };
           s-router-access-mgmt = {
+            selects = [
+              "s-router-core-isp-a"
+              "s-router-core-isp-b"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -456,6 +480,10 @@
             role = "access";
           };
           s-router-access-streaming = {
+            selects = [
+              "isp-a"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -484,18 +512,6 @@
           };
           s-router-core-nebula = {
             role = "core";
-            uplinks = {
-              east-west = {
-                ipv4 = [
-                  "10.60.10.0/24"
-                  "10.70.10.0/24"
-                ];
-                ipv6 = [
-                  "fd42:dead:feed:10::/64"
-                  "fd42:dead:feed:70::/64"
-                ];
-              };
-            };
           };
           s-router-downstream-selector = {
             role = "downstream-selector";
@@ -518,6 +534,16 @@
               "esp0xdeadbeef.site-c"
             ];
             terminateOn = "s-router-core-nebula";
+            peerNodes = {
+              "espbranch.site-b" = {
+                addr4 = "100.96.10.2/24";
+                addr6 = "fd42:dead:beef:ee::2/64";
+              };
+              "esp0xdeadbeef.site-c" = {
+                addr4 = "100.96.10.3/24";
+                addr6 = "fd42:dead:beef:ee::3/64";
+              };
+            };
             underlayAccess = {
               kind = "tenant";
               name = "client";
@@ -622,7 +648,7 @@
             priority = 101;
             to = {
               kind = "external";
-                          };
+            };
             trafficType = "any";
           }
           {
@@ -636,7 +662,8 @@
             priority = 111;
             to = {
               kind = "external";
-                          };
+              scope = "c-router-core";
+            };
             trafficType = "dns";
           }
           {
@@ -665,15 +692,15 @@
             priority = 100;
             to = {
               kind = "external";
-                          };
+            };
             trafficType = "any";
           }
           {
             action = "allow";
             from = {
               kind = "external";
-              scope = "s-router-core-isp-a";
-                          };
+              scope = "c-router-core";
+            };
             id = "allow-sitec-wan-to-dmz-nebula";
             priority = 128;
             publicIngressTupleAuthority = {
@@ -714,7 +741,7 @@
             priority = 99;
             to = {
               kind = "external";
-                          };
+            };
             trafficType = "dns";
           }
           {
@@ -728,7 +755,8 @@
             priority = 133;
             to = {
               kind = "external";
-                          };
+              scope = "c-router-core";
+            };
             trafficType = "nebula";
           }
         ];
@@ -745,6 +773,16 @@
           }
         ];
         trafficTypes = [
+          {
+            match = [
+              {
+                dports = [ 3784 ];
+                family = "any";
+                proto = "udp";
+              }
+            ];
+            name = "bfd";
+          }
           {
             match = [
               {
@@ -796,12 +834,14 @@
             ipv6 = "fd42:dead:cafe:10::/64";
             kind = "tenant";
             name = "dmz";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.90.20.0/24";
             ipv6 = "fd42:dead:cafe:20::/64";
             kind = "tenant";
             name = "client";
+            dnsDomain = "lan.";
             routedPrefixes = [
               {
                 allocation = "runtime";
@@ -868,6 +908,10 @@
         ];
         nodes = {
           c-router-access-client = {
+            selects = [
+              "wan"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -877,6 +921,10 @@
             role = "access";
           };
           c-router-access-dmz = {
+            selects = [
+              "wan"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -899,12 +947,6 @@
           };
           c-router-nebula-core = {
             role = "core";
-            uplinks = {
-              east-west = {
-                ipv4 = [ ];
-                ipv6 = [ ];
-              };
-            };
           };
           c-router-policy = {
             role = "policy";
@@ -924,6 +966,16 @@
               "espbranch.site-b"
             ];
             terminateOn = "c-router-nebula-core";
+            peerNodes = {
+              "esp0xdeadbeef.site-a" = {
+                addr4 = "100.96.10.1/24";
+                addr6 = "fd42:dead:beef:ee::1/64";
+              };
+              "espbranch.site-b" = {
+                addr4 = "100.96.10.2/24";
+                addr6 = "fd42:dead:beef:ee::2/64";
+              };
+            };
             underlayAccess = {
               kind = "tenant";
               name = "client";
@@ -968,7 +1020,7 @@
             priority = 90;
             to = {
               kind = "external";
-                          };
+            };
             trafficType = "dns";
           }
           {
@@ -982,7 +1034,7 @@
             priority = 100;
             to = {
               kind = "external";
-                          };
+            };
             trafficType = "any";
           }
           {
@@ -1086,7 +1138,8 @@
             priority = 117;
             to = {
               kind = "external";
-                          };
+              scope = "b-router-core-simulated-isp";
+            };
             trafficType = "nebula-storage";
           }
         ];
@@ -1131,12 +1184,14 @@
             ipv6 = "fd42:dead:feed:10::/64";
             kind = "tenant";
             name = "branch";
+            dnsDomain = "lan.";
           }
           {
             ipv4 = "10.70.10.0/24";
             ipv6 = "fd42:dead:feed:70::/64";
             kind = "tenant";
             name = "hostile";
+            dnsDomain = "lan.";
             routedPrefixes = [
               {
                 allocation = "runtime";
@@ -1202,6 +1257,10 @@
         ];
         nodes = {
           b-router-access-branch = {
+            selects = [
+              "wan"
+            ];
+
             attachments = [
               {
                 kind = "tenant";
@@ -1221,12 +1280,6 @@
           };
           b-router-core-nebula = {
             role = "core";
-            uplinks = {
-              east-west = {
-                ipv4 = [ "0.0.0.0/0" ];
-                ipv6 = [ "::/0" ];
-              };
-            };
           };
           b-router-core-simulated-isp = {
             role = "core";
@@ -1258,6 +1311,16 @@
               "esp0xdeadbeef.site-c"
             ];
             terminateOn = "b-router-core-nebula";
+            peerNodes = {
+              "esp0xdeadbeef.site-a" = {
+                addr4 = "100.96.10.1/24";
+                addr6 = "fd42:dead:beef:ee::1/64";
+              };
+              "esp0xdeadbeef.site-c" = {
+                addr4 = "100.96.10.3/24";
+                addr6 = "fd42:dead:beef:ee::3/64";
+              };
+            };
             underlayAccess = {
               kind = "tenant";
               name = "branch";
