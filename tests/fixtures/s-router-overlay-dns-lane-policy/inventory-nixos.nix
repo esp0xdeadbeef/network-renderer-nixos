@@ -1,5 +1,3 @@
-# FS-320-HDS-010-SDS-010-SMS-030: fixture uses platform eth0 names as explicit
-# inventory/runtime interface facts, not renderer inference.
 let
   publicResolverCidrs = [
     "1.1.1.1/32"
@@ -27,12 +25,12 @@ in
             east-west = {
               nodes = {
                 c-router-lighthouse = {
-                  addr4 = "100.96.10.254/32";
-                  addr6 = "fd42:dead:beef:ee::254/128";
+                  addr4 = "100.96.10.254/24";
+                  addr6 = "fd42:dead:beef:ee::254/64";
                 };
                 s-router-core-nebula = {
-                  addr4 = "100.96.10.1/32";
-                  addr6 = "fd42:dead:beef:ee::1/128";
+                  addr4 = "100.96.10.1/24";
+                  addr6 = "fd42:dead:beef:ee::1/64";
                 };
               };
               nebula = {
@@ -48,21 +46,56 @@ in
                 runtimeNodes = {
                   s-router-core-nebula = {
                     unsafeRoutes = [
-                      { route = "10.60.10.0/24"; via4 = "100.96.10.2"; install = true; }
-                      { route = "10.70.10.0/24"; via4 = "100.96.10.2"; install = true; }
-                      { route = "10.90.10.0/24"; via4 = "100.96.10.3"; install = true; }
-                      { route = "10.90.20.0/24"; via4 = "100.96.10.3"; install = true; }
-                      { route = "fd42:dead:cafe:10::/64"; via6 = "fd42:dead:beef:ee::3"; install = true; }
-                      { route = "fd42:dead:cafe:20::/64"; via6 = "fd42:dead:beef:ee::3"; install = true; }
-                      { route = "fd42:dead:feed:10::/64"; via6 = "fd42:dead:beef:ee::2"; install = true; }
-                      { route = "fd42:dead:feed:70::/64"; via6 = "fd42:dead:beef:ee::2"; install = true; }
+                      {
+                        route = "10.60.10.0/24";
+                        via4 = "100.96.10.2";
+                        install = true;
+                      }
+                      {
+                        route = "10.70.10.0/24";
+                        via4 = "100.96.10.2";
+                        install = true;
+                      }
+                      {
+                        route = "10.90.10.0/24";
+                        via4 = "100.96.10.3";
+                        install = true;
+                      }
+                      {
+                        route = "10.90.20.0/24";
+                        via4 = "100.96.10.3";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:cafe:10::/64";
+                        via6 = "fd42:dead:beef:ee::3";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:cafe:20::/64";
+                        via6 = "fd42:dead:beef:ee::3";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:feed:10::/64";
+                        via6 = "fd42:dead:beef:ee::2";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:feed:70::/64";
+                        via6 = "fd42:dead:beef:ee::2";
+                        install = true;
+                      }
                     ];
                   };
                 };
               };
               provider = "nebula";
               underlayEndpointSourceFiles = {
-                ipv4 = [ "/run/secrets/site-c-lighthouse-public-ipv4" "/run/secrets/hetzner-public-ipv4" ];
+                ipv4 = [
+                  "/run/secrets/site-c-lighthouse-public-ipv4"
+                  "/run/secrets/hetzner-public-ipv4"
+                ];
                 ipv6 = [ "/run/secrets/site-c-lighthouse-public-ipv6" ];
               };
               runtimeNodes = {
@@ -99,12 +132,12 @@ in
             east-west = {
               nodes = {
                 c-router-lighthouse = {
-                  addr4 = "100.96.10.254/32";
-                  addr6 = "fd42:dead:beef:ee::254/128";
+                  addr4 = "100.96.10.254/24";
+                  addr6 = "fd42:dead:beef:ee::254/64";
                 };
                 c-router-nebula-core = {
-                  addr4 = "100.96.10.3/32";
-                  addr6 = "fd42:dead:beef:ee::3/128";
+                  addr4 = "100.96.10.3/24";
+                  addr6 = "fd42:dead:beef:ee::3/64";
                 };
               };
               nebula = {
@@ -123,22 +156,86 @@ in
                   };
                   c-router-nebula-core = {
                     unsafeRoutes = [
-                      { route = "10.20.10.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.15.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.20.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.30.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.40.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.50.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.60.10.0/24"; via4 = "100.96.10.2"; install = true; }
-                      { route = "10.70.10.0/24"; via4 = "100.96.10.2"; install = true; }
-                      { route = "fd42:dead:beef:10::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:15::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:20::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:30::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:40::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:50::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:feed:10::/64"; via6 = "fd42:dead:beef:ee::2"; install = true; }
-                      { route = "fd42:dead:feed:70::/64"; via6 = "fd42:dead:beef:ee::2"; install = true; }
+                      {
+                        route = "10.20.10.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.15.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.20.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.30.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.40.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.50.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.60.10.0/24";
+                        via4 = "100.96.10.2";
+                        install = true;
+                      }
+                      {
+                        route = "10.70.10.0/24";
+                        via4 = "100.96.10.2";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:10::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:15::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:20::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:30::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:40::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:50::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:feed:10::/64";
+                        via6 = "fd42:dead:beef:ee::2";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:feed:70::/64";
+                        via6 = "fd42:dead:beef:ee::2";
+                        install = true;
+                      }
                       {
                         route = "fd42:dead:feed:70::/64";
                         via6 = "fd42:dead:beef:ee::2";
@@ -151,7 +248,10 @@ in
               };
               provider = "nebula";
               underlayEndpointSourceFiles = {
-                ipv4 = [ "/run/secrets/site-c-lighthouse-public-ipv4" "/run/secrets/hetzner-public-ipv4" ];
+                ipv4 = [
+                  "/run/secrets/site-c-lighthouse-public-ipv4"
+                  "/run/secrets/hetzner-public-ipv4"
+                ];
                 ipv6 = [ "/run/secrets/site-c-lighthouse-public-ipv6" ];
               };
               runtimeNodes = {
@@ -209,20 +309,20 @@ in
             east-west = {
               nodes = {
                 b-router-core-nebula = {
-                  addr4 = "100.96.10.2/32";
-                  addr6 = "fd42:dead:beef:ee::2/128";
+                  addr4 = "100.96.10.2/24";
+                  addr6 = "fd42:dead:beef:ee::2/64";
                 };
                 branch-node01 = {
-                  addr4 = "100.96.10.20/32";
-                  addr6 = "fd42:dead:beef:ee::20/128";
+                  addr4 = "100.96.10.20/24";
+                  addr6 = "fd42:dead:beef:ee::20/64";
                 };
                 c-router-lighthouse = {
-                  addr4 = "100.96.10.254/32";
-                  addr6 = "fd42:dead:beef:ee::254/128";
+                  addr4 = "100.96.10.254/24";
+                  addr6 = "fd42:dead:beef:ee::254/64";
                 };
                 hostile-node01 = {
-                  addr4 = "100.96.10.30/32";
-                  addr6 = "fd42:dead:beef:ee::30/128";
+                  addr4 = "100.96.10.30/24";
+                  addr6 = "fd42:dead:beef:ee::30/64";
                 };
               };
               nebula = {
@@ -238,33 +338,116 @@ in
                 runtimeNodes = {
                   b-router-core-nebula = {
                     unsafeRoutes = [
-                      { route = "0.0.0.0/1"; via4 = "100.96.10.3"; install = true; }
-                      { route = "128.0.0.0/1"; via4 = "100.96.10.3"; install = true; }
-                      { route = "10.20.10.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.15.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.20.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.30.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.40.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.20.50.0/24"; via4 = "100.96.10.1"; install = true; }
-                      { route = "10.90.10.0/24"; via4 = "100.96.10.3"; install = true; }
-                      { route = "10.90.20.0/24"; via4 = "100.96.10.3"; install = true; }
-                      { route = "::/1"; via6 = "fd42:dead:beef:ee::3"; install = true; }
-                      { route = "8000::/1"; via6 = "fd42:dead:beef:ee::3"; install = true; }
-                      { route = "fd42:dead:beef:10::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:15::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:20::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:30::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:40::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:beef:50::/64"; via6 = "fd42:dead:beef:ee::1"; install = true; }
-                      { route = "fd42:dead:cafe:10::/64"; via6 = "fd42:dead:beef:ee::3"; install = true; }
-                      { route = "fd42:dead:cafe:20::/64"; via6 = "fd42:dead:beef:ee::3"; install = true; }
+                      {
+                        route = "0.0.0.0/1";
+                        via4 = "100.96.10.3";
+                        install = true;
+                      }
+                      {
+                        route = "128.0.0.0/1";
+                        via4 = "100.96.10.3";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.10.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.15.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.20.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.30.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.40.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.20.50.0/24";
+                        via4 = "100.96.10.1";
+                        install = true;
+                      }
+                      {
+                        route = "10.90.10.0/24";
+                        via4 = "100.96.10.3";
+                        install = true;
+                      }
+                      {
+                        route = "10.90.20.0/24";
+                        via4 = "100.96.10.3";
+                        install = true;
+                      }
+                      {
+                        route = "::/1";
+                        via6 = "fd42:dead:beef:ee::3";
+                        install = true;
+                      }
+                      {
+                        route = "8000::/1";
+                        via6 = "fd42:dead:beef:ee::3";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:10::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:15::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:20::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:30::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:40::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:beef:50::/64";
+                        via6 = "fd42:dead:beef:ee::1";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:cafe:10::/64";
+                        via6 = "fd42:dead:beef:ee::3";
+                        install = true;
+                      }
+                      {
+                        route = "fd42:dead:cafe:20::/64";
+                        via6 = "fd42:dead:beef:ee::3";
+                        install = true;
+                      }
                     ];
                   };
                 };
               };
               provider = "nebula";
               underlayEndpointSourceFiles = {
-                ipv4 = [ "/run/secrets/site-c-lighthouse-public-ipv4" "/run/secrets/hetzner-public-ipv4" ];
+                ipv4 = [
+                  "/run/secrets/site-c-lighthouse-public-ipv4"
+                  "/run/secrets/hetzner-public-ipv4"
+                ];
                 ipv6 = [ "/run/secrets/site-c-lighthouse-public-ipv6" ];
               };
               runtimeNodes = {
@@ -376,18 +559,15 @@ in
           br-site-a-downstream-streaming = { };
           br-site-a-policy-upstream-access-admin-east-west = { };
           br-site-a-policy-upstream-access-admin-isp-a = { };
-          br-site-a-policy-upstream-access-admin-isp-b = { };
           br-site-a-policy-upstream-access-client-east-west = { };
           br-site-a-policy-upstream-access-client-isp-a = { };
-          br-site-a-policy-upstream-access-client-isp-b = { };
           br-site-a-policy-upstream-access-client2-east-west = { };
           br-site-a-policy-upstream-access-client2-isp-a = { };
-          br-site-a-policy-upstream-access-client2-isp-b = { };
           br-site-a-policy-upstream-access-mgmt-east-west = { };
           br-site-a-policy-upstream-access-mgmt-isp-a = { };
           br-site-a-policy-upstream-access-mgmt-isp-b = { };
+          br-site-a-policy-upstream-access-dmz-isp-a = { };
           br-site-a-policy-upstream-access-streaming-isp-a = { };
-          br-site-a-policy-upstream-access-streaming-isp-b = { };
           br-site-b-core-nebula-upstream = { };
           br-site-b-core-simulated-isp-upstream = { };
           br-site-b-downstream-branch = { };
@@ -1381,17 +1561,6 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-isp-a";
           };
-          upstream-admin-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-isp-b-upstream-admin-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-admin-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "up-admin-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-isp-b";
-          };
           upstream-client-east-west = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-east-west-upstream-client-east-west";
             attach = {
@@ -1414,17 +1583,6 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-isp-a";
           };
-          upstream-client-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-isp-b-upstream-client-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-client-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "up-client-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-isp-b";
-          };
           upstream-client2-east-west = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-east-west-upstream-client2-east-west";
             attach = {
@@ -1446,17 +1604,6 @@ in
               name = "up-cl2-a";
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-isp-a";
-          };
-          upstream-client2-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-isp-b-upstream-client2-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-client2-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "up-cl2-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-isp-b";
           };
           upstream-mgmt-east-west = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-east-west-upstream-mgmt-east-west";
@@ -1502,16 +1649,20 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-a";
           };
-          upstream-streaming-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-b-upstream-streaming-isp-b";
+          # FS-210/FS-230: s-router-access-dmz is publicly-ingress and declares
+          # no selects, so it has an ingress/return transport lane rather than
+          # an exit selection.  Realize it so the post-translation return path
+          # exists.
+          upstream-dmz-isp-a = {
+            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-dmz--uplink-isp-a-upstream-dmz-isp-a";
             attach = {
-              bridge = "br-site-a-policy-upstream-access-streaming-isp-b";
+              bridge = "br-site-a-policy-upstream-access-dmz-isp-a";
               kind = "bridge";
             };
             interface = {
-              name = "up-stream-b";
+              name = "up-dmz-a";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-b";
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-dmz--uplink-isp-a";
           };
         };
       };
@@ -1579,17 +1730,6 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-isp-a";
           };
-          policy-admin-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-isp-b-policy-admin-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-admin-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "pol-admin-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-isp-b";
-          };
           policy-client-east-west = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-east-west-policy-client-east-west";
             attach = {
@@ -1612,17 +1752,6 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-isp-a";
           };
-          policy-client-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-isp-b-policy-client-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-client-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "pol-client-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-isp-b";
-          };
           policy-client2-east-west = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-east-west-policy-client2-east-west";
             attach = {
@@ -1644,17 +1773,6 @@ in
               name = "pol-cl2-a";
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-isp-a";
-          };
-          policy-client2-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-isp-b-policy-client2-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-client2-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "pol-cl2-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client2--uplink-isp-b";
           };
           policy-mgmt-east-west = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-east-west-policy-mgmt-east-west";
@@ -1689,6 +1807,17 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-isp-b";
           };
+          policy-dmz-isp-a = {
+            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-dmz--uplink-isp-a-policy-dmz-isp-a";
+            attach = {
+              bridge = "br-site-a-policy-upstream-access-dmz-isp-a";
+              kind = "bridge";
+            };
+            interface = {
+              name = "pol-dmz-a";
+            };
+            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-dmz--uplink-isp-a";
+          };
           policy-streaming-isp-a = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-a-policy-streaming-isp-a";
             attach = {
@@ -1699,17 +1828,6 @@ in
               name = "pol-stream-a";
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-a";
-          };
-          policy-streaming-isp-b = {
-            adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-b-policy-streaming-isp-b";
-            attach = {
-              bridge = "br-site-a-policy-upstream-access-streaming-isp-b";
-              kind = "bridge";
-            };
-            interface = {
-              name = "pol-stream-b";
-            };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-b";
           };
         };
       };
@@ -1975,27 +2093,6 @@ in
         };
         platform = "nixos-container";
         ports = {
-          east-west = {
-            attach = {
-              bridge = "br-wan";
-              kind = "bridge";
-            };
-            external = true;
-            interface = {
-              addr4 = "172.31.254.2/24";
-              name = "east-west";
-              routes = {
-                ipv4 = [
-                  {
-                    metric = 5000;
-                    prefix = "0.0.0.0/0";
-                    via = "172.31.254.1";
-                  }
-                ];
-              };
-            };
-            uplink = "east-west";
-          };
           upstream-selector = {
             adapterName = "p2p-c-router-nebula-core-c-router-upstream-selector-upstream-selector";
             attach = {
