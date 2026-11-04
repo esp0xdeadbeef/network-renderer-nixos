@@ -74,7 +74,10 @@ let
         let
           rawDns = (attrsOrEmpty target).services.dns or null;
           dns = attrsOrEmpty rawDns;
-          hasRecursionMode = (dns ? recursionMode) && dns.recursionMode != null;
+
+          roles = attrsOrEmpty (dns.roles or null);
+          hasRecursionMode =
+            ((dns ? recursionMode) && dns.recursionMode != null) || builtins.isAttrs (roles.recursion or null);
           hasLocalForwardZones =
             builtins.isList (dns.localForwardZones or null) && dns.localForwardZones != [ ];
           hasRequesterPolicies =
