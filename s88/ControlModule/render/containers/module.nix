@@ -160,7 +160,7 @@ in
     })
     interfaceRenames.config
     edgeServices
-    dnsServices
+    (builtins.removeAttrs dnsServices [ "nftablesRuleset" ])
     mdnsServices
     bgpServices
     pppoeServices.config
@@ -170,6 +170,10 @@ in
     frrEcmp.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
+      # One `table inet router`, declared once by the firewall. The DNS service
+      # contributes rules to those chains upstream of render-ruleset.nix, so
+      # the container gets a single declarative nftables.conf rather than a
+      # second table appended as text.
       networking.nftables.ruleset = firewallArg.ruleset;
     })
   ];

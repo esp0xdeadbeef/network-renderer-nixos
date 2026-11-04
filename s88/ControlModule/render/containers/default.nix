@@ -1,4 +1,5 @@
 { lib
+, pkgs ? null
 , repoPath
 , hostPlan ? null
 , cpm ? null
@@ -36,6 +37,7 @@ let
     import ./firewall.nix {
       inherit
         lib
+        pkgs
         cpm
         source
         renderedModel
