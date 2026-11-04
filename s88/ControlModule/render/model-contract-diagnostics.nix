@@ -81,7 +81,9 @@ let
             builtins.isList (dns.requesterPolicies or null) && dns.requesterPolicies != [ ];
           hasLocalOnly = builtins.isAttrs (dns.localOnlyPolicy or null);
         in
+
         builtins.isAttrs rawDns
+        && dns != { }
         && !hasRecursionMode
         && !hasLocalForwardZones
         && !hasRequesterPolicies
