@@ -17,7 +17,9 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 cp "${inventory_source}" "${tmp_dir}/inventory.nix"
 chmod u+w "${tmp_dir}/inventory.nix"
 
-perl -0pi -e 's/interface = \{ name = "ens4"; \}; uplink = "wan";/interface = { name = "ens4"; mtu = 1492; }; uplink = "wan";/' "${tmp_dir}/inventory.nix"
+# Match across newlines: the inventory fixture is nixpkgs-fmt formatted, so the
+# attribute set may be multi-line. Only the first ens4/wan uplink is targeted.
+perl -0pi -e 's/interface = \{\s*name = "ens4";\s*\};\s*uplink = "wan";/interface = { name = "ens4"; mtu = 1492; }; uplink = "wan";/s' "${tmp_dir}/inventory.nix"
 rg -q 'mtu = 1492' "${tmp_dir}/inventory.nix" \
   || fail "interface-mtu-pipeline-render: failed to inject explicit MTU into inventory fixture"
 
