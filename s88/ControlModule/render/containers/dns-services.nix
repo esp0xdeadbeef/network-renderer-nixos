@@ -369,7 +369,7 @@ else
 
       wants = [
         "network-online.target"
-        "nft-allow-dns-service.service"
+        "nft-dns-dynamic.service"
       ]
       ++ protectedReservationGeneratorUnits
       ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
@@ -377,7 +377,7 @@ else
       ++ (lib.optional (outgoingInterfaces != [ ]) "dns-outgoing-interfaces.service");
       after = [
         "network-online.target"
-        "nft-allow-dns-service.service"
+        "nft-dns-dynamic.service"
       ]
       ++ protectedReservationGeneratorUnits
       ++ (lib.optional (dnsFile != null) "dns-provider-forwarders.service")
@@ -413,11 +413,11 @@ else
       wantedBy = [ "multi-user.target" ];
       wants = [
         "network-online.target"
-        "nft-allow-dns-service.service"
+        "nft-dns-dynamic.service"
       ];
       after = [
         "network-online.target"
-        "nft-allow-dns-service.service"
+        "nft-dns-dynamic.service"
       ];
       before = [ "unbound.service" ];
       serviceConfig = {
@@ -590,8 +590,8 @@ else
       };
     };
 
-    systemd.services.nft-allow-dns-service = {
-      description = "Allow DNS to local unbound listeners";
+    systemd.services.nft-dns-dynamic = {
+      description = "Apply dynamic DNS firewall state (egress mark table)";
       wantedBy = [ "multi-user.target" ];
       wants = [ "nftables.service" ];
       after = [ "nftables.service" ];
@@ -602,17 +602,12 @@ else
       script = ''
         set -euo pipefail
 
-        if ! ${pkgs.nftables}/bin/nft list chain inet router input | grep -q 'allow-dns-service'; then
-          ${lib.concatStringsSep "\n          " nft.nftRules}
-        fi
-
-        ${lib.concatStringsSep "\n        " nft.dnsUpstreamSetDefinitions}
-
-        if ! ${pkgs.nftables}/bin/nft list ruleset | grep -q 'allow-dns-service-egress'; then
-          ${nft.dnsOutputScript}
-        fi
-
-        ${nft.dnsPolicyRoutingScript}
+        ${nft.dynamicScript}
       '';
     };
+
+    # Static, model-derived DNS firewall policy is declarative. The fragment is
+    # exported for the container module to merge into the single
+    # `networking.nftables.ruleset`, so this module does not own that option.
+    nftablesRuleset = nft.ruleset;
   }

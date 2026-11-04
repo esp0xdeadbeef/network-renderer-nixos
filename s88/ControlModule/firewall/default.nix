@@ -8,6 +8,13 @@ args@{ cpm
 , unitName ? null
 , roleName ? null
 , policyModulePath ? null
+  # Model-derived rules contributed by another renderer module (for example the
+  # DNS service) to this firewall's existing chains. They are appended to the
+  # policy rule model before emission, so the container keeps ONE
+  # `table inet router` instead of a second table merged in as text.
+, extraInputRules ? [ ]
+, extraForwardRules ? [ ]
+, extraOutputRules ? [ ]
 , assumptionFamily ? null
 , preferSiteNode ? false
 , strictEndpointBindings ? false
@@ -108,4 +115,11 @@ if ruleModelOrRuleset == null then
 else if builtins.isString ruleModelOrRuleset then
   ruleModelOrRuleset
 else
-  import ./emission/default.nix { inherit lib; } ruleModelOrRuleset
+  import ./emission/default.nix { inherit lib; } (
+    ruleModelOrRuleset
+    // {
+      inputRules = (ruleModelOrRuleset.inputRules or [ ]) ++ extraInputRules;
+      forwardRules = (ruleModelOrRuleset.forwardRules or [ ]) ++ extraForwardRules;
+      outputRules = (ruleModelOrRuleset.outputRules or [ ]) ++ extraOutputRules;
+    }
+  )

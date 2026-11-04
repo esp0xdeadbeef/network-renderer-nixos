@@ -1,4 +1,5 @@
 { lib
+, pkgs ? null
 , cpm ? null
 , source ? { }
 , uplinks ? { }
@@ -131,6 +132,32 @@ let
         policyRelationForwardPairs;
   };
 
+  # DNS firewall rules are a pure function of the realized model, so they are
+  # produced here and folded into the same `table inet router` the policy
+  # module declares. This keeps one declarative nftables.conf per container and
+  # removes the boot-time `nft add rule` service that used to replay them.
+  dnsNft = import ./dns-services/nft-rules.nix {
+    inherit lib pkgs;
+    facts = import ./dns-services/facts.nix {
+      inherit lib renderedModel;
+      forwardingIntent = routeForwardingIntent;
+    };
+  };
+
+  dnsExtraRules =
+    if dnsNft == null || !(dnsNft ? inputRules) then
+      {
+        extraInputRules = [ ];
+        extraForwardRules = [ ];
+        extraOutputRules = [ ];
+      }
+    else
+      {
+        extraInputRules = dnsNft.inputRules;
+        extraForwardRules = dnsNft.forwardRules;
+        extraOutputRules = dnsNft.outputRules;
+      };
+
   mkFirewallArg =
     nftRuleset: forwardingIntent:
     (if builtins.isString nftRuleset && nftRuleset != "" then
@@ -184,6 +211,11 @@ else
         interfaces
         wanIfs
         lanIfs
+        ;
+      inherit (dnsExtraRules)
+        extraInputRules
+        extraForwardRules
+        extraOutputRules
         ;
     })
     routeForwardingIntent
