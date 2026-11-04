@@ -94,7 +94,14 @@ let
             }
             {
               name = "domain-search";
-              data = builtins.concatStringsSep ", " scope.domainSearch;
+              data = builtins.concatStringsSep ", " (
+                if scope ? domainSearch then
+                  scope.domainSearch
+                else if builtins.isString (scope.domain or null) then
+                  [ scope.domain ]
+                else
+                  [ ]
+              );
             }
           ];
           inherit reservations;
@@ -161,12 +168,16 @@ in
 
   systemd.services."gen-kea-dhcp6-${scope.fileStem}" = {
     wantedBy = [ "multi-user.target" ];
+
+    after = [ "sops-nix.service" ];
+    wants = [ "sops-nix.service" ];
     before = [
       "kea-dhcp6-${scope.fileStem}.service"
     ]
     ++ lib.optional protectedNamePublicationEnabled "unbound.service";
     serviceConfig = {
       Type = "oneshot";
+      TimeoutStartSec = "120s";
       ExecStartPre = [
         "${pkgs.coreutils}/bin/mkdir -p /run/etc/kea"
         "${pkgs.coreutils}/bin/mkdir -p /run/protected-reservation-dns"
