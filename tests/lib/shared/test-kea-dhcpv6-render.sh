@@ -160,7 +160,10 @@ fi
 grep -F 'runtime-reservation-materializer.py' <<<"${gen_script}" >/dev/null \
   || fail "FAIL kea-dhcpv6-render: generator bypasses standalone materializer"
 
-kea_out="$(nix eval --raw nixpkgs#kea.outPath)"
+kea_out="$(nix build --no-link --print-out-paths nixpkgs#kea)"
+# `nix eval` only names the output path; it is not realised until built.
+[ -x "${kea_out}/bin/kea-dhcp6" ] \
+  || fail "FAIL kea-dhcpv6-render: kea package did not provide bin/kea-dhcp6"
 cat >"${tmp}/good-dhcp6.json" <<EOF
 {
   "Dhcp6": {

@@ -149,8 +149,12 @@ bash -n "${repo_root}/s88/ControlModule/access/render/kea-unbound-sync.sh"
 grep -F 'fqdn="$hostname.$NAMESPACE"' "${repo_root}/s88/ControlModule/access/render/kea-unbound-sync.sh" >/dev/null \
   || fail "FAIL kea-unbound-lease-sync: standalone sync does not publish relative leases under the modeled namespace"
 
-kea_out="$(nix eval --raw nixpkgs#kea.outPath)"
-unbound_out="$(nix eval --raw nixpkgs#unbound.outPath)"
+# `nix eval --raw …outPath` only names an output path; it is not realised
+# until built, so the binaries below would not exist. Build them instead.
+# `nix build --print-out-paths` can emit several outputs (e.g. unbound and
+# its -man output), so select the one that actually carries the binary.
+kea_out="$(nix build --no-link --print-out-paths nixpkgs#kea | while read -r p; do [ -x "$p/bin/kea-dhcp4" ] && { echo "$p"; break; }; done)"
+unbound_out="$(nix build --no-link --print-out-paths nixpkgs#unbound | while read -r p; do [ -x "$p/bin/unbound-control" ] && { echo "$p"; break; }; done)"
 unbound_control="${unbound_out}/bin/unbound-control"
 
 [[ -x "$unbound_control" ]] || fail "FAIL kea-unbound-lease-sync: missing unbound-control ${unbound_control}"
