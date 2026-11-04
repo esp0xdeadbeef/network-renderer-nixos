@@ -31,10 +31,23 @@ let
       };
     };
   } "h";
+  # A node the CPM models with recursion: services.dns.roles.recursion.
+  modelledRecursion = diag {
+    control_plane_model.data.e.s = mkEntry {
+      core = {
+        logicalNode.name = "core";
+        services.dns = {
+          forwarders = [ ];
+          roles.recursion.allowedUpstreamClasses = [ "local-access" ];
+        };
+      };
+    };
+  } "h";
   warn = result: builtins.filter (w: lib.hasInfix "DNS_RECURSION_INTENT_ABSENT" w) result.warnings;
 in {
   selectorWarns = warn selectorOnly != [ ];
   inventoryWarns = warn inventoryDns != [ ];
+  modelledWarns = warn modelledRecursion != [ ];
 }
 ')"
 
@@ -48,6 +61,11 @@ if [ "$selector_warns" = "true" ]; then
 fi
 if [ "$inventory_warns" != "true" ]; then
   echo "FAIL: a runtime target with inventory-driven DNS must still be reported"
+  fail=1
+fi
+modelled_warns="$(printf '%s' "$out" | jq -r .modelledWarns)"
+if [ "$modelled_warns" = "true" ]; then
+  echo "FAIL: a runtime target with modelled services.dns.roles.recursion must not be reported"
   fail=1
 fi
 [ "$fail" -eq 0 ] && echo "PASS FS-540-HDS-010-SDS-010-SMS-042 legacy-DNS diagnostic scope"
