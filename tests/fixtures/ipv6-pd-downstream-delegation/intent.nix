@@ -85,7 +85,8 @@
             priority = 50;
             to = {
               kind = "external";
-              name = "wan";
+
+              scope = "wan";
             };
             trafficType = "web";
           }
@@ -105,7 +106,8 @@
             priority = 100;
             to = {
               kind = "external";
-              name = "wan";
+
+              scope = "wan";
             };
             trafficType = "any";
           }
@@ -113,7 +115,8 @@
             action = "allow";
             from = {
               kind = "external";
-              name = "wan";
+
+              scope = "wan";
             };
             id = "allow-wan-to-jump-host";
             returnBehavior = "one-way";
@@ -128,7 +131,8 @@
             action = "allow";
             from = {
               kind = "external";
-              name = "wan";
+
+              scope = "wan";
             };
             id = "allow-wan-to-mgmt-icmp";
             returnBehavior = "one-way";
@@ -143,7 +147,8 @@
             action = "allow";
             from = {
               kind = "external";
-              name = "wan";
+
+              scope = "wan";
             };
             id = "allow-wan-to-admin-web";
             returnBehavior = "one-way";
@@ -260,24 +265,41 @@
             ipv4 = "10.20.10.0/24";
             ipv6 = "fd42:dead:beef:10::/64";
             kind = "tenant";
+            dnsDomain = "lan.";
             name = "mgmt";
           }
           {
             ipv4 = "10.20.15.0/24";
             ipv6 = "fd42:dead:beef:15::/64";
             kind = "tenant";
+            dnsDomain = "lan.";
             name = "admin";
           }
           {
             ipv4 = "10.20.20.0/24";
             ipv6 = "fd42:dead:beef:20::/64";
             kind = "tenant";
+            dnsDomain = "lan.";
             name = "client-a";
+
+            routedPrefixes = [
+              {
+                allocation = "runtime";
+                family = "ipv6";
+                name = "client-a-downstream-public";
+                delegatedPrefixLength = 48;
+                perTenantPrefixLength = 64;
+                slot = 1;
+
+                sourceFile = "/run/s88-ipv6-pd/wan-client-a.prefix";
+              }
+            ];
           }
           {
             ipv4 = "10.20.30.0/24";
             ipv6 = "fd42:dead:beef:30::/64";
             kind = "tenant";
+            dnsDomain = "lan.";
             name = "client-b";
             routedPrefixes = [
               {

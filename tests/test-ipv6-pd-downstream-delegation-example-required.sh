@@ -32,24 +32,26 @@ INVENTORY_PATH="${inventory_path}" \
             modules = [ builtContainers.${name}.config ];
           }).config;
         tenantCheck =
-          containerName: tenantName: delegatedLength: tenantLength: slot:
+          containerName: tenantName: delegatedLength: tenantLength: slot: sourceFile:
           let
             cfg = configFor containerName;
             service = cfg.systemd.services."radvd-generate-tenant-${tenantName}";
             script = builtins.readFile service.serviceConfig.ExecStart;
             pathConfig = (cfg.systemd.paths."radvd-prefix-tenant-${tenantName}" or { }).pathConfig or { };
-            sourceFile = "/run/s88-ipv6-pd/wan.prefix";
             lengthNeedle = "\"${toString delegatedLength}\" \"${toString tenantLength}\" \"${toString slot}\"";
           in
-            builtins.match ".*?/run/s88-ipv6-pd/wan.prefix.*" script != null
+            builtins.match (".*?" + sourceFile + ".*") script != null
             && builtins.match (".*?" + lengthNeedle + ".*") script != null
             && builtins.match ".*?ip -6 route replace.*?\\$pd_prefix.*" script != null
             && (pathConfig.PathExists or null) == sourceFile
             && (pathConfig.PathChanged or null) == sourceFile
             && (pathConfig.Unit or null) == "radvd-generate-tenant-${tenantName}.service";
       in
-        tenantCheck "s-router-access-client-a" "client-a" 48 64 1
-        && tenantCheck "s-router-access-client-b" "client-b" 48 52 1
+        # Each delegated allocation is derived from its own provider prefix file
+        # (FS-350-HDS-010-SDS-010-SMS-060), so the RA generator and its path unit
+        # must follow the tenant source file.
+        tenantCheck "s-router-access-client-a" "client-a" 48 64 1 "/run/s88-ipv6-pd/wan-client-a.prefix"
+        && tenantCheck "s-router-access-client-b" "client-b" 48 52 1 "/run/s88-ipv6-pd/wan.prefix"
     '
 
 echo "PASS ipv6-pd-downstream-delegation-example"
