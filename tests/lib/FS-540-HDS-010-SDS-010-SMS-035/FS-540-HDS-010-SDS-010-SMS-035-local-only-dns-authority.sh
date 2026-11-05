@@ -149,9 +149,7 @@ let
   namespaceShadowNegative = builtins.tryEval (
     builtins.deepSeq (render shadowedLocalNamespaceTarget).services.unbound.settings true
   );
-  fatalWarningNegative = builtins.tryEval (
-    builtins.deepSeq (render fatalRecursiveTarget).services.unbound.settings true
-  );
+  fatalRendered = render fatalRecursiveTarget;
   warnedRecursive = render warnedRecursiveTarget;
 in {
   positive =
@@ -198,7 +196,14 @@ in {
   endpointAuthorityRejected = !endpointAuthorityNegative.success;
   coreEndpointDivergenceRejected = !coreEndpointNegative.success;
   namespaceShadowRejected = !namespaceShadowNegative.success;
-  fatalWarningRejected = !fatalWarningNegative.success;
+  # SMS-035: reproducibility warnings are surfaced unchanged; rendering fails
+  # when required resolver data is absent. The `disposition` field is not the
+  # discriminator (CPM emits it as a constant), so the ambiguous-egress warning
+  # must be preserved rather than turned into a local fatality decision.
+  ambiguousEgressWarningSurfaced =
+    builtins.any
+      (warning: lib.hasInfix "DNS_EGRESS_SELECTION_AMBIGUOUS" warning)
+      fatalRendered.warnings;
   warningSurfaced =
     builtins.length warnedRecursive.warnings == 1
     && lib.hasInfix "DNS_CORE_UPSTREAM_HARDCODED" (builtins.head warnedRecursive.warnings);
@@ -212,7 +217,7 @@ jq -e '
   and .endpointAuthorityRejected
   and .coreEndpointDivergenceRejected
   and .namespaceShadowRejected
-  and .fatalWarningRejected
+  and .ambiguousEgressWarningSurfaced
   and .warningSurfaced
 ' <<<"${result}" >/dev/null
 

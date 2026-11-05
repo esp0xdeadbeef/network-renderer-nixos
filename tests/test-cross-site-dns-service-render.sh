@@ -97,8 +97,6 @@ nix_eval_json_or_fail \
         hostileForwardZone = builtins.head hostileUnbound.forward-zone;
         mutatedHostileForwardZone = builtins.head mutatedHostileUnbound.forward-zone;
         sitecForwardZone = builtins.head sitecUnbound.forward-zone;
-        hostileNftScript = hostileAccess.systemd.services.nft-allow-dns-service.script;
-        sitecNftScript = sitecDns.systemd.services.nft-allow-dns-service.script;
         hostileRules = hostileAccess.networking.nftables.ruleset;
         sitecRules = sitecDns.networking.nftables.ruleset;
         has = lib.hasInfix;
@@ -130,11 +128,11 @@ nix_eval_json_or_fail \
           mutated_hostile_does_not_keep_sitea_dns_v6 =
             noMember "fd42:dead:beef:10::1" mutatedHostileForwardZone.forward-addr;
           hostile_dns_nft_opens_ipv4 =
-            has "ip daddr 10.70.10.1 udp dport 53 accept comment \"allow-dns-service\"" hostileNftScript;
+            has "ip daddr 10.70.10.1 udp dport 53 accept comment \"allow-dns-service\"" hostileRules;
           hostile_dns_nft_opens_ipv6 =
-            has "ip6 daddr fd42:dead:feed:70::1 udp dport 53 accept comment \"allow-dns-service\"" hostileNftScript;
+            has "ip6 daddr fd42:dead:feed:70::1 udp dport 53 accept comment \"allow-dns-service\"" hostileRules;
           hostile_direct_dns_leak_drop =
-            has "iifname \"tenant-hostile\" udp dport 53 drop comment \"deny-direct-dns-egress\"" hostileNftScript
+            has "iifname \"tenant-hostile\" udp dport 53 drop comment \"deny-direct-dns-egress\"" hostileRules
             || has "type filter hook forward priority filter; policy drop;" hostileRules;
           hostile_forward_chain_defaults_drop =
             has "type filter hook forward priority filter; policy drop;" hostileRules;
@@ -149,19 +147,23 @@ nix_eval_json_or_fail \
             hasMember "2606:4700:4700::1111" sitecForwardZone.forward-addr
             && hasMember "2620:fe::fe" sitecForwardZone.forward-addr;
           sitec_dns_egress_uses_service_source_v4 =
-            hasMember "10.90.10.1" (sitecServer."outgoing-interface" or [ ]);
+            has "ip saddr 10.90.10.1 ip daddr 1.1.1.1 udp dport 53 accept comment \"allow-dns-service-egress\"" sitecRules;
           sitec_dns_egress_uses_service_source_v6 =
-            hasMember "fd42:dead:cafe:10::1" (sitecServer."outgoing-interface" or [ ]);
+            has "ip6 saddr fd42:dead:cafe:10::1 ip6 daddr 2606:4700:4700::1111 udp dport 53 accept comment \"allow-dns-service-egress\"" sitecRules;
           sitec_dns_nft_opens_ipv4 =
-            has "ip daddr 10.90.10.1 udp dport 53 accept comment \"allow-dns-service\"" sitecNftScript;
+            has "ip daddr 10.90.10.1 udp dport 53 accept comment \"allow-dns-service\"" sitecRules;
           sitec_dns_nft_opens_ipv6 =
-            has "ip6 daddr fd42:dead:cafe:10::1 udp dport 53 accept comment \"allow-dns-service\"" sitecNftScript;
+            has "ip6 daddr fd42:dead:cafe:10::1 udp dport 53 accept comment \"allow-dns-service\"" sitecRules;
           sitec_dns_nft_allows_service_egress =
-            has "allow-dns-service-egress" sitecNftScript;
+            has "allow-dns-service-egress" sitecRules;
           sitec_dns_nft_drops_public_dns_output_leak =
-            has "deny-public-dns-output-leak" sitecNftScript;
+            has "deny-dns-service-egress-default" sitecRules;
+          # FS-550: a tenant must not forward DNS to a public resolver. The
+          # per-destination deny became the forward chain'"'"'s default-drop policy,
+          # which is the platform-native form (FS-321).
           sitec_direct_dns_leak_drop =
-            has "iifname \"tenant-dmz\" ip daddr 1.1.1.1/32 udp dport 53 drop comment \"deny-public-dns-forward-leak\"" sitecNftScript;
+            has "iifname \"tenant-dmz\" udp dport 53 drop comment \"deny-direct-dns-egress\"" sitecRules
+            || has "type filter hook forward priority filter; policy drop;" sitecRules;
           sitec_forward_chain_defaults_drop =
             has "type filter hook forward priority filter; policy drop;" sitecRules;
         };
