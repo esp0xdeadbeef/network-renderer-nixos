@@ -160,7 +160,7 @@ nix_eval_json_or_fail \
           branch_v4_dns_route =
             hasRouteAnyNetwork branchNetworks "10.20.10.0/24" "10.50.0.13" branchEwTable;
           branch_v6_dns_route =
-            hasRouteAnyNetwork branchNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:d" branchEwTable;
+            hasRouteAnyNetwork branchNetworks "fd42:dead:beef:10::/64" "fd42:dead:feed:1000:0:0:0:d" branchEwTable;
           branch_dns_service_udp_rule =
             hasRuleLine [ "iifname \"down-branch\" oifname \"up-branch-ew\"" "meta l4proto udp udp dport { 53 } accept" "comment \"allow-branch-dns-to-sitea-mgmt-dns\"" ] branchPolicyRules;
           branch_dns_service_tcp_rule =
@@ -248,7 +248,7 @@ nix_eval_json_or_fail \
           sitea_mgmt_ew_branch_reachability_v4 =
             hasMainOrPolicyRoute siteaUpstreamNetworks "10.60.10.0/24" "10.10.0.16" siteaCoreNebulaTable;
           sitea_mgmt_ew_branch_reachability_v6 =
-            hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:feed:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:10" siteaCoreNebulaTable;
+            hasMainOrPolicyRoute siteaUpstreamNetworks "fd42:dead:feed:10::/64" "fd42:dead:beef:1000:0:0:0:10" siteaCoreNebulaTable;
           sitea_mgmt_downstream_dns_v4 =
             hasRoute siteaMgmtRoutes "10.20.10.0/24" "10.10.0.26" siteaMgmtDownstreamTable;
           sitea_mgmt_downstream_dns_v6 =
@@ -256,7 +256,7 @@ nix_eval_json_or_fail \
           sitea_policy_client_ew_mgmt_dns_v4_absent =
             !(hasPolicyRoute siteaPolicyNetworks "10.20.10.0/24" "10.10.0.37" siteaPolicyClientEwTable);
           sitea_policy_client_ew_mgmt_dns_v6_absent =
-            !(hasPolicyRoute siteaPolicyNetworks "fd42:dead:beef:0010:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:25" siteaPolicyClientEwTable);
+            !(hasPolicyRoute siteaPolicyNetworks "fd42:dead:beef:10::/64" "fd42:dead:beef:1000:0:0:0:25" siteaPolicyClientEwTable);
           sitea_dns_udp_rule =
             hasRuleLine [
               "iifname \"down-client\" oifname \"downstream-mgmt\""
