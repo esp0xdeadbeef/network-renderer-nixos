@@ -72,7 +72,7 @@ REPO_ROOT="${repo_root}" nix eval \
         };
       rendered = render runtimeTarget interfaces;
       rules = rendered.systemd.network.networks."10-wan0".routingPolicyRules;
-      nftScript = rendered.systemd.services.nft-allow-dns-service.script;
+      nftScript = rendered.systemd.services.nft-dns-dynamic.script;
       ipv6AcceptRAConfig = dynamicWan.mkDynamicWanIpv6AcceptRAConfig interfaces.isp-primary null;
       hasRule = family:
         builtins.any
@@ -139,8 +139,8 @@ REPO_ROOT="${repo_root}" nix eval \
       && lib.hasInfix "udp dport 53 meta mark set 1002" nftScript
       && lib.hasInfix "tcp dport 53 meta mark set 1002" nftScript
       && lib.hasInfix "select-modeled-dns-egress" nftScript
-      && ipv6AcceptRAConfig == { RouteTable = 1002; }
-      && builtins.elem "nft-allow-dns-service.service" rendered.systemd.services.unbound.after
+      && ipv6AcceptRAConfig == { RouteTable = 1002; UseRoutePrefix = false; }
+      && builtins.elem "nft-dns-dynamic.service" rendered.systemd.services.unbound.after
       && !missingPolicy.success
       && !divergentAllocation.success
   ' | grep -qx true
