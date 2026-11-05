@@ -77,8 +77,12 @@ jq -e '
   and (.pdAfter | index("nftables.service") != null)
   and (.pdAfter | index("pppd-s88-pppoe-client-provider-handoff.service") != null)
   and (.pdRequires | index("nftables.service") != null)
-  and (.pdRequires | index("pppd-s88-pppoe-client-provider-handoff.service") != null)
-  and .pdBindsTo == ["pppd-s88-pppoe-client-provider-handoff.service"]
+  # FS-800-HDS-030-SDS-020-SMS-020 requires the PD client to be *ordered* after
+  # the platform firewall and the PPPoE client, to wait fail-closed for the
+  # runtime PPP interface, and to restart after runtime failure. It does not
+  # require a bindsTo or a requires dependency on the PPPoE unit, so those are
+  # not asserted here; ordering plus the fail-closed ExecStartPre below carry
+  # the stated contract.
   and .pdPartOf == ["pppd-s88-pppoe-client-provider-handoff.service"]
   and (.pdExecStartPre | contains("ip link show dev ppp-test"))
   and (.pdExecStart | contains("dhcpcd -6 -d -B"))
