@@ -1,15 +1,17 @@
-{ lib
-, pkgs ? null
-, cpm ? null
-, source ? { }
-, uplinks ? { }
-, renderedModel
-,
+{
+  lib,
+  pkgs ? null,
+  cpm ? null,
+  source ? { },
+  uplinks ? { },
+  renderedModel,
 }:
 
 let
   firewall = import ../../firewall/default.nix { inherit lib; };
-  providerOverlayRuntimeInterfaces = import ../provider-overlay-runtime-interfaces.nix { inherit lib; };
+  providerOverlayRuntimeInterfaces = import ../provider-overlay-runtime-interfaces.nix {
+    inherit lib;
+  };
 
   attrsOrEmpty = value: if builtins.isAttrs value then value else { };
 
@@ -17,7 +19,9 @@ let
     if
       renderedModel ? runtimeTarget
       && builtins.isAttrs renderedModel.runtimeTarget
-      && builtins.isAttrs ((renderedModel.runtimeTarget.effectiveRuntimeRealization or { }).interfaces or null)
+      && builtins.isAttrs (
+        (renderedModel.runtimeTarget.effectiveRuntimeRealization or { }).interfaces or null
+      )
     then
       renderedModel.runtimeTarget.effectiveRuntimeRealization.interfaces
     else
@@ -32,14 +36,17 @@ let
   interfaces =
     let
       renderedInterfaces =
-        if renderedModel ? interfaces && builtins.isAttrs renderedModel.interfaces && renderedModel.interfaces != { } then
+        if
+          renderedModel ? interfaces
+          && builtins.isAttrs renderedModel.interfaces
+          && renderedModel.interfaces != { }
+        then
           renderedModel.interfaces
         else
           runtimeInterfaces;
-      providerInterfaces =
-        providerOverlayRuntimeInterfaces.materializeMissingProviderOverlayInterfaces {
-          inherit runtimeInterfaces renderedInterfaces;
-        };
+      providerInterfaces = providerOverlayRuntimeInterfaces.materializeMissingProviderOverlayInterfaces {
+        inherit runtimeInterfaces renderedInterfaces;
+      };
     in
     renderedInterfaces // providerInterfaces;
 
@@ -120,11 +127,11 @@ let
     policyRelationForwardPairs =
       if
         (forwardingIntent.normalizedExplicitForwardPairs or [ ]) != [ ]
-          && (forwardingIntent.nodeForwarding.mode or null) == "explicit-selector-forwarding"
-          && (
+        && (forwardingIntent.nodeForwarding.mode or null) == "explicit-selector-forwarding"
+        && (
           (networkBehavior.isSelector or false)
-            || (networkBehavior.isUpstreamSelector or false)
-            || (networkBehavior.isDownstreamSelector or false)
+          || (networkBehavior.isUpstreamSelector or false)
+          || (networkBehavior.isDownstreamSelector or false)
         )
       then
         [ ]
@@ -132,17 +139,19 @@ let
         policyRelationForwardPairs;
   };
 
-  # DNS firewall rules are a pure function of the realized model, so they are
-  # produced here and folded into the same `table inet router` the policy
-  # module declares. This keeps one declarative nftables.conf per container and
-  # removes the boot-time `nft add rule` service that used to replay them.
-  dnsNft = import ./dns-services/nft-rules.nix {
-    inherit lib pkgs;
-    facts = import ./dns-services/facts.nix {
-      inherit lib renderedModel;
-      forwardingIntent = routeForwardingIntent;
-    };
+  dnsFacts = import ./dns-services/facts.nix {
+    inherit lib renderedModel;
+    forwardingIntent = routeForwardingIntent;
   };
+
+  dnsNft =
+    if dnsFacts == null then
+      null
+    else
+      import ./dns-services/nft-rules.nix {
+        inherit lib pkgs;
+        facts = dnsFacts;
+      };
 
   dnsExtraRules =
     if dnsNft == null || !(dnsNft ? inputRules) then
@@ -160,16 +169,18 @@ let
 
   mkFirewallArg =
     nftRuleset: forwardingIntent:
-    (if builtins.isString nftRuleset && nftRuleset != "" then
-      {
-        enable = true;
-        ruleset = nftRuleset;
-      }
-    else
-      {
-        enable = false;
-        ruleset = null;
-      })
+    (
+      if builtins.isString nftRuleset && nftRuleset != "" then
+        {
+          enable = true;
+          ruleset = nftRuleset;
+        }
+      else
+        {
+          enable = false;
+          ruleset = null;
+        }
+    )
     // {
       inherit forwardingIntent;
       lookup = {
@@ -191,31 +202,29 @@ if cpm == null then
       ruleset = null;
     }
 else
-  mkFirewallArg
-    (firewall {
-      inherit cpm source uplinks;
-      inherit interfaceView endpointMap;
-      communication = communication;
-      forwardingIntent = routeForwardingIntent;
-      inherit
-        unitKey
-        unitName
-        roleName
-        policyModulePath
-        assumptionFamily
-        preferSiteNode
-        strictEndpointBindings
-        ;
-      inherit
-        runtimeTarget
-        interfaces
-        wanIfs
-        lanIfs
-        ;
-      inherit (dnsExtraRules)
-        extraInputRules
-        extraForwardRules
-        extraOutputRules
-        ;
-    })
-    routeForwardingIntent
+  mkFirewallArg (firewall {
+    inherit cpm source uplinks;
+    inherit interfaceView endpointMap;
+    communication = communication;
+    forwardingIntent = routeForwardingIntent;
+    inherit
+      unitKey
+      unitName
+      roleName
+      policyModulePath
+      assumptionFamily
+      preferSiteNode
+      strictEndpointBindings
+      ;
+    inherit
+      runtimeTarget
+      interfaces
+      wanIfs
+      lanIfs
+      ;
+    inherit (dnsExtraRules)
+      extraInputRules
+      extraForwardRules
+      extraOutputRules
+      ;
+  }) routeForwardingIntent
