@@ -9,8 +9,10 @@ cd "${repo_root}"
 result="$(nix eval --json --impure --expr '
 let
   renderer = builtins.getFlake (toString ./.);
-  cpmFlake = builtins.getFlake (toString /home/deadbeef/github/network-control-plane-model);
-  labs = /home/deadbeef/github/network-labs;
+  # Resolve the upstream layers from this repo flake inputs (CI checks them out
+  # at the pinned revisions); never from a machine-local path.
+  cpmFlake = renderer.inputs.network-control-plane-model;
+  labs = renderer.inputs.network-labs.outPath;
   system = builtins.currentSystem;
   trace = "FS-540-HDS-010-SDS-010-SMS-045";
   row = labs + "/GAMP/SMT/${trace}";
