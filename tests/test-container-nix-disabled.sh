@@ -6,7 +6,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 
-nix_eval_true_or_fail "container-nix-flake-runtime" env REPO_ROOT="${repo_root}" \
+nix_eval_true_or_fail "container-nix-disabled" env REPO_ROOT="${repo_root}" \
 INTENT_PATH="${example_root}/intent.nix" \
 INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
   nix eval \
@@ -27,8 +27,18 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           inherit (pkgs) system;
           modules = [ container.config ];
         };
+        cfg = evaluated.config;
+        services = cfg.systemd.services;
       in
-        lib.hasInfix "experimental-features = nix-command flakes" evaluated.config.nix.extraOptions
+        # Containers never build, substitute or garbage-collect Nix packages: the
+        # host supplies the closure read-only. Rendering nix support inside each
+        # scope only added per-container nix-daemon/nix-gc/nix-optimise services
+        # with no modelled effect, so the renderer disables it and must keep it
+        # disabled.
+        cfg.nix.enable == false
+        && !(services ? nix-daemon)
+        && !(services ? nix-gc)
+        && !(services ? nix-optimise)
     '
 
-echo "PASS container-nix-flake-runtime"
+echo "PASS container-nix-disabled"
