@@ -241,9 +241,9 @@ else
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr "
       let
-        nrFlake = builtins.getFlake \"path:/home/deadbeef/github/network-realization-model\";
         rFlake = builtins.getFlake \"path:${repo_root}\";
-        input = import /home/deadbeef/github/network-realization-model/examples/cpm-result.nix;
+        nrFlake = rFlake.inputs.network-realization-model;
+        input = import (rFlake.inputs.network-realization-model.outPath + \"/examples/cpm-result.nix\");
         released = nrFlake.lib.realize {
           inherit input;
           requestScope = { kind = \"complete-artifact\"; identity = \"sms100-n3\"; };
@@ -278,9 +278,9 @@ else
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr "
       let
-        nrFlake = builtins.getFlake \"path:/home/deadbeef/github/network-realization-model\";
         rFlake = builtins.getFlake \"path:${repo_root}\";
-        input = import /home/deadbeef/github/network-realization-model/examples/cpm-result.nix;
+        nrFlake = rFlake.inputs.network-realization-model;
+        input = import (rFlake.inputs.network-realization-model.outPath + \"/examples/cpm-result.nix\");
         released = nrFlake.lib.realize {
           inherit input;
           requestScope = { kind = \"complete-artifact\"; identity = \"sms100-r1\"; };
@@ -312,10 +312,10 @@ else
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr "
       let
-        nrFlake = builtins.getFlake \"path:/home/deadbeef/github/network-realization-model\";
-        schemaFlake = builtins.getFlake \"path:/home/deadbeef/github/network-realization-schema\";
         rFlake = builtins.getFlake \"path:${repo_root}\";
-        input = import /home/deadbeef/github/network-realization-model/examples/cpm-result.nix;
+        nrFlake = rFlake.inputs.network-realization-model;
+        schemaFlake = nrFlake.inputs.network-realization-schema;
+        input = import (rFlake.inputs.network-realization-model.outPath + \"/examples/cpm-result.nix\");
         released = nrFlake.lib.realize {
           inherit input;
           requestScope = { kind = \"complete-artifact\"; identity = \"sms100-n4\"; };
@@ -361,10 +361,10 @@ else
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr "
       let
-        nrFlake = builtins.getFlake \"path:/home/deadbeef/github/network-realization-model\";
-        schemaFlake = builtins.getFlake \"path:/home/deadbeef/github/network-realization-schema\";
         rFlake = builtins.getFlake \"path:${repo_root}\";
-        input = import /home/deadbeef/github/network-realization-model/examples/cpm-result.nix;
+        nrFlake = rFlake.inputs.network-realization-model;
+        schemaFlake = nrFlake.inputs.network-realization-schema;
+        input = import (rFlake.inputs.network-realization-model.outPath + \"/examples/cpm-result.nix\");
         released = nrFlake.lib.realize {
           inherit input;
           requestScope = { kind = \"complete-artifact\"; identity = \"sms100-r2\"; };

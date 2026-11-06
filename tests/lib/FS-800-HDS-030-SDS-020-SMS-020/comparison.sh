@@ -6,7 +6,14 @@
 set -euo pipefail
 
 repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-clab_repo="/home/deadbeef/github/network-renderer-containerlab-linux-backend"
+# The CLAB renderer is a separate repository and not an input of this flake, so
+# this repo's CI cannot check it out. The comparison runs where that checkout is
+# supplied (the CLAB renderer's own pipeline); here it skips with the reason.
+clab_repo="${NETWORK_RENDERER_CLAB_PATH:-}"
+if [[ -z "${clab_repo}" || ! -d "${clab_repo}" ]]; then
+  echo "SKIP FS-800 comparison: set NETWORK_RENDERER_CLAB_PATH to a network-renderer-containerlab-linux-backend checkout"
+  exit 0
+fi
 
 # ---- NixOS normalized contract (same as main test) ----------------------
 nixos_eval="$(REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
