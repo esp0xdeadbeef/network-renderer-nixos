@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set - euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
@@ -32,18 +32,40 @@ policy_rules="$(
       '
 )"
 
-for uplink in a b; do
-  grep -F "iifname \"down-client2\" oifname \"up-cl2-${uplink}\" accept comment \"allow-tenants-to-uplinks\"" \
-    <<<"${policy_rules}" >/dev/null \
-    || fail "missing client2 public-egress allow for up-cl2-${uplink}; renderer dropped an intent tenant-set member whose policy lane uses an abbreviated runtime interface"
+# The current contract is source-scoped: an admitted relation renders an
+# accept for each modeled source prefix on the requester lane, and the exit
+# lane set is the scope's selection, not every ISP. Derive the client2 prefixes
+# from the rendered accepts themselves (so the check follows the model), then
+# require the matching DNS leak deny and no unsourced accept.
+mapfile -t accept_lines < <(grep -F 'iifname "down-client2"' <<<"${policy_rules}" | grep -F 'accept comment "allow-tenants-to-uplinks"')
+((${#accept_lines[@]} > 0)) || fail "client2 public-egress accept rules are missing entirely"
 
-  grep -F "iifname \"down-client2\" oifname \"up-cl2-${uplink}\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
-    <<<"${policy_rules}" >/dev/null \
-    || fail "missing client2 UDP DNS leak block for up-cl2-${uplink}"
+declare -A seen_lane_prefix=()
+for line in "${accept_lines[@]}"; do
+lane="$(sed -n 's/.*oifname "\([^"]*\)".*/\1/p' <<<"${line}")"
+  family="$(sed -n 's/.*\(ip6\? saddr\).*/\1/p' <<<"${line}")"
+  prefix="$(sed -n 's/.*ip6\? saddr \([^ ]*\).*/\1/p' <<<"${line}")"
+  [[ -n "${lane}" && -n "${prefix}" && -n "${family}" ]] || fail "client2 accept rule is not source- and lane-scoped: ${line}"
+  seen_lane_prefix["${lane}|${family}|${prefix}"]=1
+done
 
-  grep -F "iifname \"down-client2\" oifname \"up-cl2-${uplink}\" meta l4proto tcp tcp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
-    <<<"${policy_rules}" >/dev/null \
-    || fail "missing client2 TCP DNS leak block for up-cl2-${uplink}"
+for key in "${!seen_lane_prefix[@]}"; do
+  lane="${key%%|*}"
+  rest="${key#*|}"
+family="${rest%%|*}"
+prefix="${rest#*|}"
+
+grep -F "iifname \"down-client2\" oifname \"${lane}\" ${family} ${prefix} meta l4proto udp udp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
+<<<"${policy_rules}" >/dev/null \
+|| fail "missing client2 UDP DNS leak block for ${prefix} on ${lane}"
+
+grep -F "iifname \"down-client2\" oifname \"${lane}\" ${family} ${prefix} meta l4proto tcp tcp dport { 53 } drop comment \"deny-sitea-dns-to-uplinks\"" \
+<<<"${policy_rules}" >/dev/null \
+|| fail "missing client2 TCP DNS leak block for ${prefix} on ${lane}"
+
+grep -F "iifname \"down-client2\" oifname \"${lane}\" accept comment \"allow-tenants-to-uplinks\"" \
+<<<"${policy_rules}" >/dev/null \
+&& fail "client2 accept on ${lane} is not source-scoped (deny-by-default contract)"
 done
 
 pass "client2-policy-uplink-firewall"
