@@ -257,8 +257,20 @@ let
               lib.filter (
                 route: isRoutedDefaultRoute route && routeGatewayMatchesInterface iface route
               ) staticRawRoutes;
+
+          hasPolicyOnlyTwin =
+            route:
+            builtins.any (
+              other:
+              builtins.isAttrs other
+              && isPolicyOnlyRoute other
+              && (other.dst or other.Destination or null) == (route.dst or route.Destination or null)
+            ) (policyRoutingByInterface.routes.${ifName} or [ ]);
           staticRawRoutes = lib.filter (
-            route: !(isExternalValidationDelegatedPrefixRoute route) && !(isPolicyOnlyRoute route)
+            route:
+            !(isExternalValidationDelegatedPrefixRoute route)
+            && !(isPolicyOnlyRoute route)
+            && !(hasPolicyOnlyTwin route)
           ) rawRoutes;
           policyMainRoutes = lib.optionals keepInterfaceRoutesInMain (
             map (route: builtins.removeAttrs route [ "Table" ]) (
@@ -284,7 +296,14 @@ let
             ++ (lib.filter (route: route != null) (
               map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])
             ))
-            ++ (policyRoutingByInterface.routes.${ifName} or [ ]);
+
+            ++ (map (
+              route:
+              route
+              // lib.optionalAttrs (
+                builtins.isInt (route.table or null) && !(builtins.isInt (route.Table or null))
+              ) { Table = route.table; }
+            ) (policyRoutingByInterface.routes.${ifName} or [ ]));
         in
         if
           builtins.elem ifName skipInterfaceNames
