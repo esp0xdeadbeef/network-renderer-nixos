@@ -1,7 +1,7 @@
 # Remaining renderer reds and their owner
 
-Status: BLOCKED for the two tri-site cases; the other reds are contract work in
-progress.
+Status: BLOCKED for the two tri-site cases and the legacy runtime-origin case;
+the policy-table parity case is fixed.
 
 - `tests/test-overlay-core-local-hostile-return-routes.sh` and
   `tests/test-transit-endpoint-return-routes.sh` consume the private fixture
@@ -19,14 +19,16 @@ progress.
   fixture is intent-only. Until that canonical example exists, the renderer
   cannot derive the fixture from an authoritative source; hand-editing the
   private copy would re-create the drift this repository is trying to remove.
-- `tests/test-policy-cpm-firewall-parity.sh` needs the per-ingress policy table
-  to carry the selected exit default for the accepted forward flow. FS-315
-  requires the ingress table, forward path and return path to share one modeled
-  owner/lane; the canonical record currently carries the exit default on the
-  egress lane only, and there is no modeled ingress-table relation to copy. That
-  relation must be specified before it is emitted (FS-171 single writer), so it
-  is not invented here.
-- `tests/test-runtime-origin-loopback-egress-render.sh`: the remaining flags
+- `tests/test-policy-cpm-firewall-parity.sh` is FIXED: control plane
+  `c2cb1dc…2c7d382` copies each modeled accept rule's egress default into the
+  ingress lane (tagged with the ingress lane, deduplicated, access lanes only),
+  and the case now asserts the kernel table carries the default rather than
+  which network renders it (FS-315).
+- `tests/test-runtime-origin-loopback-egress-render.sh`: the main-table leak is
+  fixed (`wrongPolicyRuntimeSourceMainRoutes: []`). The remaining flags
   (`hasCoreADefault`, `hasPolicyClientDefault`, `has*RuntimeSourceRule`,
-  `runtimeOriginHasAccessOrigin`) are the same ingress-table/selector-side
-  defaults; the main-table leak (`wrongPolicyRuntimeSourceMainRoutes`) is fixed.
+  `runtimeOriginHasAccessOrigin`) assert an older topology that the fixture no
+  longer models: it expects `up-client-b` and `pol-client-a/-b` lanes and a core
+  runtime-origin prefix `10.19.0.8/32`, while the fixture models `up-cli-ew`,
+  `up-client-a` and the tenant DNS origin prefixes. Migrating it needs the same
+  authoritative tri-site replacement fixture as the two cases above.
