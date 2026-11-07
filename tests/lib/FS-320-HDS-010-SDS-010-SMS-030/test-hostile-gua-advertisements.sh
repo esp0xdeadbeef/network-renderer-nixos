@@ -94,7 +94,7 @@ INVENTORY_PATH="${inventory_path}" \
         hasStaleCoreMainRoute =
           builtins.any (
             route:
-              (route.Destination or null) == "2a01:04f8:1c17:b337:0000:0000:0000:0000/64"
+              (route.Destination or null) == "2001:0db8:1c17:b337:0000:0000:0000:0000/64"
               && !(route ? Table)
           ) coreUpstreamRoutes;
       in
