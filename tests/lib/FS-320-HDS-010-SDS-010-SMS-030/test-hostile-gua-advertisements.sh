@@ -73,12 +73,12 @@ INVENTORY_PATH="${inventory_path}" \
         hasHostileGuaOnlinkRoute =
           builtins.any (
             route:
-              (route.Destination or null) == "2a01:4f8:1c17:b337::/64"
+              (route.Destination or null) == "2001:db8:1c17:b337::/64"
               && (route.Scope or null) == "link"
               && !(route ? Gateway)
           ) routes;
         hasHardcodedHostileRaPrefix =
-          builtins.match ".*2a01:4f8:1c17:b337::/64.*" script != null;
+          builtins.match ".*2001:db8:1c17:b337::/64.*" script != null;
         hasDynamicHostilePrefix =
           builtins.match ".*?/run/secrets/access-node-ipv6-prefix-espbranch-site-b-b-router-access-hostile.*" script != null;
         hasDelegatedRouteService =
@@ -104,7 +104,7 @@ INVENTORY_PATH="${inventory_path}" \
         && hasDelegatedRouteService
         && hetznerHostileRouteDoesNotUseEth0
         && !hasStaleCoreMainRoute
-        && !(builtins.elem "2a01:4f8:1c17:b337::1/64" addresses)
+        && !(builtins.elem "2001:db8:1c17:b337::1/64" addresses)
     '
 
 pass "hostile-gua-advertisements"

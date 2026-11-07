@@ -485,7 +485,7 @@ let
       snatSourceCidr4 = "192.168.3.0/24";
       runtimeForwards = lib.optionals withForward [
         {
-          publicIPv4 = "217.148.134.173";
+          publicIPv4 = "203.0.113.10";
           targetIPv4 = "192.168.3.10";
           protocols = [ "udp" "tcp" ];
           inputDports = [ 4242 ];
@@ -510,8 +510,8 @@ let
       afterHead = lib.last (lib.splitString "chain prerouting {" ruleset);
     in
     builtins.head (lib.splitString "}" afterHead);
-  udpDnatRule = "ip daddr 217.148.134.173 meta l4proto udp udp dport 4242 dnat to 192.168.3.10";
-  tcpDnatRule = "ip daddr 217.148.134.173 meta l4proto tcp tcp dport 4242 dnat to 192.168.3.10";
+  udpDnatRule = "ip daddr 203.0.113.10 meta l4proto udp udp dport 4242 dnat to 192.168.3.10";
+  tcpDnatRule = "ip daddr 203.0.113.10 meta l4proto tcp tcp dport 4242 dnat to 192.168.3.10";
 in
 {
   hookIsDstnat = lib.hasInfix "type nat hook prerouting priority dstnat" ruleset;
@@ -616,7 +616,7 @@ env REPO_ROOT="${repo_root}" \
           snatSourceCidr4 = "192.168.3.0/24";
           runtimeForwards = [
             {
-              publicIPv4 = "217.148.134.173";
+              publicIPv4 = "203.0.113.10";
               targetIPv4 = "192.168.3.10";
               protocols = [ "udp" "tcp" ];
               inputDports = [ 4242 ];
