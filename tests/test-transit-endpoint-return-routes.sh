@@ -111,15 +111,46 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
           builtins.any
             (networkName: hasRoute (networks.${networkName}.routes or [ ]) destination gateway)
             (builtins.attrNames networks);
+        # FS-315: a generic default is installed only on a lane whose modeled
+        # uplink offers one, so the overlay core must not install a main-table
+        # default toward the overlay lane; its only defaults are the
+        # policy-only delegated public-egress complements (FS-460), and the
+        # delegated hostile prefix returns over the modeled policy lane toward
+        # the hostile access node (FS-550), not as an underlay default route.
+        nebHasNoMainGenericDefault =
+          !(hasMainRouteAnyNetwork branchNebulaNetworks "0.0.0.0/0" "10.50.0.5")
+          && !(hasMainRouteAnyNetwork branchNebulaNetworks "::/0" "fd42:dead:feed:1000:0:0:0:5")
+          && !(builtins.any
+            (networkName:
+              builtins.any
+                (route: (route.Destination or "") == "::/0" || (route.Destination or "") == "0.0.0.0/0")
+                (builtins.filter (route: !(builtins.hasAttr "Table" route)) (branchNebulaNetworks.${networkName}.routes or [ ])))
+            (builtins.attrNames branchNebulaNetworks));
+        nebRoutes =
+          builtins.concatMap
+            (networkName: branchNebulaNetworks.${networkName}.routes or [ ])
+            (builtins.attrNames branchNebulaNetworks);
+        nebPolicyTableDefaults =
+          builtins.any
+            (table:
+              builtins.any
+                (route: (route.Destination or "") == "0.0.0.0/0" && (route.Table or null) == table && !(builtins.hasAttr "Gateway" route))
+                nebRoutes
+              && builtins.any
+                (route: (route.Destination or "") == "::/0" && (route.Table or null) == table && !(builtins.hasAttr "Gateway" route))
+                nebRoutes)
+            (builtins.filter builtins.isInt (map (route: route.Table or null) nebRoutes));
+        hostileDelegatedReturnOnPolicyLane =
+          hasRouteAnyNetwork branchUpstreamSelectorNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:10";
       in
         hasMainRouteAnyNetwork branchCoreNetworks "10.10.0.0/31" "10.10.0.15"
         && (
           hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/127" "fd42:dead:beef:1000:0:0:0:f"
           || hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0000:0000:0000:0000/127" "fd42:dead:beef:1000:0:0:0:f"
         )
-        && hasMainRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5"
-        && hasMainRouteAnyNetwork branchNebulaNetworks "0.0.0.0/0" "10.50.0.5"
-        && hasMainRouteAnyNetwork branchNebulaNetworks "::/0" "fd42:dead:feed:1000:0:0:0:5"
+        && hostileDelegatedReturnOnPolicyLane
+        && nebHasNoMainGenericDefault
+        && nebPolicyTableDefaults
         && hasRouteAnyNetwork branchUpstreamSelectorNetworks "0.0.0.0/0" "10.50.0.6"
         && hasRouteAnyNetwork branchUpstreamSelectorNetworks "::/0" "fd42:dead:feed:1000:0:0:0:6"
     '
