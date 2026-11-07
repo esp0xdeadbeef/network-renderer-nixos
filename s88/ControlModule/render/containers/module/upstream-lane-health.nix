@@ -10,6 +10,8 @@ let
 
   sanitize = value: lib.replaceStrings [ "/" ":" "." "@" ] [ "-" "-" "-" "-" ] value;
 
+  maxConsecutiveFailures = 8;
+
   serviceFor = lane: {
     name = "s88-lane-health-${sanitize lane}";
     value = {
@@ -28,6 +30,7 @@ let
         set -euo pipefail
         lane=${lib.escapeShellArg lane}
         marker=/run/s88-lane-health-${sanitize lane}.was-up
+        fails=/run/s88-lane-health-${sanitize lane}.fails
         if ! ip link show "$lane" >/dev/null 2>&1; then
           exit 0
         fi
@@ -60,12 +63,33 @@ let
 
 
 
+
+
+
+
+
+
+
+
+
+
+
         if [ -e "$marker" ]; then
           ip link set "$lane" down 2>/dev/null || true
           rm -f "$marker"
+          echo 0 > "$fails"
           echo "[lane-health] $lane peer probe failed after it was up; gated the lane" >&2
         else
-          echo "[lane-health] $lane peer not reachable yet; leaving lane up" >&2
+          n=$(cat "$fails" 2>/dev/null || echo 0)
+          n=$((n + 1))
+          echo "$n" > "$fails"
+          if [ "$n" -ge ${toString maxConsecutiveFailures} ]; then
+            ip link set "$lane" down 2>/dev/null || true
+            echo 0 > "$fails"
+            echo "[lane-health] $lane peer never answered in $n probes; gated the lane" >&2
+          else
+            echo "[lane-health] $lane peer not reachable yet ($n/${toString maxConsecutiveFailures}); lane still up" >&2
+          fi
         fi
       '';
     };
