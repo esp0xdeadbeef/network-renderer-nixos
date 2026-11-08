@@ -16,7 +16,7 @@ if [[ ! -f "$inventory_path" ]]; then
   fail "missing inventory-nixos.nix: ${inventory_path}"
 fi
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-vlan-trunk.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-vlan-trunk.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
 (

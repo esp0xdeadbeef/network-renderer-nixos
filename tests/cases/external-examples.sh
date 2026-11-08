@@ -48,7 +48,7 @@ for intent_path in "${intent_paths[@]}"; do
   ran=$((ran + 1))
   log "Running $(dirname "$intent_path")"
 
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-external.XXXXXX")"
+  tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-external.XXXXXX")"
   trap 'rm -rf "${tmp_dir}"' RETURN
 
   if [[ -f "$(dirname "$intent_path")/getResolvedInventory.nix" ]]; then

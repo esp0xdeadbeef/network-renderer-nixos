@@ -9,7 +9,7 @@ source "${repo_root}/tests/lib/adjacent-repo-paths.sh"
 
 labs_repo="$(resolve_adjacent_repo NETWORK_LABS_PATH network-labs)"
 trace_id="FS-380-HDS-020-SDS-010-SMS-120"
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs380-sms120.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-fs380-sms120.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 ln -s "${labs_repo}/GAMP" "${tmp_dir}/GAMP"
 current_lab_dir="${tmp_dir}/current-lab"

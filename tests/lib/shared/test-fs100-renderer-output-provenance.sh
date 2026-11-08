@@ -9,7 +9,7 @@ source "${repo_root}/tests/lib/test-common.sh"
 
 render_json="$(mktemp)"
 eval_stderr="$(mktemp)"
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs100-provenance.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-fs100-provenance.XXXXXX")"
 trap 'rm -f "${render_json}" "${eval_stderr}"; rm -rf "${tmp_dir}"' EXIT
 
 labs_root="$(flake_input_path network-labs)"

@@ -22,7 +22,7 @@ set -euo pipefail
 repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 source "${repo_root}/tests/lib/test-common.sh"
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs930-sms040.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-fs930-sms040.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
 target_file="${repo_root}/s88/Unit/mapping/runtime-targets/interfaces/rendered-names.nix"

@@ -12,7 +12,7 @@
 #   TEST_TIMEOUT_SECONDS    Per-test timeout (default: 1800)
 
 set -euo pipefail
-exec > >(tee "/tmp/network-renderer-nixos-tests.out")
+exec > >(tee "${TMPDIR:-/var/tmp}/network-renderer-nixos-tests.out")
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 test_dir="${repo_root}/tests"

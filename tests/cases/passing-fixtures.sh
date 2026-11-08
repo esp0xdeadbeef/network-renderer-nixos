@@ -19,7 +19,7 @@ render_fixture() {
   fi
 
   local tmp_dir
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fixture.XXXXXX")"
+  tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-fixture.XXXXXX")"
   trap 'rm -rf "${tmp_dir}"' RETURN
 
   (
