@@ -1,130 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# GAMP-ID: FS-460-HDS-010-SDS-010-SMS-050
+# GAMP-ID: FS-370-HDS-010-SDS-010-SMS-120
 # LAB-SMT-ID: LAB-SMT-011
 # LAB-SMT-SCOPE: examples-only; see network-labs/tests/SMT.md
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
-example_root="${repo_root}/tests/fixtures/tri-site-s-router-overlay-egress"
-intent_path="${example_root}/intent.nix"
-inventory_path="${example_root}/inventory.nix"
+# FS-460: the overlay core (site-b's b-router-core-nebula) must keep the local
+# hostile tenant's return path. The overlay terminates there, the tenant owns a
+# runtime delegated prefix, and the return route is a runtime install (the
+# prefix only exists after the source file is read) — both in the policy table
+# the hostile prefixes are scoped to and in the main table, via the modeled
+# upstream next hop.
+example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 
-[[ -f "${intent_path}" ]] || fail "missing intent: ${intent_path}"
-[[ -f "${inventory_path}" ]] || fail "missing inventory: ${inventory_path}"
-
-result_json="$(mktemp)"
-eval_stderr="$(mktemp)"
-trap 'rm -f "${result_json}" "${eval_stderr}"' EXIT
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "${tmp_dir}"' EXIT
+result_json="${tmp_dir}/overlay-core.json"
+stderr_json="${tmp_dir}/overlay-core.err"
 
 nix_eval_json_or_fail \
   overlay-core-local-hostile-return-routes \
   "${result_json}" \
-  "${eval_stderr}" \
+  "${stderr_json}" \
   env REPO_ROOT="${repo_root}" \
-    INTENT_PATH="${intent_path}" \
-    INVENTORY_PATH="${inventory_path}" \
+    INTENT_PATH="${example_root}/intent.nix" \
+    INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
     nix eval \
       --extra-experimental-features 'nix-command flakes' \
-      --impure --json --expr '
-        let
-          flake = builtins.getFlake ("path:" + builtins.getEnv "REPO_ROOT");
-          lib = flake.inputs.nixpkgs.lib;
-          system = "x86_64-linux";
-          built = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
-            selector = "s-router-test";
-            inherit system;
-            intentPath = builtins.getEnv "INTENT_PATH";
-            inventoryPath = builtins.getEnv "INVENTORY_PATH";
-          };
-          cfg = (lib.nixosSystem {
-            inherit system;
-            modules = [ built.renderedHost.containers."home-example-router-core-nebula".config ];
-          }).config;
-          networks = cfg.systemd.network.networks;
-          allRoutes =
-            builtins.concatMap
-              (networkName: map (route: route // { inherit networkName; }) (networks.${networkName}.routes or [ ]))
-              (builtins.attrNames networks);
-          hasRoute = destination: gateway: table:
-            builtins.any
-              (route:
-                (route.networkName or null) == "10-upstream"
-                && (route.Destination or null) == destination
-                && (route.Gateway or null) == gateway
-                && (route.GatewayOnLink or false)
-                && ((route.Table or null) == table))
-              allRoutes;
-          tablesForRoute = destination: gateway:
-            lib.unique (
-              map
-                (route: route.Table)
-                (
-                  builtins.filter
-                    (route:
-                      (route.networkName or null) == "10-upstream"
-                      && (route.Destination or null) == destination
-                      && (route.Gateway or null) == gateway
-                      && (route.GatewayOnLink or false)
-                      && builtins.isInt (route.Table or null))
-                    allRoutes
-                )
-            );
-          policyTablesForNetwork = networkName:
-            lib.unique (
-              map
-                (rule: rule.Table)
-                (
-                  builtins.filter
-                    (rule:
-                      builtins.isInt (rule.Table or null)
-                      && (rule.Table or null) != 254
-                      && (rule.SuppressPrefixLength or null) == null)
-                    (networks.${networkName}.routingPolicyRules or [ ])
-                )
-            );
-          readExecScript = service: builtins.readFile (lib.removeSuffix " " service.serviceConfig.ExecStart);
-          routeServiceScripts =
-            builtins.concatStringsSep "\n" (
-              lib.mapAttrsToList
-                (_: service: if service.serviceConfig ? ExecStart then readExecScript service else "")
-                (lib.filterAttrs
-                  (name: _: lib.hasPrefix "s88-delegated-prefix" name || lib.hasPrefix "s88-dynamic-route" name)
-                  cfg.systemd.services)
-            );
-          hasRuntimeSourceFileRoute = table:
-            lib.hasInfix "source_file=/run/secrets/access-node-ipv6-prefix-esp-home-example-router-access-hostile" routeServiceScripts
-            && lib.hasInfix "interface=upstream" routeServiceScripts
-            && lib.hasInfix "gateway=fd42:dead:beef:1000:0:0:0:11" routeServiceScripts
-            && lib.hasInfix ("table=" + toString table) routeServiceScripts
-            && lib.hasInfix "ip -6 route replace table \"$table\" \"$prefix\" via \"$gateway\" dev \"$interface\" proto static onlink" routeServiceScripts;
-          hostileV4Tables = tablesForRoute "10.20.70.0/24" "10.10.0.17";
-          hostileUlaTables = tablesForRoute "fd42:dead:beef:0070:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:11";
-          upstreamPolicyTables = policyTablesForNetwork "10-upstream";
-          checks = {
-            main_hostile_v4_return =
-              hasRoute "10.20.70.0/24" "10.10.0.17" null;
-            main_hostile_ula_return =
-              hasRoute "fd42:dead:beef:0070:0000:0000:0000:0000/64" "fd42:dead:beef:1000:0:0:0:11" null;
-            policy_hostile_v4_return_tables =
-              upstreamPolicyTables != [ ]
-              && lib.sort builtins.lessThan hostileV4Tables == lib.sort builtins.lessThan upstreamPolicyTables;
-            policy_hostile_ula_return_tables =
-              upstreamPolicyTables != [ ]
-              && lib.sort builtins.lessThan hostileUlaTables == lib.sort builtins.lessThan upstreamPolicyTables;
-            policy_hostile_return_tables_match =
-              lib.sort builtins.lessThan hostileV4Tables == lib.sort builtins.lessThan hostileUlaTables;
-            runtime_hostile_gua_return_tables =
-              builtins.all hasRuntimeSourceFileRoute upstreamPolicyTables;
-          };
-        in
-        {
-          ok = builtins.all (name: checks.${name}) (builtins.attrNames checks);
-          failed = builtins.filter (name: !(checks.${name})) (builtins.attrNames checks);
-          inherit checks allRoutes routeServiceScripts hostileV4Tables hostileUlaTables upstreamPolicyTables;
-        }
-      '
+      --impure --json \
+      --expr "import ${repo_root}/tests/nix/fs460-overlay-core-hostile-return-routes.nix"
 
 assert_json_checks_ok overlay-core-local-hostile-return-routes "${result_json}"
 
-echo "PASS overlay-core-local-hostile-return-routes"
+pass "overlay-core-local-hostile-return-routes"

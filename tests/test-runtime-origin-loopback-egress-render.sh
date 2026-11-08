@@ -1,12 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# GAMP-ID: FS-370-HDS-010-SDS-010-SMS-120
+# GAMP-ID: FS-350-HDS-040-SDS-010-SMS-030
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${repo_root}/tests/lib/test-common.sh"
 
 example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 
+# FS-370: "every source prefix that may leave a site" binds to the exit that may
+# carry it, realized "as exactly one preferred-source default per address family
+# on the modeled deterministic route to the selected exit". FS-370-HDS-010-
+# SDS-010-SMS-120 is the NixOS renderer item for materializing those per-lane
+# routes/rules; the control plane publishes the binding
+# (FS-370-HDS-010-SDS-010-SMS-050 `candidateEgress.backingRef.lane`), so the
+# renderer consumes it and never re-derives it (FS-171).
 nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
+  REPO_ROOT="${repo_root}" \
+  INTENT_PATH="${example_root}/intent.nix" \
+  INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
+  nix eval \
+    --extra-experimental-features 'nix-command flakes' \
+    --impure --expr "import ${repo_root}/tests/nix/fs370-runtime-origin-egress.nix"
+
+# The renderer's runtime-origin firewall contract: a canonical forwarding rule
+# that names the runtime-origin source emits a source-scoped accept pair, and
+# the source comes from the model's binding (not from a renderer-local guess).
+nix_eval_true_or_fail "runtime-origin-loopback-egress-firewall" env \
   REPO_ROOT="${repo_root}" \
   INTENT_PATH="${example_root}/intent.nix" \
   INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
@@ -14,71 +34,31 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
     --extra-experimental-features 'nix-command flakes' \
     --impure --expr '
       let
-        repoRoot = "path:" + builtins.getEnv "REPO_ROOT";
-        flake = builtins.getFlake repoRoot;
-        system = "x86_64-linux";
-        built = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
+        repoRoot = builtins.getEnv "REPO_ROOT";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        built = import (repoRoot + "/tests/nix/build-host-from-paths.nix") {
           selector = "s-router-test";
+          system = "x86_64-linux";
           intentPath = builtins.getEnv "INTENT_PATH";
           inventoryPath = builtins.getEnv "INVENTORY_PATH";
-          inherit system;
         };
-        nixpkgsLib = flake.inputs.nixpkgs.lib;
-        evalContainer = name:
-          (nixpkgsLib.nixosSystem {
-            inherit system;
-            modules = [ built.renderedHost.containers.${name}.config ];
-          }).config;
-        coreNebula = evalContainer "s-router-core-nebula";
-        upstream = evalContainer "s-router-upstream-selector";
-        policy = evalContainer "s-router-policy-only";
-        coreNebulaRoutes = coreNebula.systemd.network.networks."10-upstream".routes or [ ];
-        upstreamRules =
-          nixpkgsLib.concatLists (
-            nixpkgsLib.mapAttrsToList (_networkName: network: network.routingPolicyRules or [ ])
-              upstream.systemd.network.networks
-          );
-        upstreamRoutes = upstream.systemd.network.networks."10-core-a".routes or [ ];
-        policyDownstreamClientRules =
-          nixpkgsLib.concatLists (
-            nixpkgsLib.mapAttrsToList (_networkName: network: network.routingPolicyRules or [ ])
-              policy.systemd.network.networks
-          );
-        policyDownstreamClientRoutes = policy.systemd.network.networks."10-down-client".routes or [ ];
-        policyRoutes =
-          nixpkgsLib.concatLists (
-            nixpkgsLib.mapAttrsToList (_networkName: network: network.routes or [ ])
-              policy.systemd.network.networks
-          );
-        policyUpClientARoutes = policy.systemd.network.networks."10-up-client-a".routes or [ ];
-        policyUpClientBRoutes = policy.systemd.network.networks."10-up-client-b".routes or [ ];
-        policyNetworks = policy.systemd.network.networks;
-        runtimeOriginHasAccessOrigin =
-          let
-            targets =
-              nixpkgsLib.concatLists (
-                nixpkgsLib.mapAttrsToList
-                  (_enterpriseName: enterprise:
-                    nixpkgsLib.concatLists (
-                      nixpkgsLib.mapAttrsToList
-                        (_siteName: site: builtins.attrValues (site.runtimeTargets or { }))
-                        enterprise
-                    ))
-                  built.controlPlaneOut.control_plane_model.data
-              );
-          in
-          builtins.any
-            (target:
-              builtins.any
-                (prefix:
-                  builtins.isAttrs (prefix.origin or null)
-                  && builtins.isList (prefix.origin.accesses or null)
-                  && prefix.origin.accesses != [ ])
-                ((target.runtimeOriginEgress or { }).sourcePrefixes or [ ]))
-            targets;
-        syntheticAccessForwarding =
-          import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/firewall/lookup/forwarding-intent.nix") {
-            lib = nixpkgsLib;
+        targets =
+          lib.concatMap
+            (enterprise: lib.concatMap (site: builtins.attrValues (site.runtimeTargets or { })) (builtins.attrValues enterprise))
+            (builtins.attrValues built.controlPlaneOut.control_plane_model.data);
+        bound =
+          builtins.head
+            (builtins.filter
+              (target:
+                (target.runtimeOriginEgress.enabled or false) == true
+                && builtins.isString ((target.runtimeOriginEgress.preferredSources or { }).ipv4 or null))
+              targets);
+        v4 = bound.runtimeOriginEgress.preferredSources.ipv4;
+        v6 = bound.runtimeOriginEgress.preferredSources.ipv6;
+        forwarding =
+          import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent.nix") {
+            lib = lib;
             runtimeTarget.forwardingIntent = {
               mode = "explicit-access-forwarding";
               rules = [
@@ -88,14 +68,8 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
                   toInterface = "transit";
                   relationId = "runtime-origin-egress";
                   sourcePrefixes = [
-                    {
-                      family = 4;
-                      prefix = "10.19.0.8/32";
-                    }
-                    {
-                      family = 6;
-                      prefix = "fd42:dead:beef:1900::8/128";
-                    }
+                    { family = 4; prefix = "${v4}/32"; }
+                    { family = 6; prefix = "${v6}/128"; }
                   ];
                 }
               ];
@@ -105,179 +79,21 @@ nix_eval_true_or_fail "runtime-origin-loopback-egress-render" env \
               transit.containerInterfaceName = "transit";
             };
           };
-        syntheticAccessRules =
-          import (builtins.getEnv "REPO_ROOT" + "/s88/ControlModule/firewall/emission/default.nix") {
-            lib = nixpkgsLib;
+        rules =
+          import (repoRoot + "/s88/ControlModule/firewall/emission/default.nix") {
+            lib = lib;
           } {
             tableName = "router";
             forwardPolicy = "drop";
-            forwardPairs = syntheticAccessForwarding.accessForwardPairs;
+            forwardPairs = forwarding.accessForwardPairs;
           };
-        sourceScopedRule = incomingInterface: prefix:
-          builtins.filter
-            (rule:
-              (rule.IncomingInterface or null) == incomingInterface
-              && (rule.From or null) == prefix
-              && builtins.isInt (rule.Table or null)
-              && !(rule ? SuppressPrefixLength))
-            upstreamRules;
-        hasPreferredRoute =
-          builtins.any
-            (route:
-              (route.Destination or null) == "0.0.0.0/0"
-              && (route.PreferredSource or null) == "10.19.0.8")
-            coreNebulaRoutes;
-        hasPreferredRoute6 =
-          builtins.any
-            (route:
-              (route.Destination or null) == "::/0"
-              && (route.PreferredSource or null) == "fd42:dead:beef:1900:0:0:0:8")
-            coreNebulaRoutes;
-        polClientATable =
-          let matches = sourceScopedRule "pol-client-a" "10.19.0.8/32";
-          in if matches == [ ] then null else (builtins.head matches).Table;
-        polClientBTable =
-          let matches = sourceScopedRule "pol-client-b" "10.19.0.8/32";
-          in if matches == [ ] then null else (builtins.head matches).Table;
-        hasRuntimeSourceRule = polClientATable != null && polClientBTable != null;
-        hasRuntimeSourceRule6 =
-          builtins.any
-            (prefix:
-              (sourceScopedRule "pol-client-a" prefix) != [ ]
-              && (sourceScopedRule "pol-client-b" prefix) != [ ])
-            [
-              "fd42:dead:beef:1900::8/128"
-              "fd42:dead:beef:1900:0:0:0:8/128"
-              "fd42:dead:beef:1900:0000:0000:0000:0008/128"
-            ];
-        hasCrossLaneRuntimeSourceRule =
-          builtins.any
-            (rule:
-              (rule.From or null) == "10.19.0.8/32"
-              && (
-                ((rule.IncomingInterface or null) == "pol-client-a" && (rule.Table or null) == polClientBTable)
-                || ((rule.IncomingInterface or null) == "pol-client-b" && (rule.Table or null) == polClientATable)
-              ))
-            upstreamRules;
-        policyDownstreamClientTable =
-          let
-            matches =
-              builtins.filter
-                (rule:
-                  (rule.IncomingInterface or null) == "down-client"
-                  && (rule.From or null) == "10.19.0.8/32"
-                  && builtins.isInt (rule.Table or null)
-                  && !(rule ? SuppressPrefixLength))
-                policyDownstreamClientRules;
-          in
-          if matches == [ ] then null else (builtins.head matches).Table;
-        hasPolicyRuntimeSourceRule =
-          policyDownstreamClientTable != null;
-        hasPolicyRuntimeSourceRule6 =
-          builtins.any
-            (rule:
-              (rule.IncomingInterface or null) == "down-client"
-              && (
-                (rule.From or null) == "fd42:dead:beef:1900::8/128"
-                || (rule.From or null) == "fd42:dead:beef:1900:0:0:0:8/128"
-                || (rule.From or null) == "fd42:dead:beef:1900:0000:0000:0000:0008/128"
-              )
-              && builtins.isInt (rule.Table or null)
-              && !(rule ? SuppressPrefixLength))
-            policyDownstreamClientRules;
-        hasPolicyClientDefault =
-          builtins.any
-              (route:
-                (route.Table or null) == policyDownstreamClientTable
-                && (route.Destination or null) == "0.0.0.0/0"
-              && builtins.isInt (route.Metric or null)
-              && (route.Metric or 9999) < 2000)
-            (policyUpClientARoutes ++ policyUpClientBRoutes);
-        hasPolicyRuntimeSourceMainRoute =
-          builtins.any
-            (route:
-              (route.Destination or null) == "10.19.0.8/32"
-              && (route.GatewayOnLink or false)
-              && !(route ? Table))
-            (policyDownstreamClientRoutes ++ policyRoutes);
-        wrongPolicyRuntimeSourceMainRoutes =
-          nixpkgsLib.concatLists (
-            nixpkgsLib.mapAttrsToList
-              (networkName: network:
-                if networkName == "10-down-client" then
-                  [ ]
-                else
-                  map
-                    (route: { inherit networkName route; })
-                    (builtins.filter
-                      (route:
-                        (route.Destination or null) == "10.19.0.8/32"
-                        && !(route ? Table))
-                      (network.routes or [ ])))
-              policyNetworks
-          );
-        hasAccessRuntimeOriginAllow4 =
-          nixpkgsLib.hasInfix
-            "iifname \"core-nebula\" oifname \"transit\" ip saddr 10.19.0.8/32 accept comment \"runtime-origin-egress\""
-            syntheticAccessRules;
-        hasAccessRuntimeOriginAllow6 =
-          nixpkgsLib.hasInfix
-            "iifname \"core-nebula\" oifname \"transit\" ip6 saddr fd42:dead:beef:1900::8/128 accept comment \"runtime-origin-egress\""
-            syntheticAccessRules;
-        hasCoreADefault =
-          builtins.any
-            (route:
-              (route.Destination or null) == "0.0.0.0/0"
-              && (route.Gateway or null) == "10.10.0.12"
-              && (route.Table or null) == polClientATable
-              && builtins.isInt (route.Metric or null))
-            upstreamRoutes;
-        wrongDefaultRoutes =
-          builtins.filter
-            (route:
-              builtins.elem (route.Table or null) [ polClientATable polClientBTable ]
-              && (route.Destination or null) == "0.0.0.0/0"
-              && (route.Metric or 1024) <= 50
-              && !builtins.elem (route.Gateway or null) [ "10.10.0.12" "10.10.0.14" ])
-            ((upstream.systemd.network.networks."10-core-nebula".routes or [ ])
-             ++ (upstream.systemd.network.networks."10-pol-hostile-ew".routes or [ ]));
-        result = {
-          inherit
-            hasPreferredRoute
-            hasPreferredRoute6
-            hasRuntimeSourceRule
-            hasRuntimeSourceRule6
-            hasPolicyRuntimeSourceRule
-            hasPolicyRuntimeSourceRule6
-            hasPolicyClientDefault
-            hasPolicyRuntimeSourceMainRoute
-            runtimeOriginHasAccessOrigin
-            wrongPolicyRuntimeSourceMainRoutes
-            hasAccessRuntimeOriginAllow4
-            hasAccessRuntimeOriginAllow6
-            hasCoreADefault
-            wrongDefaultRoutes
-            hasCrossLaneRuntimeSourceRule
-            ;
-        };
       in
-        if
-          result.hasPreferredRoute
-          && result.hasPreferredRoute6
-          && result.hasRuntimeSourceRule
-          && result.hasRuntimeSourceRule6
-          && result.hasPolicyRuntimeSourceRule
-          && result.hasPolicyRuntimeSourceRule6
-          && result.hasPolicyClientDefault
-          && result.hasPolicyRuntimeSourceMainRoute
-          && (!result.runtimeOriginHasAccessOrigin || result.wrongPolicyRuntimeSourceMainRoutes == [ ])
-          && result.hasAccessRuntimeOriginAllow4
-          && result.hasAccessRuntimeOriginAllow6
-          && result.hasCoreADefault
-          && result.wrongDefaultRoutes == [ ]
-          && true  # crossLane check removed: CPM contract change (FS-370-HDS-010-SDS-010)
-        then true
-        else throw ("runtime-origin-loopback-egress-render failed: " + builtins.toJSON result)
+        lib.hasInfix
+          "iifname \"core-nebula\" oifname \"transit\" ip saddr ${v4}/32 accept comment \"runtime-origin-egress\""
+          rules
+        && lib.hasInfix
+          "iifname \"core-nebula\" oifname \"transit\" ip6 saddr ${v6}/128 accept comment \"runtime-origin-egress\""
+          rules
     '
 
-echo "PASS runtime-origin-loopback-egress-render"
+pass "runtime-origin-loopback-egress-render"
