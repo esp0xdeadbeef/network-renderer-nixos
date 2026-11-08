@@ -19,7 +19,7 @@ run_case() {
   [[ -f "${inventory_path}" ]] || fail "missing inventory-nixos.nix: ${inventory_path}"
 
   local tmp_dir
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-sites.${example_name}.XXXXXX")"
+  tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-sites.${example_name}.XXXXXX")"
   trap 'rm -rf "${tmp_dir}"' RETURN
 
   (

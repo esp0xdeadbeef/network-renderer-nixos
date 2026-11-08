@@ -11,7 +11,7 @@ inventory_path="${example_dir}/inventory-nixos.nix"
 [[ -f "${intent_path}" ]] || fail "missing intent: ${intent_path}"
 [[ -f "${inventory_path}" ]] || fail "missing inventory: ${inventory_path}"
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-overlay-routes.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-overlay-routes.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
 (

@@ -390,7 +390,7 @@ labels=(
 
 for label in "${labels[@]}"; do
   case_contract "${label}"
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-example-output.XXXXXX")"
+  tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-example-output.XXXXXX")"
   trap 'rm -rf "${tmp_dir}"' RETURN
 
   log "Rendering network-labs/examples/${label}"

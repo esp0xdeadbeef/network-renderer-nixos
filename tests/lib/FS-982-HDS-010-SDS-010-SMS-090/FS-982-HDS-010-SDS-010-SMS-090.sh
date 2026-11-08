@@ -40,7 +40,7 @@ _count_lines() {
   echo "${result:-0}"
 }
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs982-sms090.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-fs982-sms090.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
 echo "--- FS-982-HDS-010-SDS-010-SMS-090: Platform-native service grouping anti-atomization ---"

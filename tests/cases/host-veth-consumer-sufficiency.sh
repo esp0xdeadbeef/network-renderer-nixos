@@ -12,7 +12,7 @@ if [[ ! -f "${intent_nix}" || ! -f "${inventory_nix}" ]]; then
   fail "missing dual-wan-branch-overlay example inputs in network-labs flake input"
 fi
 
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-host-veth.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-host-veth.XXXXXX")"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
 log "Rendering dual-wan-branch-overlay for host-veth sufficiency checks"

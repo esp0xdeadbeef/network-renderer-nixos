@@ -77,7 +77,7 @@ run_example_render_scan() {
 
     ran=$((ran + 1))
     local tmp_dir
-    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-${check_name}.XXXXXX")"
+    tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-${check_name}.XXXXXX")"
 
     if render_example_dry_json "${example_dir}" "${tmp_dir}" "${tmp_dir}/dry.json"; then
       "${callback}" "${example_dir}" "${tmp_dir}/dry.json" >>"${violations}"

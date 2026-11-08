@@ -19,7 +19,7 @@ host_class="$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]')"
 excluded_runtime_stages="nix-build,container-image-build,vm-deployment,containerlab-deployment,boot,live-packet-validation,provider-calls,cache-misses"
 
 archive_json="$(mktemp)"
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/network-renderer-nixos-fs940.XXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/var/tmp}/network-renderer-nixos-fs940.XXXXXX")"
 trap 'rm -f "${archive_json}"; rm -rf "${tmp_dir}"' EXIT
 nix flake archive --json "path:${repo_root}" >"${archive_json}"
 labs_root="$(jq -er '.inputs["network-labs"].path' "${archive_json}")"
