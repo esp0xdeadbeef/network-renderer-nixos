@@ -24,6 +24,14 @@ let
   targetPresent = isAttrs target;
   bindings = if targetPresent && isAttrs (target.containers or null) then target.containers else { };
 
+  hostInterfaceBridges =
+    if targetPresent && isAttrs (target.interfaceBridges or null) then target.interfaceBridges else { };
+  hostDefaultBridge =
+    if targetPresent && isNonEmptyString (target.defaultHostBridge or null) then
+      target.defaultHostBridge
+    else
+      null;
+
   renderedBridges =
     let
       isBridge =
@@ -51,18 +59,53 @@ let
   primaryBridge = name: bridgeBinding ((containerBinding name).hostBridge or null);
 
   interfaceBindings =
-    name:
+    name: container:
     let
       c = containerBinding name;
       ifs = if isAttrs (c.interfaces or null) then c.interfaces else { };
+      perContainer = builtins.mapAttrs (_: bridgeBinding) ifs;
+
+      vethKeys = builtins.attrNames (
+        if isAttrs (container.extraVeths or null) then container.extraVeths else { }
+      );
+      components = key: lib.splitString "-" key;
+      matches = ifName: key: builtins.elem ifName (components key);
+      modelInterfaces =
+        builtins.attrNames ifs
+        ++ builtins.concatMap (ifName: builtins.filter (key: matches ifName key) vethKeys) (
+          builtins.filter (ifName: builtins.any (key: matches ifName key) vethKeys) (
+            builtins.attrNames hostInterfaceBridges
+          )
+        );
+
+      vethBindings = builtins.listToAttrs (
+        builtins.concatMap (
+          ifName:
+          let
+            bridge = bridgeBinding (hostInterfaceBridges.${ifName} or hostDefaultBridge);
+          in
+          map (key: {
+            name = key;
+            value = bridge;
+          }) (builtins.filter (key: matches ifName key) vethKeys)
+        ) (builtins.attrNames hostInterfaceBridges)
+      );
     in
-    builtins.mapAttrs (_: bridgeBinding) ifs;
+    perContainer // vethBindings;
 
   requestedBridges =
     name:
     let
       primary = primaryBridge name;
-      perInterface = interfaceBindings name;
+
+      perInterface =
+        builtins.mapAttrs (_: bridgeBinding) (
+          if isAttrs ((containerBinding name).interfaces or null) then
+            (containerBinding name).interfaces
+          else
+            { }
+        )
+        // builtins.mapAttrs (_: b: bridgeBinding b) hostInterfaceBridges;
     in
     lib.unique (
       lib.optional (primary != null) primary
@@ -103,7 +146,7 @@ let
     name: container:
     let
       primary = primaryBridge name;
-      perInterface = interfaceBindings name;
+      perInterface = interfaceBindings name container;
       existingVeths = if isAttrs (container.extraVeths or null) then container.extraVeths else { };
       vethFor =
         ifName: bridge:
