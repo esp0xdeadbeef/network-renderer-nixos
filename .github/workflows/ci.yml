@@ -66,6 +66,7 @@ jobs:
             nixpkgs#ripgrep \
             nixpkgs#jq \
             nixpkgs#sops \
+            nixpkgs#age \
             nixpkgs#yq
           printf '%s\n' "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
 
