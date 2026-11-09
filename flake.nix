@@ -11,10 +11,9 @@
     network-control-plane-model.inputs.nixpkgs.follows = "nixpkgs";
     network-control-plane-model.inputs.network-labs.follows = "network-labs";
     network-control-plane-model.inputs.network-forwarding-model.follows = "network-forwarding-model";
-    # Propagate our compiler (and its NFM) all the way down the control-plane
-    # model's forwarding-model input so a compiler contract fix actually
-    # reaches the CPM compile.
-    network-control-plane-model.inputs.network-forwarding-model.inputs.network-compiler.follows = "network-compiler";
+
+    network-control-plane-model.inputs.network-forwarding-model.inputs.network-compiler.follows =
+      "network-compiler";
 
     network-compiler.url = "github:esp0xdeadbeef/network-compiler";
     network-compiler.inputs.network-labs.follows = "network-labs";
@@ -117,6 +116,11 @@
           };
           vmNicRender = import ./s88/ControlModule/render/vm-nics.nix {
             inherit lib hostName;
+            platformBinding = rendererInput.validatedPlatformBinding or null;
+          };
+
+          containerBridges = import ./s88/ControlModule/render/container-bridges.nix {
+            inherit lib hostName renderedNetdevs;
             platformBinding = rendererInput.validatedPlatformBinding or null;
           };
           hostCompatibilityDiagnostics =
@@ -356,7 +360,8 @@
                   ccfg
               ) renderedContainers;
             in
-            forcedContainers;
+
+            containerBridges.applyAll forcedContainers;
 
           systemd.services = builtins.listToAttrs (
             map (name: {
