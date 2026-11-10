@@ -4,8 +4,9 @@
 # Usage:
 #   bash run-all-tests.sh
 #
-# Auto-discovers all tests in tests/test-*.sh, runs them in parallel,
-# reports PASS/FAIL per test, and exits non-zero if any test fails.
+# Auto-discovers every test entrypoint through the shared
+# scripts/lib/discover-tests.sh contract, runs them in parallel, reports
+# PASS/FAIL per test, and exits non-zero if any test fails.
 #
 # Environment:
 #   TEST_JOBS              Max concurrent tests (default: nproc)
@@ -32,11 +33,14 @@ if ! [[ "${test_timeout_seconds}" =~ ^[0-9]+$ ]] || [[ "${test_timeout_seconds}"
 fi
 
 # --- discover tests ---
-mapfile -t test_files < <(
-  find "${test_dir}" -maxdepth 1 -type f -name 'test-*.sh' ! -name 'test.sh' -print0 \
-    | sort -z \
-    | xargs -0 -n1 echo
-)
+# shellcheck source=scripts/lib/discover-tests.sh
+source "${repo_root}/scripts/lib/discover-tests.sh"
+mapfile -t test_names < <(discover_tests "${repo_root}")
+
+test_files=()
+for test_name in "${test_names[@]}"; do
+  test_files+=("${test_dir}/${test_name}")
+done
 
 if [[ ${#test_files[@]} -eq 0 ]]; then
   echo "error: no test files found in ${test_dir}" >&2
@@ -89,9 +93,12 @@ for test_file in "${test_files[@]}"; do
     timeout "${test_timeout_seconds}" bash -c '
       _source="$1"
       _test="$2"
-      source "$_source"
+      case "${_test}" in *.py) ;; *) source "$_source";; esac
       set --
-      source "$_test"
+      case "${_test}" in
+        *.py) exec python3 "$_test" ;;
+        *)    source "$_test" ;;
+      esac
     ' _ "${repo_root}/tests/lib/test-common.sh" "${test_file}"
   ) >"${log_file}" 2>&1 &
 
