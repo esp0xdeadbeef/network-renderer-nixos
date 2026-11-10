@@ -50,11 +50,7 @@ in
               Name = vlanIfName;
               Kind = "vlan";
             };
-
-            vlanConfig = {
-              Id = uplink.vlan;
-              Parent = uplink.parent;
-            };
+            vlanConfig.Id = uplink.vlan;
           };
         }
       ]
@@ -71,10 +67,7 @@ in
                 Name = "${uplink.bridge}.${toString transit.vlan}";
                 Kind = "vlan";
               };
-              vlanConfig = {
-                Id = transit.vlan;
-                Parent = uplink.bridge;
-              };
+              vlanConfig.Id = transit.vlan;
             };
           }
         ) (transitNamesForUplink uplinkName)
