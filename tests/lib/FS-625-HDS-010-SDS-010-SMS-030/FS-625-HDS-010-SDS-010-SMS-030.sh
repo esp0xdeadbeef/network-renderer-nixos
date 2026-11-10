@@ -30,10 +30,15 @@ source "${repo_root}/tests/lib/direct-test-guard.sh"
 
 fail() { echo "FAIL discovery-versus-grant-separation: $*" >&2; exit 1; }
 
-search=( "${repo_root}/s88" "${repo_root}/lib" )
+# The absence claim is global: no implementation repository implements port-mapping
+# gating. The detector scans every controlled repository, so a single grep hit
+# anywhere means the feature started to exist and this case must be re-read.
+search=( "${HOME}/github"/network-*/ )
 
-# P1: the renderer must emit an explicit port-mapping service state. No service
-# enablement means the deny-by-default posture is implicit, which the SMS forbids.
+# P1 (absence claim): no controlled repository implements port-mapping service
+# state, so the deny-by-default posture is implicit rather than modelled, which the
+# SMS forbids. A grep hit anywhere means the feature now exists and the case must be
+# replaced with a behavioural check.
 if ! grep -rqiE 'upnp|natpmp|nat-pmp|portMapping|port-mapping' "${search[@]}" --include=*.nix 2>/dev/null; then
   fail "P1 no port-mapping service state is emitted anywhere in the renderer; UPnP IGD, NAT-PMP and PCP are unmodelled rather than explicitly disabled"
 fi
