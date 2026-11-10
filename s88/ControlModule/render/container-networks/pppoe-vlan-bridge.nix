@@ -1,10 +1,10 @@
-{ lib
-, interfaces
-, interfaceNames
-, renderedInterfaceNames
-, uplinks
-, wanUplinkName
-,
+{
+  lib,
+  interfaces,
+  interfaceNames,
+  renderedInterfaceNames,
+  uplinks,
+  wanUplinkName,
 }:
 
 let
@@ -54,80 +54,78 @@ let
 in
 {
   bridgeInterfaces = builtins.listToAttrs (
-    map
-      (entry: {
-        name = entry.logicalInterfaceName;
-        value = entry;
-      })
-      bridges
+    map (entry: {
+      name = entry.logicalInterfaceName;
+      value = entry;
+    }) bridges
   );
 
   netdevs = builtins.listToAttrs (
-    lib.concatMap
-      (entry: [
-        {
-          name = "10-${entry.vlanInterfaceName}";
-          value = {
-            netdevConfig = {
-              Name = entry.vlanInterfaceName;
-              Kind = "vlan";
-            };
-            vlanConfig.Id = entry.vlanId;
+    lib.concatMap (entry: [
+      {
+        name = "10-${entry.vlanInterfaceName}";
+        value = {
+          netdevConfig = {
+            Name = entry.vlanInterfaceName;
+            Kind = "vlan";
           };
-        }
-        {
-          name = "20-${entry.bridgeName}";
-          value.netdevConfig = {
-            Name = entry.bridgeName;
-            Kind = "bridge";
+
+          vlanConfig = {
+            Id = entry.vlanId;
+            Parent = entry.parentInterfaceName or entry.interfaceName or "wan";
           };
-        }
-      ])
-      bridges
+        };
+      }
+      {
+        name = "20-${entry.bridgeName}";
+        value.netdevConfig = {
+          Name = entry.bridgeName;
+          Kind = "bridge";
+        };
+      }
+    ]) bridges
   );
 
   networks = builtins.listToAttrs (
-    lib.concatMap
-      (entry: [
-        {
-          name = "05-${entry.interfaceName}";
-          value = {
-            matchConfig.Name = entry.interfaceName;
-            networkConfig = {
-              ConfigureWithoutCarrier = true;
-              DHCP = "no";
-              IPv6AcceptRA = false;
-              LinkLocalAddressing = "no";
-              VLAN = [ entry.vlanInterfaceName ];
-            };
+    lib.concatMap (entry: [
+      {
+        name = "05-${entry.interfaceName}";
+        value = {
+          matchConfig.Name = entry.interfaceName;
+          networkConfig = {
+            ConfigureWithoutCarrier = true;
+            DHCP = "no";
+            IPv6AcceptRA = false;
+            LinkLocalAddressing = "no";
+            VLAN = [ entry.vlanInterfaceName ];
           };
-        }
-        {
-          name = "50-${entry.vlanInterfaceName}";
-          value = {
-            matchConfig.Name = entry.vlanInterfaceName;
-            networkConfig = {
-              Bridge = entry.bridgeName;
-              ConfigureWithoutCarrier = true;
-              DHCP = "no";
-              IPv6AcceptRA = false;
-              LinkLocalAddressing = "no";
-            };
+        };
+      }
+      {
+        name = "50-${entry.vlanInterfaceName}";
+        value = {
+          matchConfig.Name = entry.vlanInterfaceName;
+          networkConfig = {
+            Bridge = entry.bridgeName;
+            ConfigureWithoutCarrier = true;
+            DHCP = "no";
+            IPv6AcceptRA = false;
+            LinkLocalAddressing = "no";
           };
-        }
-        {
-          name = "60-${entry.bridgeName}";
-          value = {
-            matchConfig.Name = entry.bridgeName;
-            networkConfig = {
-              ConfigureWithoutCarrier = true;
-              DHCP = "no";
-              IPv6AcceptRA = false;
-              LinkLocalAddressing = "no";
-            };
+        };
+      }
+      {
+        name = "60-${entry.bridgeName}";
+        value = {
+          matchConfig.Name = entry.bridgeName;
+          networkConfig = {
+            ConfigureWithoutCarrier = true;
+            DHCP = "no";
+            IPv6AcceptRA = false;
+            LinkLocalAddressing = "no";
           };
-        }
-      ])
-      bridges
+        };
+      }
+    ]) bridges
   );
 }
