@@ -345,7 +345,20 @@
           networking.useHostResolvConf = userLib.mkForce false;
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
-          systemd.network.networks = renderedNetworks // mgmtNetworks // mgmtDhcpOverride;
+          systemd.network.networks =
+            renderedNetworks
+            // mgmtNetworks
+            // mgmtDhcpOverride
+
+            // builtins.listToAttrs (
+              map (veth: {
+                name = "40-${veth}";
+                value = {
+                  matchConfig.Name = veth;
+                  networkConfig.Bridge = (containerBridges.vethAttachments (rendered.containers or { })).${veth};
+                };
+              }) (builtins.attrNames (containerBridges.vethAttachments (rendered.containers or { })))
+            );
           containers =
             let
 
