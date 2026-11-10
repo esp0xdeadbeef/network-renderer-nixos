@@ -345,6 +345,16 @@
           networking.useHostResolvConf = userLib.mkForce false;
 
           systemd.network.netdevs = renderedNetdevs // mgmtNetdevs;
+          environment.etc."network-artifacts/container-veth-attachments.json".text = builtins.toJSON {
+            attachments = containerBridges.vethAttachments (rendered.containers or { });
+            renderedContainerNames = builtins.attrNames (rendered.containers or { });
+            renderedContainerVeths = builtins.mapAttrs (_: c: builtins.attrNames (c.extraVeths or { })) (
+              rendered.containers or { }
+            );
+            bindingTargets =
+              (rendererInput.validatedPlatformBinding or { }).categories.deployment.containerTargets or { };
+          };
+
           systemd.network.networks =
             renderedNetworks
             // mgmtNetworks
