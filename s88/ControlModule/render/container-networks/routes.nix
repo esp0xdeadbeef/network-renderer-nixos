@@ -5,6 +5,41 @@
 }:
 
 let
+  ipNormalize = import ./ip-normalize.nix { inherit lib; };
+
+  routeIdentity =
+    route:
+    builtins.toJSON (
+      map (name: route.${name} or null) [
+        "Destination"
+        "Gateway"
+        "GatewayOnLink"
+        "Scope"
+        "Table"
+        "Metric"
+        "PreferredSource"
+        "family"
+      ]
+    );
+
+  normalizeRoute =
+    route:
+    if !builtins.isAttrs route then
+      route
+    else
+      route
+      // lib.optionalAttrs (builtins.isString (route.Destination or null)) {
+        Destination = ipNormalize.canonicalAddress route.Destination;
+      }
+      // lib.optionalAttrs (builtins.isString (route.Gateway or null)) {
+        Gateway = ipNormalize.canonicalAddress route.Gateway;
+      }
+      // lib.optionalAttrs (builtins.isString (route.PreferredSource or null)) {
+        PreferredSource = ipNormalize.canonicalAddress route.PreferredSource;
+      };
+
+  normalizeRoutes = map normalizeRoute;
+
   delegatedPrefixSourceForRoute =
     route:
     if builtins.isString (route.sourceFile or null) && route.sourceFile != "" then
@@ -19,6 +54,31 @@ let
 in
 {
   inherit delegatedPrefixSourceForRoute;
+  inherit normalizeRoute normalizeRoutes;
+
+  dedupeRoutes =
+    routes:
+    let
+      step =
+        acc: route:
+        let
+          identity = routeIdentity route;
+        in
+        if builtins.isAttrs route && !(acc.seen ? "${identity}") then
+          {
+            seen = acc.seen // {
+              "${identity}" = true;
+            };
+            kept = acc.kept ++ [ route ];
+          }
+        else
+          acc;
+      result = builtins.foldl' step {
+        seen = { };
+        kept = [ ];
+      } routes;
+    in
+    result.kept;
 
   isExternalValidationDelegatedPrefixRoute = route: delegatedPrefixSourceForRoute route != null;
 

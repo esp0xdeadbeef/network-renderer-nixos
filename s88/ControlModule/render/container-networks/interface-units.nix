@@ -11,6 +11,8 @@
   advertisedOnlinkRoutesByInterface,
   policyRoutingByInterface,
   mkRoute,
+  normalizeRoutes,
+  dedupeRoutes,
   isExternalValidationDelegatedPrefixRoute,
   delegatedPrefixSourceForRoute,
   mkDynamicWanNetworkConfig,
@@ -338,8 +340,12 @@ let
                   DuplicateAddressDetection = "none";
                 }
               ) (if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]));
-              routes = map stripRouteMetadata (
-                lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
+              routes = dedupeRoutes (
+                normalizeRoutes (
+                  map stripRouteMetadata (
+                    lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
+                  )
+                )
               );
               routingPolicyRules =
                 (policyRoutingByInterface.rules.${ifName} or [ ])

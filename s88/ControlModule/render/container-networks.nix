@@ -224,6 +224,8 @@ let
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
       mkRoute
+      normalizeRoutes
+      dedupeRoutes
       isExternalValidationDelegatedPrefixRoute
       delegatedPrefixSourceForRoute
       ;
