@@ -42,8 +42,19 @@ let
           || (value.kind or null) == "bridge"
           || (value.Kind or null) == "bridge"
         );
+
+      namesOf =
+        name:
+        [ name ]
+        ++ lib.optional (isNonEmptyString (
+          (renderedNetdevs.${name}.netdevConfig or { }).Name or null
+        )) renderedNetdevs.${name}.netdevConfig.Name;
     in
-    builtins.filter (name: isBridge renderedNetdevs.${name}) (builtins.attrNames renderedNetdevs);
+    lib.unique (
+      builtins.concatMap namesOf (
+        builtins.filter (name: isBridge renderedNetdevs.${name}) (builtins.attrNames renderedNetdevs)
+      )
+    );
 
   bridgeBinding =
     binding:
@@ -169,6 +180,28 @@ let
 
   diagnostics = containers: lib.concatMap diagnosticsFor (builtins.attrNames containers);
 
+  vethAttachments =
+    containers:
+    builtins.listToAttrs (
+      builtins.concatMap (
+        name:
+        let
+          container = containers.${name} or { };
+          perInterface = interfaceBindings name container;
+        in
+        builtins.concatMap (
+          veth:
+          let
+            bridge = perInterface.${veth} or null;
+          in
+          lib.optional (bridge != null) {
+            name = veth;
+            value = bridge;
+          }
+        ) (builtins.attrNames perInterface)
+      ) (builtins.attrNames containers)
+    );
+
   applyAll =
     containers:
     let
@@ -184,6 +217,7 @@ in
     apply
     applyAll
     diagnostics
+    vethAttachments
     renderedBridges
     bindings
     targetPresent
