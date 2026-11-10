@@ -1,19 +1,25 @@
-{
-  lib,
-  lookup,
-  naming,
-  attach,
+# FS-320-HDS-010-SDS-010-SMS-030 and FS-310-HDS-020-SDS-010-SMS-040:
+# maps CPM logical/runtime interface identity to platform interface names;
+# eth0 below is the container-primary interface only when CPM binds one WAN
+# host bridge as the primary attachment.
+{ lib
+, lookup
+, naming
+, attach
+,
 }:
 
 let
-  inherit (naming)
+  inherit
+    (naming)
     validInterfaceName
     semanticBaseInterfaceName
     semanticHostVethBaseName
     assignUniqueContainerInterfaceNames
     assignUniqueHostVethNames
     ;
-  inherit (attach)
+  inherit
+    (attach)
     sourceKindForInterface
     attachTargetForInterface
     interfaceNameFromAttachTarget
@@ -64,29 +70,6 @@ let
     else
       [ ];
 
-  routeKey =
-    route:
-    builtins.toJSON [
-      (route.dst or route.Destination or route.destination or "")
-      (route.via or route.Gateway or route.gateway or "")
-      (route.table or route.Table or "")
-      (toString (route.metric or route.Metric or ""))
-      (route.from or route.From or "")
-      (route.dev or route.device or route.Interface or "")
-    ];
-
-  routesForInterfaceAndAttach =
-    iface: attachTarget:
-    let
-      own = routeListForInterface iface;
-      attachRoutes = if builtins.isList (attachTarget.routes or null) then attachTarget.routes else [ ];
-      all = own ++ attachRoutes;
-      unique = builtins.foldl' (
-        acc: route: if builtins.elem (routeKey route) (map routeKey acc) then acc else acc ++ [ route ]
-      ) [ ] all;
-    in
-    unique;
-
   explicitRuntimeInterfaceName =
     iface:
     if validInterfaceName (iface.runtimeIfName or null) then
@@ -97,11 +80,7 @@ let
       null;
 
   effectiveInterfaceNameForInterface =
-    {
-      ifName,
-      iface,
-      attachTarget,
-    }:
+    { ifName, iface, attachTarget }:
     let
       renderedIfName = iface.renderedIfName or ifName;
       sourceKind = sourceKindForInterface iface;
@@ -119,11 +98,7 @@ let
       renderedIfName;
 
   entryFor =
-    {
-      unitName,
-      containerName,
-      interfaces,
-    }:
+    { unitName, containerName, interfaces }:
     ifName:
     let
       iface = interfaces.${ifName};
@@ -131,128 +106,100 @@ let
       attachTarget = attachTargetForInterface { inherit unitName ifName iface; };
       hasExplicitRuntimeName = explicitRuntimeInterfaceName iface != null;
     in
-
+    # Skip interfaces whose hostBridge couldn't be resolved
     if attachTarget == null then
       builtins.trace "WARNING: skipping interface '${ifName}' for '${unitName}' — no attach target" null
     else if sourceKind == "core-egress" && !hasExplicitRuntimeName then
       null
     else
-      let
-        desiredInterfaceName = effectiveInterfaceNameForInterface { inherit ifName iface attachTarget; };
-        bridgeEligibleWanIfNames = lib.filter (
+    let
+      desiredInterfaceName = effectiveInterfaceNameForInterface { inherit ifName iface attachTarget; };
+      bridgeEligibleWanIfNames = lib.filter
+        (
           name:
           let
             candidateIface = interfaces.${name};
-            candidateAttach = attachTargetForInterface {
-              inherit unitName;
-              ifName = name;
-              iface = candidateIface;
-            };
+            candidateAttach = attachTargetForInterface { inherit unitName; ifName = name; iface = candidateIface; };
           in
           sourceKindForInterface candidateIface == "wan"
           && builtins.isString (candidateAttach.renderedHostBridgeName or null)
-        ) (lookup.sortedAttrNames interfaces);
-        primaryHostBridgeIfName =
-          if builtins.length bridgeEligibleWanIfNames == 1 then
-            builtins.head bridgeEligibleWanIfNames
+        )
+        (lookup.sortedAttrNames interfaces);
+      primaryHostBridgeIfName = if builtins.length bridgeEligibleWanIfNames == 1 then builtins.head bridgeEligibleWanIfNames else null;
+      usePrimaryHostBridge =
+        primaryHostBridgeIfName == ifName
+        && explicitRuntimeInterfaceName iface == null;
+      realizationPortName =
+        if attachTarget ? identity && builtins.isAttrs attachTarget.identity && builtins.isString (attachTarget.identity.portName or null) then
+          attachTarget.identity.portName
+        else
+          null;
+      interfaceAliases = lib.unique (
+        lib.filter builtins.isString [
+          ifName
+          (iface.ifName or null)
+          (iface.renderedIfName or null)
+          desiredInterfaceName
+          realizationPortName
+          (iface.sourceInterface or null)
+          (iface.backingRef.name or null)
+        ]
+      );
+    in
+    {
+      inherit ifName;
+      value = {
+        inherit ifName sourceKind desiredInterfaceName usePrimaryHostBridge realizationPortName interfaceAliases;
+        runtimeInterfaceAudit = {
+          logicalInterfaceName = ifName;
+          desiredInterfaceName = desiredInterfaceName;
+          sourceKind = sourceKind;
+          aliases = interfaceAliases;
+          cpmIdentity = {
+            ifName = ifName;
+            renderedIfName = iface.renderedIfName or null;
+            sourceInterface = iface.sourceInterface or null;
+            backingRef = iface.backingRef or { };
+            identity = attachTarget.identity or { };
+          };
+        };
+        hostVethBaseName = semanticHostVethBaseName {
+          inherit containerName desiredInterfaceName;
+          adapterName = if iface ? adapterName then iface.adapterName else null;
+        };
+        hostVethName = if usePrimaryHostBridge then null else null;
+        renderedIfName = iface.renderedIfName or ifName;
+        containerInterfaceBaseName = if usePrimaryHostBridge then "eth0" else semanticBaseInterfaceName desiredInterfaceName;
+        containerInterfaceName = if usePrimaryHostBridge then "eth0" else null;
+        adapterName = if iface ? adapterName && builtins.isString iface.adapterName then iface.adapterName else null;
+        addresses = addressListForInterface iface;
+        routes = routeListForInterface iface;
+        policyRoutingAllocation = iface.policyRoutingAllocation or null;
+        mtu = if builtins.isInt (iface.mtu or null) then iface.mtu else null;
+        renderedHostBridgeName = attachTarget.renderedHostBridgeName;
+        assignedUplinkName = attachTarget.assignedUplinkName or null;
+        hostInterfaceName = if usePrimaryHostBridge then null else null;
+        connectivity = iface.connectivity or { };
+        interfaceClass = iface.interfaceClass or { };
+        backingRef = iface.backingRef or { };
+        dynamicAddressing = iface.dynamicAddressing or { };
+        hostBridge = iface.hostBridge or null;
+        identity = attachTarget.identity or { };
+        upstream =
+          if iface ? connectivity && builtins.isAttrs iface.connectivity && builtins.isString (iface.connectivity.upstream or null) then
+            iface.connectivity.upstream
           else
             null;
-        usePrimaryHostBridge =
-          primaryHostBridgeIfName == ifName && explicitRuntimeInterfaceName iface == null;
-        realizationPortName =
-          if
-            attachTarget ? identity
-            && builtins.isAttrs attachTarget.identity
-            && builtins.isString (attachTarget.identity.portName or null)
-          then
-            attachTarget.identity.portName
-          else
-            null;
-        interfaceAliases = lib.unique (
-          lib.filter builtins.isString [
-            ifName
-            (iface.ifName or null)
-            (iface.renderedIfName or null)
-            desiredInterfaceName
-            realizationPortName
-            (iface.sourceInterface or null)
-            (iface.backingRef.name or null)
-          ]
-        );
-      in
-      {
-        inherit ifName;
-        value = {
-          inherit
-            ifName
-            sourceKind
-            desiredInterfaceName
-            usePrimaryHostBridge
-            realizationPortName
-            interfaceAliases
-            ;
-          runtimeInterfaceAudit = {
-            logicalInterfaceName = ifName;
-            desiredInterfaceName = desiredInterfaceName;
-            sourceKind = sourceKind;
-            aliases = interfaceAliases;
-            cpmIdentity = {
-              ifName = ifName;
-              renderedIfName = iface.renderedIfName or null;
-              sourceInterface = iface.sourceInterface or null;
-              backingRef = iface.backingRef or { };
-              identity = attachTarget.identity or { };
-            };
-          };
-          hostVethBaseName = semanticHostVethBaseName {
-            inherit containerName desiredInterfaceName;
-            adapterName = if iface ? adapterName then iface.adapterName else null;
-          };
-          hostVethName = if usePrimaryHostBridge then null else null;
-          renderedIfName = iface.renderedIfName or ifName;
-          containerInterfaceBaseName =
-            if usePrimaryHostBridge then "eth0" else semanticBaseInterfaceName desiredInterfaceName;
-          containerInterfaceName = if usePrimaryHostBridge then "eth0" else null;
-          adapterName =
-            if iface ? adapterName && builtins.isString iface.adapterName then iface.adapterName else null;
-          addresses = addressListForInterface iface;
-          routes = routesForInterfaceAndAttach iface attachTarget;
-          policyRoutingAllocation = iface.policyRoutingAllocation or null;
-          mtu = if builtins.isInt (iface.mtu or null) then iface.mtu else null;
-          renderedHostBridgeName = attachTarget.renderedHostBridgeName;
-          assignedUplinkName = attachTarget.assignedUplinkName or null;
-          hostInterfaceName = if usePrimaryHostBridge then null else null;
-          connectivity = iface.connectivity or { };
-          interfaceClass = iface.interfaceClass or { };
-          backingRef = iface.backingRef or { };
-          dynamicAddressing = iface.dynamicAddressing or { };
-          hostBridge = iface.hostBridge or null;
-          identity = attachTarget.identity or { };
-          upstream =
-            if
-              iface ? connectivity
-              && builtins.isAttrs iface.connectivity
-              && builtins.isString (iface.connectivity.upstream or null)
-            then
-              iface.connectivity.upstream
-            else
-              null;
-        }
-        // lib.optionalAttrs (iface ? ipv4) { ipv4 = iface.ipv4; }
-        // lib.optionalAttrs (iface ? ipv6) { ipv6 = iface.ipv6; };
-      };
+      }
+      // lib.optionalAttrs (iface ? ipv4) { ipv4 = iface.ipv4; }
+      // lib.optionalAttrs (iface ? ipv6) { ipv6 = iface.ipv6; };
+    };
 in
 {
   normalizedInterfacesForUnit =
-    {
-      unitName,
-      containerName,
-      interfaces,
-    }:
+    { unitName, containerName, interfaces }:
     let
-      entriesRaw = builtins.filter (x: x != null) (
-        map (entryFor { inherit unitName containerName interfaces; }) (lookup.sortedAttrNames interfaces)
-      );
+      entriesRaw = builtins.filter (x: x != null) (map (entryFor { inherit unitName containerName interfaces; }) (lookup.sortedAttrNames interfaces));
       entries = assignUniqueContainerInterfaceNames (assignUniqueHostVethNames entriesRaw);
       interfaceNames = map (entry: entry.value.containerInterfaceName) entries;
       _validateUniqueInterfaceNames =
@@ -270,11 +217,6 @@ in
           '';
     in
     builtins.seq _validateUniqueInterfaceNames (
-      builtins.listToAttrs (
-        map (entry: {
-          name = entry.ifName;
-          value = entry.value;
-        }) entries
-      )
+      builtins.listToAttrs (map (entry: { name = entry.ifName; value = entry.value; }) entries)
     );
 }
