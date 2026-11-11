@@ -479,6 +479,9 @@ else
     systemd.services.dns-egress-routing = lib.optionalAttrs (dnsEgressPolicy != null) {
       description = "Materialize DNS runtime-origin egress policy routing";
       wantedBy = [ "multi-user.target" ];
+
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
       path = [
         pkgs.iproute2
         pkgs.coreutils
