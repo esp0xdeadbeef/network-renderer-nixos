@@ -274,10 +274,30 @@ let
     else
       [ ];
 
+  selectorCrossInterfaceTargetDefaultRoutes =
+    if
+      isSelector
+      && isDownstreamSelectorPolicyInterface interfaceName
+      && targetIfName == interfaceName
+      && sourceIfName != targetIfName
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+    then
+      map (route: route // { _s88ForwardTargetDefault = true; }) (
+        lib.filter (
+          route:
+          builtins.isAttrs route
+          && isDefaultRoute route
+          && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
+        ) (interfaces.${sourceIfName}.routes or [ ])
+      )
+    else
+      [ ];
+
   acceptedOutputRoutes =
     explicitAcceptedOutputRoutes
     ++ explicitForwardTargetDefaultRoutes
-    ++ sameInterfaceTargetDefaultRoutes;
+    ++ sameInterfaceTargetDefaultRoutes
+    ++ selectorCrossInterfaceTargetDefaultRoutes;
   routeSelectableAcceptedOutputRoutes = lib.filter (
     route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
   ) acceptedOutputRoutes;
