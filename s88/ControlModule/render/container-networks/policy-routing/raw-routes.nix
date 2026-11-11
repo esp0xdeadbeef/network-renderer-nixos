@@ -255,8 +255,6 @@ let
             || ((route.intent or { }).kind or null) == "service-endpoint-reachability"
           )
           || outputIfName == targetIfName
-
-          || ((route.intent or { }).source or null) == "service-ingress-lane"
         )
       )
     )
