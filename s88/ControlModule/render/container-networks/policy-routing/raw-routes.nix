@@ -134,18 +134,6 @@ let
       ) interfaceNames
     else
       [ ];
-
-  downstreamSelectorPolicyDefaultRoutes =
-    if
-      isSelector
-      && isDownstreamSelectorPolicyInterface interfaceName
-      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
-    then
-      lib.filter (route: builtins.isAttrs route && isDefaultRoute route) (
-        interfaces.${sourceIfName}.routes or [ ]
-      )
-    else
-      [ ];
   downstreamSelectorReturnConnectedRoutes =
     if
       isSelector
@@ -223,7 +211,6 @@ let
       ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName)
       ++ explicitForwardTargetDefaultRoutes
       ++ policyDownstreamDefaultRoutes
-      ++ downstreamSelectorPolicyDefaultRoutes
       ++ policyUpstreamReturnRoutes
       ++ policyConnectedRoutes
       ++ downstreamSelectorReturnConnectedRoutes
