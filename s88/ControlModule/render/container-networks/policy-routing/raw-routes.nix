@@ -314,6 +314,16 @@ let
       )
     then
       acceptedOutputRoutes
+
+    else if
+      isSelector
+      && isDownstreamSelectorPolicyInterface interfaceName
+      && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+      && builtins.any (route: builtins.isAttrs route && isDefaultRoute route) (
+        interfaces.${sourceIfName}.routes or [ ]
+      )
+    then
+      acceptedOutputRoutes
     else if hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName then
       acceptedForwardOutputRoutes
     else if
