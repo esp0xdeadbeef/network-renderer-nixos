@@ -32,7 +32,6 @@ let
       group
     else
       let
-        head = builtins.head group;
         gateways = lib.unique (
           lib.filter (g: g != null && g != "") (map (route: route.Gateway or null) group)
         );
@@ -41,7 +40,18 @@ let
         group
       else
 
-        [ ]
+        (
+          let
+            firstOfEachSource = builtins.foldl' (
+              acc: route:
+              let
+                sourceIf = route._s88MultipathSourceIf or "?";
+              in
+              if acc ? ${sourceIf} then acc else acc // { ${sourceIf} = route; }
+            ) { } group;
+          in
+          builtins.attrValues firstOfEachSource
+        )
   ) (builtins.attrValues grouped);
 
   redistributed = builtins.foldl' (
