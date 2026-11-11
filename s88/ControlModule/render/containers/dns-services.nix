@@ -150,11 +150,10 @@ else
 
 
 
-
-
-
-
-          $ipbin route replace "$destination" dev "$ifname" table "$table_id" 2>/dev/null || true
+          live_via="$($ipbin route show default dev "$ifname" 2>/dev/null | sed -n "s/.* via \([^ ]*\).*/\1/p" | head -1)"
+          if [ -n "$live_via" ]; then
+            $ipbin route replace "$destination" via "$live_via" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
+          fi
         fi
       done
     '';
@@ -485,6 +484,7 @@ else
       path = [
         pkgs.iproute2
         pkgs.coreutils
+        pkgs.gnused
         pkgs.gawk
       ];
       serviceConfig = {
