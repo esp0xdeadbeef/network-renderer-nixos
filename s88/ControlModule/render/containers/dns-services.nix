@@ -134,6 +134,27 @@ else
         if [ "$family" = "ipv6" ]; then ipbin="ip -6"; else ipbin="ip"; fi
         if [ -n "$via" ]; then
           $ipbin route replace "$destination" via "$via" dev "$ifname" onlink table "$table_id" 2>/dev/null || true
+        else
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          $ipbin route replace "$destination" dev "$ifname" table "$table_id" 2>/dev/null || true
         fi
       done
     '';
@@ -606,8 +627,5 @@ else
       '';
     };
 
-    # Static, model-derived DNS firewall policy is declarative. The fragment is
-    # exported for the container module to merge into the single
-    # `networking.nftables.ruleset`, so this module does not own that option.
     nftablesRuleset = nft.ruleset;
   }
