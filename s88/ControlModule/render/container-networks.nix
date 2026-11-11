@@ -86,28 +86,6 @@ let
   };
   renderedInterfaceNames = interfaceView.renderedInterfaceNames;
 
-  interfaceNaming = import ../mapping/container-runtime/interfaces/naming.nix { inherit lib; };
-
-  uniqueContainerNameByIfName =
-    let
-      allocated = interfaceNaming.assignUniqueContainerInterfaceNames (
-        map (name: {
-          inherit name;
-          value = {
-            containerInterfaceBaseName = interfaceNaming.semanticBaseInterfaceName (
-              interfaces.${name}.renderedIfName or name
-            );
-          };
-        }) (lib.sort builtins.lessThan (builtins.attrNames interfaces))
-      );
-    in
-    lib.listToAttrs (
-      map (entry: {
-        inherit (entry) name;
-        value = entry.value.containerInterfaceName;
-      }) allocated
-    );
-
   runtimeInterfaceToContainerName = lib.listToAttrs (
     lib.filter
       (entry: entry.name != null && entry.name != "" && entry.value != null && entry.value != "")
@@ -119,7 +97,7 @@ let
           in
           {
             name = iface.renderedIfName or null;
-            value = uniqueContainerNameByIfName.${name} or (iface.containerInterfaceName or null);
+            value = iface.containerInterfaceName or (iface.interfaceName or null);
           }
         ) (builtins.attrNames interfaces)
       )
