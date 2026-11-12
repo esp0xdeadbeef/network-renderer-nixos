@@ -23,14 +23,14 @@ let
       sourceIfName = rawRoute._s88PolicySourceIfName;
       outputIfName = routeOutputInterface sourceIfName rawRoute;
       outputTableId = tableForOutputIfName outputIfName;
-      forwardTargetDefault = rawRoute._s88ForwardTargetDefault or false;
       renderedRoute = mkRoute (
         (builtins.removeAttrs rawRoute [
           "_s88PolicySourceIfName"
           "_s88ForwardTargetDefault"
         ])
         // {
-          table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+
+          table = outputTableId;
         }
       );
       annotatedRoute =
@@ -40,7 +40,7 @@ let
           renderedRoute
           // {
             _s88Multipath = rawRoute.multipath or null;
-            _s88Table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+            _s88Table = outputTableId;
           };
     in
     if annotatedRoute == null then
