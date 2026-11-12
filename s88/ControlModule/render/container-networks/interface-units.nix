@@ -297,13 +297,36 @@ let
               map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])
             ))
 
-            ++ (map (
-              route:
-              route
-              // lib.optionalAttrs (
-                builtins.isInt (route.table or null) && !(builtins.isInt (route.Table or null))
-              ) { Table = route.table; }
-            ) (policyRoutingByInterface.routes.${ifName} or [ ]));
+            ++ (map
+              (
+                route:
+                route
+                // lib.optionalAttrs (
+                  builtins.isInt (route.table or null) && !(builtins.isInt (route.Table or null))
+                ) { Table = route.table; }
+              )
+              (
+                lib.filter (
+                  route:
+                  let
+                    dst = route.dst or route.Destination or null;
+                    isHost = builtins.isString dst && (lib.hasSuffix "/32" dst || lib.hasSuffix "/128" dst);
+                  in
+                  !(
+                    isHost
+                    && builtins.any (
+                      other:
+                      let
+                        od = other.dst or other.Destination or null;
+                      in
+                      builtins.isString od
+                      && lib.hasInfix "/31" od
+                      && lib.hasPrefix (builtins.head (lib.splitString "/" dst)) od
+                    ) (fabricHostMainRoutes ++ serviceIngressMainRawRoutes)
+                  )
+                ) (policyRoutingByInterface.routes.${ifName} or [ ])
+              )
+            );
         in
         if
           builtins.elem ifName skipInterfaceNames
