@@ -293,7 +293,11 @@ jq -e '.Dhcp6.subnet6[0]["reservations-out-of-pool"] == true' "${output_v6}" >/d
 
 iid_mismatch_source="${tmp}/iid-mismatch-source"
 mkdir -p "${iid_mismatch_source}"
-printf '%s\n' '0000000000000041' >"${iid_mismatch_source}/opaque-client-v6-01"
+# Second line carries the stable IID; it must be the low 64 bits of the
+# reserved address, so these two fragment values disagree on purpose.
+printf '%s\n%s\n' \
+  '00:04:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:40' '0000000000000041' \
+  >"${iid_mismatch_source}/opaque-client-v6-01"
 if python3 "${materializer}" \
   --family ipv6 --scope client-v6 --subnet 2001:db8:970:2::/64 \
   --pool '2001:db8:970:2::100 - 2001:db8:970:2::1ff' \
