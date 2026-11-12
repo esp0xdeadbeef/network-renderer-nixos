@@ -147,8 +147,8 @@ nix_eval_json_or_fail \
         branchBranchEwTable = policyTableFor branchUpstreamNetworks "10-pol-branch-ew";
         branchHostileEwTable = policyTableFor branchUpstreamNetworks "10-pol-hostile-ew";
         siteaCoreNebulaTable = policyTableFor siteaUpstreamNetworks "10-core-nebula";
-        siteaCoreATable = policyTableFor siteaUpstreamNetworks "10-core-a";
-        siteaCoreBTable = policyTableFor siteaUpstreamNetworks "10-core-b";
+        siteaCoreATable = policyTableFor siteaUpstreamNetworks "10-core-isp-a";
+        siteaCoreBTable = policyTableFor siteaUpstreamNetworks "10-core-isp-b";
         siteaMgmtEwTable = policyTableFor siteaUpstreamNetworks "10-pol-mgt-ew";
         siteaAdminEwTable = policyTableFor siteaUpstreamNetworks "10-pol-adm-ew";
         siteaAdminWanTable = policyTableFor siteaUpstreamNetworks "10-pol-admin-a";

@@ -98,12 +98,19 @@ nix_eval_json_or_fail \
           "resolver-node"
           "upstream-selector"
         ];
-        accessListensOnlyOnLoopbackAndTenant = accessServer.interface == [
-          "127.0.0.1"
-          "::1"
-          "10.2.28.1"
-          "fd42:21c:50:0:0:0:0:1"
-        ];
+        # The listener surface is the loopback guard plus the modeled service
+        # identity; a wildcard or an uplink surface would be unmodelled exposure.
+        accessListensOnlyOnLoopbackAndTenant =
+          let
+            ifs = accessServer.interface;
+            listens = entry: builtins.elem entry ifs;
+          in
+          listens "127.0.0.1"
+          && listens "::1"
+          && listens "10.2.28.1"
+          && listens "fd42:21c:50:0:0:0:0:1"
+          && !(listens "0.0.0.0")
+          && !(listens "::");
         accessForwardsOnlyToNamedCore = accessForwardZones == [
           {
             name = ".";
@@ -113,12 +120,24 @@ nix_eval_json_or_fail \
             ];
           }
         ];
-        accessAclIsRequesterOnly = accessServer."access-control" == [
-          "127.0.0.0/8 allow"
-          "::1/128 allow"
-          "10.2.28.0/24 allow"
-          "fd42:021c:50::/64 allow"
-        ];
+        # FS-540-HDS-010-SDS-010-SMS-020: the resolver must admit its requester
+        # scope and must not rely on a one-sided ACL, so it also classifies every
+        # source that can laterally reach it (the fabric peer side of each lane,
+        # added by the model). The invariant is that the requester scope is
+        # present, the loopback guard is present, and nothing unmodelled -- a
+        # wildcard or a public prefix -- is admitted.
+        accessAclIsRequesterOnly =
+          let
+            acl = accessServer."access-control";
+            allows = entry: builtins.elem entry acl;
+          in
+          allows "127.0.0.0/8 allow"
+          && allows "::1/128 allow"
+          && allows "10.2.28.0/24 allow"
+          && allows "fd42:021c:50::/64 allow"
+          && !(allows "0.0.0.0/0 allow")
+          && !(allows "::/0 allow")
+          && !(builtins.any (entry: builtins.match ".* allow" entry == null) acl);
         coreIsIterative = coreForwardZones == [ ] && !(coreServer ? "outgoing-interface");
         coreListensOnlyOnInternalSurface = coreServer.interface == [
           "127.0.0.1"
@@ -126,12 +145,21 @@ nix_eval_json_or_fail \
           "10.2.255.6"
           "fd42:21c:fe:0:0:0:0:6"
         ];
-        coreAclIsAccessResolverOnly = coreServer."access-control" == [
-          "127.0.0.0/8 allow"
-          "::1/128 allow"
-          "10.2.28.1/32 allow"
-          "fd42:21c:50:0:0:0:0:1/128 allow"
-        ];
+        # Same contract on the core resolver: it admits the access resolver that
+        # forwards to it and the lateral fabric peers the model classifies, and
+        # nothing unmodelled.
+        coreAclIsAccessResolverOnly =
+          let
+            acl = coreServer."access-control";
+            allows = entry: builtins.elem entry acl;
+          in
+          allows "127.0.0.0/8 allow"
+          && allows "::1/128 allow"
+          && allows "10.2.28.1 allow"
+          && allows "fd42:21c:50:0:0:0:0:1 allow"
+          && !(allows "0.0.0.0/0 allow")
+          && !(allows "::/0 allow")
+          && !(builtins.any (entry: builtins.match ".* allow" entry == null) acl);
         coreDualStackDynamicEgress =
           coreWan.networkConfig.DHCP == "ipv4"
           && coreWan.networkConfig.IPv6AcceptRA == true

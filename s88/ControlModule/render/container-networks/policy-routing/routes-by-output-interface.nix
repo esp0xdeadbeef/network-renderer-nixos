@@ -15,37 +15,60 @@ let
     )
   ) sourceIfNames;
 in
-builtins.foldl' (
-  routesAcc: rawRoute:
-  let
-    sourceIfName = rawRoute._s88PolicySourceIfName;
-    outputIfName = routeOutputInterface sourceIfName rawRoute;
-    outputTableId = tableForOutputIfName outputIfName;
-    forwardTargetDefault = rawRoute._s88ForwardTargetDefault or false;
-    renderedRoute = mkRoute (
-      (builtins.removeAttrs rawRoute [
-        "_s88PolicySourceIfName"
-        "_s88ForwardTargetDefault"
-      ])
-      // {
-        table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
-      }
-    );
-    annotatedRoute =
-      if renderedRoute == null then
-        null
-      else
-        renderedRoute
+
+let
+  foldRouteSet = builtins.foldl' (
+    routesAcc: rawRoute:
+    let
+      sourceIfName = rawRoute._s88PolicySourceIfName;
+      outputIfName = routeOutputInterface sourceIfName rawRoute;
+      outputTableId = tableForOutputIfName outputIfName;
+      forwardTargetDefault = rawRoute._s88ForwardTargetDefault or false;
+      renderedRoute = mkRoute (
+        (builtins.removeAttrs rawRoute [
+          "_s88PolicySourceIfName"
+          "_s88ForwardTargetDefault"
+        ])
         // {
-          _s88Multipath = rawRoute.multipath or null;
-          _s88Table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
-        };
-  in
-  if annotatedRoute == null then
-    routesAcc
-  else
-    routesAcc
-    // {
-      ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ annotatedRoute ];
-    }
-) { } rawPolicyRoutes
+          table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+        }
+      );
+      annotatedRoute =
+        if renderedRoute == null then
+          null
+        else
+          renderedRoute
+          // {
+            _s88Multipath = rawRoute.multipath or null;
+            _s88Table = if forwardTargetDefault then rawRoute.table or tableId else outputTableId;
+          };
+    in
+    if annotatedRoute == null then
+      routesAcc
+    else
+      routesAcc
+      // {
+        ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ annotatedRoute ];
+      }
+  ) { } rawPolicyRoutes;
+
+  routeIdentity =
+    route:
+    builtins.toJSON (
+      builtins.removeAttrs route [
+        "_s88Multipath"
+        "_s88Table"
+      ]
+    );
+in
+builtins.mapAttrs (
+  _: routes:
+  builtins.attrValues (
+    builtins.listToAttrs (
+      map (route: {
+        name = routeIdentity route;
+        value = route;
+      }) routes
+    )
+  )
+) foldRouteSet
