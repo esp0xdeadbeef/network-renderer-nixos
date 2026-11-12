@@ -21,6 +21,7 @@
   hasAcceptForwardingRule,
   hasAcceptForwardingRuleForRoute,
   isExternalValidationDelegatedPrefixRoute,
+  selectedScopes ? [ ],
 }:
 let
   inherit (routeHelpers)
@@ -184,6 +185,11 @@ let
   policyUpstreamReturnRoutes =
     if isPolicy && isPolicyUpstreamInterface interfaceName then
       returnRoutes.forTenantInterface sourceIfName
+
+      ++ returnRoutes.forScopesViaInterface {
+        inherit sourceIfName;
+        scopes = selectedScopes;
+      }
     else
       [ ];
   explicitForwardReturnConnectedRoutes =
