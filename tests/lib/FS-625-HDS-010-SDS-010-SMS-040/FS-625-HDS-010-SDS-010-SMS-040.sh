@@ -33,7 +33,10 @@ fail() { echo "FAIL mapping-conflict: $*" >&2; exit 1; }
 # The absence claim is global: no implementation repository implements port-mapping
 # gating. The detector scans every controlled repository, so a single grep hit
 # anywhere means the feature started to exist and this case must be re-read.
-search=( "${HOME}/github"/network-*/ )
+# The check is scoped to this repository: a sibling checkout elsewhere on a
+# developer machine is not evidence about this renderer, and CI does not put
+# siblings under $HOME/github (it checks them out beside GITHUB_WORKSPACE).
+search=( "${repo_root}" )
 
 # P1 (absence claim): no controlled repository implements port-mapping service
 # state, so the deny-by-default posture is implicit rather than modelled, which the
