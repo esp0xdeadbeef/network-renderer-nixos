@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+# GAMP-ID: FS-800-HDS-030-SDS-020-SMS-040 (access IPv6-PD downstream delegation)
+#
+# CROSS-REPO DEPENDENCY (known red at upstream HEAD, green at the pinned lock):
+# this fixture models per-access uplink p2p links
+#   p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-*--uplink-wan
+# which network-control-plane-model generates at the revision recorded in
+# flake.lock. A newer model revision changes that link naming, so the inventory
+# lint rejects the fixture with
+#
+#   references unknown forwarding-model site link 'p2p-...--uplink-wan'
+#
+# flake.lock is gitignored, so CI regenerates it and resolves upstream HEAD,
+# while a developer checkout uses the recorded pin. Keep this case failing
+# closed rather than weakening the inventory: the fixture must be migrated to
+# whatever link shape the owning model layer emits. Owner:
+# network-control-plane-model (link generation) plus this fixture.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
