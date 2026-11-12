@@ -259,7 +259,7 @@
             interface = {
               name = "ens4";
             };
-            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-admin";
+            link = "p2p-s-router-downstream-selector-s-router-policy--access-s-router-access-admin";
           };
           policy-access-client = {
             adapterName = "adp-esp0xdeadbeef-site-a-s-router-downstream-selector-policy-access-client";
@@ -270,7 +270,7 @@
             interface = {
               name = "ens3";
             };
-            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-client";
+            link = "p2p-s-router-downstream-selector-s-router-policy--access-s-router-access-client";
           };
           policy-access-mgmt = {
             adapterName = "adp-esp0xdeadbeef-site-a-s-router-downstream-selector-policy-access-mgmt";
@@ -281,21 +281,21 @@
             interface = {
               name = "ens5";
             };
-            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-mgmt";
+            link = "p2p-s-router-downstream-selector-s-router-policy--access-s-router-access-mgmt";
           };
         };
       };
-      esp0xdeadbeef-site-a-s-router-policy-only = {
+      esp0xdeadbeef-site-a-s-router-policy = {
         host = "lab-host";
         logicalNode = {
           enterprise = "esp0xdeadbeef";
-          name = "s-router-policy-only";
+          name = "s-router-policy";
           site = "site-a";
         };
         platform = "linux";
         ports = {
           downstream-access-admin = {
-            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-only-downstream-access-admin";
+            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-downstream-access-admin";
             attach = {
               bridge = "br-site-a-downstream-policy-access-admin";
               kind = "bridge";
@@ -303,10 +303,10 @@
             interface = {
               name = "ens7";
             };
-            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-admin";
+            link = "p2p-s-router-downstream-selector-s-router-policy--access-s-router-access-admin";
           };
           downstream-access-client = {
-            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-only-downstream-access-client";
+            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-downstream-access-client";
             attach = {
               bridge = "br-site-a-downstream-policy-access-client";
               kind = "bridge";
@@ -314,10 +314,10 @@
             interface = {
               name = "ens6";
             };
-            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-client";
+            link = "p2p-s-router-downstream-selector-s-router-policy--access-s-router-access-client";
           };
           downstream-access-mgmt = {
-            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-only-downstream-access-mgmt";
+            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-downstream-access-mgmt";
             attach = {
               bridge = "br-site-a-downstream-policy-access-mgmt";
               kind = "bridge";
@@ -325,10 +325,10 @@
             interface = {
               name = "ens8";
             };
-            link = "p2p-s-router-downstream-selector-s-router-policy-only--access-s-router-access-mgmt";
+            link = "p2p-s-router-downstream-selector-s-router-policy--access-s-router-access-mgmt";
           };
           upstream-access-admin-wan = {
-            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-only-upstream-access-admin-wan";
+            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-upstream-access-admin-wan";
             attach = {
               bridge = "br-site-a-policy-upstream-access-admin-wan";
               kind = "bridge";
@@ -336,10 +336,10 @@
             interface = {
               name = "ens4";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
+            link = "p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
           };
           upstream-access-client-wan = {
-            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-only-upstream-access-client-wan";
+            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-upstream-access-client-wan";
             attach = {
               bridge = "br-site-a-policy-upstream-access-client-wan";
               kind = "bridge";
@@ -347,10 +347,10 @@
             interface = {
               name = "ens3";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
+            link = "p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
           };
           upstream-access-mgmt-wan = {
-            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-only-upstream-access-mgmt-wan";
+            adapterName = "adp-esp0xdeadbeef-site-a-s-router-policy-upstream-access-mgmt-wan";
             attach = {
               bridge = "br-site-a-policy-upstream-access-mgmt-wan";
               kind = "bridge";
@@ -358,7 +358,7 @@
             interface = {
               name = "ens5";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
+            link = "p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
           };
         };
       };
@@ -391,7 +391,7 @@
             interface = {
               name = "ens5";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
+            link = "p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-admin--uplink-wan";
           };
           policy-access-client-wan = {
             adapterName = "adp-esp0xdeadbeef-site-a-s-router-upstream-selector-policy-access-client-wan";
@@ -402,7 +402,7 @@
             interface = {
               name = "ens4";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
+            link = "p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-client--uplink-wan";
           };
           policy-access-mgmt-wan = {
             adapterName = "adp-esp0xdeadbeef-site-a-s-router-upstream-selector-policy-access-mgmt-wan";
@@ -413,7 +413,7 @@
             interface = {
               name = "ens6";
             };
-            link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
+            link = "p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-mgmt--uplink-wan";
           };
         };
       };

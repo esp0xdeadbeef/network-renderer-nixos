@@ -327,10 +327,10 @@
           ]
           [
             "s-router-upstream-selector"
-            "s-router-policy-only"
+            "s-router-policy"
           ]
           [
-            "s-router-policy-only"
+            "s-router-policy"
             "s-router-downstream-selector"
           ]
           [
@@ -348,6 +348,7 @@
         ];
         nodes = {
           s-router-access-admin = {
+            selects = [ "wan" ];
             attachments = [
               {
                 kind = "tenant";
@@ -357,6 +358,7 @@
             role = "access";
           };
           s-router-access-client = {
+            selects = [ "wan" ];
             attachments = [
               {
                 kind = "tenant";
@@ -366,6 +368,7 @@
             role = "access";
           };
           s-router-access-mgmt = {
+            selects = [ "wan" ];
             attachments = [
               {
                 kind = "tenant";
@@ -386,7 +389,7 @@
           s-router-downstream-selector = {
             role = "downstream-selector";
           };
-          s-router-policy-only = {
+          s-router-policy = {
             role = "policy";
           };
           s-router-upstream-selector = {
