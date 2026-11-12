@@ -49,6 +49,7 @@ IID = re.compile(r"^[0-9A-Fa-f]{16}$")
 DUID = re.compile(r"^[0-9A-Fa-f]{4,260}$")
 DNS_RECORD_CLASSES = {"A", "AAAA", "PTR"}
 DNS_NAMESPACE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9_-]*\.)+$")
+POOL_RANGE = re.compile(r"^\s*(\S+)\s*-\s*(\S+)\s*$")
 
 
 class ReservationContractError(Exception):
@@ -174,12 +175,44 @@ def materialize_dns_lines(
     return (lines, dns_ids)
 
 
+def _parse_pool(pool: str | None) -> tuple[ipaddress._BaseAddress, ipaddress._BaseAddress] | None:
+    """Parse Kea's "start - end" pool notation into address bounds."""
+    if not pool:
+        return None
+    match = POOL_RANGE.fullmatch(pool.strip())
+    if match is None:
+        return None
+    return ipaddress.ip_address(match.group(1)), ipaddress.ip_address(match.group(2))
+
+
+def _address_in_pool(
+    record: dict[str, Any],
+    family: str,
+    pool_range: tuple[ipaddress._BaseAddress, ipaddress._BaseAddress],
+) -> bool:
+    """True when this reservation's address falls inside the dynamic pool."""
+    raw = (
+        record.get("ip-address")
+        if family == "ipv4"
+        else (record.get("ip-addresses") or [None])[0]
+    )
+    if raw is None:
+        return True
+    try:
+        address = ipaddress.ip_address(str(raw))
+    except ValueError:
+        return True
+    start, end = pool_range
+    return start.version == address.version and start <= address <= end
+
+
 def insert_reservations(
     config: dict[str, Any],
     family: str,
     source_path: Path,
     has_out_of_pool: bool,
     scope: str | None = None,
+    pool_range: tuple[ipaddress._BaseAddress, ipaddress._BaseAddress] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if family == "ipv4":
         subnets = config["Dhcp4"]["subnet4"]
@@ -252,9 +285,44 @@ def insert_reservations(
         # hostname, so there is no conflict to resolve.
         resolved.append(record)
 
+    # Every reservation must sit inside the served subnet. A fixed address
+    # outside it cannot be served by this Kea instance, so emitting it would
+    # produce a config that looks valid and reserves an unreachable address. A
+    # reservation outside the *pool* is legitimate and is reported through
+    # reservations-out-of-pool instead.
+    try:
+        served = ipaddress.ip_network(str(subnets[0].get("subnet")), strict=False)
+    except (ValueError, TypeError):
+        served = None
+    if served is not None:
+        for record in resolved:
+            raw = (
+                record.get("ip-address")
+                if family == "ipv4"
+                else (record.get("ip-addresses") or [None])[0]
+            )
+            if raw is None:
+                continue
+            address = ipaddress.ip_address(str(raw))
+            require(
+                address.version == served.version and address in served,
+                f"{DIAGNOSTIC}: reservation address is outside the served subnet",
+            )
+
     subnets[0]["reservations"] = resolved
     subnets[0]["reservations-in-subnet"] = True
-    subnets[0]["reservations-out-of-pool"] = has_out_of_pool
+    # Kea needs both flags to describe the set it is given: a fixed address may
+    # sit inside the dynamic pool or outside it, and the two cases are not
+    # interchangeable. The caller's `has_out_of_pool` is the previous blanket
+    # value; a modeled pool range lets this be decided per reservation.
+    if pool_range is not None:
+        inside = [
+            _address_in_pool(record, family, pool_range) for record in resolved
+        ]
+        subnets[0]["reservations-in-subnet"] = True
+        subnets[0]["reservations-out-of-pool"] = any(not flag for flag in inside)
+    else:
+        subnets[0]["reservations-out-of-pool"] = has_out_of_pool
     return (config, resolved)
 
 
@@ -335,8 +403,21 @@ def main() -> None:
 
     joined: list[dict[str, Any]] = []
     if args.source is not None:
+        # Fail closed when the protected source is absent. Without this the run
+        # silently materializes an empty reservation set, which is
+        # indistinguishable from "no endpoint is reserved" -- the exact
+        # substitution the SMS forbids.
+        require(
+            args.source.is_dir(),
+            f"{DIAGNOSTIC}: protected reservation source directory is absent",
+        )
         config, joined = insert_reservations(
-            config, args.family, args.source, False, args.scope
+            config,
+            args.family,
+            args.source,
+            False,
+            args.scope,
+            _parse_pool(args.pool),
         )
 
     if dns_enabled:
