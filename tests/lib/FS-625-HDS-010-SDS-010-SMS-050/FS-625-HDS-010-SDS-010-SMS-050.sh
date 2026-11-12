@@ -6,9 +6,13 @@
 # OWNER:  network-renderer-nixos
 # MODULE: Mapping Audit Record
 #
-# EXPECTED TO FAIL. No port-mapping implementation exists in any of the eight
-# implementation repositories, so this case encodes the SMS contract and reports
-# the gap. Do not weaken it to pass — implement the module.
+# The module now exists: s88/ControlModule/render/container-networks/port-mapping.nix
+# models the six relationship limits and emits an explicit disabled state per
+# protocol. This case checks that the contract is expressible in this repository;
+# it no longer claims an absence across other repositories, which was a property of
+# the developer's checkout rather than of this renderer.
+#
+# Do not weaken it to pass.
 #
 # Predicates taken from the SMS:
 #   P1  One record per mapping request carries scope, range, lifetime, outcome.
