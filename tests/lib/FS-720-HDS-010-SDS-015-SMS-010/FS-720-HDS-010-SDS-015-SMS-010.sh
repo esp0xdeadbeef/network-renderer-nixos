@@ -32,7 +32,9 @@ run_emitter() {
     let
       f = builtins.getFlake "'"path:${repo_root}"'";
       pkgs = import f.inputs.nixpkgs { };
-      emit = import "'"${repo_root}/${emitter}"'" { lib = pkgs.lib; };
+      emit =
+        args:
+        import "'"${repo_root}/${emitter}"'" (args // { lib = pkgs.lib; });
     in
       '"${expr}"'
   '

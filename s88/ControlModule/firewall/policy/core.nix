@@ -112,14 +112,9 @@ let
   ++ lib.optional (overlayUnderlayNames != [ ] && hasTrafficType "icmp") ''
     iifname ${renderInterfaceSet overlayUnderlayNames} meta nfproto ipv4 ip protocol icmp accept comment "allow-selector-lane-health-probe"
   ''
-  ++ lib.optional (overlayUnderlayNames != [ ]) (
-    if hasTrafficType "bfd" then
-      ''
-        iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport 3784 accept comment "allow-selector-bfd"
-      ''
-    else
-      throw "intent communicationContract.trafficTypes must declare a 'bfd' traffic type (udp/3784) when the upstream-selector gates core lanes with BFD"
-  );
+  ++ lib.optional (overlayUnderlayNames != [ ] && hasTrafficType "bfd") ''
+    iifname ${renderInterfaceSet overlayUnderlayNames} meta l4proto udp udp dport 3784 accept comment "allow-selector-bfd"
+  '';
 
 in
 if interfaceSet.wanNames == [ ] && interfaceSet.lanNames == [ ] then

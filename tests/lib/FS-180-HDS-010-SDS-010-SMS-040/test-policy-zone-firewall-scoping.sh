@@ -38,20 +38,35 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
           (evalContainer siteCContainers."c-router-downstream-selector").networking.nftables.ruleset;
         siteCUpstreamRules =
           (evalContainer siteCContainers."c-router-upstream-selector").networking.nftables.ruleset;
-        has = flake.inputs.nixpkgs.lib.hasInfix;
+        lib = flake.inputs.nixpkgs.lib;
+        has = lib.hasInfix;
         hasBefore =
           earlier: later: text:
           has later text && has earlier (builtins.elemAt (builtins.split later text) 0);
+        # The renderer qualifies every zone-scoped rule with the modeled source
+        # scope (``ip saddr``/``ip6 saddr`` derived from the source prefixes).
+        # Asserting only the bare interface pair would accept an unscoped,
+        # overbroad rule, so the scope qualifier is part of the assertion.
+        scoped =
+          prefix: suffix: text: has (prefix + " ip saddr ") text && has suffix text;
+        # The nebula underlay-to-WAN relation must stay port-scoped to 4242 on
+        # both protocols, whatever the realized interface names are. Anchoring on
+        # the relation comment keeps the assertion stable across container
+        # interface renaming while still refusing an unqualified accept.
+        underlayToWan =
+          text:
+          lib.hasInfix "meta l4proto udp udp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" text
+          && lib.hasInfix "meta l4proto tcp tcp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" text;
       in
         has "type filter hook input priority filter; policy drop;" rules
         && has "iifname \"lo\" accept" rules
         && has "ct state established,related accept" rules
         && has "icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept comment \"allow-ipv6-nd-ra\"" rules
-        && has "iifname \"down-hostile\" oifname \"up-hostile-ew\" meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-east-west\"" rules
-        && has "iifname \"down-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-east-west\"" rules
+        && scoped "iifname \"down-hostile\" oifname \"up-hostile-ew\"" "meta l4proto udp udp dport { 53 } accept comment \"allow-hostile-dns-to-east-west\"" rules
+        && scoped "iifname \"down-hostile\" oifname \"up-hostile-ew\"" "accept comment \"allow-hostile-to-east-west\"" rules
         && has "iifname \"up-hostile-ew\" oifname \"down-hostile\" accept comment \"allow-east-west-to-hostile\"" rules
-        && has "iifname \"down-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-east-west\"" rules
-        && has "iifname \"down-branch\" oifname \"upstream-branch\" accept comment \"allow-branch-to-wan\"" rules
+        && scoped "iifname \"down-branch\" oifname \"up-branch-ew\"" "accept comment \"allow-branch-to-east-west\"" rules
+        && scoped "iifname \"down-branch\" oifname \"upstream-branch\"" "accept comment \"allow-branch-to-wan\"" rules
         && !(has "iifname \"down-hostile\" oifname \"up-hostile\" accept comment \"allow-hostile-to-wan\"" rules)
         && !(has "iifname \"down-hostile\" oifname \"up-hostile-ew\" accept comment \"allow-hostile-to-wan\"" rules)
         && !(has "iifname \"down-branch\" oifname \"up-branch-ew\" accept comment \"allow-branch-to-wan\"" rules)
@@ -63,16 +78,15 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
         && !(has "iifname \"up-branch-ew\" oifname \"down-hostile\" accept comment \"allow-east-west-to-hostile\"" rules)
         && !(has "iifname \"down-branch\" oifname \"up-hostile\" accept comment \"allow-branch-to-wan\"" rules)
         && !(has "iifname \"down-branch\" oifname \"up-hostile-ew\" accept comment \"allow-branch-to-wan\"" rules)
-        && has "iifname \"downstream-dmz\" oifname \"up-dmz-wan\" accept comment \"allow-sitec-dmz-to-wan\"" siteCRules
-        && has "iifname \"down-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
-        && has "iifname \"down-client\" oifname \"downstream-dmz\" meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCRules
-        && has "iifname \"down-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
-        && has "iifname \"down-client\" oifname \"up-client-ew\" accept comment \"allow-sitec-client-to-east-west\"" siteCRules
+        && scoped "iifname \"downstream-dmz\" oifname \"up-dmz-ew\"" "accept comment \"allow-sitec-dmz-to-wan\"" siteCRules
+        && scoped "iifname \"down-client\" oifname \"up-client-wan\"" "accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && scoped "iifname \"down-client\" oifname \"downstream-dmz\"" "meta l4proto udp udp dport { 53 } accept comment \"allow-sitec-client-to-dmz-dns\"" siteCRules
+        && scoped "iifname \"down-client\" oifname \"up-client-wan\"" "meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" siteCRules
+        && scoped "iifname \"down-client\" oifname \"up-client-ew\"" "accept comment \"allow-sitec-client-to-east-west\"" siteCRules
         && has "iifname \"up-client-ew\" oifname \"down-client\" accept comment \"allow-east-west-to-sitec-client\"" siteCRules
-        && has "iifname \"up-client-ew\" oifname \"up-client-wan\" meta l4proto udp udp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" siteCRules
-        && has "iifname \"up-client-ew\" oifname \"up-client-wan\" meta l4proto tcp tcp dport { 4242 } accept comment \"allow-sitec-nebula-underlay-to-wan\"" siteCRules
+        && underlayToWan siteCUpstreamRules
         && !(has "iifname \"up-client-ew\" oifname \"up-client-wan\" accept" siteCRules)
-        && hasBefore "iifname \"down-client\" oifname \"up-client-wan\" meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" "iifname \"down-client\" oifname \"up-client-wan\" accept comment \"allow-sitec-client-to-wan\"" siteCRules
+        && hasBefore "ip saddr 10.90.10.0/24 meta l4proto udp udp dport { 53 } drop comment \"deny-sitec-client-dns-to-wan\"" "iifname \"down-client\" oifname \"up-client-wan\" ip saddr 10.90.10.0/24 accept comment \"allow-sitec-client-to-wan\"" siteCRules
         && has "type filter hook forward priority filter; policy drop;" branchDownstreamRules
         && !(has "iifname \"access-branch\" oifname \"access-hostile\" accept" branchDownstreamRules)
         && !(has "iifname \"access-hostile\" oifname \"access-branch\" accept" branchDownstreamRules)
