@@ -474,9 +474,20 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         raise SystemExit(1)
-    except Exception:
+    except Exception as exc:
+        # An unexpected failure is reported as itself. This used to print only the
+        # generic DIAGNOSTIC, which made every crash look identical: the neon
+        # fixture's `gen-kea-vlan2.service` failed on every boot from 00:55 with
+        #   diagnostic.runtime-reservation-secret-record-invalid: protected
+        #   reservation set or Kea template rejected
+        # and no traceback, so there was nothing to diagnose. A contract violation
+        # is still reported as a contract violation; a bug now says what it is.
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
         print(
-            f"{DIAGNOSTIC}: protected reservation set or Kea template rejected",
+            f"{DIAGNOSTIC}: protected reservation set or Kea template rejected: "
+            f"{type(exc).__name__}: {exc}",
             file=sys.stderr,
         )
         raise SystemExit(1)

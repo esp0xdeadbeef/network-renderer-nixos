@@ -157,6 +157,8 @@ let
       hasAcceptForwardingRuleForRoute
       ;
     inherit isExternalValidationDelegatedPrefixRoute;
+
+    selectedScopes = selectedScopesOf resolvedReachability;
   };
   routesByOutputInterface = import ./policy-routing/routes-by-output-interface.nix {
     inherit mkRoute routeOutputInterface;
@@ -221,6 +223,21 @@ let
       containerModel.runtimeTarget.effectiveRuntimeRealization
     else
       { };
+  resolvedReachability =
+    let
+      value = effectiveRuntimeRealization.resolvedReachability or { };
+    in
+    if builtins.isAttrs value then value else { };
+
+  selectedScopesOf =
+    reachability:
+    lib.unique (
+      builtins.filter builtins.isString (
+        map (entry: entry.scope or null) (
+          if builtins.isList (reachability.selects or null) then reachability.selects else [ ]
+        )
+      )
+    );
   relationSelectionRulesRaw = effectiveRuntimeRealization.routeSelectionRules or [ ];
   relationSelectionRules =
     if builtins.isList relationSelectionRulesRaw then
