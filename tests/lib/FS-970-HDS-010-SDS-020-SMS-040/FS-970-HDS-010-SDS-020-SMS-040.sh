@@ -121,21 +121,17 @@ secret_v4="${tmp}/protected-v4.json"
 output_v4="${tmp}/runtime/kea-v4.json"
 lease_v4="${tmp}/leases-v4"
 
-cat >"${template_v4}" <<'JSON'
-{"Dhcp4":{"interfaces-config":{"interfaces":["tenant-client"]},"lease-database":{"name":"/var/lib/kea/test","persist":true,"type":"memfile"},"subnet4":[{"id":1,"subnet":"10.20.20.0/24","pools":[{"pool":"10.20.20.100 - 10.20.20.199"}],"reservations":[]}]}}
-JSON
-cat >"${secret_v4}" <<JSON
-[
-  {
-    "id": "opaque-client-01",
-    "scope": "client",
-    "ipv4": {
-      "address": "10.20.20.10",
-      "mac-address": "${protected_mac}"
-    },
-    "hostname": "${protected_hostname}"
-  }
-]
+# The materializer's documented interface (see its module docstring and
+# FS-970-HDS-010-SDS-020-SMS-040 "Effective Record and Source Partition"): the
+# public assignment side arrives in the Kea template as a reservation carrying a
+# `reservation-handle` marker plus the already-resolved address, and --source is
+# the protected identity registry directory keyed by that handle. The case used to
+# put the whole record in a JSON file passed as --source, which is not the
+# contract either source follows, so it could never match.
+mkdir -p "${secret_v4}"
+printf '%s\n' "${protected_mac}" >"${secret_v4}/opaque-client-01"
+cat >"${template_v4}" <<JSON
+{"Dhcp4":{"interfaces-config":{"interfaces":["tenant-client"]},"lease-database":{"name":"/var/lib/kea/test","persist":true,"type":"memfile"},"subnet4":[{"id":1,"subnet":"10.20.20.0/24","pools":[{"pool":"10.20.20.100 - 10.20.20.199"}],"reservations":[{"hw-address":"","ip-address":"10.20.20.10","reservation-handle":"opaque-client-01","hostname":"${protected_hostname}","scope":"client"}]}]}}
 JSON
 
 python3 "${materializer}" \
@@ -165,6 +161,7 @@ pass "runtime-secret-reservation-materialization standalone IPv4 positive"
 assert_redacted_rejection() {
   local label="$1"
   local source="$2"
+  local template="${3:-${template_v4}}"
   local stderr_file="${tmp}/${label}.err"
   local rejected_output="${tmp}/${label}.json"
 
@@ -174,7 +171,7 @@ assert_redacted_rejection() {
     --subnet 10.20.20.0/24 \
     --pool '10.20.20.100 - 10.20.20.199' \
     --source "${source}" \
-    --template "${template_v4}" \
+    --template "${template}" \
     --output "${rejected_output}" \
     --lease-directory "${lease_v4}" \
     >"${tmp}/${label}.out" 2>"${stderr_file}"; then
@@ -187,27 +184,40 @@ assert_redacted_rejection() {
   fi
 }
 
-assert_redacted_rejection missing-source "${tmp}/does-not-exist.json"
+# Each negative drives the documented interface: --source is the protected
+# identity directory keyed by handle, and the public side is the Kea template.
+# They used to pass a JSON record list as --source, which no source follows.
+assert_redacted_rejection missing-source-dir "${tmp}/does-not-exist-dir"
 
-invalid_json="${tmp}/invalid-json.json"
-printf '%s\n' '{invalid-json' >"${invalid_json}"
-assert_redacted_rejection invalid-json "${invalid_json}"
+invalid_source="${tmp}/invalid-source"
+mkdir -p "${invalid_source}"
+printf '%s\n' 'not-a-mac-or-duid' >"${invalid_source}/opaque-client-01"
+assert_redacted_rejection invalid-identity-value "${invalid_source}"
 
-wrong_scope="${tmp}/wrong-scope.json"
-jq '.[0].scope = "another-scope"' "${secret_v4}" >"${wrong_scope}"
-assert_redacted_rejection wrong-scope "${wrong_scope}"
+wrong_scope_source="${tmp}/wrong-scope-source"
+mkdir -p "${wrong_scope_source}"
+cp "${secret_v4}/opaque-client-01" "${wrong_scope_source}/opaque-client-01"
+wrong_scope_template="${tmp}/wrong-scope-template.json"
+jq '.Dhcp4.subnet4[0].reservations[0].scope = "another-scope"' \
+  "${template_v4}" >"${wrong_scope_template}"
+assert_redacted_rejection wrong-scope-source "${wrong_scope_source}" "${wrong_scope_template}"
 
-out_of_prefix="${tmp}/out-of-prefix.json"
-jq '.[0].ipv4.address = "10.20.21.10"' "${secret_v4}" >"${out_of_prefix}"
-assert_redacted_rejection out-of-prefix "${out_of_prefix}"
+out_of_prefix_source="${tmp}/out-of-prefix-source"
+mkdir -p "${out_of_prefix_source}"
+cp "${secret_v4}/opaque-client-01" "${out_of_prefix_source}/opaque-client-01"
+out_of_prefix_template="${tmp}/out-of-prefix-template.json"
+jq '.Dhcp4.subnet4[0].reservations[0]["ip-address"] = "10.20.21.10"' \
+  "${template_v4}" >"${out_of_prefix_template}"
+assert_redacted_rejection out-of-prefix-source "${out_of_prefix_source}" "${out_of_prefix_template}"
 
-inside_dynamic_pool="${tmp}/inside-dynamic-pool.json"
-jq '.[0].ipv4.address = "10.20.20.110"' "${secret_v4}" >"${inside_dynamic_pool}"
 inside_dynamic_pool_output="${tmp}/inside-dynamic-pool-output.json"
+inside_dynamic_pool_template="${tmp}/inside-dynamic-pool-template.json"
+jq '.Dhcp4.subnet4[0].reservations[0]["ip-address"] = "10.20.20.110"' \
+  "${template_v4}" >"${inside_dynamic_pool_template}"
 python3 "${materializer}" \
   --family ipv4 --scope client --subnet 10.20.20.0/24 \
   --pool '10.20.20.100 - 10.20.20.199' \
-  --source "${inside_dynamic_pool}" --template "${template_v4}" \
+  --source "${secret_v4}" --template "${inside_dynamic_pool_template}" \
   --output "${inside_dynamic_pool_output}" --lease-directory "${lease_v4}"
 jq -e '
   .Dhcp4.subnet4[0]["reservations-in-subnet"] == true and
@@ -216,18 +226,19 @@ jq -e '
 ' "${inside_dynamic_pool_output}" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: valid in-pool reservation semantics were not explicit"
 
-mixed_pool="${tmp}/mixed-pool.json"
-jq '.[0] as $outside | . + [
-  ($outside
-    | .id = "opaque-client-02"
-    | .ipv4.address = "10.20.20.110"
-    | .ipv4["mac-address"] = "02:00:00:00:00:11")
-]' "${secret_v4}" >"${mixed_pool}"
+mixed_pool_source="${tmp}/mixed-pool-source"
+mkdir -p "${mixed_pool_source}"
+cp "${secret_v4}/opaque-client-01" "${mixed_pool_source}/opaque-client-01"
+printf '%s\n' '02:00:00:00:00:11' >"${mixed_pool_source}/opaque-client-02"
+mixed_pool_template="${tmp}/mixed-pool-template.json"
+jq '.Dhcp4.subnet4[0].reservations += [
+  {"hw-address":"","ip-address":"10.20.20.110","reservation-handle":"opaque-client-02","scope":"client"}
+]' "${template_v4}" >"${mixed_pool_template}"
 mixed_pool_output="${tmp}/mixed-pool-output.json"
 python3 "${materializer}" \
   --family ipv4 --scope client --subnet 10.20.20.0/24 \
   --pool '10.20.20.100 - 10.20.20.199' \
-  --source "${mixed_pool}" --template "${template_v4}" \
+  --source "${mixed_pool_source}" --template "${mixed_pool_template}" \
   --output "${mixed_pool_output}" --lease-directory "${lease_v4}"
 jq -e '
   .Dhcp4.subnet4[0]["reservations-in-subnet"] == true and
@@ -236,14 +247,20 @@ jq -e '
 ' "${mixed_pool_output}" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: mixed in-pool/out-of-pool reservations were not enabled"
 
-invalid_mac="${tmp}/invalid-mac.json"
-jq '.[0].ipv4["mac-address"] = "not-a-mac"' "${secret_v4}" >"${invalid_mac}"
-assert_redacted_rejection invalid-mac "${invalid_mac}"
+invalid_mac_source="${tmp}/invalid-mac-source"
+mkdir -p "${invalid_mac_source}"
+printf '%s\n' 'not-a-mac' >"${invalid_mac_source}/opaque-client-01"
+assert_redacted_rejection invalid-mac "${invalid_mac_source}"
 
-duplicate_identity="${tmp}/duplicate-identity.json"
-jq '.[0] as $first | . + [$first | .id = "opaque-client-02" | .ipv4.address = "10.20.20.11"]' \
-  "${secret_v4}" >"${duplicate_identity}"
-assert_redacted_rejection duplicate-identity "${duplicate_identity}"
+duplicate_identity_source="${tmp}/duplicate-identity-source"
+mkdir -p "${duplicate_identity_source}"
+cp "${secret_v4}/opaque-client-01" "${duplicate_identity_source}/opaque-client-01"
+cp "${secret_v4}/opaque-client-01" "${duplicate_identity_source}/opaque-client-02"
+duplicate_identity_template="${tmp}/duplicate-identity-template.json"
+jq '.Dhcp4.subnet4[0].reservations += [
+  {"hw-address":"","ip-address":"10.20.20.11","reservation-handle":"opaque-client-02","scope":"client"}
+]' "${template_v4}" >"${duplicate_identity_template}"
+assert_redacted_rejection duplicate-identity "${duplicate_identity_source}" "${duplicate_identity_template}"
 
 pass "runtime-secret-reservation-materialization IPv4 pool modes + seeded negatives redacted"
 
@@ -251,23 +268,11 @@ template_v6="${tmp}/kea-v6-template.json"
 secret_v6="${tmp}/protected-v6.json"
 output_v6="${tmp}/runtime/kea-v6.json"
 cat >"${template_v6}" <<'JSON'
-{"Dhcp6":{"interfaces-config":{"interfaces":["tenant-client"]},"lease-database":{"name":"/var/lib/kea/test6","persist":true,"type":"memfile"},"subnet6":[{"id":1,"subnet":"2001:db8:970:2::/64","pools":[{"pool":"2001:db8:970:2::100 - 2001:db8:970:2::1ff"}],"reservations":[]}]}}
+{"Dhcp6":{"interfaces-config":{"interfaces":["tenant-client"]},"lease-database":{"name":"/var/lib/kea/test6","persist":true,"type":"memfile"},"subnet6":[{"id":1,"subnet":"2001:db8:970:2::/64","pools":[{"pool":"2001:db8:970:2::100 - 2001:db8:970:2::1ff"}],"reservations":[{"duid":"","ip-addresses":["2001:db8:970:2::40"],"reservation-handle":"opaque-client-v6-01","scope":"client-v6"}]}]}}
 JSON
-cat >"${secret_v6}" <<'JSON'
-[
-  {
-    "id": "opaque-client-v6-01",
-    "scope": "client-v6",
-    "ipv6": {
-      "address": "2001:db8:970:2::40",
-      "iid": "0000:0000:0000:0040",
-      "iid-stability": "stable",
-      "duid": "000400000000000000000000000000000040",
-      "iaid": 1
-    }
-  }
-]
-JSON
+mkdir -p "${secret_v6}"
+printf '%s\n' '00:04:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:40' \
+  >"${secret_v6}/opaque-client-v6-01"
 
 python3 "${materializer}" \
   --family ipv6 \
@@ -286,12 +291,13 @@ jq -e \
 jq -e '.Dhcp6.subnet6[0]["reservations-out-of-pool"] == true' "${output_v6}" >/dev/null \
   || fail "FAIL runtime-secret-reservation-materialization: IPv6 runtime config did not enable out-of-pool reservations"
 
-iid_mismatch="${tmp}/iid-mismatch.json"
-jq '.[0].ipv6.iid = "0000:0000:0000:0041"' "${secret_v6}" >"${iid_mismatch}"
+iid_mismatch_source="${tmp}/iid-mismatch-source"
+mkdir -p "${iid_mismatch_source}"
+printf '%s\n' '0000000000000041' >"${iid_mismatch_source}/opaque-client-v6-01"
 if python3 "${materializer}" \
   --family ipv6 --scope client-v6 --subnet 2001:db8:970:2::/64 \
   --pool '2001:db8:970:2::100 - 2001:db8:970:2::1ff' \
-  --source "${iid_mismatch}" --template "${template_v6}" \
+  --source "${iid_mismatch_source}" --template "${template_v6}" \
   --output "${tmp}/iid-mismatch-output.json" --lease-directory "${tmp}/leases-v6" \
   >"${tmp}/iid-mismatch.out" 2>"${tmp}/iid-mismatch.err"; then
   fail "FAIL runtime-secret-reservation-materialization: IPv6 IID/address mismatch was accepted"
