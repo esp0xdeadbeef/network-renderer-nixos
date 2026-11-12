@@ -332,7 +332,8 @@ else
           "access-control" = accessControl;
           "do-ip4" = true;
           "do-ip6" = true;
-          "infra-host-ttl" = if infraHostTtl != null then infraHostTtl else 60;
+
+          "infra-host-ttl" = if infraHostTtl != null then infraHostTtl else 900;
 
           "msg-cache-size" = "128m";
           "rrset-cache-size" = "256m";
