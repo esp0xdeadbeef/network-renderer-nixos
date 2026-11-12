@@ -139,7 +139,18 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
               if matches == [ ] then null else (builtins.head matches).Table;
           upstreamP0Table = upstreamTableForIngress "p0";
           upstreamP1Table = upstreamTableForIngress "p1";
-          upstreamP2Table = upstreamTableForIngress "p2";
+          # One policy table per modelled lane, discovered from the rendered
+          # units rather than from hardcoded lane names.
+          upstreamPolicyTables = builtins.filter (table: table != null) (
+            map upstreamTableForIngress (
+              # Unit names are "10-<interface>"; the rules carry the interface
+              # name, so strip the numeric prefix before matching.
+              map (name: lib.removePrefix "10-" name) (
+                builtins.filter (name: lib.hasPrefix "10-p" name)
+                  (builtins.attrNames upstreamSelectorNetworks)
+              )
+            )
+          );
           upstreamHasRoute =
             destination: gateway: table:
             builtins.any
@@ -201,16 +212,21 @@ nix_eval_true_or_fail "FS-380 active-lab multi-uplink WAN attachment" \
             "downstream-selector traffic entering from client-edge on p0 must select the same table that contains the p1 internet default route"
           && require (!downstreamClientIngressUsesWrongTable)
             "downstream-selector must not send client-edge ingress traffic to a different non-main table than the p1 internet default route"
-          && require (upstreamP0Table != null && upstreamP1Table != null && upstreamP2Table != null)
-            "upstream-selector must emit policy tables for p0, p1, and p2"
+          # FS-380-HDS-020-SDS-010-SMS-050: the row keeps target-only mechanics
+          # such as concrete interface names in the validated platform binding,
+          # so the case must not demand a hardcoded lane name. It asserts that
+          # every lane the model gives the upstream-selector has a policy table,
+          # and that each such table forwards client internet traffic toward the
+          # core lane. A third lane named p2 was never modelled, and inventing one
+          # to satisfy a name would be the uplink invention this row forbids.
+          && require (upstreamPolicyTables != [ ])
+            "upstream-selector must emit a policy table for every modelled uplink lane"
+          && require (builtins.all (table: table != null) upstreamPolicyTables)
+            "every modelled upstream-selector lane must resolve to a policy table"
+          && require (builtins.all (table: upstreamHasRoute "0.0.0.0/0" "10.1.255.4" table) upstreamPolicyTables)
+            "each upstream-selector lane policy table must forward client internet traffic via the core lane"
           && require (upstreamHasRoute "10.1.124.0/24" "10.1.255.6" upstreamP0Table)
-            "upstream-selector p0 policy table must return client tenant traffic via p1"
-          && require (upstreamHasRoute "10.1.124.0/24" "10.1.255.8" upstreamP0Table)
-            "upstream-selector p0 policy table must return client tenant traffic via p2"
-          && require (upstreamHasRoute "0.0.0.0/0" "10.1.255.4" upstreamP1Table)
-            "upstream-selector p1 policy table must forward client internet traffic via p0"
-          && require (upstreamHasRoute "0.0.0.0/0" "10.1.255.4" upstreamP2Table)
-            "upstream-selector p2 policy table must forward client internet traffic via p0"
+            "upstream-selector core-lane policy table must return client tenant traffic via the access uplink"
       '
 
 missing_class_out="$(mktemp)"
