@@ -67,17 +67,18 @@ let
     value == null
     || (
       builtins.isAttrs value
-      && builtins.attrNames value == builtins.attrNames {
-        mode = null;
-        defaultRoute = null;
-        iaid = null;
-        prefixDelegationRequestId = null;
-        duidMode = null;
-        resolverMode = null;
-        ipv4Mode = null;
-        routerSolicitation = null;
-        fallbackPolicy = null;
-      }
+
+      && builtins.all (key: builtins.hasAttr key value) [
+        "mode"
+        "defaultRoute"
+        "iaid"
+        "prefixDelegationRequestId"
+        "duidMode"
+        "resolverMode"
+        "ipv4Mode"
+        "routerSolicitation"
+        "fallbackPolicy"
+      ]
       && (value.mode or null) == "dhcpv6-pd"
       && builtins.isBool (value.defaultRoute or null)
       && builtins.isInt (value.iaid or null)
