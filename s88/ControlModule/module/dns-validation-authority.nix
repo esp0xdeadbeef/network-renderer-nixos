@@ -93,7 +93,8 @@ else if authorityCount != 1 then
   throw "network-renderer-nixos DNS_VALIDATION_AUTHORITY_EXTERNAL: host must own exactly one controlled authority fixture; address material is intentionally omitted"
 else
   {
-    boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = 1;
+
+    boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
 
     systemd.network.networks."30-${bridge}" = {
       address = [
@@ -146,7 +147,10 @@ else
   }
   // lib.optionalAttrs forwardingGateway.enable {
 
-    boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+    boot.kernel.sysctl = {
+      "net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
+      "net.ipv4.ip_forward" = lib.mkDefault 1;
+    };
     networking.nftables.enable = true;
     networking.nftables.ruleset = ''
       table inet gateway_nat {
