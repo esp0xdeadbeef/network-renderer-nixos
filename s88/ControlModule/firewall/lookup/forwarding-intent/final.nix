@@ -111,12 +111,8 @@ in
       roles.resolvedWanNames
     else
       [ ];
-  coreClampMssInterfaces =
-    if roles.explicitClampMssInterfaces != [ ] then
-      roles.explicitClampMssInterfaces
-    else
 
-      lib.unique (coreNatInterfaces ++ roles.overlayInterfaceNames);
+  coreClampMssInterfaces = roles.explicitClampMssInterfaces;
   authoritativeAccessForwarding =
     normalizedExplicitForwardPairs != [ ]
     || nodeForwardingEnabled == false

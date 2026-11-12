@@ -109,69 +109,81 @@ let
             true
           else
             transportAuthority.admissible or true;
+
+        _rejectInadmissible =
+          if isAdmissible then
+            true
+          else
+            throw "FS-310-HDS-010-SDS-010-SMS-130: forwarding rule '${ruleName}' (${
+              builtins.concatStringsSep " -> " (inIfs ++ outIfs)
+            }) carries transportAuthority.admissible = false (${
+              transportAuthority.diagnostic or "no-diagnostic"
+            }); the renderer must reject an unauthorized forwarding decision rather than emit or silently discard it";
       in
-      if inIfs == [ ] || outIfs == [ ] || !isAdmissible then
+      if inIfs == [ ] || outIfs == [ ] then
         null
       else
-        builtins.seq _validateReturnRule (
-          {
-            "in" = inIfs;
-            "out" = outIfs;
-            inherit action;
-          }
-          // lib.optionalAttrs (connectionState != null) {
-            inherit connectionState;
-          }
-          // lib.optionalAttrs isReturnRule {
-            returnRule = true;
-          }
-          // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
-            trafficType = rule.trafficType;
-          }
-          // lib.optionalAttrs (builtins.isString (rule.returnBehavior or null)) {
-            returnBehavior = rule.returnBehavior;
-          }
-          // lib.optionalAttrs (builtins.isString (rule.translationMode or null)) {
-            translationMode = rule.translationMode;
-          }
-          // lib.optionalAttrs (builtins.isString (rule.sourcePreservation or null)) {
-            sourcePreservation = rule.sourcePreservation;
-          }
-          // lib.optionalAttrs (builtins.isBool (rule.destinationTranslation or null)) {
-            destinationTranslation = rule.destinationTranslation;
-          }
-          // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
-            sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
-          }
-          // lib.optionalAttrs (builtins.isList (rule.sourceRuntimePrefixes or null)) {
-            sourceRuntimePrefixes = lib.filter (value: builtins.isAttrs value) rule.sourceRuntimePrefixes;
-          }
-          // lib.optionalAttrs (builtins.isList (rule.sourcePrefixes or null)) {
-            sourcePrefixes = lib.filter (
-              value:
-              (builtins.isString value && value != "")
-              || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
-            ) rule.sourcePrefixes;
-          }
-          // lib.optionalAttrs (builtins.isList (rule.destinationPrefixes or null)) {
-            destinationPrefixes = lib.filter (
-              value:
-              (builtins.isString value && value != "")
-              || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
-            ) rule.destinationPrefixes;
-          }
-          // lib.optionalAttrs (builtins.isList (rule.destinationRuntimeAddresses or null)) {
-            destinationRuntimeAddresses = lib.filter builtins.isAttrs rule.destinationRuntimeAddresses;
-          }
-          // lib.optionalAttrs (builtins.isList (rule.matches or null)) {
-            matches = lib.filter builtins.isAttrs rule.matches;
-          }
-          // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
-            family = rule.family;
-          }
-          // lib.optionalAttrs (comment != null && comment != "") {
-            inherit comment;
-          }
+        builtins.seq _rejectInadmissible (
+          builtins.seq _validateReturnRule (
+            {
+              "in" = inIfs;
+              "out" = outIfs;
+              inherit action;
+            }
+            // lib.optionalAttrs (connectionState != null) {
+              inherit connectionState;
+            }
+            // lib.optionalAttrs isReturnRule {
+              returnRule = true;
+            }
+            // lib.optionalAttrs (builtins.isString (rule.trafficType or null)) {
+              trafficType = rule.trafficType;
+            }
+            // lib.optionalAttrs (builtins.isString (rule.returnBehavior or null)) {
+              returnBehavior = rule.returnBehavior;
+            }
+            // lib.optionalAttrs (builtins.isString (rule.translationMode or null)) {
+              translationMode = rule.translationMode;
+            }
+            // lib.optionalAttrs (builtins.isString (rule.sourcePreservation or null)) {
+              sourcePreservation = rule.sourcePreservation;
+            }
+            // lib.optionalAttrs (builtins.isBool (rule.destinationTranslation or null)) {
+              destinationTranslation = rule.destinationTranslation;
+            }
+            // lib.optionalAttrs (builtins.isList (rule.sourceFiles or null)) {
+              sourceFiles = lib.filter (value: builtins.isString value && value != "") rule.sourceFiles;
+            }
+            // lib.optionalAttrs (builtins.isList (rule.sourceRuntimePrefixes or null)) {
+              sourceRuntimePrefixes = lib.filter (value: builtins.isAttrs value) rule.sourceRuntimePrefixes;
+            }
+            // lib.optionalAttrs (builtins.isList (rule.sourcePrefixes or null)) {
+              sourcePrefixes = lib.filter (
+                value:
+                (builtins.isString value && value != "")
+                || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
+              ) rule.sourcePrefixes;
+            }
+            // lib.optionalAttrs (builtins.isList (rule.destinationPrefixes or null)) {
+              destinationPrefixes = lib.filter (
+                value:
+                (builtins.isString value && value != "")
+                || (builtins.isAttrs value && builtins.isString (value.prefix or null) && value.prefix != "")
+              ) rule.destinationPrefixes;
+            }
+            // lib.optionalAttrs (builtins.isList (rule.destinationRuntimeAddresses or null)) {
+              destinationRuntimeAddresses = lib.filter builtins.isAttrs rule.destinationRuntimeAddresses;
+            }
+            // lib.optionalAttrs (builtins.isList (rule.matches or null)) {
+              matches = lib.filter builtins.isAttrs rule.matches;
+            }
+            // lib.optionalAttrs (builtins.isInt (rule.family or null)) {
+              family = rule.family;
+            }
+            // lib.optionalAttrs (comment != null && comment != "") {
+              inherit comment;
+            }
+          )
         );
 
   fromRules = lib.filter (pair: pair != null) (

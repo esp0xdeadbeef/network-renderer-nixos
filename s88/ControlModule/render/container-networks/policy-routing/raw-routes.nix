@@ -12,6 +12,7 @@
   isUpstreamSelectorPolicyInterface,
   isPolicyDownstreamInterface,
   isPolicyUpstreamInterface,
+  isAccessHostInterface,
   returnRoutes,
   explicitReturnRoutes,
   policyOnlyProjection,
@@ -92,7 +93,10 @@ let
     else
       [ ];
   explicitForwardTargetDefaultRoutes =
-    if targetIfName != null && sourceIfName != targetIfName then
+
+    if
+      targetIfName != null && sourceIfName != targetIfName && !(isAccessHostInterface interfaceName)
+    then
       map
         (
           route:

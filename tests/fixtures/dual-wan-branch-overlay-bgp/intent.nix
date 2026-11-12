@@ -121,6 +121,22 @@
             name = "bfd";
           }
           {
+
+            match = [
+              {
+                dports = [ 179 ];
+                family = "ipv4";
+                proto = "tcp";
+              }
+              {
+                dports = [ 179 ];
+                family = "ipv6";
+                proto = "tcp";
+              }
+            ];
+            name = "bgp";
+          }
+          {
             match = [
               {
                 dports = [ 4242 ];
@@ -246,6 +262,7 @@
               }
             ];
             role = "access";
+            behaviors = [ "bgp" ];
             selects = [
               "isp-a"
               "isp-b"
@@ -260,6 +277,7 @@
               }
             ];
             role = "access";
+            behaviors = [ "bgp" ];
             selects = [
               "isp-a"
               "isp-b"
@@ -274,6 +292,7 @@
               }
             ];
             role = "access";
+            behaviors = [ "bgp" ];
             selects = [
               "isp-a"
               "isp-b"
@@ -287,6 +306,7 @@
               }
             ];
             role = "access";
+            behaviors = [ "bgp" ];
             selects = [
               "isp-a"
               "isp-b"
@@ -414,6 +434,22 @@
         services = [ ];
         trafficTypes = [
           {
+
+            match = [
+              {
+                dports = [ 179 ];
+                family = "ipv4";
+                proto = "tcp";
+              }
+              {
+                dports = [ 179 ];
+                family = "ipv6";
+                proto = "tcp";
+              }
+            ];
+            name = "bgp";
+          }
+          {
             match = [
               {
                 dports = [ 4242 ];
@@ -495,6 +531,7 @@
               }
             ];
             role = "access";
+            behaviors = [ "bgp" ];
             selects = [
               "wan"
               "east-west"

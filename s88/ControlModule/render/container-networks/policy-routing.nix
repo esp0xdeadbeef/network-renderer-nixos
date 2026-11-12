@@ -145,6 +145,7 @@ let
       isUpstreamSelectorPolicyInterface
       isPolicyDownstreamInterface
       isPolicyUpstreamInterface
+      isAccessHostInterface
       ;
     inherit
       returnRoutes
@@ -234,15 +235,14 @@ let
     else
       throw "FS-270-HDS-010-SDS-010-SMS-020: effectiveRuntimeRealization.routeSelectionRules must be a list";
   relationRuleKeys = builtins.attrNames relationSelectionRules.rulesByInterface;
-  targetOriginatedSelection =
-    import ./policy-routing/target-originated-selection.nix {
-      inherit
-        lib
-        interfaces
-        renderedInterfaceNames
-        ;
-      targetOriginatedSelection = effectiveRuntimeRealization.targetOriginatedSelection or null;
-    };
+  targetOriginatedSelection = import ./policy-routing/target-originated-selection.nix {
+    inherit
+      lib
+      interfaces
+      renderedInterfaceNames
+      ;
+    targetOriginatedSelection = effectiveRuntimeRealization.targetOriginatedSelection or null;
+  };
   targetOriginatedRuleKeys = builtins.attrNames targetOriginatedSelection.rulesByInterface;
   allRuleKeys = lib.unique (
     (builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys ++ targetOriginatedRuleKeys

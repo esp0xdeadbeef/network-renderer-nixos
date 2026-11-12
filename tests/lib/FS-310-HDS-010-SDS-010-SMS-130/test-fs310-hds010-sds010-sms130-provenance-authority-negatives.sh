@@ -42,7 +42,7 @@ nix_eval_or_diagnostic "N1-trafficType-any-admissible-false" "${n1_json}" "${n1_
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -102,7 +102,7 @@ nix_eval_or_diagnostic "N2-selector-handoff-admissible-false" "${n2_json}" "${n2
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -162,7 +162,7 @@ nix_eval_or_diagnostic "N2b-selector-labels-admissible-false" "${n2b_json}" "${n
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -223,7 +223,7 @@ nix_eval_or_diagnostic "N3-reverse-no-connection-state" "${n3_json}" "${n3_err}"
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -278,7 +278,7 @@ nix_eval_json_or_fail \
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -339,7 +339,7 @@ nix_eval_json_or_fail \
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -401,7 +401,7 @@ nix_eval_json_or_fail \
         resolveInterfaceTokens = names: names;
         common = {
           asList = v: if builtins.isList v then v else [ v ];
-          valuesFromPaths = _: _: [ ];
+          valuesFromPaths = _: [ ];
           attrOr = set: name: default:
             if builtins.hasAttr name set then
               let v = builtins.getAttr name set; in if builtins.isList v then v else [ v ]
@@ -531,6 +531,9 @@ if env REPO_ROOT="${repo_root}" nix eval \
           isUpstreamSelectorPolicyInterface = _: false;
           isPolicyUpstreamInterface = _: false;
           isPolicyDownstreamInterface = _: false;
+          isAccessHostInterface = _: false;
+          isDownstreamSelectorAccessInterface = _: false;
+          laneAccessForRenderedName = _: null;
           hasAcceptForwardingRule = _: _: false;
           sourceReachabilityRoutes = { routeFor = _: _: null; matchesInterfaceOrigin = _: _: false; };
           sourcePrefixes = { forInterface = _: emptyScope; };

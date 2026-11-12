@@ -179,6 +179,7 @@ def insert_reservations(
     family: str,
     source_path: Path,
     has_out_of_pool: bool,
+    scope: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if family == "ipv4":
         subnets = config["Dhcp4"]["subnet4"]
@@ -213,6 +214,17 @@ def insert_reservations(
             continue
 
         handle = record.pop(HANDLE_FIELD)
+        if scope is not None:
+            # FS-970-HDS-010-SDS-020-SMS-040: the access scope is a required
+            # reservation fact. A record modelled for a different served scope
+            # must never materialize here, or an endpoint reattachment would
+            # leave the old and new scopes active together.
+            record_scope = record.get("scope")
+            require(
+                record_scope == scope,
+                f"{DIAGNOSTIC}: reservation scope does not match the served scope",
+            )
+            record.pop("scope", None)
         device_path = source_path / handle
         require(
             device_path.is_file(),
@@ -287,6 +299,7 @@ def atomic_write_dns(path: Path, lines: list[str], group_name: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--family", choices=("ipv4", "ipv6"), required=True)
+    parser.add_argument("--scope")
     parser.add_argument("--subnet", required=True)
     parser.add_argument("--pool", required=True)
     parser.add_argument("--source", type=Path)
@@ -323,7 +336,7 @@ def main() -> None:
     joined: list[dict[str, Any]] = []
     if args.source is not None:
         config, joined = insert_reservations(
-            config, args.family, args.source, False
+            config, args.family, args.source, False, args.scope
         )
 
     if dns_enabled:
