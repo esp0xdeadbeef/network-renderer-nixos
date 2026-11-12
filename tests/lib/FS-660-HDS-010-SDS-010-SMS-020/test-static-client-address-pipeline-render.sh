@@ -42,13 +42,18 @@ nix_eval_json_or_fail \
           modules = [ container.config ];
         };
         network = evaluated.config.systemd.network.networks."10-tenant-client";
+        renderedAddresses = map (entry: entry.Address) (network.addresses or [ ]);
         checks = {
           cpm_carries_static_ipv4 = cpmIface.addr4 == "10.20.20.1/24";
           cpm_carries_static_ipv6 = cpmIface.addr6 == "fd42:dead:beef:20:0:0:0:1/64";
+          # FS-660-HDS-010-SDS-010-SMS-020: a networkd unit states [Address]
+          # sections as `addresses`, each { Address = "..."; }. The case read
+          # `address`, a different and unset option, so it reported an empty
+          # projection while the renderer was emitting the addresses correctly.
           renderer_projects_static_ipv4 =
-            builtins.elem "10.20.20.1/24" (network.address or [ ]);
+            builtins.elem "10.20.20.1/24" renderedAddresses;
           renderer_projects_static_ipv6 =
-            builtins.elem "fd42:dead:beef:20:0:0:0:1/64" (network.address or [ ]);
+            builtins.elem "fd42:dead:beef:20:0:0:0:1/64" renderedAddresses;
           renderer_does_not_enable_dynamic_dhcp = !((network.networkConfig or { }) ? DHCP);
         };
       in
