@@ -1,15 +1,15 @@
-{
-  lib,
-  common,
-  interfaces,
-  renderedInterfaceNames,
-  isUpstreamSelector,
-  isUpstreamSelectorCoreInterface,
-  addressForFamily,
-  ipv4PeerFor31,
-  ipv6PeerFor127,
-  returnDestinationsForAccessUnit,
-  returnDestinationsForTenant,
+{ lib
+, common
+, interfaces
+, renderedInterfaceNames
+, isUpstreamSelector
+, isUpstreamSelectorCoreInterface
+, addressForFamily
+, ipv4PeerFor31
+, ipv6PeerFor127
+, returnDestinationsForAccessUnit
+, returnDestinationsForTenant
+,
 }:
 
 let
@@ -24,9 +24,7 @@ let
 
   interfaceKeyForRenderedName =
     renderedName:
-    lib.findFirst (name: renderedInterfaceNames.${name} == renderedName) null (
-      builtins.attrNames interfaces
-    );
+    lib.findFirst (name: renderedInterfaceNames.${name} == renderedName) null (builtins.attrNames interfaces);
 
   accessUnitForInterface =
     renderedName:
@@ -43,9 +41,17 @@ let
     renderedName:
     let
       accessUnit = accessUnitForInterface renderedName;
-      ownerDestinations = if accessUnit == null then [ ] else returnDestinationsForAccessUnit accessUnit;
+      ownerDestinations =
+        if accessUnit == null then
+          [ ]
+        else
+          returnDestinationsForAccessUnit accessUnit;
       tenantKey = tenantKeyForInterface renderedName;
-      tenantDestinations = if tenantKey == null then [ ] else returnDestinationsForTenant tenantKey;
+      tenantDestinations =
+        if tenantKey == null then
+          [ ]
+        else
+          returnDestinationsForTenant tenantKey;
     in
     lib.unique (ownerDestinations ++ tenantDestinations);
 
@@ -60,25 +66,27 @@ let
       [ ]
     else
       lib.filter (route: route != null) (
-        map (
-          dst:
-          let
-            isIpv6 = builtins.isString dst && lib.hasInfix ":" dst;
-            gateway = if isIpv6 then peer6 else peer4;
-          in
-          if gateway == null then
-            null
-          else if isIpv6 then
-            {
-              inherit dst;
-              via6 = gateway;
-            }
-          else
-            {
-              inherit dst;
-              via4 = gateway;
-            }
-        ) destinations
+        map
+          (
+            dst:
+            let
+              isIpv6 = builtins.isString dst && lib.hasInfix ":" dst;
+              gateway = if isIpv6 then peer6 else peer4;
+            in
+            if gateway == null then
+              null
+            else if isIpv6 then
+              {
+                inherit dst;
+                via6 = gateway;
+              }
+            else
+              {
+                inherit dst;
+                via4 = gateway;
+              }
+          )
+          destinations
       );
 
   routesForTenantInterface =
@@ -87,28 +95,9 @@ let
       sourceRenderedName = renderedInterfaceNames.${sourceIfName};
     in
     routesForDestinationsViaInterface (destinationsForInterface sourceRenderedName) sourceIfName;
-
-  accessUnitsForNode = lib.unique (
-    lib.filter (unit: unit != null) (
-      map (name: accessUnitForInterface renderedInterfaceNames.${name}) (builtins.attrNames interfaces)
-    )
-  );
-
-  routesForPeerAccessUnitsViaInterface =
-    sourceIfName:
-    let
-      sourceRenderedName = renderedInterfaceNames.${sourceIfName};
-      ownUnit = accessUnitForInterface sourceRenderedName;
-    in
-    routesForDestinationsViaInterface (lib.concatMap (unit: returnDestinationsForAccessUnit unit) (
-      lib.filter (unit: unit != ownUnit) accessUnitsForNode
-    )) sourceIfName;
-
 in
 {
   forTenantInterface = routesForTenantInterface;
-
-  forPeerAccessUnitsViaInterface = routesForPeerAccessUnitsViaInterface;
 
   forTenantOfInterfaceViaInterface =
     tenantInterfaceName: sourceIfName:

@@ -184,8 +184,6 @@ let
   policyUpstreamReturnRoutes =
     if isPolicy && isPolicyUpstreamInterface interfaceName then
       returnRoutes.forTenantInterface sourceIfName
-
-      ++ returnRoutes.forPeerAccessUnitsViaInterface sourceIfName
     else
       [ ];
   explicitForwardReturnConnectedRoutes =
