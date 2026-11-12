@@ -68,17 +68,22 @@ let
     || (
       builtins.isAttrs value
 
-      && builtins.all (key: builtins.hasAttr key value) [
-        "mode"
-        "defaultRoute"
-        "iaid"
-        "prefixDelegationRequestId"
-        "duidMode"
-        "resolverMode"
-        "ipv4Mode"
-        "routerSolicitation"
-        "fallbackPolicy"
-      ]
+      &&
+        builtins.attrNames value == builtins.sort builtins.lessThan [
+          "activeGeneration"
+          "defaultRoute"
+          "duidMode"
+          "fallbackPolicy"
+          "generationIdentity"
+          "iaid"
+          "ipv4Mode"
+          "mode"
+          "prefixDelegationRequestId"
+          "prefixHandle"
+          "prefixHandleOpaque"
+          "resolverMode"
+          "routerSolicitation"
+        ]
       && (value.mode or null) == "dhcpv6-pd"
       && builtins.isBool (value.defaultRoute or null)
       && builtins.isInt (value.iaid or null)
