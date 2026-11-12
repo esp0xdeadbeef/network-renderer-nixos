@@ -132,7 +132,13 @@ negative="$(REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     differentInterface = rejected (base // { interface = "nonexistent"; });
   }
 ')"
-jq -e 'all(.[]; . == true)' <<<"${negative}" >/dev/null
+# Report which negative failed. The bare `jq -e` this replaces produced no
+# output, so a red run said only "exit 1" and named nothing -- which is how a
+# validator that had stopped rejecting undeclared fields went unnoticed.
+if ! jq -e 'all(.[]; . == true)' <<<"${negative}" >/dev/null; then
+  echo "FAIL FS-800 ordinal 2: these negatives no longer reject: $(jq -r '[to_entries[] | select(.value != true) | .key] | join(", ")' <<<"${negative}")" >&2
+  exit 1
+fi
 
 # --- Ordinal 3: Remove firewall/PPPoE ordering and require rejection ---
 # Checker: verify nominal pdAfter ordering places nftables.service before any pppd service
