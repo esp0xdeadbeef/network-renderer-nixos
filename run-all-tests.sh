@@ -94,10 +94,17 @@ for test_file in "${test_files[@]}"; do
       _source="$1"
       _test="$2"
       case "${_test}" in *.py) ;; *) source "$_source";; esac
-      set --
+      # The trace id the case derives for itself, from the file name.
+      _trace="$(basename "${_test}" .sh)"
       case "${_test}" in
-        *.py) exec python3 "$_test" ;;
-        *)    source "$_test" ;;
+        *.py) set --; exec python3 "$_test" ;;
+        # Pass the trace id as $1. These cases take `trace_id="${1:-${invoked_name}}"`
+        # where `invoked_name` is `basename "$0"`, and while `source`d `$0` is THIS
+        # runner, so the fallback yielded "run-all-tests" and every case exited 2:
+        #   usage: run-all-tests <trace-id>
+        # 81 of 110 cases were reported as failures for that reason alone. Running
+        # any one of them directly passed, which is what gave it away.
+        *)    set -- "${_trace}"; source "$_test" ;;
       esac
     ' _ "${repo_root}/tests/lib/test-common.sh" "${test_file}"
   ) >"${log_file}" 2>&1 &
