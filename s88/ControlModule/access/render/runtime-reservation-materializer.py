@@ -42,7 +42,7 @@ DIAGNOSTIC = "diagnostic.runtime-reservation-secret-record-invalid"
 PUBLICATION_HOSTNAME_MISSING = "diagnostic.protected-reservation-name-publication-hostname-missing"
 CROSS_IDENTITY_MISMATCH = "diagnostic.protected-reservation-cross-identity-mismatch"
 HANDLE_FIELD = "reservation-handle"
-DEVICE_FIELDS = {"mac", "duid"}
+DEVICE_FIELDS = {"mac", "duid", "iid"}
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 MAC = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 IID = re.compile(r"^[0-9A-Fa-f]{16}$")
@@ -73,14 +73,19 @@ def normalized_duid(value: object) -> str:
 def load_device(path: Path) -> dict[str, Any]:
     """Read one protected device identity record.
 
-    The protected source is a yaml-derived single identity value. The sops
-    delivery layer extracts the identity field and writes it as a bare
-    string: a MAC for an IPv4 reservation, or a DUID for an IPv6
-    reservation. The renderer wraps it back into the canonical record shape
-    for the join below.
+    The protected value is either a bare identity string (a MAC for IPv4, a DUID
+    for IPv6) or that string followed by an optional second line carrying the
+    stable IID. The IID is a protected value in its own right
+    (FS-970-HDS-010-SDS-020-SMS-040, "matcher value ... Accepted public inventory
+    or protected fragment"), and it cannot be derived from the DUID, so the
+    source has to be able to supply it for the join to validate it against the
+    reserved address.
     """
     with path.open("r", encoding="utf-8") as source_handle:
-        raw = source_handle.read().strip()
+        lines = [line.strip() for line in source_handle.read().splitlines()]
+    lines = [line for line in lines if line]
+    require(lines != [], DIAGNOSTIC)
+    raw = lines[0]
     if MAC.fullmatch(raw) is not None:
         record = {"mac": raw.lower()}
     else:
@@ -90,6 +95,11 @@ def load_device(path: Path) -> dict[str, Any]:
             DIAGNOSTIC,
         )
         record = {"duid": raw}
+    if len(lines) > 1:
+        require(len(lines) == 2, DIAGNOSTIC)
+        iid = lines[1].replace(":", "").replace("-", "")
+        require(IID.fullmatch(iid) is not None, DIAGNOSTIC)
+        record["iid"] = iid
     require(isinstance(record, dict))
     require(set(record).issubset(DEVICE_FIELDS))
     return record
@@ -265,6 +275,11 @@ def insert_reservations(
         )
         protected = load_device(device_path)
         kind, identity = identity_for_record(family, protected)
+        # The IID is a protected identity fragment, not a reservation field; it
+        # is carried alongside the record so the join can check it against the
+        # reserved address and is stripped again before emission.
+        if "iid" in protected:
+            record["iid"] = protected["iid"]
         require(identity not in seen_identities)
         seen_identities.add(identity)
 
@@ -294,6 +309,23 @@ def insert_reservations(
         served = ipaddress.ip_network(str(subnets[0].get("subnet")), strict=False)
     except (ValueError, TypeError):
         served = None
+    if family == "ipv6":
+        # A stable IID and the reserved address must agree: the IID is the low
+        # 64 bits of the address, so a mismatch means the two source fragments
+        # disagree about the same identity and one of them is stale.
+        for record in resolved:
+            iid = record.pop("iid", None)
+            if iid is None:
+                continue
+            raw = (record.get("ip-addresses") or [None])[0]
+            if raw is None:
+                continue
+            compact = str(iid).replace(":", "").replace("-", "").lower()
+            require(
+                ipaddress.ip_address(str(raw)).exploded.replace(":", "").endswith(compact),
+                f"{DIAGNOSTIC}: IPv6 IID does not match the reserved address",
+            )
+
     if served is not None:
         for record in resolved:
             raw = (
