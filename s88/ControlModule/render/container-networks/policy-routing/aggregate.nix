@@ -387,7 +387,18 @@ let
         rules = { };
         dynamicSourceRules = [ ];
       }
-      (lib.imap0 (index: ifName: { inherit index ifName; }) interfaceNames);
+      (
+
+        lib.imap0 (index: ifName: { inherit index ifName; }) (
+          lib.filter (
+            ifName:
+            let
+              allocation = policyRoutingAllocations.${ifName} or null;
+            in
+            builtins.isAttrs allocation && allocation != { }
+          ) interfaceNames
+        )
+      );
 
   dedupe =
     entries:
@@ -399,11 +410,10 @@ let
         }) entries
       )
     );
-  dedupeSets = sets: builtins.mapAttrs (_: entries: dedupe entries) sets;
 in
 {
-  routes = dedupeSets aggregate.routes;
-  mainRoutes = dedupeSets aggregate.mainRoutes;
-  rules = dedupeSets aggregate.rules;
+  routes = builtins.mapAttrs (_: dedupe) aggregate.routes;
+  mainRoutes = builtins.mapAttrs (_: dedupe) aggregate.mainRoutes;
+  rules = builtins.mapAttrs (_: dedupe) aggregate.rules;
   inherit (aggregate) dynamicSourceRules;
 }
