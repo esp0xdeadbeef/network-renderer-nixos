@@ -108,8 +108,9 @@ let
       IPv6AcceptRA = "no";
     };
     dhcpV4Config = (existingNetwork.dhcpV4Config or { }) // {
+
       UseDNS = false;
-      UseRoutes = true;
+      UseRoutes = false;
     };
   };
 in
