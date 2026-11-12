@@ -6,7 +6,10 @@ repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-p
 source "${repo_root}/tests/lib/test-common.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
-rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
+# A bare command substitution under `set -e` dies with no output at all, which is
+# how this case failed silently: the eval was erroring and nothing said so. Run it
+# explicitly and print the evaluation error.
+if ! rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
   let
     repoRoot = builtins.getEnv "REPO_ROOT";
     flake = builtins.getFlake ("path:" + repoRoot);
@@ -84,7 +87,12 @@ rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     conflictingDns = renderDns {
       localZones = [ { name = "client.lan."; type = "transparent"; } ];
     };
-    conflictAccepted = (builtins.tryEval (builtins.deepSeq conflictingDns true)).success;
+    # tryEval cannot contain a stack overflow: an unbounded recursion aborts the
+    # whole evaluation rather than returning { success = false; }. Force only the
+    # attribute that owns the conflict diagnostic, so the assertion tests the
+    # rejection it names instead of deepSeq-ing the entire systemd surface.
+    conflictAccepted =
+      (builtins.tryEval conflictingDns.services.unbound.settings.server."local-zone").success;
   in
   {
     generator = builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart;
@@ -95,7 +103,10 @@ rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     unboundAfter = dns.systemd.services.unbound.after;
     unboundRequires = dns.systemd.services.unbound.requires;
   }
-'; } 2>"${tmp}/nix.err")"
+'; } 2>"${tmp}/nix.err")"; then
+  fail "FAIL FS-560-HDS-010-SDS-010-SMS-050: canonical Kea/DNS materialization did not evaluate:
+$(cat "${tmp}/nix.err")"
+fi
 jq -e '
   .includes == ["/run/unbound/s-router-prod-client-local.conf"]
   and .localZones == ["client.lan. static"]
@@ -110,7 +121,8 @@ jq -e '
   and (.generator | contains("--dns-record-class PTR"))
   and (.generator | contains("--dns-group unbound"))
 ' <<<"${rendered}" >/dev/null \
-  || fail "FAIL protected-reservation-name-materialization: NixOS units do not consume the CPM publication contract"
+  || fail "FAIL protected-reservation-name-materialization: NixOS units do not consume the CPM publication contract
+state: $(jq -c . <<<"${rendered}")"
 if grep -E '02:10:20:aa:bb:cc|private-device|fd42:20::1234:5678:9abc:def0' <<<"${rendered}" >/dev/null; then
   fail "FAIL protected-reservation-name-materialization: protected record data leaked into Nix evaluation"
 fi

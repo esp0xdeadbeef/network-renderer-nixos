@@ -180,12 +180,14 @@ else
           || builtins.any (
             zone: builtins.isAttrs zone && (zone.name or "") == publication.namespace
           ) localForwardZones;
-        conflicts = lib.filter (
+
+        modelledStaticZoneFor =
           publication:
           builtins.any (
             zone: zone.name == publication.namespace && (zone.type or "static") == "static"
-          ) localZones
-          && namespaceIsForwarded publication
+          ) localZones;
+        conflicts = lib.filter (
+          publication: modelledStaticZoneFor publication || namespaceIsForwarded publication
         ) protectedReservationPublications;
         forwardZones = map (publication: "${publication.namespace} static") (
           builtins.filter (p: !(namespaceIsForwarded p)) protectedReservationPublications
