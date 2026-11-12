@@ -63,344 +63,347 @@ let
         );
       };
 in
-builtins.foldl'
-  (
-    acc: entry:
-    let
-      index = entry.index;
-      ifName = entry.ifName;
-      interfaceName = renderedInterfaceNames.${ifName};
-      policyRoutingAllocation = policyRoutingAllocationFor ifName;
-      tableId = policyRoutingAllocation.tableId;
-      routeSourceIfNames = forTarget interfaceName;
-      baseSourceIfNames = forTargetRules interfaceName;
-      policyIngressLocalSourceIfNames =
-        lib.optionals (isPolicy && isPolicyUpstreamInterface interfaceName)
-          (
-            lib.filter (
-              name:
-              isPolicyDownstreamInterface renderedInterfaceNames.${name}
-              && hasAcceptForwardingRule renderedInterfaceNames.${name} interfaceName
-            ) interfaceNames
-          );
-      sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
-      sourceScope = sourcePrefixes.forInterface interfaceName;
-      forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
-      scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
-      emptyScope = {
-        staticPrefixes = [ ];
-        sourceFiles = [ ];
-      };
-      scopeHasEntries = scope: (scope.staticPrefixes or [ ]) != [ ] || (scope.sourceFiles or [ ]) != [ ];
-      isReturnSideRuleIngress =
-        sourceIfName:
+let
+  aggregate =
+    builtins.foldl'
+      (
+        acc: entry:
         let
-          sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
-        in
-        sourceIfName != ifName
-        && (
-          (
-            isDownstreamSelectorPolicyInterface interfaceName
-            && isDownstreamSelectorPolicyInterface sourceInterfaceName
-          )
-          || (isPolicyUpstreamInterface interfaceName && isPolicyUpstreamInterface sourceInterfaceName)
-          || (
-            isUpstreamSelectorCoreInterface interfaceName && isUpstreamSelectorCoreInterface sourceInterfaceName
-          )
-        );
-      isReturnSideSelfIngress =
-        (
-          isDownstreamSelectorPolicyInterface interfaceName
-          && !(isPolicy || isUpstreamSelectorCoreInterface interfaceName)
-        )
-        || (isPolicy && isPolicyDownstreamInterface interfaceName)
-        || (isPolicy && isPolicyUpstreamInterface interfaceName)
-        || (
-          isUpstreamSelectorCoreInterface interfaceName
-          && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName)
-        );
-
-      effectiveMainSourceScope = sourceScope // {
-        staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
-        sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
-      };
-      isCoreToCoreReturnSideIngress =
-        sourceIfName:
-        sourceIfName != ifName
-        && isUpstreamSelectorCoreInterface interfaceName
-        && isUpstreamSelectorCoreInterface (renderedInterfaceNames.${sourceIfName});
-      ruleSourceScopeForIngress =
-        sourceIfName:
-        let
-          sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
-          ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
-          baseScope =
-            if sourceIfName == ifName && isReturnSideSelfIngress then
-              emptyScope
-            else if isCoreToCoreReturnSideIngress sourceIfName then
-              emptyScope
-            else if isReturnSideRuleIngress sourceIfName then
-              scopedRuleSource
-            else if scopeHasEntries ingressSourceScope then
-              ingressSourceScope
-            else
-              sourceScope;
-          pairScope =
-            if isDownstreamSelectorPolicyInterface interfaceName then
-              {
-                staticPrefixes = [ ];
-                sourceFiles = [ ];
-              }
-            else
-              forwardingSourceScope.forPair sourceInterfaceName interfaceName;
-          forwardingScopeForIngress =
-            if isReturnSideRuleIngress sourceIfName then
-              forwardingMainScope
-            else if sourceIfName == ifName then
-              {
-                staticPrefixes =
-                  if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.staticPrefixes;
-                sourceFiles =
-                  if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.sourceFiles;
-              }
-            else
-              emptyScope;
-        in
-        baseScope
-        // {
-          staticPrefixes = lib.unique (
-            (baseScope.staticPrefixes or [ ])
-            ++ forwardingScopeForIngress.staticPrefixes
-            ++ pairScope.staticPrefixes
-          );
-          sourceFiles = lib.unique (
-            (baseScope.sourceFiles or [ ]) ++ forwardingScopeForIngress.sourceFiles ++ pairScope.sourceFiles
-          );
-        };
-      routesByInterface = routesByOutputInterface {
-        inherit
-          interfaceName
-          rawRoutesForPolicyTable
-          tableId
-          ;
-        sourceIfNames = routeSourceIfNames;
-        tableForOutputIfName =
-          outputIfName:
-          if
-            isPolicy
-            || isUpstreamSelectorCoreInterface interfaceName
-            || isUpstreamSelectorPolicyInterface interfaceName
-          then
-            tableId
-          else
-            (policyRoutingAllocationFor outputIfName).tableId;
-      };
-      routesByInterfacePreferred = serviceDnsRoutes.preferAcrossInterfaces routesByInterface;
-      # FS-315-HDS-010-SDS-010-SMS-020: the set of next hops the realization can
-      # forward to shall equal the set the modeled reachability admits. A
-      # multi-core scope (e.g. clients-vpn selecting both the onyx and opal
-      # exits) models reachability to *every* selected core's service, so each
-      # of the scope's per-exit lane tables must carry the service-dns routes of
-      # the whole scope -- not only the route whose gateway matches that lane.
-      # Otherwise a query ingressing one exit lane cannot reach the other core's
-      # DNS and falls back to the default exit.
-      laneScopeKey = ifName: laneAccessForRenderedName ifName;
-      scopeSiblings =
-        let
-          scope = laneScopeKey ifName;
-        in
-        if scope == null then
-          [ ]
-        else
-          lib.filter (n: n != ifName && laneScopeKey n == scope) interfaceNames;
-      siblingServiceDnsRoutes = lib.concatMap (
-        sibling:
-        lib.filter (route: ((route.intent or { }).kind or null) == "service-dns-reachability") (
-          routesByInterfacePreferred.${sibling} or [ ]
-        )
-      ) scopeSiblings;
-      routesByInterfaceScoped = lib.mapAttrs (_: routes: routes ++ siblingServiceDnsRoutes) routesByInterfacePreferred;
-      localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
-      localOriginRoutesByInterface = localOriginDns.routesByInterface tableId localOriginSourceIfNames;
-      localOriginRules =
-        localOriginDns.rules tableId policyRoutingAllocation.tableRulePriority
-          localOriginSourceIfNames;
-      destinationScopeForIngress =
-        sourceIfName:
-        let
-          # FS-315-HDS-010-SDS-010-SMS-020: a downstream access-edge interface
-          # must not be told to route a destination prefix that arrives on a
-          # policy lane back into its own table: that table is a fabric lane
-          # whose default points at the policy, so the packet loops instead of
-          # reaching the destination access edge. The modeled relation selector
-          # owns the lateral forward leg; the same-access fabric pairing still
-          # needs its destination-scope rule.
-          sourceRenderedOrSelf =
+          index = entry.index;
+          ifName = entry.ifName;
+          interfaceName = renderedInterfaceNames.${ifName};
+          policyRoutingAllocation = policyRoutingAllocationFor ifName;
+          tableId = policyRoutingAllocation.tableId;
+          routeSourceIfNames = forTarget interfaceName;
+          baseSourceIfNames = forTargetRules interfaceName;
+          policyIngressLocalSourceIfNames =
+            lib.optionals (isPolicy && isPolicyUpstreamInterface interfaceName)
+              (
+                lib.filter (
+                  name:
+                  isPolicyDownstreamInterface renderedInterfaceNames.${name}
+                  && hasAcceptForwardingRule renderedInterfaceNames.${name} interfaceName
+                ) interfaceNames
+              );
+          sourceIfNames = lib.unique (baseSourceIfNames ++ policyIngressLocalSourceIfNames);
+          sourceScope = sourcePrefixes.forInterface interfaceName;
+          forwardingMainScope = forwardingSourceScope.forSourceInterface interfaceName;
+          scopedRuleSource = ruleSourceScope.forInterface interfaceName sourceScope;
+          emptyScope = {
+            staticPrefixes = [ ];
+            sourceFiles = [ ];
+          };
+          scopeHasEntries = scope: (scope.staticPrefixes or [ ]) != [ ] || (scope.sourceFiles or [ ]) != [ ];
+          isReturnSideRuleIngress =
+            sourceIfName:
             let
-              r = renderedInterfaceNames.${sourceIfName} or null;
+              sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
             in
-            if r != null then r else sourceIfName;
-          crossesAccess =
-            isDownstreamSelectorAccessInterface interfaceName
-            && isDownstreamSelectorPolicyInterface sourceRenderedOrSelf;
-          _diag = true;
-          routesForTargetOutput = routesByInterface.${ifName} or [ ];
-          routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
-        in
-        if crossesAccess then
-          [ ]
-        else
-          lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
-            (ruleSourceScopeForIngress sourceIfName).staticPrefixes
-          );
-      rulesForThisInterface = lib.concatMap (
-        sourceIfName:
-        let
-          ownPrefixes = (sourcePrefixes.forInterface interfaceName).staticPrefixes;
-          ownPrefixSet = map (p: p.prefix) ownPrefixes;
-          # FS-315-HDS-010-SDS-010-SMS-020: a downstream access-edge interface
-          # only owns the routes for the access it serves. Restrict its
-          # destination-scope rules to prefixes that interface actually owns, so
-          # a prefix belonging to a different access is never routed back into
-          # this fabric lane (whose default points at the policy, looping the
-          # packet).
-          destinationScope =
-            if sourceIfName == ifName then
+            sourceIfName != ifName
+            && (
+              (
+                isDownstreamSelectorPolicyInterface interfaceName
+                && isDownstreamSelectorPolicyInterface sourceInterfaceName
+              )
+              || (isPolicyUpstreamInterface interfaceName && isPolicyUpstreamInterface sourceInterfaceName)
+              || (
+                isUpstreamSelectorCoreInterface interfaceName && isUpstreamSelectorCoreInterface sourceInterfaceName
+              )
+            );
+          isReturnSideSelfIngress =
+            (
+              isDownstreamSelectorPolicyInterface interfaceName
+              && !(isPolicy || isUpstreamSelectorCoreInterface interfaceName)
+            )
+            || (isPolicy && isPolicyDownstreamInterface interfaceName)
+            || (isPolicy && isPolicyUpstreamInterface interfaceName)
+            || (
+              isUpstreamSelectorCoreInterface interfaceName
+              && !(isPolicy || isDownstreamSelectorPolicyInterface interfaceName)
+            );
+
+          effectiveMainSourceScope = sourceScope // {
+            staticPrefixes = lib.unique (sourceScope.staticPrefixes ++ forwardingMainScope.staticPrefixes);
+            sourceFiles = lib.unique (sourceScope.sourceFiles ++ forwardingMainScope.sourceFiles);
+          };
+          isCoreToCoreReturnSideIngress =
+            sourceIfName:
+            sourceIfName != ifName
+            && isUpstreamSelectorCoreInterface interfaceName
+            && isUpstreamSelectorCoreInterface (renderedInterfaceNames.${sourceIfName});
+          ruleSourceScopeForIngress =
+            sourceIfName:
+            let
+              sourceInterfaceName = renderedInterfaceNames.${sourceIfName};
+              ingressSourceScope = sourcePrefixes.forInterface sourceInterfaceName;
+              baseScope =
+                if sourceIfName == ifName && isReturnSideSelfIngress then
+                  emptyScope
+                else if isCoreToCoreReturnSideIngress sourceIfName then
+                  emptyScope
+                else if isReturnSideRuleIngress sourceIfName then
+                  scopedRuleSource
+                else if scopeHasEntries ingressSourceScope then
+                  ingressSourceScope
+                else
+                  sourceScope;
+              pairScope =
+                if isDownstreamSelectorPolicyInterface interfaceName then
+                  {
+                    staticPrefixes = [ ];
+                    sourceFiles = [ ];
+                  }
+                else
+                  forwardingSourceScope.forPair sourceInterfaceName interfaceName;
+              forwardingScopeForIngress =
+                if isReturnSideRuleIngress sourceIfName then
+                  forwardingMainScope
+                else if sourceIfName == ifName then
+                  {
+                    staticPrefixes =
+                      if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.staticPrefixes;
+                    sourceFiles =
+                      if isUpstreamSelectorPolicyInterface interfaceName then [ ] else forwardingMainScope.sourceFiles;
+                  }
+                else
+                  emptyScope;
+            in
+            baseScope
+            // {
+              staticPrefixes = lib.unique (
+                (baseScope.staticPrefixes or [ ])
+                ++ forwardingScopeForIngress.staticPrefixes
+                ++ pairScope.staticPrefixes
+              );
+              sourceFiles = lib.unique (
+                (baseScope.sourceFiles or [ ]) ++ forwardingScopeForIngress.sourceFiles ++ pairScope.sourceFiles
+              );
+            };
+          routesByInterface = routesByOutputInterface {
+            inherit
+              interfaceName
+              rawRoutesForPolicyTable
+              tableId
+              ;
+            sourceIfNames = routeSourceIfNames;
+            tableForOutputIfName =
+              outputIfName:
+              if
+                isPolicy
+                || isUpstreamSelectorCoreInterface interfaceName
+                || isUpstreamSelectorPolicyInterface interfaceName
+              then
+                tableId
+              else
+                (policyRoutingAllocationFor outputIfName).tableId;
+          };
+          routesByInterfacePreferred = serviceDnsRoutes.preferAcrossInterfaces routesByInterface;
+
+          laneScopeKey = ifName: laneAccessForRenderedName ifName;
+          scopeSiblings =
+            let
+              scope = laneScopeKey ifName;
+            in
+            if scope == null then
               [ ]
             else
-              lib.filter (prefix: builtins.elem prefix.prefix ownPrefixSet)
-                (destinationScopeForIngress sourceIfName);
-          sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
-          destinationScopedRules =
-            policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
-              policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] [ ]
-              destinationScope;
-          sourceScopedRules =
-            policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
-              policyRoutingAllocation.mainSuppressPriority
-              [ sourceIfName ]
-              sourceScopeForRule
-              [ ];
-        in
-        if
-          sourceIfName == ifName
-          && isReturnSideSelfIngress
-          && !(isUpstreamSelectorCoreInterface interfaceName)
-        then
-          [ ]
-        else if
-          sourceIfName == ifName
-          && isUpstreamSelectorPolicyInterface interfaceName
-          && scopeHasEntries forwardingMainScope
-        then
-          [ ]
-        else if isCoreToCoreReturnSideIngress sourceIfName then
+              lib.filter (n: n != ifName && laneScopeKey n == scope) interfaceNames;
+          siblingServiceDnsRoutes = lib.concatMap (
+            sibling:
+            lib.filter (route: ((route.intent or { }).kind or null) == "service-dns-reachability") (
+              routesByInterfacePreferred.${sibling} or [ ]
+            )
+          ) scopeSiblings;
+          routesByInterfaceScoped = lib.mapAttrs (
+            _: routes: routes ++ siblingServiceDnsRoutes
+          ) routesByInterfacePreferred;
+          localOriginSourceIfNames = lib.unique (routeSourceIfNames ++ sourceIfNames);
+          localOriginRoutesByInterface = localOriginDns.routesByInterface tableId localOriginSourceIfNames;
+          localOriginRules =
+            localOriginDns.rules tableId policyRoutingAllocation.tableRulePriority
+              localOriginSourceIfNames;
+          destinationScopeForIngress =
+            sourceIfName:
+            let
 
-          lib.optionals (destinationScope != [ ]) destinationScopedRules
-        else if destinationScope != [ ] && sourceScopeForRule != [ ] then
-          destinationScopedRules ++ sourceScopedRules
-        else
-          policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
-            policyRoutingAllocation.mainSuppressPriority
-            [ sourceIfName ]
-            sourceScopeForRule
-            destinationScope
-      ) sourceIfNames;
-      forwardingIngressRules =
-        let
-          tableRuleFor = prefix: {
-            Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
-            From = prefix.prefix;
-            IncomingInterface = interfaceName;
-            Priority = policyRoutingAllocation.dynamicRulePriority;
-            Table = tableId;
-          };
-          mainFallbackRuleFor = prefix: {
-            Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
-            From = prefix.prefix;
-            IncomingInterface = interfaceName;
-            Priority = policyRoutingAllocation.mainSuppressPriority;
-            SuppressPrefixLength = 0;
-            Table = 254;
-          };
-        in
-        builtins.concatMap (prefix: [
-          (tableRuleFor prefix)
-          (mainFallbackRuleFor prefix)
-        ]) forwardingMainScope.staticPrefixes;
-      ownReachabilityPrefixes = map (p: p.prefix) (sourcePrefixes.forInterface interfaceName).staticPrefixes;
-      # FS-315-HDS-010-SDS-010-SMS-020: a destination-scoped selector rule
-      # (`To`) may only be installed on an interface that owns that destination
-      # prefix's reachability. A `To=<prefix>` rule for another access's prefix
-      # would route it into this fabric lane, whose default points at the policy
-      # and loops the packet instead of reaching the destination access edge.
-      dropForeignDestinationRule =
-        rule:
-        (rule.To or null) == null || builtins.elem rule.To ownReachabilityPrefixes;
-      allRulesForThisInterface = lib.unique (
-        builtins.filter dropForeignDestinationRule (
-          rulesForThisInterface ++ forwardingIngressRules ++ localOriginRules
-        )
-      );
-      hasMainLookupRuleForSource =
-        source:
-        builtins.any (
-          rule:
-          (rule.From or null) == (source.prefix or null)
-          && (rule.Table or null) == 254
-          && (rule.SuppressPrefixLength or null) == 0
-        ) allRulesForThisInterface;
-      mainSourceRoutes = lib.filter (route: route != null) (
-        map (sourceReachabilityRoutes.routeFor ifName) (
-          lib.filter (
+              sourceRenderedOrSelf =
+                let
+                  r = renderedInterfaceNames.${sourceIfName} or null;
+                in
+                if r != null then r else sourceIfName;
+              crossesAccess =
+                isDownstreamSelectorAccessInterface interfaceName
+                && isDownstreamSelectorPolicyInterface sourceRenderedOrSelf;
+              _diag = true;
+              routesForTargetOutput = routesByInterface.${ifName} or [ ];
+              routeDestinations = map (route: route.Destination or null) routesForTargetOutput;
+            in
+            if crossesAccess then
+              [ ]
+            else
+              lib.filter (prefix: builtins.elem prefix.prefix routeDestinations) (
+                (ruleSourceScopeForIngress sourceIfName).staticPrefixes
+              );
+          rulesForThisInterface = lib.concatMap (
+            sourceIfName:
+            let
+              ownPrefixes = (sourcePrefixes.forInterface interfaceName).staticPrefixes;
+              ownPrefixSet = map (p: p.prefix) ownPrefixes;
+
+              destinationScope =
+                if sourceIfName == ifName then
+                  [ ]
+                else
+                  lib.filter (prefix: builtins.elem prefix.prefix ownPrefixSet) (
+                    destinationScopeForIngress sourceIfName
+                  );
+              sourceScopeForRule = (ruleSourceScopeForIngress sourceIfName).staticPrefixes;
+              destinationScopedRules =
+                policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
+                  policyRoutingAllocation.mainSuppressPriority [ sourceIfName ] [ ]
+                  destinationScope;
+              sourceScopedRules =
+                policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
+                  policyRoutingAllocation.mainSuppressPriority
+                  [ sourceIfName ]
+                  sourceScopeForRule
+                  [ ];
+            in
+            if
+              sourceIfName == ifName
+              && isReturnSideSelfIngress
+              && !(isUpstreamSelectorCoreInterface interfaceName)
+            then
+              [ ]
+            else if
+              sourceIfName == ifName
+              && isUpstreamSelectorPolicyInterface interfaceName
+              && scopeHasEntries forwardingMainScope
+            then
+              [ ]
+            else if isCoreToCoreReturnSideIngress sourceIfName then
+
+              lib.optionals (destinationScope != [ ]) destinationScopedRules
+            else if destinationScope != [ ] && sourceScopeForRule != [ ] then
+              destinationScopedRules ++ sourceScopedRules
+            else
+              policyRulesFor interfaceName tableId policyRoutingAllocation.tableRulePriority
+                policyRoutingAllocation.mainSuppressPriority
+                [ sourceIfName ]
+                sourceScopeForRule
+                destinationScope
+          ) sourceIfNames;
+          forwardingIngressRules =
+            let
+              tableRuleFor = prefix: {
+                Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
+                From = prefix.prefix;
+                IncomingInterface = interfaceName;
+                Priority = policyRoutingAllocation.dynamicRulePriority;
+                Table = tableId;
+              };
+              mainFallbackRuleFor = prefix: {
+                Family = if (prefix.family or 4) == 6 then "ipv6" else "ipv4";
+                From = prefix.prefix;
+                IncomingInterface = interfaceName;
+                Priority = policyRoutingAllocation.mainSuppressPriority;
+                SuppressPrefixLength = 0;
+                Table = 254;
+              };
+            in
+            builtins.concatMap (prefix: [
+              (tableRuleFor prefix)
+              (mainFallbackRuleFor prefix)
+            ]) forwardingMainScope.staticPrefixes;
+          ownReachabilityPrefixes =
+            map (p: p.prefix)
+              (sourcePrefixes.forInterface interfaceName).staticPrefixes;
+
+          dropForeignDestinationRule =
+            rule: (rule.To or null) == null || builtins.elem rule.To ownReachabilityPrefixes;
+          allRulesForThisInterface = lib.unique (
+            builtins.filter dropForeignDestinationRule (
+              rulesForThisInterface ++ forwardingIngressRules ++ localOriginRules
+            )
+          );
+          hasMainLookupRuleForSource =
             source:
-            hasMainLookupRuleForSource source
-            && sourceReachabilityRoutes.matchesInterfaceOrigin interfaceName source
-          ) effectiveMainSourceScope.staticPrefixes
-        )
-      );
-    in
-    {
-      routes =
-        let
-          routesWithPolicyTables = builtins.foldl' (
-            routesAcc: outputIfName:
-            routesAcc
-            // {
-              ${outputIfName} =
-                (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfaceScoped.${outputIfName} or [ ]);
-            }
-          ) acc.routes (builtins.attrNames routesByInterfaceScoped);
+            builtins.any (
+              rule:
+              (rule.From or null) == (source.prefix or null)
+              && (rule.Table or null) == 254
+              && (rule.SuppressPrefixLength or null) == 0
+            ) allRulesForThisInterface;
+          mainSourceRoutes = lib.filter (route: route != null) (
+            map (sourceReachabilityRoutes.routeFor ifName) (
+              lib.filter (
+                source:
+                hasMainLookupRuleForSource source
+                && sourceReachabilityRoutes.matchesInterfaceOrigin interfaceName source
+              ) effectiveMainSourceScope.staticPrefixes
+            )
+          );
         in
-        builtins.foldl' (
-          routesAcc: outputIfName:
-          routesAcc
-          // {
-            ${outputIfName} =
-              (routesAcc.${outputIfName} or [ ]) ++ (localOriginRoutesByInterface.${outputIfName} or [ ]);
-          }
-        ) routesWithPolicyTables (builtins.attrNames localOriginRoutesByInterface);
-      mainRoutes = acc.mainRoutes // {
-        ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
-      };
-      rules = acc.rules // {
-        ${ifName} = (acc.rules.${ifName} or [ ]) ++ allRulesForThisInterface;
-      };
-      dynamicSourceRules =
-        acc.dynamicSourceRules
-        ++ lib.concatMap (
-          sourceIfName:
-          dynamicPolicyRulesFor interfaceName tableId policyRoutingAllocation.dynamicRulePriority
-            policyRoutingAllocation.mainSuppressPriority
-            [ sourceIfName ]
-            (ruleSourceScopeForIngress sourceIfName).sourceFiles
-        ) sourceIfNames;
-    }
-  )
-  {
-    routes = { };
-    mainRoutes = { };
-    rules = { };
-    dynamicSourceRules = [ ];
-  }
-  (lib.imap0 (index: ifName: { inherit index ifName; }) interfaceNames)
+        {
+          routes =
+            let
+              routesWithPolicyTables = builtins.foldl' (
+                routesAcc: outputIfName:
+                routesAcc
+                // {
+                  ${outputIfName} =
+                    (routesAcc.${outputIfName} or [ ]) ++ (routesByInterfaceScoped.${outputIfName} or [ ]);
+                }
+              ) acc.routes (builtins.attrNames routesByInterfaceScoped);
+            in
+            builtins.foldl' (
+              routesAcc: outputIfName:
+              routesAcc
+              // {
+                ${outputIfName} =
+                  (routesAcc.${outputIfName} or [ ]) ++ (localOriginRoutesByInterface.${outputIfName} or [ ]);
+              }
+            ) routesWithPolicyTables (builtins.attrNames localOriginRoutesByInterface);
+          mainRoutes = acc.mainRoutes // {
+            ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
+          };
+          rules = acc.rules // {
+            ${ifName} = (acc.rules.${ifName} or [ ]) ++ allRulesForThisInterface;
+          };
+          dynamicSourceRules =
+            acc.dynamicSourceRules
+            ++ lib.concatMap (
+              sourceIfName:
+              dynamicPolicyRulesFor interfaceName tableId policyRoutingAllocation.dynamicRulePriority
+                policyRoutingAllocation.mainSuppressPriority
+                [ sourceIfName ]
+                (ruleSourceScopeForIngress sourceIfName).sourceFiles
+            ) sourceIfNames;
+        }
+      )
+      {
+        routes = { };
+        mainRoutes = { };
+        rules = { };
+        dynamicSourceRules = [ ];
+      }
+      (lib.imap0 (index: ifName: { inherit index ifName; }) interfaceNames);
+
+  dedupe =
+    entries:
+    builtins.attrValues (
+      builtins.listToAttrs (
+        map (entry: {
+          name = builtins.toJSON entry;
+          value = entry;
+        }) entries
+      )
+    );
+  dedupeSets = sets: builtins.mapAttrs (_: entries: dedupe entries) sets;
+in
+{
+  routes = dedupeSets aggregate.routes;
+  mainRoutes = dedupeSets aggregate.mainRoutes;
+  rules = dedupeSets aggregate.rules;
+  inherit (aggregate) dynamicSourceRules;
+}
