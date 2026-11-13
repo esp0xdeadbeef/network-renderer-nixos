@@ -366,7 +366,39 @@ let
                 }
               ) (if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]));
               routes = map stripRouteMetadata (
-                lib.filter (route: keepStaticRoutesInMain || !(isMainTableDefaultRoute route)) renderedRoutes
+                lib.filter (
+                  route:
+                  let
+                    dstHere = route.Destination or route.dst or null;
+                    ownAddress = iface.addr4 or iface.addr6 or null;
+                    ownNetwork =
+                      if !(builtins.isString ownAddress) || !(lib.hasInfix "/" ownAddress) then
+                        null
+                      else
+                        let
+                          parts = lib.splitString "/" ownAddress;
+                          octets = lib.splitString "." (builtins.head parts);
+                        in
+                        if builtins.elemAt parts 1 == "31" && builtins.length octets == 4 then
+                          let
+                            last = builtins.fromJSON (builtins.elemAt octets 3);
+                          in
+                          "${builtins.elemAt octets 0}.${builtins.elemAt octets 1}."
+                          + "${builtins.elemAt octets 2}.${toString (last - builtins.bitAnd last 1)}/31"
+                        else
+                          null;
+                    isForeignFabric31 =
+                      value:
+                      builtins.isString value && lib.hasSuffix "/31" value && ownNetwork != null && value != ownNetwork;
+
+                    cls = if builtins.isAttrs (iface.interfaceClass or null) then iface.interfaceClass else { };
+                    isPolicyPoint =
+                      (cls.coreTransit or false) || (cls.coreFacing or false) || (iface.owningRole or null) == "policy";
+                  in
+                  (keepStaticRoutesInMain || !(isMainTableDefaultRoute route))
+
+                  && (isPolicyPoint || !(isForeignFabric31 dstHere))
+                ) renderedRoutes
               );
               routingPolicyRules =
                 (policyRoutingByInterface.rules.${ifName} or [ ])
