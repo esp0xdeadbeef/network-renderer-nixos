@@ -76,8 +76,8 @@ if ! nix eval \
         # An ingress legitimately selects more than one table: its own egress
         # table for new flows, and a separate table for traffic returning to it.
         # What must be deterministic is which table wins for this ingress, so
-        # take the rule with the lowest Priority (= highest precedence) among the
-        # primary rules. That is the table new flows from this ingress use.
+        # take the rule with the lowest Priority (= highest precedence) among
+        # the primary rules. That is the table new flows from this ingress use.
         winningTable =
           ingress:
           let
@@ -88,12 +88,24 @@ if ! nix eval \
           if rows == [ ] then null else (builtins.head rows).Table;
         v7Table = winningTable vlan7Ingress;
         v2Table = winningTable vlan2Ingress;
+        # The winning rule and its Priority. P5 must compare a rule Priority
+        # against this value, never against a table id: priorities and table ids are
+        # different number spaces and they are not monotone in each other.
+        winningPriority =
+          ingress:
+          let
+            rows = builtins.sort (a: b: (a.Priority or 999999) < (b.Priority or 999999)) (
+              builtins.filter (r: ingress r && primary r) rules
+            );
+          in
+          if rows == [ ] then null else ((builtins.head rows).Priority or 999999);
+        v7Priority = winningPriority vlan7Ingress;
         failed =
           (if v7Table == null then [ "P1 VLAN7 ingress selects no non-main policy table" ] else [ ])
           ++ (if v2Table == null then [ "P2 VLAN2 ingress selects no non-main policy table" ] else [ ])
           ++ (if v7Table != null && v7Table == v2Table then [ "P3 VLAN7 and VLAN2 share a policy table" ] else [ ])
           ++ (if builtins.length (builtins.filter (x: v7Table != null && (x.Table or null) == v7Table && (x.Destination or null) == "0.0.0.0/0" && (x.Gateway or null) != null) routes) == 0 then [ "P4 VLAN7 policy table has no gateway-qualified default route" ] else [ ])
-          ++ (if builtins.length (builtins.filter (x: vlan7Ingress x && (x.Table or null) != v7Table && (x.Priority or 999999) < (if v7Table == null then 0 else v7Table)) rules) != 0 then [ "P5 an earlier rule steals VLAN7 ingress before its own table" ] else [ ])
+          ++ (if v7Priority != null && builtins.length (builtins.filter (x: vlan7Ingress x && (x.Table or null) != v7Table && (x.Priority or 999999) < v7Priority) rules) != 0 then [ "P5 an earlier rule steals VLAN7 ingress before its own table" ] else [ ])
           ++ (if builtins.length (builtins.filter (x: vlan7Ingress x && v2Table != null && (x.Table or null) == v2Table) rules) != 0 then [ "P6 the VLAN2 policy table matches VLAN7 source ingress" ] else [ ]);
       in
       {
@@ -102,6 +114,7 @@ if ! nix eval \
         checks = {
           vlan2Table = v2Table;
           vlan7Table = v7Table;
+          vlan7Priority = v7Priority;
           vlan2PrimaryRules = builtins.length (builtins.filter (r: vlan2Ingress r && primary r) rules);
           vlan7PrimaryRules = builtins.length (builtins.filter (r: vlan7Ingress r && primary r) rules);
           vlan2SelectedTables = unique (map (r: r.Table) (builtins.filter (r: vlan2Ingress r && primary r) rules));
