@@ -6,12 +6,13 @@
   sourceIfNames,
   tableId,
   tableForOutputIfName ? (_outputIfName: tableId),
+  admittedOutDestinations ? [ ],
 }:
 let
   rawPolicyRoutes = builtins.concatMap (
     sourceIfName:
     map (route: route // { _s88PolicySourceIfName = sourceIfName; }) (
-      rawRoutesForPolicyTable tableId interfaceName sourceIfName
+      rawRoutesForPolicyTable admittedOutDestinations tableId interfaceName sourceIfName
     )
   ) sourceIfNames;
 in

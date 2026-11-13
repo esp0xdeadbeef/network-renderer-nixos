@@ -43,7 +43,7 @@ let
   };
   inherit (laneMatch) routeMatchesInterfaceLane;
 in
-tableId: interfaceName: sourceIfName:
+admittedOutDestinations: tableId: interfaceName: sourceIfName:
 let
   targetIfName = lib.findFirst (
     name: renderedInterfaceNames.${name} == interfaceName
@@ -225,7 +225,14 @@ let
       ++ policyConnectedRoutes
       ++ downstreamSelectorReturnConnectedRoutes
       ++ downstreamSelectorTenantReturnRoutes
-      ++ downstreamSelectorAccessTableTenantReturnRoutes;
+      ++ downstreamSelectorAccessTableTenantReturnRoutes
+
+      ++ (
+        if sourceIfName == targetIfName then
+          returnRoutes.forDestinationsViaInterface admittedOutDestinations sourceIfName
+        else
+          [ ]
+      );
   sourceRoutesWithConnectedReturns = sourceRoutes ++ explicitForwardReturnConnectedRoutes;
   staticPolicyRoutes = lib.filter (
     route: !(isExternalValidationDelegatedPrefixRoute route)

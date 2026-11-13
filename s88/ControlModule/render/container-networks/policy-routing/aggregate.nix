@@ -14,6 +14,9 @@
   sourceReachabilityRoutes,
   sourcePrefixes,
   forwardingSourceScope,
+  returnRoutes ? null,
+  forwardingRulesResolved ? [ ],
+  interfaces ? { },
   ruleSourceScope,
   routesByOutputInterface,
   rawRoutesForPolicyTable,
@@ -177,6 +180,30 @@ builtins.foldl'
             (baseScope.sourceFiles or [ ]) ++ forwardingScopeForIngress.sourceFiles ++ pairScope.sourceFiles
           );
         };
+
+      admittedOutPeerIfNames = lib.unique (
+        lib.filter (n: n != null && n != interfaceName) (
+          map (peer: lib.findFirst (n: renderedInterfaceNames.${n} == peer) null interfaceNames) (
+            map (rule: rule.toInterface or null) (
+              lib.filter (rule: (rule.fromInterface or null) == interfaceName) forwardingRulesResolved
+            )
+          )
+        )
+      );
+      admittedOutDestinations =
+        if returnRoutes == null then
+          [ ]
+        else
+          lib.unique (
+            map (route: route.dst) (
+              lib.concatMap (
+                peer:
+                lib.filter (route: ((route.intent or { }).kind or null) == "internal-reachability") (
+                  interfaces.${peer}.routes or [ ]
+                )
+              ) admittedOutPeerIfNames
+            )
+          );
       routesByInterface = routesByOutputInterface {
         inherit
           interfaceName
@@ -184,6 +211,7 @@ builtins.foldl'
           tableId
           ;
         sourceIfNames = routeSourceIfNames;
+        inherit admittedOutDestinations;
         tableForOutputIfName =
           outputIfName:
           if
