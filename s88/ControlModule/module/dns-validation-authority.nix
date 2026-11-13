@@ -96,6 +96,8 @@ else
 
     boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
 
+    boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkIf forwardingGateway.enable (lib.mkDefault 1);
+
     systemd.network.networks."30-${bridge}" = {
       address = [
         authority.provider.ipv4.address
@@ -147,10 +149,6 @@ else
   }
   // lib.optionalAttrs forwardingGateway.enable {
 
-    boot.kernel.sysctl = {
-      "net.ipv6.conf.all.forwarding" = lib.mkDefault 1;
-      "net.ipv4.ip_forward" = lib.mkDefault 1;
-    };
     networking.nftables.enable = true;
     networking.nftables.ruleset = ''
       table inet gateway_nat {

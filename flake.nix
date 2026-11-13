@@ -395,7 +395,7 @@
             }) (builtins.attrNames (rendered.containers or { }))
           );
 
-          boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkDefault true;
+          boot.kernel.sysctl."net.ipv4.ip_forward" = lib.mkOverride 1500 true;
         }
         // lib.optionalAttrs vmNicRender.rendered {
           virtualisation.qemu.networkingOptions = lib.mkForce vmNicRender.networkingOptions;
