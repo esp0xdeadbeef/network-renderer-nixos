@@ -190,19 +190,15 @@ builtins.foldl'
           )
         )
       );
+
       admittedOutDestinations =
         if returnRoutes == null then
           [ ]
         else
           lib.unique (
-            map (route: route.dst) (
-              lib.concatMap (
-                peer:
-                lib.filter (route: ((route.intent or { }).kind or null) == "internal-reachability") (
-                  interfaces.${peer}.routes or [ ]
-                )
-              ) admittedOutPeerIfNames
-            )
+            lib.concatMap (
+              peer: returnRoutes.destinationsFor (renderedInterfaceNames.${peer} or peer)
+            ) admittedOutPeerIfNames
           );
       routesByInterface = routesByOutputInterface {
         inherit
