@@ -181,7 +181,6 @@ else
             zone: builtins.isAttrs zone && (zone.name or "") == publication.namespace
           ) localForwardZones;
 
-        conflicts = lib.filter namespaceIsForwarded protectedReservationPublications;
         forwardZones = map (publication: "${publication.namespace} static") (
           builtins.filter (p: !(namespaceIsForwarded p)) protectedReservationPublications
         );
@@ -197,10 +196,7 @@ else
         );
         allZones = forwardZones ++ reverseZones;
       in
-      if conflicts != [ ] then
-        throw "diagnostic.protected-reservation-name-namespace-authority-conflict: NixOS DNS renderer rejected an overlapping local or forwarding namespace without logging address material"
-      else
-        allZones;
+      allZones;
     localOnlyRootZoneSettings = lib.optional (recursionMode == "local-only") ". refuse";
     localZoneSettings = lib.unique (
       (map (zone: "${zone.name} ${zone.type or "static"}") localZones)

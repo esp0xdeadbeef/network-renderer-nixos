@@ -84,15 +84,24 @@ if ! rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
         forwardingIntent = { };
       };
     dns = renderDns { };
-    conflictingDns = renderDns {
+    # A namespace this resolver FORWARDS is answered by the forwarder, so no
+    # static local zone is emitted for it -- but publication still happens,
+    # because the forwarder publishes only its own records and this resolver
+    # owns the reservation names of its own subnets. That is the decision the CPM states
+    # FS-560 decision, so the transparent case must evaluate and must NOT emit a
+    # second static zone for the namespace.
+    forwardedDns = renderDns {
       localZones = [ { name = "client.lan."; type = "transparent"; } ];
     };
+    forwardedAccepted =
+      (builtins.tryEval forwardedDns.services.unbound.settings.server."local-zone").success;
+    forwardedLocalZones =
+      if forwardedAccepted then forwardedDns.services.unbound.settings.server."local-zone" else [ ];
     # tryEval cannot contain a stack overflow: an unbounded recursion aborts the
     # whole evaluation rather than returning { success = false; }. Force only the
     # attribute that owns the conflict diagnostic, so the assertion tests the
     # rejection it names instead of deepSeq-ing the entire systemd surface.
-    conflictAccepted =
-      (builtins.tryEval conflictingDns.services.unbound.settings.server."local-zone").success;
+
     # FS-560-SMS-050: "Materialize every protected publication namespace as a local
     # authoritative boundary." A namespace that is ALREADY a static local zone is
     # exactly that boundary, so publishing protected names into it is the required
@@ -115,7 +124,7 @@ if ! rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     generatorBefore = kea.systemd.services."gen-kea-client".before;
     includes = dns.services.unbound.settings."include-toplevel";
     localZones = dns.services.unbound.settings.server."local-zone";
-    inherit conflictAccepted staticZoneAccepted staticZoneLocalZones;
+    inherit forwardedAccepted forwardedLocalZones staticZoneAccepted staticZoneLocalZones;
     unboundAfter = dns.systemd.services.unbound.after;
     unboundRequires = dns.systemd.services.unbound.requires;
   }
@@ -126,7 +135,8 @@ fi
 jq -e '
   .includes == ["/run/unbound/s-router-prod-client-local.conf"]
   and .localZones == ["client.lan. static"]
-  and .conflictAccepted == false
+  and .forwardedAccepted == true
+  and ([.forwardedLocalZones[] | select(startswith("client.lan."))] | length) == 1
   and .staticZoneAccepted == true
   and (.staticZoneLocalZones | index("client.lan. static")) != null
   and (.generatorBefore | index("unbound.service")) != null
