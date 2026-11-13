@@ -197,6 +197,9 @@ let
       isAccessHostInterface
       isDownstreamSelectorAccessInterface
       laneAccessForRenderedName
+      returnRoutes
+      forwardingRulesResolved
+      interfaces
       sourceReachabilityRoutes
       sourcePrefixes
       forwardingSourceScope

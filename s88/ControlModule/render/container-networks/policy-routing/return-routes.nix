@@ -106,6 +106,8 @@ let
     routesForDestinationsViaInterface destinations sourceIfName;
 in
 {
+  forDestinationsViaInterface = routesForDestinationsViaInterface;
+
   forTenantInterface = routesForTenantInterface;
 
   forScopesViaInterface = routesForScopesViaInterface;
