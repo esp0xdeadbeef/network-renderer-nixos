@@ -93,13 +93,29 @@ if ! rendered="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
     # rejection it names instead of deepSeq-ing the entire systemd surface.
     conflictAccepted =
       (builtins.tryEval conflictingDns.services.unbound.settings.server."local-zone").success;
+    # FS-560-SMS-050: "Materialize every protected publication namespace as a local
+    # authoritative boundary." A namespace that is ALREADY a static local zone is
+    # exactly that boundary, so publishing protected names into it is the required
+    # state, not a conflict. The neon site renders lan. as both a static local zone
+    # and a protected publication namespace; treating that as an error made the
+    # whole site unbuildable. Only a namespace forwarded elsewhere is a conflict.
+    staticZoneDns = renderDns {
+      localZones = [ { name = "client.lan."; type = "static"; } ];
+    };
+    staticZoneAccepted =
+      (builtins.tryEval staticZoneDns.services.unbound.settings.server."local-zone").success;
+    staticZoneLocalZones =
+      if staticZoneAccepted then
+        staticZoneDns.services.unbound.settings.server."local-zone"
+      else
+        [ ];
   in
   {
     generator = builtins.toString kea.systemd.services."gen-kea-client".serviceConfig.ExecStart;
     generatorBefore = kea.systemd.services."gen-kea-client".before;
     includes = dns.services.unbound.settings."include-toplevel";
     localZones = dns.services.unbound.settings.server."local-zone";
-    inherit conflictAccepted;
+    inherit conflictAccepted staticZoneAccepted staticZoneLocalZones;
     unboundAfter = dns.systemd.services.unbound.after;
     unboundRequires = dns.systemd.services.unbound.requires;
   }
@@ -111,6 +127,8 @@ jq -e '
   .includes == ["/run/unbound/s-router-prod-client-local.conf"]
   and .localZones == ["client.lan. static"]
   and .conflictAccepted == false
+  and .staticZoneAccepted == true
+  and (.staticZoneLocalZones | index("client.lan. static")) != null
   and (.generatorBefore | index("unbound.service")) != null
   and (.unboundAfter | index("gen-s-router-prod-client-unbound-local-data.service")) != null
   and (.unboundRequires | index("gen-s-router-prod-client-unbound-local-data.service")) != null
