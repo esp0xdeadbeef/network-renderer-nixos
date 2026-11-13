@@ -208,7 +208,11 @@ let
     && !(isPolicyOnlyRoute route)
     && !(isDefaultRoute route)
     && (route._s88IntentKind or null) == "internal-reachability"
-    && (routeReturnsToInterfaceLane iface route || isAccessGateway)
+    && (
+      routeReturnsToInterfaceLane iface route
+
+      || (isAccessGateway && prefixOwnerForRoute route != null)
+    )
     && routeGatewayExplicitlyMatchesInterface iface route;
 
   nixosOwnsInterface =
