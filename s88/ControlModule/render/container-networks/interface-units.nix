@@ -370,7 +370,13 @@ let
                   route:
                   let
                     dstHere = route.Destination or route.dst or null;
-                    ownAddress = iface.addr4 or iface.addr6 or null;
+                    ownAddress =
+                      iface.addr4 or iface.addr6 or (
+                        let
+                          a = iface.addresses or [ ];
+                        in
+                        if a == [ ] then null else (builtins.head a).Address or null
+                      );
                     ownNetwork =
                       if !(builtins.isString ownAddress) || !(lib.hasInfix "/" ownAddress) then
                         null
