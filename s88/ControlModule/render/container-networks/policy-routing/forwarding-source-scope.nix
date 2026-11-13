@@ -18,11 +18,21 @@ let
           4;
       origin =
         if builtins.isAttrs value && builtins.isAttrs (value.origin or null) then value.origin else null;
+
+      ruleOriginAccess =
+        if builtins.isString (rule.toInterface or null) && rule.toInterface != "" then
+          { accesses = [ rule.toInterface ]; }
+        else
+          null;
+      effectiveOrigin = if origin != null then origin else ruleOriginAccess;
     in
     if !(builtins.isString prefix) || prefix == "" then
       null
     else
-      { inherit family prefix; } // lib.optionalAttrs (origin != null) { inherit origin; };
+      {
+        inherit family prefix;
+      }
+      // lib.optionalAttrs (effectiveOrigin != null) { origin = effectiveOrigin; };
 
   forInterfaceField =
     field: interfaceName:
