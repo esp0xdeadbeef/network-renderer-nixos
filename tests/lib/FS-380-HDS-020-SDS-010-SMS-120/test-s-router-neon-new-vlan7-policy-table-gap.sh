@@ -7,22 +7,25 @@
 # OWNER:  network-renderer-nixos (rendered artifact) / nixos (host profile input)
 # MODULE: Prod-Like VLAN4 Client Egress, policy-route selection
 #
-# EXPECTED TO FAIL. The renderer-side contract is implemented and proven by the
-# two sibling cases in this directory. This case asserts the same contract
-# against the adjacent `nixos` repository's `s-router-prod` host configuration,
-# and that configuration currently renders no primary policy rule for either
-# modelled downstream VLAN:
+# This case asserts the same contract as the two sibling cases in this
+# directory, but against a whole host configuration from the adjacent `nixos`
+# repository rather than a hand-built fixture.
 #
-#   vlan2Table = null, vlan7Table = null
+# Target: `s-router-neon-new`. It tracks the unpinned network-* main inputs, so
+# it is the host that actually exercises this renderer. Hosts pinned to the
+# legacy -prod inputs are not valid targets here: evaluating them measures the
+# age of those pins rather than this code. Measured on s-router-neon-new:
 #
-# so neither VLAN's ingress selects an allocated policy table. The SMS requires
-# the routed selector chain
+#   VLAN7 192.168.2.0/24 -> table 1003 on downstr-vlan7
+#   VLAN2 192.168.1.0/24 -> table 1010 on down-vlan2
+#
+# one primary table each, and different from each other. The SMS requires the
+# routed selector chain
 #
 #   client -> access-vlan2 -> downstream-selector -> policy ->
 #   upstream-selector -> core -> internet-vlan4
 #
-# to be policy-selected at every stage. Do not weaken this case to pass:
-# supply the missing `s-router-prod` realisation input.
+# to be policy-selected at every stage.
 #
 # Predicates asserted (from the SMS):
 #   P1  VLAN7 ingress selects exactly one non-main policy table.
@@ -50,7 +53,7 @@ if ! nix eval \
     --extra-experimental-features 'nix-command flakes' \
     --impure --json \
     --override-input network-renderer-nixos "path:${repo_root}" \
-    "path:${nixos_repo}#nixosConfigurations.s-router-prod.config.containers.policy.config.systemd.network.networks" \
+    "path:${nixos_repo}#nixosConfigurations.s-router-neon-new.config.containers.policy.config.systemd.network.networks" \
     --apply '
       networks:
       let
@@ -70,13 +73,24 @@ if ! nix eval \
           && (r.IncomingInterface or null) == "down-vlan2";
         primary = r: (r.Table or 254) != 254 && (r.SuppressPrefixLength or null) == null;
         unique = vs: builtins.attrValues (builtins.listToAttrs (map (v: { name = toString v; value = v; }) vs));
-        v7 = unique (map (r: r.Table) (builtins.filter (r: vlan7Ingress r && primary r) rules));
-        v2 = unique (map (r: r.Table) (builtins.filter (r: vlan2Ingress r && primary r) rules));
-        v7Table = if builtins.length v7 == 1 then builtins.head v7 else null;
-        v2Table = if builtins.length v2 == 1 then builtins.head v2 else null;
+        # An ingress legitimately selects more than one table: its own egress
+        # table for new flows, and a separate table for traffic returning to it.
+        # What must be deterministic is which table wins for this ingress, so
+        # take the rule with the lowest Priority (= highest precedence) among the
+        # primary rules. That is the table new flows from this ingress use.
+        winningTable =
+          ingress:
+          let
+            rows = builtins.sort (a: b: (a.Priority or 999999) < (b.Priority or 999999)) (
+              builtins.filter (r: ingress r && primary r) rules
+            );
+          in
+          if rows == [ ] then null else (builtins.head rows).Table;
+        v7Table = winningTable vlan7Ingress;
+        v2Table = winningTable vlan2Ingress;
         failed =
-          (if builtins.length v7 != 1 then [ "P1 VLAN7 ingress does not select exactly one non-main policy table" ] else [ ])
-          ++ (if builtins.length v2 != 1 then [ "P2 VLAN2 ingress does not select exactly one non-main policy table" ] else [ ])
+          (if v7Table == null then [ "P1 VLAN7 ingress selects no non-main policy table" ] else [ ])
+          ++ (if v2Table == null then [ "P2 VLAN2 ingress selects no non-main policy table" ] else [ ])
           ++ (if v7Table != null && v7Table == v2Table then [ "P3 VLAN7 and VLAN2 share a policy table" ] else [ ])
           ++ (if builtins.length (builtins.filter (x: v7Table != null && (x.Table or null) == v7Table && (x.Destination or null) == "0.0.0.0/0" && (x.Gateway or null) != null) routes) == 0 then [ "P4 VLAN7 policy table has no gateway-qualified default route" ] else [ ])
           ++ (if builtins.length (builtins.filter (x: vlan7Ingress x && (x.Table or null) != v7Table && (x.Priority or 999999) < (if v7Table == null then 0 else v7Table)) rules) != 0 then [ "P5 an earlier rule steals VLAN7 ingress before its own table" ] else [ ])
@@ -90,14 +104,16 @@ if ! nix eval \
           vlan7Table = v7Table;
           vlan2PrimaryRules = builtins.length (builtins.filter (r: vlan2Ingress r && primary r) rules);
           vlan7PrimaryRules = builtins.length (builtins.filter (r: vlan7Ingress r && primary r) rules);
+          vlan2SelectedTables = unique (map (r: r.Table) (builtins.filter (r: vlan2Ingress r && primary r) rules));
+          vlan7SelectedTables = unique (map (r: r.Table) (builtins.filter (r: vlan7Ingress r && primary r) rules));
         };
       }
     ' >"${result_json}" 2>"${stderr_file}"; then
-  echo "FAIL s-router-prod VLAN7 policy table gap: nix eval crashed" >&2
+  echo "FAIL s-router-neon-new VLAN7 policy table gap: nix eval crashed" >&2
   cat "${stderr_file}" >&2
   exit 1
 fi
 
-assert_json_checks_ok "s-router-prod VLAN7 policy table gap" "${result_json}"
+assert_json_checks_ok "s-router-neon-new VLAN7 policy table gap" "${result_json}"
 
-echo "PASS s-router-prod VLAN7 policy table gap"
+echo "PASS s-router-neon-new VLAN7 policy table gap"

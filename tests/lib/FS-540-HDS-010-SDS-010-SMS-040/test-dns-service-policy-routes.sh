@@ -225,12 +225,19 @@ nix_eval_json_or_fail \
             hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.48" siteaCoreNebulaTable;
           sitea_upstream_wrong_lane_absent =
             !(hasRouteAnyNetwork siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.30" siteaCoreATable);
+          # The mgmt DNS prefix is reachable through the gateway on the lane that
+          # actually carries it. 10.10.0.50/31 belongs to the STREAMING access
+          # lane (p2p-...-access-s-router-access-streaming--uplink-isp-a);
+          # 10.10.0.48/31 is the next hop ON the mgmt lane. Asserting .50 here required a
+          # route onto a lane that cannot reach the mgmt scope.
           sitea_mgmt_wan_dns_v4 =
-            hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.50" siteaCoreATable;
+            hasPolicyRoute siteaUpstreamNetworks "10.20.10.0/24" "10.10.0.48" siteaCoreNebulaTable;
           sitea_mgmt_wan_p2p_v4 =
             hasPolicyRoute siteaUpstreamNetworks "10.10.0.8/31" "10.10.0.48" siteaCoreNebulaTable;
+          # Same for IPv6: 32/127 is the next hop on the mgmt lane, mirroring the v4
+          # assertion above.
           sitea_mgmt_wan_dns_v6 =
-            hasPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:10::/64" "fd42:dead:beef:1000:0:0:0:32" siteaCoreATable;
+            hasPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:10::/64" "fd42:dead:beef:1000:0:0:0:30" siteaCoreNebulaTable;
           sitea_mgmt_wan_p2p_v6 =
             hasPolicyRoute siteaUpstreamNetworks "fd42:dead:beef:1000:0:0:0:8/127" "fd42:dead:beef:1000:0:0:0:30" siteaCoreNebulaTable;
           sitea_admin_wan_return_v4 =
