@@ -97,6 +97,21 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
               && (route.Gateway or null) == gateway
               && !(builtins.hasAttr "Table" route))
             routes;
+        # A point-to-point lane is realized as a connected prefix on this node
+        # plus one on-link host route to the peer. The lane cannot be asserted
+        # as a route to its own /31: that prefix contains the address of this node
+        # (10.10.0.14/31 on s-router-core-isp-b), so such a route would point
+        # the node at its own wire and the sibling check below asserts it does
+        # not exist. What must hold is that the peer is reachable in the main
+        # table with the peer as its on-link next hop.
+        hasOnlinkPeerRoute = routes: peer: gateway:
+          builtins.any
+            (route:
+              ((route.Destination or null) == (peer + "/32") || (route.Destination or null) == (peer + "/128"))
+              && !(builtins.hasAttr "Table" route)
+              && (route.Gateway or null) == gateway
+              && (route.GatewayOnLink or false) == true)
+            routes;
         hasMainRouteAnyNetwork = networks: destination: gateway:
           builtins.any
             (networkName: hasMainRoute (networks.${networkName}.routes or [ ]) destination gateway)
@@ -140,14 +155,30 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
                 (route: (route.Destination or "") == "::/0" && (route.Table or null) == table && !(builtins.hasAttr "Gateway" route))
                 nebRoutes)
             (builtins.filter builtins.isInt (map (route: route.Table or null) nebRoutes));
+        # FS-550: the hostile tenant is NOT terminated on the overlay core. The
+        # overlay core is b-router-core-nebula, whose only lane toward the
+        # hostile tenant is the east-west overlay uplink; the hostile access
+        # node (and the delegated prefix it owns) sits behind the policy point,
+        # whose modeled return lane is 10-pol-hostile-ew / its IPv6 twin. The
+        # sibling case test-overlay-core-local-hostile-return-routes.sh already
+        # asserts the own contract of the overlay core (no static hostile route, both
+        # hostile prefixes scoped to one policy table with a main fallback, a
+        # runtime install of the delegated prefix toward the modeled upstream
+        # next hop). Here the return must exist toward the node that actually
+        # peers with the hostile tenant.
         hostileDelegatedReturnOnPolicyLane =
-          hasRouteAnyNetwork branchUpstreamSelectorNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:10";
+          hasRouteAnyNetwork branchUpstreamSelectorNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:10"
+          && hasRouteAnyNetwork branchUpstreamSelectorNetworks "10.70.10.0/24" "10.50.0.16";
+        overlayCoreHasNoHostileTermination =
+          !(hasRouteAnyNetwork branchNebulaNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5")
+          && !(hasRouteAnyNetwork branchCoreNetworks "fd42:dead:feed:0070:0000:0000:0000:0000/64" "fd42:dead:feed:1000:0:0:0:5");
       in
-        hasMainRouteAnyNetwork branchCoreNetworks "10.10.0.0/31" "10.10.0.15"
-        && (
-          hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0:0:0:0/127" "fd42:dead:beef:1000:0:0:0:f"
-          || hasMainRouteAnyNetwork branchCoreNetworks "fd42:dead:beef:1000:0000:0000:0000:0000/127" "fd42:dead:beef:1000:0:0:0:f"
-        )
+        # s-router-core-isp-b holds 10.10.0.14/31 on its lane toward
+        # s-router-upstream-selector, so the remote half of that /31 (10.10.0.0)
+        # is the peer and must be reachable on-link in the main table with the
+        # peer as next hop. The same holds for the IPv6 /127 half, whose remote
+        # half is fd42:dead:beef:1000:0:0:0:f.
+        hasOnlinkPeerRoute (branchCoreNetworks."10-upstream".routes or [ ]) "10.10.0.0" "10.10.0.15"
         && hostileDelegatedReturnOnPolicyLane
         && nebHasNoMainGenericDefault
         && nebPolicyTableDefaults
