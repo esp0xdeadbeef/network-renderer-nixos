@@ -41,7 +41,17 @@ source "${repo_root}/tests/lib/test-common.sh"
 source "${repo_root}/tests/lib/adjacent-repo-paths.sh"
 
 nixos_repo="$(resolve_adjacent_repo NIXOS_REPO_PATH nixos)"
-[[ -f "${nixos_repo}/flake.nix" ]] || fail "missing adjacent nixos flake: ${nixos_repo}"
+if [[ ! -f "${nixos_repo}/flake.nix" ]]; then
+  # This case evaluates a host profile from the adjacent `nixos` repository.
+  # CI checks out only this repository, so the input is unavailable there and
+  # the case must skip explicitly rather than fail (or silently pass). An
+  # explicit NIXOS_REPO_PATH that does not name a checkout is still an error.
+  if [[ -n "${NIXOS_REPO_PATH:-}" ]]; then
+    fail "NIXOS_REPO_PATH does not name a nixos checkout: ${NIXOS_REPO_PATH}"
+  fi
+  echo "SKIP s-router-neon-new VLAN7 policy table gap: no adjacent nixos checkout; this case needs the host profile input from the nixos repository (set NIXOS_REPO_PATH)" >&2
+  exit 0
+fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
