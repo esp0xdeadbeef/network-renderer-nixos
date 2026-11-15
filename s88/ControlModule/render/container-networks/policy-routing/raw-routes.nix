@@ -353,7 +353,7 @@ let
         route: !(isDefaultRoute route) && !(isPolicyOnlyRoute route)
       ) explicitAcceptedOutputRoutes;
 in
-lib.filter builtins.isAttrs (
+lib.filter (route: builtins.isAttrs route && !(isReflectedServiceEndpointRoute route)) (
   map (
     route: if builtins.isAttrs route then route // { table = tableId; } else null
   ) scopedSourceRoutes
