@@ -217,6 +217,45 @@ let
     ) interfaces;
     inherit (routeSources) forTarget forTargetRules;
   };
+
+  modeledLaneRoutes = builtins.concatLists (
+    map (
+      name:
+      map (route: { inherit (route) dst via4 via6; }) (
+        builtins.filter
+          (
+            route:
+            ((route.lane or { }).access or null) != null
+            && ((route.intent or { }).kind or null) == "internal-reachability"
+          )
+          (
+            ((interfaces.${name}.routes or { }).ipv4 or [ ]) ++ ((interfaces.${name}.routes or { }).ipv6 or [ ])
+          )
+      )
+    ) interfaceNames
+  );
+  reflectedPeerRoute =
+    renderedName: route:
+    let
+      ifName = lib.findFirst (n: renderedInterfaceNames.${n} == renderedName) null interfaceNames;
+      addr4 = if ifName == null then null else peers.addressForFamily 4 interfaces.${ifName};
+      addr6 = if ifName == null then null else peers.addressForFamily 6 interfaces.${ifName};
+      peer4 = if addr4 == null then null else peers.ipv4PeerFor31 addr4;
+      peer6 = if addr6 == null then null else peers.ipv6PeerFor127 addr6;
+      gateway = route.Gateway or null;
+      modeled = builtins.filter (m: (m.dst or null) == (route.Destination or null)) modeledLaneRoutes;
+    in
+    builtins.any (
+      m:
+      ((m.via4 or null) != null && gateway == peer4 && gateway != m.via4)
+      || ((m.via6 or null) != null && gateway == peer6 && gateway != m.via6)
+    ) modeled;
+  aggregatePolicyRoutingFiltered = aggregatePolicyRouting // {
+    routes = lib.mapAttrs (
+      renderedName: routes: lib.filter (route: !(reflectedPeerRoute renderedName route)) routes
+    ) (aggregatePolicyRouting.routes or { });
+  };
+
   effectiveRuntimeRealization =
     if
       containerModel ? runtimeTarget
@@ -267,7 +306,7 @@ let
   allRuleKeys = lib.unique (
     (builtins.attrNames aggregatePolicyRouting.rules) ++ relationRuleKeys ++ targetOriginatedRuleKeys
   );
-  policyRoutingWithRelationSelection = aggregatePolicyRouting // {
+  policyRoutingWithRelationSelection = aggregatePolicyRoutingFiltered // {
     rules = builtins.listToAttrs (
       map (ifName: {
         name = ifName;
