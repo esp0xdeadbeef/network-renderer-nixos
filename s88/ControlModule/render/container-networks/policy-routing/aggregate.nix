@@ -216,6 +216,8 @@ builtins.foldl'
           && laneScope != null
           && ((route.lane or { }).access or null) == laneScope
           && ((route.intent or { }).policyTableComplement or false)
+          && (route.dst or route.Destination or null) != "0.0.0.0/0"
+          && (route.dst or route.Destination or null) != "::/0"
         then
           laneTableId
         else
@@ -260,7 +262,7 @@ builtins.foldl'
           tableId
           ;
         sourceIfNames = routeSourceIfNames;
-        inherit admittedOutDestinations modeledScopedDestinations;
+        inherit admittedOutDestinations modeledScopedDestinations extraTableForRoute;
 
         tableForOutputIfName =
           outputIfName:
