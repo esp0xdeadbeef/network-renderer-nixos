@@ -7,6 +7,7 @@
   tableId,
   tableForOutputIfName ? (_outputIfName: tableId),
   tableForRoute ? (_route: null),
+  extraTableForRoute ? (_route: null),
   admittedOutDestinations ? [ ],
   modeledScopedDestinations ? [ ],
 }:
@@ -39,6 +40,24 @@ let
           table = effectiveTableId;
         }
       );
+      extraTableId =
+        let
+          requested = extraTableForRoute rawRoute;
+        in
+        if requested == null || requested == effectiveTableId then null else requested;
+      extraRoute =
+        if renderedRoute == null || extraTableId == null then
+          null
+        else
+          mkRoute (
+            (builtins.removeAttrs rawRoute [
+              "_s88PolicySourceIfName"
+              "_s88ForwardTargetDefault"
+            ])
+            // {
+              table = extraTableId;
+            }
+          );
       annotatedRoute =
         if renderedRoute == null then
           null
@@ -48,13 +67,25 @@ let
             _s88Multipath = rawRoute.multipath or null;
             _s88Table = effectiveTableId;
           };
+      annotatedExtraRoute =
+        if extraRoute == null then
+          null
+        else
+          extraRoute
+          // {
+            _s88Multipath = rawRoute.multipath or null;
+            _s88Table = extraTableId;
+          };
     in
     if annotatedRoute == null then
       routesAcc
     else
       routesAcc
       // {
-        ${outputIfName} = (routesAcc.${outputIfName} or [ ]) ++ [ annotatedRoute ];
+        ${outputIfName} =
+          (routesAcc.${outputIfName} or [ ])
+          ++ [ annotatedRoute ]
+          ++ (if annotatedExtraRoute != null then [ annotatedExtraRoute ] else [ ]);
       }
   ) { } rawPolicyRoutes;
 
