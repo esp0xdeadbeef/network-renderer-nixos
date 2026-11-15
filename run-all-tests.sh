@@ -57,6 +57,7 @@ declare -A pid_to_start=()
 running=0
 failures=0
 passed=0
+skipped=0
 
 wait_for_one() {
   local finished_pid
@@ -72,7 +73,14 @@ wait_for_one() {
   unset "pid_to_start[${finished_pid}]"
   running=$((running - 1))
 
-  if (( status == 0 )); then
+  if (( status == 0 )) && grep -q '^SKIP ' "${log_file}"; then
+    # A case that cannot run in this environment (no adjacent checkout, no CLAB
+    # path) states SKIP and exits 0. It is not a pass: count it separately so a
+    # CI run cannot claim coverage it did not have.
+    printf 'SKIP %s (%ss)\n' "${name}" "${elapsed}"
+    grep '^SKIP ' "${log_file}" >&2 || true
+    skipped=$((skipped + 1))
+  elif (( status == 0 )); then
     printf 'PASS %s (%ss)\n' "${name}" "${elapsed}"
     passed=$((passed + 1))
   else
@@ -124,13 +132,17 @@ while (( running > 0 )); do
 done
 
 # --- report ---
-total=$((passed + failures))
-printf '\n%s/%s tests passed\n' "${passed}" "${total}"
-printf 'PASS: %s, FAIL: %s, TOTAL: %s\n' "${passed}" "${failures}" "${total}" >&2
+total=$((passed + skipped + failures))
+printf '\n%s passed, %s skipped, %s failed of %s tests\n' "${passed}" "${skipped}" "${failures}" "${total}"
+printf 'PASS: %s, SKIP: %s, FAIL: %s, TOTAL: %s\n' "${passed}" "${skipped}" "${failures}" "${total}" >&2
 
 if (( failures > 0 )); then
   printf 'FAIL network-renderer-nixos: %s test(s) failed\n' "${failures}" >&2
   exit 1
 fi
 
-printf 'PASS network-renderer-nixos: all %s tests passed\n' "${total}"
+if (( skipped > 0 )); then
+  printf 'PASS network-renderer-nixos: %s passed, %s skipped (not run)\n' "${passed}" "${skipped}"
+else
+  printf 'PASS network-renderer-nixos: all %s tests passed\n' "${total}"
+fi

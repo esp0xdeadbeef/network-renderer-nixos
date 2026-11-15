@@ -50,6 +50,15 @@ trap 'rm -f "${result_json}" "${eval_stderr}" "${rules_file}"' EXIT
 
 _jq -r '.rules' "${result_json}" >"${rules_file}"
 
+# Non-vacuity: the negative NAT assertions below would also hold on an empty or
+# partially rendered ruleset, so prove the core's base table and forward chain
+# were rendered before reading them as "the routed GUA is not NAT66'd".
+if ! rg -q 'table inet router' "${rules_file}" || ! rg -q 'chain forward' "${rules_file}"; then
+  echo "FAIL routed-gua-no-nat66: the core ruleset is missing its base table/forward chain; an empty render cannot prove the NAT66 boundary" >&2
+  sed -n '1,20p' "${rules_file}" >&2
+  exit 1
+fi
+
 # FS-420: translation is a modeled selection, not a renderer default. This
 # fixture selects none for site-c, so the core must render no NAT44 either. The
 # positive NAT44/NAT66 control is FS-400-HDS-010-SDS-010-SMS-060 against
