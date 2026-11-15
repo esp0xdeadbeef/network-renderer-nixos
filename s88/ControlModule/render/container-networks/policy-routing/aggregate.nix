@@ -208,6 +208,10 @@ builtins.foldl'
           ;
         sourceIfNames = routeSourceIfNames;
         inherit admittedOutDestinations;
+
+        tableForRoute =
+          route:
+          if ((route.intent or { }).kind or null) == "service-endpoint-reachability" then tableId else null;
         tableForOutputIfName =
           outputIfName:
           if
