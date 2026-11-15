@@ -134,7 +134,11 @@ let
   requesterPolicies = attrsList (dnsService.requesterPolicies or [ ]);
   validRequesterPolicy =
     policy:
-    (policy.action or null) == "refuse_non_local"
+
+    builtins.elem (policy.action or null) [
+      "allow"
+      "refuse_non_local"
+    ]
     && builtins.isString (policy.requesterService or null)
     && policy.requesterService != ""
     && builtins.isString (policy.relationId or null)
@@ -217,7 +221,7 @@ let
     if builtins.all validRequesterPolicy requesterPolicies then
       true
     else
-      fail "DNS_LOCAL_ONLY_AUTHORITY_LEAK" "a provider requester policy is not source-scoped refuse_non_local";
+      fail "DNS_LOCAL_ONLY_AUTHORITY_LEAK" "a provider requester policy is not a source-scoped allow or refuse_non_local action (FS-560-SMS-020)";
 
   rootForwarders =
     if recursionMode == "forwarding" then
