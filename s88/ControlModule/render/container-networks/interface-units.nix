@@ -10,6 +10,7 @@
   isAccessGateway,
   advertisedOnlinkRoutesByInterface,
   policyRoutingByInterface,
+  modeledScopedDestinationsByLane,
   mkRoute,
   isExternalValidationDelegatedPrefixRoute,
   delegatedPrefixSourceForRoute,
@@ -262,6 +263,16 @@ let
                 route: isRoutedDefaultRoute route && routeGatewayMatchesInterface iface route
               ) staticRawRoutes;
 
+          modeledLaneDestinations =
+            modeledScopedDestinationsByLane.${renderedInterfaceNames.${ifName}} or [ ];
+          isSupersededByModelRoute =
+            route:
+            let
+              dst = route.dst or route.Destination or null;
+              gateway = route.via4 or route.via6 or route.Gateway or null;
+              modeled = builtins.filter (m: (m.dst or null) == dst) modeledLaneDestinations;
+            in
+            builtins.any (m: gateway != null && gateway != (m.via4 or m.via6 or null)) modeled;
           hasPolicyOnlyTwin =
             route:
             builtins.any (
