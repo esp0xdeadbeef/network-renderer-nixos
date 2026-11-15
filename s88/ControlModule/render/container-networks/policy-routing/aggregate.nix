@@ -191,14 +191,39 @@ builtins.foldl'
         )
       );
 
-      admittedOutDestinations =
-        if returnRoutes == null then
+      laneScope = laneAccessForRenderedName interfaceName;
+
+      modeledScopedDestinations =
+        if laneScope == null then
           [ ]
         else
           lib.unique (
             lib.concatMap (
-              peer: returnRoutes.destinationsFor (renderedInterfaceNames.${peer} or peer)
-            ) admittedOutPeerIfNames
+              name:
+              map (route: route.dst) (
+                builtins.filter
+                  (
+                    route:
+                    builtins.isString (route.dst or null)
+                    && ((route.lane or { }).access or null) == laneScope
+                    && ((route.intent or { }).kind or null) == "internal-reachability"
+                  )
+                  (
+                    ((interfaces.${name}.routes or { }).ipv4 or [ ]) ++ ((interfaces.${name}.routes or { }).ipv6 or [ ])
+                  )
+              )
+            ) interfaceNames
+          );
+      admittedOutDestinations =
+        if returnRoutes == null then
+          [ ]
+        else
+          lib.filter (dst: !(builtins.elem dst modeledScopedDestinations)) (
+            lib.unique (
+              lib.concatMap (
+                peer: returnRoutes.destinationsFor (renderedInterfaceNames.${peer} or peer)
+              ) admittedOutPeerIfNames
+            )
           );
       routesByInterface = routesByOutputInterface {
         inherit
@@ -211,7 +236,16 @@ builtins.foldl'
 
         tableForRoute =
           route:
-          if ((route.intent or { }).kind or null) == "service-endpoint-reachability" then tableId else null;
+          if ((route.intent or { }).kind or null) == "service-endpoint-reachability" then
+            tableId
+          else if
+            laneScope != null
+            && ((route.lane or { }).access or null) == laneScope
+            && ((route.intent or { }).kind or null) == "internal-reachability"
+          then
+            tableId
+          else
+            null;
         tableForOutputIfName =
           outputIfName:
           if
