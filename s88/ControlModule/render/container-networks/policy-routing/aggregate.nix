@@ -244,10 +244,9 @@ builtins.foldl'
         in
         if ((route.intent or { }).kind or null) == "service-endpoint-reachability" then
           tableId
-        else if isInternal && routeLane != null && routeLane != laneScope && laneTable != null then
-          laneTable
-        else if isInternal && routeLane != null && routeLane == laneScope then
-          tableId
+        else if isInternal && routeLane != null then
+
+          if laneTable != null then laneTable else tableId
         else
           null;
 
