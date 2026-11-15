@@ -43,7 +43,7 @@ let
   };
   inherit (laneMatch) routeMatchesInterfaceLane;
 in
-admittedOutDestinations: tableId: interfaceName: sourceIfName:
+admittedOutDestinations: tableId: interfaceName: sourceIfName: modeledScopedDestinations:
 let
   targetIfName = lib.findFirst (
     name: renderedInterfaceNames.${name} == interfaceName
@@ -179,7 +179,10 @@ let
       && targetIfName != null
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
     then
-      returnRoutes.forTenantOfInterfaceViaInterface interfaceName targetIfName
+
+      lib.filter (route: !(builtins.elem (route.dst or null) modeledScopedDestinations)) (
+        returnRoutes.forTenantOfInterfaceViaInterface interfaceName targetIfName
+      )
     else
       [ ];
   policyUpstreamReturnRoutes =

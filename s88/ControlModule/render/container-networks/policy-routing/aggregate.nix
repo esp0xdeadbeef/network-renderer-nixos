@@ -232,7 +232,7 @@ builtins.foldl'
           tableId
           ;
         sourceIfNames = routeSourceIfNames;
-        inherit admittedOutDestinations;
+        inherit admittedOutDestinations modeledScopedDestinations;
 
         tableForRoute =
           route:
