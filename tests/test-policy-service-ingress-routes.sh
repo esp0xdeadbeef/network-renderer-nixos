@@ -6,14 +6,15 @@
 # SPEC:   GAMP/SMS/FS-322-HDS-010-SDS-010-SMS-020.md (Scope Selection Resolution)
 # OWNER:  network-renderer-nixos (this case), network-control-plane-model (the gap)
 #
-# EXPECTED TO FAIL until the upstream fact exists. This is NOT a renderer bug, and
-# it must not be made to pass by teaching the renderer to work it out.
+# Regression guard: the upstream `resolvedReachability` fact now exists, so the
+# case passes. It must not be made to pass by teaching the renderer to infer the
+# return leg from the relation record.
 #
 # What the case asserts: an access-to-access service relation returns through the
 # same policy-state owner as its forward request, so the policy table selected for
-# the DMZ source carries the DMZ prefix. It currently does not: a rule admits
-# `From 10.90.10.0/24` into table 1003 while 1003 carries only the source's own
-# access unit, so the packet falls through to main.
+# the DMZ source carries the DMZ prefix. Before the upstream fact existed, a rule
+# admitted `From 10.90.10.0/24` into table 1003 while 1003 carried only the
+# source's own access unit, so the packet fell through to main.
 #
 # Why the renderer cannot fix it:
 #   - URS: reachability and permission "shall not be conflated". Deriving the
@@ -32,8 +33,8 @@
 # fails with NR_REALIZATION_INVENTED_SEMANTIC unless its network data equals CPM
 # verbatim.
 #
-# Once resolvedReachability is present, this case should be satisfied by consuming
-# it, not by inferring anything from relations.
+# The case consumes `resolvedReachability`; it does not infer anything from
+# relations. If it fails again, check the upstream fact first.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
