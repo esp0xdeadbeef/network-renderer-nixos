@@ -159,8 +159,11 @@ in {
     && namedCore.endpointAuthority.relationId == coreEndpointBinding.relationId
     && namedCore.endpointAuthority.terminalAttachmentId == coreEndpointBinding.terminalAttachmentId
     && coreEndpointBinding.addresses == coreDns.listen
+    # FS-560-SMS-020: the authority authorizes the forwarding-capable requester
+    # (it forwards the shared namespace here); refuse_non_local belongs only to
+    # a local-data-only source, which the lateral policy below covers.
     && builtins.all
-      (prefix: builtins.elem "${prefix} refuse_non_local" recursiveAccessControl)
+      (prefix: builtins.elem "${prefix} allow" recursiveAccessControl)
       localSourcePrefixes
     && builtins.all
       (prefix: builtins.elem "${prefix} refuse_non_local" localAccessControl)
