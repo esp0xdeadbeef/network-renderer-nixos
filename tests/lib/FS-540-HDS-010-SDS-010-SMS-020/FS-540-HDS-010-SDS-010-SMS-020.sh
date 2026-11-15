@@ -111,12 +111,17 @@ nix_eval_json_or_fail \
           && listens "fd42:21c:50:0:0:0:0:1"
           && !(listens "0.0.0.0")
           && !(listens "::");
+        # FS-525 D1: the forwarder names the modeled resolver service identity.
+        # It is node-stable (the service prefix the model allocated to the core),
+        # not the per-lane attachment endpoint on the fabric /31, which changes
+        # whenever an access relation is added or removed (FS-540: the source must
+        # not follow a per-relation attachment endpoint).
         accessForwardsOnlyToNamedCore = accessForwardZones == [
           {
             name = ".";
             "forward-addr" = [
-              "10.2.255.6"
-              "fd42:21c:fe:0:0:0:0:6"
+              "10.2.0.3"
+              "fd42:21c:ff:0:0:0:0:3"
             ];
           }
         ];
@@ -142,8 +147,8 @@ nix_eval_json_or_fail \
         coreListensOnlyOnInternalSurface = coreServer.interface == [
           "127.0.0.1"
           "::1"
-          "10.2.255.6"
-          "fd42:21c:fe:0:0:0:0:6"
+          "10.2.0.3"
+          "fd42:21c:ff:0:0:0:0:3"
         ];
         # Same contract on the core resolver: it admits the access resolver that
         # forwards to it and the lateral fabric peers the model classifies, and

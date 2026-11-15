@@ -50,8 +50,13 @@ trap 'rm -f "${result_json}" "${eval_stderr}" "${rules_file}"' EXIT
 
 _jq -r '.rules' "${result_json}" >"${rules_file}"
 
-if ! rg -q 'table ip nat' "${rules_file}" || ! rg -q 'oifname "[^"]+" ip saddr .*10\.90\.10\.0/24.*masquerade' "${rules_file}"; then
-  echo "FAIL routed-gua-no-nat66: expected IPv4 egress masquerade to remain rendered for private IPv4 internet egress" >&2
+# FS-420: translation is a modeled selection, not a renderer default. This
+# fixture selects none for site-c, so the core must render no NAT44 either. The
+# positive NAT44/NAT66 control is FS-400-HDS-010-SDS-010-SMS-060 against
+# network-labs/examples/single-wan, which declares translation explicitly; this
+# case owns only the "routed GUA is not NAT66'd" boundary.
+if rg -q 'oifname "[^"]+" ip saddr .*masquerade' "${rules_file}"; then
+  echo "FAIL routed-gua-no-nat66: IPv4 masquerade was rendered although the model selected no translation (FS-420: renderer-local defaults shall not create translation behavior absent from the bundle)" >&2
   echo "nft nat excerpt:" >&2
   rg 'table ip|table ip6|postrouting|masquerade' "${rules_file}" >&2 || true
   exit 1
