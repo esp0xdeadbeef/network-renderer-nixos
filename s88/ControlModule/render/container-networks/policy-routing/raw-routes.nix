@@ -237,8 +237,15 @@ let
           [ ]
       );
   sourceRoutesWithConnectedReturns = sourceRoutes ++ explicitForwardReturnConnectedRoutes;
+
+  isReflectedModelledRoute =
+    route:
+    ((route.intent or { }).kind or null) == "internal-reachability"
+    && ((route.lane or { }).access or null) == null
+    && builtins.elem (route.dst or null) modeledScopedDestinations
+    && routeOutputInterface sourceIfName route == sourceIfName;
   staticPolicyRoutes = lib.filter (
-    route: !(isExternalValidationDelegatedPrefixRoute route)
+    route: !(isExternalValidationDelegatedPrefixRoute route) && !(isReflectedModelledRoute route)
   ) sourceRoutesWithConnectedReturns;
   explicitAcceptedOutputRoutes = lib.filter (
     route:
