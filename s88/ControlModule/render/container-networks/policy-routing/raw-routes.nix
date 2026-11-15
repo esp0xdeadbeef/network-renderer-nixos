@@ -244,8 +244,18 @@ let
     && ((route.lane or { }).access or null) == null
     && builtins.elem (route.dst or null) modeledScopedDestinations
     && routeOutputInterface sourceIfName route == sourceIfName;
+
+  isReflectedServiceEndpointRoute =
+    route:
+    isSelector
+    && ((route.intent or { }).kind or null) == "service-endpoint-reachability"
+    && isDownstreamSelectorAccessInterface (renderedInterfaceNames.${sourceIfName} or sourceIfName)
+    && routeOutputInterface sourceIfName route == sourceIfName;
   staticPolicyRoutes = lib.filter (
-    route: !(isExternalValidationDelegatedPrefixRoute route) && !(isReflectedModelledRoute route)
+    route:
+    !(isExternalValidationDelegatedPrefixRoute route)
+    && !(isReflectedModelledRoute route)
+    && !(isReflectedServiceEndpointRoute route)
   ) sourceRoutesWithConnectedReturns;
   explicitAcceptedOutputRoutes = lib.filter (
     route:
