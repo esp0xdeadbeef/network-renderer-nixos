@@ -6,6 +6,7 @@
   sourceIfNames,
   tableId,
   tableForOutputIfName ? (_outputIfName: tableId),
+  tableForRoute ? (_route: null),
   admittedOutDestinations ? [ ],
 }:
 let
@@ -24,6 +25,8 @@ let
       sourceIfName = rawRoute._s88PolicySourceIfName;
       outputIfName = routeOutputInterface sourceIfName rawRoute;
       outputTableId = tableForOutputIfName outputIfName;
+      routeTableOverride = tableForRoute rawRoute;
+      effectiveTableId = if routeTableOverride == null then outputTableId else routeTableOverride;
       renderedRoute = mkRoute (
         (builtins.removeAttrs rawRoute [
           "_s88PolicySourceIfName"
@@ -31,7 +34,7 @@ let
         ])
         // {
 
-          table = outputTableId;
+          table = effectiveTableId;
         }
       );
       annotatedRoute =
@@ -41,7 +44,7 @@ let
           renderedRoute
           // {
             _s88Multipath = rawRoute.multipath or null;
-            _s88Table = outputTableId;
+            _s88Table = effectiveTableId;
           };
     in
     if annotatedRoute == null then
