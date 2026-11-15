@@ -242,8 +242,9 @@ let
       addr6 = if ifName == null then null else peers.addressForFamily 6 interfaces.${ifName};
       peer4 = if addr4 == null then null else peers.ipv4PeerFor31 addr4;
       peer6 = if addr6 == null then null else peers.ipv6PeerFor127 addr6;
-      gateway = route.Gateway or null;
-      modeled = builtins.filter (m: (m.dst or null) == (route.Destination or null)) modeledLaneRoutes;
+      gateway = route.via4 or route.via6 or route.Gateway or null;
+      dst = route.dst or route.Destination or null;
+      modeled = builtins.filter (m: (m.dst or null) == dst) modeledLaneRoutes;
     in
     builtins.any (
       m:
