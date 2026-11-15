@@ -234,7 +234,7 @@ let
       needsIpv6AcceptRA
       ;
     inherit (advertisements) advertisedOnlinkRoutesByInterface;
-    inherit (policyRouting) policyRoutingByInterface;
+    inherit (policyRouting) policyRoutingByInterface modeledScopedDestinationsByLane;
     inherit (classes) keepInterfaceRoutesInMain isUpstreamSelectorCoreInterface isAccessGateway;
   };
 

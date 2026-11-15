@@ -251,6 +251,22 @@ let
       ((m.via4 or null) != null && gateway == peer4 && gateway != m.via4)
       || ((m.via6 or null) != null && gateway == peer6 && gateway != m.via6)
     ) modeled;
+  modeledScopedDestinationsByLane = builtins.listToAttrs (
+    map (name: {
+      name = renderedInterfaceNames.${name};
+      value = map (route: { inherit (route) dst via4 via6; }) (
+        builtins.filter
+          (
+            route:
+            ((route.lane or { }).access or null) != null
+            && ((route.intent or { }).kind or null) == "internal-reachability"
+          )
+          (
+            ((interfaces.${name}.routes or { }).ipv4 or [ ]) ++ ((interfaces.${name}.routes or { }).ipv6 or [ ])
+          )
+      );
+    }) interfaceNames
+  );
   aggregatePolicyRoutingFiltered = aggregatePolicyRouting // {
     routes = lib.mapAttrs (
       renderedName: routes: lib.filter (route: !(reflectedPeerRoute renderedName route)) routes
@@ -330,4 +346,5 @@ in
     policyRoutingWithRelationSelection // { routes = merged; };
 
   rawRoutesByInterface = policyRoutingWithRelationSelection.routes or { };
+  inherit modeledScopedDestinationsByLane;
 }
