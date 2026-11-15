@@ -188,11 +188,22 @@ let
         fail "DNS_RECURSION_MODE_INVALID" "iterative mode contains a forwarding or fallback source"
     else if recursionMode == "local-only" then
       if
-        legacyForwarders == [ ]
-        && builtins.length localAuthorityResolvers == 1
-        && localForwardZones != [ ]
-        && builtins.all validLocalForwardZone localForwardZones
-        && validLocalOnlyPolicy
+
+        (
+          legacyForwarders == [ ]
+          && builtins.length localAuthorityResolvers == 1
+          && localForwardZones != [ ]
+          && builtins.all validLocalForwardZone localForwardZones
+          && validLocalOnlyPolicy
+        )
+
+        || (
+          legacyForwarders == [ ]
+          && namedCoreResolvers == [ ]
+          && localAuthorityResolvers == [ ]
+          && localForwardZones == [ ]
+          && localZones != [ ]
+        )
       then
         true
       else
