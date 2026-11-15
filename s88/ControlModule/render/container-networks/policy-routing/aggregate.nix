@@ -296,7 +296,7 @@ builtins.foldl'
         in
         c != null
         && a != null
-        && a.len >= c.len
+        && a.len > c.len
         && (
           if lib.hasInfix ":" c.addr then
             lib.take 4 (lib.splitString ":" c.addr) == lib.take 4 (lib.splitString ":" a.addr)
