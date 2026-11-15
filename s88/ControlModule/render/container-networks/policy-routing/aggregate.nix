@@ -223,6 +223,34 @@ builtins.foldl'
         else
           null;
 
+      laneTableIdFor =
+        lane:
+        let
+          candidates = lib.filter (
+            name:
+            builtins.hasAttr name interfaces
+            && (((interfaces.${name}.backingRef or { }).lane or { }).access or null) == lane
+            && isDownstreamSelectorAccessInterface (renderedInterfaceNames.${name} or name)
+          ) interfaceNames;
+        in
+        if candidates == [ ] then null else (policyRoutingAllocationFor (builtins.head candidates)).tableId;
+
+      tableForRoute =
+        route:
+        let
+          routeLane = (route.lane or { }).access or null;
+          isInternal = ((route.intent or { }).kind or null) == "internal-reachability";
+          laneTable = if routeLane == null then null else laneTableIdFor routeLane;
+        in
+        if ((route.intent or { }).kind or null) == "service-endpoint-reachability" then
+          tableId
+        else if isInternal && routeLane != null && routeLane != laneScope && laneTable != null then
+          laneTable
+        else if isInternal && routeLane != null && routeLane == laneScope then
+          tableId
+        else
+          null;
+
       modeledScopedDestinations =
         if laneScope == null then
           [ ]
@@ -263,6 +291,7 @@ builtins.foldl'
           ;
         sourceIfNames = routeSourceIfNames;
         inherit admittedOutDestinations modeledScopedDestinations extraTableForRoute;
+        inherit tableForRoute;
 
         tableForOutputIfName =
           outputIfName:
