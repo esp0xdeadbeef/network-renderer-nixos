@@ -191,7 +191,11 @@ builtins.foldl'
         )
       );
 
-      laneScope = laneAccessForRenderedName interfaceName;
+      laneScope =
+        if builtins.hasAttr interfaceName interfaces then
+          ((interfaces.${interfaceName}.backingRef or { }).lane or { }).access or null
+        else
+          laneAccessForRenderedName interfaceName;
 
       modeledScopedDestinations =
         if laneScope == null then
