@@ -272,11 +272,43 @@ builtins.foldl'
               )
             ) interfaceNames
           );
+      cidrParts =
+        value:
+        if !(builtins.isString value) then
+          null
+        else
+          let
+            parts = lib.splitString "/" value;
+          in
+          if builtins.length parts != 2 then
+            null
+          else
+            {
+              addr = builtins.head parts;
+              len = lib.toInt (builtins.elemAt parts 1);
+            };
+      ipv4Octets = addr: map (part: lib.toInt part) (lib.splitString "." addr);
+      cidrCovers =
+        cidr: address:
+        let
+          c = cidrParts cidr;
+          a = cidrParts address;
+        in
+        c != null
+        && a != null
+        && a.len >= c.len
+        && (
+          if lib.hasInfix ":" c.addr then
+            lib.take 4 (lib.splitString ":" c.addr) == lib.take 4 (lib.splitString ":" a.addr)
+          else
+            (c.len / 8) * 8 == c.len
+            && lib.take (c.len / 8) (ipv4Octets c.addr) == lib.take (c.len / 8) (ipv4Octets a.addr)
+        );
       admittedOutDestinations =
         if returnRoutes == null then
           [ ]
         else
-          lib.filter (dst: !(builtins.elem dst modeledScopedDestinations)) (
+          lib.filter (dst: !(builtins.any (m: cidrCovers m.dst dst) modeledScopedDestinations)) (
             lib.unique (
               lib.concatMap (
                 peer: returnRoutes.destinationsFor (renderedInterfaceNames.${peer} or peer)
