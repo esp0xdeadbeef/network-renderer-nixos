@@ -46,6 +46,9 @@ PERMITTED_PATTERNS=(
 
   # --- Secret-key redaction in provenance (platform integrity, not policy) ---
   '".*${needle}.*"'
+
+  # --- MAC address format validation (vm-nics) ---
+  '"[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]"'
 )
 
 # ============================================================
@@ -53,6 +56,12 @@ PERMITTED_PATTERNS=(
 # ============================================================
 classify_line() {
   local file="$1" line_num="$2" content="$3"
+
+  # A comment that quotes a regex (e.g. documenting why lib.hasInfix is
+  # avoided) is prose, not a classification rule.
+  if [[ "${content}" =~ ^[[:space:]]*# ]]; then
+    return 0
+  fi
 
   # Extract the string between the first pair of double quotes after "builtins.match"
   local pattern
