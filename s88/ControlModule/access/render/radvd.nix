@@ -26,10 +26,6 @@ let
     else
       null;
 
-  radvdString = value: "\"" + builtins.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ] value + "\"";
-
-  radvdInterfaceName = radvdString scope.interfaceName;
-
   waitIface = pkgs.writeShellScript "wait-iface-ready-radvd-${scope.fileStem}" ''
     set -euo pipefail
     IF="$1"
@@ -92,7 +88,7 @@ let
     ''}
 
     cat > ${lib.escapeShellArg cfgFile} <<'EOF'
-    interface ${radvdInterfaceName} {
+    interface ${scope.interfaceName} {
       AdvSendAdvert on;
     ${lib.optionalString (pathMtuRender.directive != "") ''
       ${pathMtuRender.directive}

@@ -17,23 +17,45 @@ let
     isp = "isp";
   };
 
-  nonDistinctContainerTokens = [ "s" "router" "network" "container" ];
+  nonDistinctContainerTokens = [
+    "s"
+    "router"
+    "network"
+    "container"
+  ];
 
   stringCharacters =
     value:
-    if value == "" then [ ] else map (index: builtins.substring index 1 value) (lib.range 0 (builtins.stringLength value - 1));
+    if value == "" then
+      [ ]
+    else
+      map (index: builtins.substring index 1 value) (lib.range 0 (builtins.stringLength value - 1));
 
-  isValidInterfaceNameCharacter =
-    char: builtins.match "[A-Za-z0-9_.-]" char != null;
+  isValidInterfaceNameCharacter = char: builtins.match "[A-Za-z0-9_.-]" char != null;
 
   normalizeInterfaceNameToken =
     token:
     let
       chars = stringCharacters token;
-      normalized = lib.concatStrings (map (char: if isValidInterfaceNameCharacter char then char else "-") chars);
-      compacted = lib.concatStringsSep "-" (lib.filter (part: part != "") (lib.splitString "-" normalized));
+      normalized = lib.concatStrings (
+        map (char: if isValidInterfaceNameCharacter char then char else "-") chars
+      );
+      compacted = lib.concatStringsSep "-" (
+        lib.filter (part: part != "") (lib.splitString "-" normalized)
+      );
     in
     if compacted != "" then compacted else "if";
+
+  radvdReservedInterfaceNames = [
+    "abro"
+    "clients"
+    "dnssl"
+    "interface"
+    "nat64prefix"
+    "prefix"
+    "rdnss"
+    "route"
+  ];
 
   validInterfaceName =
     name:
@@ -42,23 +64,32 @@ let
     && name != "."
     && name != ".."
     && builtins.stringLength name <= interfaceNameMaxLength
-    && builtins.match "[A-Za-z0-9_.-]+" name != null;
+    && builtins.match "[A-Za-z0-9_.-]+" name != null
+    && !(builtins.elem name radvdReservedInterfaceNames);
 
-  aliasToken = token: if builtins.hasAttr token semanticTokenAliases then semanticTokenAliases.${token} else token;
+  aliasToken =
+    token: if builtins.hasAttr token semanticTokenAliases then semanticTokenAliases.${token} else token;
 
   truncateToken =
     maxLen: token:
-    let tokenLen = builtins.stringLength token;
-    in if tokenLen <= maxLen then token else builtins.substring 0 maxLen token;
+    let
+      tokenLen = builtins.stringLength token;
+    in
+    if tokenLen <= maxLen then token else builtins.substring 0 maxLen token;
 
   semanticTokensForName =
     name:
-    map
-      (token: normalizeInterfaceNameToken (aliasToken token))
-      (lib.filter (token: token != "") (lib.splitString "-" name));
+    map (token: normalizeInterfaceNameToken (aliasToken token)) (
+      lib.filter (token: token != "") (lib.splitString "-" name)
+    );
 
   compactSemanticName =
-    { name, maxLen, fallback, removeTokens ? [ ] }:
+    {
+      name,
+      maxLen,
+      fallback,
+      removeTokens ? [ ],
+    }:
     let
       allTokens = semanticTokensForName name;
       preferredTokens = lib.filter (token: !(builtins.elem token removeTokens)) allTokens;
@@ -66,7 +97,10 @@ let
       compact = lib.concatStringsSep "" (map (truncateToken 3) selectedTokens);
       normalized = if compact != "" then compact else fallback;
     in
-    if builtins.stringLength normalized <= maxLen then normalized else builtins.substring 0 maxLen normalized;
+    if builtins.stringLength normalized <= maxLen then
+      normalized
+    else
+      builtins.substring 0 maxLen normalized;
 
   uniqueInterfaceNameCandidate =
     baseName: index:
@@ -76,18 +110,27 @@ let
       let
         suffix = "-${toString index}";
         prefixLen = interfaceNameMaxLength - builtins.stringLength suffix;
-        prefix = if prefixLen > 0 then builtins.substring 0 prefixLen baseName else builtins.substring 0 1 baseName;
+        prefix =
+          if prefixLen > 0 then builtins.substring 0 prefixLen baseName else builtins.substring 0 1 baseName;
       in
       "${prefix}${suffix}";
 
   resolveUniqueInterfaceName =
-    { baseName, usedNames, index ? 1 }:
-    let candidate = uniqueInterfaceNameCandidate baseName index;
+    {
+      baseName,
+      usedNames,
+      index ? 1,
+    }:
+    let
+      candidate = uniqueInterfaceNameCandidate baseName index;
     in
     if !(builtins.hasAttr candidate usedNames) then
       candidate
     else
-      resolveUniqueInterfaceName { inherit baseName usedNames; index = index + 1; };
+      resolveUniqueInterfaceName {
+        inherit baseName usedNames;
+        index = index + 1;
+      };
 
   assignUniqueName =
     field: outputField: entries:
@@ -102,14 +145,27 @@ let
           };
         in
         {
-          usedNames = acc.usedNames // { ${resolvedName} = true; };
+          usedNames = acc.usedNames // {
+            ${resolvedName} = true;
+          };
           entries = acc.entries ++ [
-            (entry // { value = entry.value // { ${outputField} = resolvedName; }; })
+            (
+              entry
+              // {
+                value = entry.value // {
+                  ${outputField} = resolvedName;
+                };
+              }
+            )
           ];
         }
       )
-      { usedNames = { }; entries = [ ]; }
-      entries).entries;
+      {
+        usedNames = { };
+        entries = [ ];
+      }
+      entries
+    ).entries;
 in
 rec {
   inherit validInterfaceName;
@@ -143,17 +199,28 @@ rec {
       '';
 
   semanticHostVethBaseName =
-    { containerName, desiredInterfaceName, adapterName ? null }:
+    {
+      containerName,
+      desiredInterfaceName,
+      adapterName ? null,
+    }:
     let
-      adapterTokenSource = if builtins.isString adapterName && adapterName != "" then adapterName else desiredInterfaceName;
+      adapterTokenSource =
+        if builtins.isString adapterName && adapterName != "" then adapterName else desiredInterfaceName;
       containerToken = compactSemanticName {
         name = containerName;
         maxLen = 4;
         fallback = "unit";
         removeTokens = nonDistinctContainerTokens;
       };
-      interfaceToken = compactSemanticName { name = adapterTokenSource; maxLen = 6; fallback = "if"; };
-      hashSuffix = builtins.substring 0 3 (builtins.hashString "sha256" "${containerName}:${desiredInterfaceName}:${adapterTokenSource}");
+      interfaceToken = compactSemanticName {
+        name = adapterTokenSource;
+        maxLen = 6;
+        fallback = "if";
+      };
+      hashSuffix = builtins.substring 0 3 (
+        builtins.hashString "sha256" "${containerName}:${desiredInterfaceName}:${adapterTokenSource}"
+      );
     in
     "${containerToken}-${interfaceToken}-${hashSuffix}";
 
@@ -164,16 +231,26 @@ rec {
     let
       candidates = lib.filter (entry: !(entry.value.usePrimaryHostBridge or false)) entries;
       resolved = assignUniqueName "hostVethBaseName" "hostVethName" candidates;
-      resolvedByIfName = builtins.listToAttrs (map (entry: { name = entry.ifName; value = entry; }) resolved);
+      resolvedByIfName = builtins.listToAttrs (
+        map (entry: {
+          name = entry.ifName;
+          value = entry;
+        }) resolved
+      );
     in
-    map
-      (
-        entry:
-        if entry.value.usePrimaryHostBridge or false then
-          entry
-        else
-          let resolvedEntry = resolvedByIfName.${entry.ifName};
-          in resolvedEntry // { value = resolvedEntry.value // { hostInterfaceName = resolvedEntry.value.hostVethName; }; }
-      )
-      entries;
+    map (
+      entry:
+      if entry.value.usePrimaryHostBridge or false then
+        entry
+      else
+        let
+          resolvedEntry = resolvedByIfName.${entry.ifName};
+        in
+        resolvedEntry
+        // {
+          value = resolvedEntry.value // {
+            hostInterfaceName = resolvedEntry.value.hostVethName;
+          };
+        }
+    ) entries;
 }
