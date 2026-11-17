@@ -1319,6 +1319,19 @@ in
             };
             link = "p2p-s-router-core-nebula-s-router-upstream-selector";
           };
+
+          tenant-client = {
+            attach = {
+              bridge = "client";
+              kind = "bridge";
+            };
+            interface = {
+              addr4 = "10.20.20.2/24";
+              addr6 = "fd42:dead:beef:20::2/64";
+              name = "tenant-client";
+            };
+            logicalInterface = "tenant-client";
+          };
         };
       };
       esp0xdeadbeef-site-a-s-router-downstream-selector = {
@@ -1649,10 +1662,7 @@ in
             };
             link = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-streaming--uplink-isp-a";
           };
-          # FS-210/FS-230: s-router-access-dmz is publicly-ingress and declares
-          # no selects, so it has an ingress/return transport lane rather than
-          # an exit selection.  Realize it so the post-translation return path
-          # exists.
+
           upstream-dmz-isp-a = {
             adapterName = "p2p-s-router-policy-only-s-router-upstream-selector--access-s-router-access-dmz--uplink-isp-a-upstream-dmz-isp-a";
             attach = {
@@ -2104,6 +2114,19 @@ in
             };
             link = "p2p-c-router-nebula-core-c-router-upstream-selector";
           };
+
+          tenant-client = {
+            attach = {
+              bridge = "client";
+              kind = "bridge";
+            };
+            interface = {
+              addr4 = "10.40.20.2/24";
+              addr6 = "fd42:dead:beef:40::2/64";
+              name = "tenant-client";
+            };
+            logicalInterface = "tenant-client";
+          };
         };
       };
       esp0xdeadbeef-site-c-c-router-policy = {
@@ -2430,6 +2453,19 @@ in
               name = "upstream";
             };
             link = "p2p-b-router-core-nebula-b-router-upstream-selector";
+          };
+
+          tenant-branch = {
+            attach = {
+              bridge = "branch";
+              kind = "bridge";
+            };
+            interface = {
+              addr4 = "10.30.50.2/24";
+              addr6 = "fd42:dead:beef:35::2/64";
+              name = "tenant-branch";
+            };
+            logicalInterface = "tenant-branch";
           };
         };
       };

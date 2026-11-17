@@ -511,6 +511,13 @@
             };
           };
           s-router-core-nebula = {
+
+            attachments = [
+              {
+                kind = "tenant";
+                name = "client";
+              }
+            ];
             role = "core";
           };
           s-router-downstream-selector = {
@@ -946,6 +953,13 @@
             role = "downstream-selector";
           };
           c-router-nebula-core = {
+
+            attachments = [
+              {
+                kind = "tenant";
+                name = "client";
+              }
+            ];
             role = "core";
           };
           c-router-policy = {
@@ -1289,6 +1303,13 @@
             role = "access";
           };
           b-router-core-nebula = {
+
+            attachments = [
+              {
+                kind = "tenant";
+                name = "branch";
+              }
+            ];
             role = "core";
           };
           b-router-core-simulated-isp = {
