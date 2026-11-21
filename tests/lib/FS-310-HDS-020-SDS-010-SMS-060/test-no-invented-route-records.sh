@@ -173,14 +173,61 @@ REPO_ROOT="${repo_root}" TRACE_ID="${trace_id}" nix eval --impure --json --expr 
       (builtins.filter
         (k: (builtins.length (lib.unique (map (r: r.iface) grouped.${k}))) > 1)
         (builtins.attrNames grouped));
+    # ---- harness self-checks ------------------------------------------------
+    # A comparison that cannot distinguish anything reports false inventions,
+    # which is worse than no test: it names a renderer defect that does not
+    # exist. These values let the shell distinguish "the renderer duplicated a
+    # route" from "this check is broken", and the shell FAILS on the latter
+    # instead of blaming the renderer.
+    containersWithRoutes = builtins.filter
+      (name:
+        let nets = containers.${name}.config.systemd.network.networks or { };
+        in builtins.any
+             (n: builtins.any (r: (r.Table or null) != null) (n.routes or [ ]))
+             (builtins.attrValues nets))
+      (builtins.attrNames containers);
+
+    # A container whose rendered interfaces match no canonical interface at all
+    # is a mapping failure, not a renderer defect.
+    unmatchedContainers = builtins.filter
+      (name:
+        let
+          nets = containers.${name}.config.systemd.network.networks or { };
+          names = builtins.filter (x: x != null)
+            (map (n: n.matchConfig.Name or null) (builtins.attrValues nets));
+          known = builtins.filter (x: x != null) (map (c: c.runtime) canonical);
+        in
+        (builtins.length names) > 0
+        && !(builtins.any (n: builtins.elem n known) names))
+      containersWithRoutes;
+
+    # Positive control: at least one rendered default must be source-bound.
+    # If none is, the predicate cannot be distinguishing and a green result
+    # would be meaningless.
+    sourceBoundDefaults = builtins.length
+      (builtins.filter
+        (r: builtins.elem r.dst [ "0.0.0.0/0" "::/0" ] && hasCanonical r)
+        rendered);
+    # Seeded negative for the predicate itself: a synthetic route on an
+    # interface no canonical record names MUST be rejected. If it is accepted,
+    # the source-binding check cannot say "no" and a green result is worthless.
+    predicateDiscriminates =
+      let
+        fake = { container = "__selftest__"; iface = "__no_such_interface__";
+                 dst = "::/0"; table = 1; metric = 50; family = 6; };
+      in !(hasCanonical fake);
   in {
-    inherit invented duplicates;
+    inherit invented duplicates unmatchedContainers sourceBoundDefaults predicateDiscriminates;
     renderedCount = builtins.length rendered;
     canonicalCount = builtins.length canonical;
+    renderedContainers = builtins.length containersWithRoutes;
   }
 ' >"${out}"
 
 invented="$(jq -r '.invented | length' "${out}")"
+canonical_count="$(jq -r '.canonicalCount' "${out}")"
+unmatched="$(jq -r '.unmatchedContainers | length' "${out}")"
+bound_defaults="$(jq -r '.sourceBoundDefaults' "${out}")"
 duplicates="$(jq -r '.duplicates | length' "${out}")"
 rendered_count="$(jq -r '.renderedCount' "${out}")"
 
@@ -188,6 +235,29 @@ if [[ "${rendered_count}" == "0" ]]; then
   # Vacuity guard: a render that emits no policy-table route at all proves
   # nothing about source binding.
   printf 'FAIL %s: the render emitted no policy-table route, so the clause is vacuous\n' "${trace_id}" >&2
+  exit 1
+fi
+
+# ---- harness guards: FAIL THE TEST, not the renderer ----------------------
+# Each of these means the comparison is not trustworthy. Reporting a renderer
+# defect from an untrustworthy comparison is a false positive, so these fail
+# first and say so plainly.
+if [[ "${canonical_count}" == "0" ]]; then
+  printf 'FAIL %s: harness error -- the canonical bundle yielded no routes, so every rendered route would look invented\n' "${trace_id}" >&2
+  exit 1
+fi
+if [[ "${unmatched}" != "0" ]]; then
+  printf 'FAIL %s: harness error -- rendered interfaces of these containers match no canonical runtime interface, so comparisons are meaningless:\n' "${trace_id}" >&2
+  jq -r '.unmatchedContainers[] | "  \(.)"' "${out}" >&2
+  exit 1
+fi
+if [[ "${bound_defaults}" == "0" ]]; then
+  printf 'FAIL %s: harness error -- no rendered default is source-bound, so the predicate cannot distinguish anything\n' "${trace_id}" >&2
+  exit 1
+fi
+
+if [[ "$(jq -r '.predicateDiscriminates' "${out}")" != "true" ]]; then
+  printf 'FAIL %s: harness error -- the source-binding predicate accepted a route on an interface no canonical record names\n' "${trace_id}" >&2
   exit 1
 fi
 
@@ -205,5 +275,5 @@ if [[ "${duplicates}" != "0" ]]; then
   exit 1
 fi
 
-printf 'PASS %s (%s rendered policy routes, all source-bound, no duplicated occurrence)\n' \
-  "${trace_id}" "${rendered_count}"
+printf 'PASS %s (%s rendered policy routes across %s container(s); defaults source-bound=%s, no duplicated occurrence)\n' \
+  "${trace_id}" "${rendered_count}" "$(jq -r '.renderedContainers' "${out}")" "${bound_defaults}"
