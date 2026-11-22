@@ -15,6 +15,8 @@ if facts == null then
 else
   let
     inherit (facts)
+      interfaces
+      realizedInterfaces
       listenAddresses
       allowFrom
       forwarders
@@ -41,6 +43,58 @@ else
       ;
 
     controlledAuthority = validationAuthority != null;
+
+    resolverUpstreamHostRoutes =
+      let
+        routeDestination = route: route.dst or route.Destination or null;
+        isV4Address = addr: builtins.isString addr && lib.hasInfix "." addr && !(lib.hasInfix ":" addr);
+        forwarderAddresses = lib.unique (lib.filter isV4Address forwarders);
+        addressesOf = ifName: ((realizedInterfaces.${ifName} or { }).routes or { }).ipv4 or [ ];
+        runtimeNameOf =
+          ifName:
+          let
+            i = realizedInterfaces.${ifName} or { };
+          in
+          i.runtimeIfName or i.renderedIfName or ifName;
+        interfaceCarrying =
+          addr:
+          let
+            candidates = lib.filter (
+              ifName: builtins.any (route: routeDestination route == "${addr}/32") (addressesOf ifName)
+            ) (builtins.attrNames realizedInterfaces);
+          in
+          if candidates == [ ] then null else builtins.head candidates;
+        nextHopFor =
+          ifName:
+          let
+            candidates = builtins.filter (route: builtins.isString (route.via4 or null)) (addressesOf ifName);
+          in
+          if candidates == [ ] then null else (builtins.head candidates).via4;
+        recordFor =
+          addr:
+          let
+            ifName = interfaceCarrying addr;
+            gateway = if ifName == null then null else nextHopFor ifName;
+          in
+          if ifName == null || gateway == null then
+            null
+          else
+            {
+              name = "10-${runtimeNameOf ifName}";
+              value = {
+                routes = [
+                  {
+                    Destination = "${addr}/32";
+                    Gateway = gateway;
+                    GatewayOnLink = true;
+                    Metric = 50;
+                  }
+                ];
+              };
+            };
+      in
+      builtins.listToAttrs (builtins.filter (r: r != null) (map recordFor forwarderAddresses));
+
     rootHintsFile =
       if controlledAuthority then
         pkgs.writeText "controlled-root-hints" (
@@ -493,57 +547,59 @@ else
       };
     };
 
-    systemd.network.networks = lib.optionalAttrs (dnsEgressPolicy != null) {
-      "10-${dnsEgressPolicy.runtimeIfName}" = {
-        matchConfig.Name = dnsEgressPolicy.runtimeIfName;
-        routingPolicyRules = [
-          {
-            Family = "ipv4";
-            FirewallMark = dnsEgressPolicy.firewallMark;
-            Priority = dnsEgressPolicy.rulePriority;
-            Table = dnsEgressPolicy.tableId;
-          }
-          {
-            Family = "ipv6";
-            FirewallMark = dnsEgressPolicy.firewallMark;
-            Priority = dnsEgressPolicy.rulePriority;
-            Table = dnsEgressPolicy.tableId;
-          }
-          {
-            Family = "ipv4";
-            User = "unbound";
-            IPProtocol = "udp";
-            DestinationPort = 53;
-            Priority = dnsEgressPolicy.rulePriority;
-            Table = dnsEgressPolicy.tableId;
-          }
-          {
-            Family = "ipv4";
-            User = "unbound";
-            IPProtocol = "tcp";
-            DestinationPort = 53;
-            Priority = dnsEgressPolicy.rulePriority;
-            Table = dnsEgressPolicy.tableId;
-          }
-          {
-            Family = "ipv6";
-            User = "unbound";
-            IPProtocol = "udp";
-            DestinationPort = 53;
-            Priority = dnsEgressPolicy.rulePriority;
-            Table = dnsEgressPolicy.tableId;
-          }
-          {
-            Family = "ipv6";
-            User = "unbound";
-            IPProtocol = "tcp";
-            DestinationPort = 53;
-            Priority = dnsEgressPolicy.rulePriority;
-            Table = dnsEgressPolicy.tableId;
-          }
-        ];
+    systemd.network.networks =
+      resolverUpstreamHostRoutes
+      // lib.optionalAttrs (dnsEgressPolicy != null) {
+        "10-${dnsEgressPolicy.runtimeIfName}" = {
+          matchConfig.Name = dnsEgressPolicy.runtimeIfName;
+          routingPolicyRules = [
+            {
+              Family = "ipv4";
+              FirewallMark = dnsEgressPolicy.firewallMark;
+              Priority = dnsEgressPolicy.rulePriority;
+              Table = dnsEgressPolicy.tableId;
+            }
+            {
+              Family = "ipv6";
+              FirewallMark = dnsEgressPolicy.firewallMark;
+              Priority = dnsEgressPolicy.rulePriority;
+              Table = dnsEgressPolicy.tableId;
+            }
+            {
+              Family = "ipv4";
+              User = "unbound";
+              IPProtocol = "udp";
+              DestinationPort = 53;
+              Priority = dnsEgressPolicy.rulePriority;
+              Table = dnsEgressPolicy.tableId;
+            }
+            {
+              Family = "ipv4";
+              User = "unbound";
+              IPProtocol = "tcp";
+              DestinationPort = 53;
+              Priority = dnsEgressPolicy.rulePriority;
+              Table = dnsEgressPolicy.tableId;
+            }
+            {
+              Family = "ipv6";
+              User = "unbound";
+              IPProtocol = "udp";
+              DestinationPort = 53;
+              Priority = dnsEgressPolicy.rulePriority;
+              Table = dnsEgressPolicy.tableId;
+            }
+            {
+              Family = "ipv6";
+              User = "unbound";
+              IPProtocol = "tcp";
+              DestinationPort = 53;
+              Priority = dnsEgressPolicy.rulePriority;
+              Table = dnsEgressPolicy.tableId;
+            }
+          ];
+        };
       };
-    };
 
     systemd.services.dns-upstream-health = {
       description = "Restart unbound when the DNS chain recovers";

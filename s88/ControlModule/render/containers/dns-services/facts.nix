@@ -200,6 +200,15 @@ let
     else
       { };
 
+  realizedInterfaces =
+    if
+      builtins.isAttrs (runtimeTarget.effectiveRuntimeRealization or null)
+      && builtins.isAttrs (runtimeTarget.effectiveRuntimeRealization.interfaces or null)
+    then
+      runtimeTarget.effectiveRuntimeRealization.interfaces
+    else
+      { };
+
   runtimeOriginEgress =
     if builtins.isAttrs (runtimeTarget.runtimeOriginEgress or null) then
       runtimeTarget.runtimeOriginEgress
@@ -421,6 +430,7 @@ else
     rec {
       inherit
         dnsService
+        realizedInterfaces
         listenAddresses
         allowFrom
         forwarders
