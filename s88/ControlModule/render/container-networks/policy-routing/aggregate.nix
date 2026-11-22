@@ -485,40 +485,6 @@ builtins.foldl'
     {
       routes =
         let
-
-          dedupeAcrossInterfaces =
-            routeSet:
-            let
-              keyOf =
-                route:
-                "${toString (route.Family or "")}|${toString (route.Table or "")}"
-                + "|${toString (route.Destination or "")}"
-                + "|${toString (route.Metric or "")}";
-              step =
-                acc: ifName:
-                let
-                  kept = builtins.filter (
-                    route:
-                    let
-                      k = keyOf route;
-                    in
-                    !(builtins.elem k acc.seen)
-                  ) (routeSet.${ifName} or [ ]);
-                  seenHere = map keyOf kept;
-                in
-                {
-                  seen = acc.seen ++ seenHere;
-                  routes = acc.routes // {
-                    ${ifName} = kept;
-                  };
-                };
-              result = builtins.foldl' step {
-                seen = [ ];
-                routes = { };
-              } (builtins.attrNames routeSet);
-            in
-            result.routes;
-
           routesWithPolicyTables = builtins.foldl' (
             routesAcc: outputIfName:
             routesAcc
@@ -535,7 +501,7 @@ builtins.foldl'
             ${outputIfName} =
               (routesAcc.${outputIfName} or [ ]) ++ (localOriginRoutesByInterface.${outputIfName} or [ ]);
           }
-        ) (dedupeAcrossInterfaces routesWithPolicyTables) (builtins.attrNames localOriginRoutesByInterface);
+        ) routesWithPolicyTables (builtins.attrNames localOriginRoutesByInterface);
       mainRoutes = acc.mainRoutes // {
         ${ifName} = (acc.mainRoutes.${ifName} or [ ]) ++ mainSourceRoutes;
       };

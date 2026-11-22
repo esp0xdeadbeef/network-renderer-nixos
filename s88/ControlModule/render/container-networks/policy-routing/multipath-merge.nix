@@ -26,22 +26,9 @@ let
 
   grouped = lib.groupBy routeKey flat;
 
-  identicalGatewayGroup =
-    group:
-    let
-      gateways = lib.unique (
-        lib.filter (g: g != null && g != "") (map (route: route.Gateway or null) group)
-      );
-    in
-    builtins.length gateways < 2;
-
   mergedGroups = lib.concatMap (
     group:
-    if builtins.length group < 2 then
-      group
-    else if identicalGatewayGroup group then
-      [ (builtins.head group) ]
-    else if !(isDefaultDestination (builtins.head group)) then
+    if builtins.length group < 2 || !(isDefaultDestination (builtins.head group)) then
       group
     else
       let
