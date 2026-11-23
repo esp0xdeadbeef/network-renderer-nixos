@@ -1873,3 +1873,44 @@ ownership rule has nothing to guess.
 That is the last change. It is a producer change of the kind this run has already
 made five times, and it is the only one left that resolves a contradiction rather
 than trading one side of it for the other.
+
+## Attempt thirty-two: the return authority is canonical, and using it makes the count worse
+
+The previous attempt concluded a canonical collection for return placements was
+needed. Checked first whether the authority already exists, and it does:
+`canonicalRuntimeTargets.targets[].facts.services.dns.allowFrom` is exactly what
+`site-destinations.nix` computes `returnDestinationsFor*` from --
+
+```
+b-router-access-hostile  allowFrom: 10.70.10.0/24, fd42:dead:feed:70::/64, 10.50.0.3/32
+```
+
+-- so return-destination authority is already published, in
+`canonicalRuntimeTargets`, and the renderer reads it from the model instead.
+
+Added those prefixes to the exemption set:
+
+| | duplicate rows | suite |
+| --- | --- | --- |
+| committed | 62 | 110 PASS / 3 FAIL |
+| + allowFrom prefixes exempt | **79** | 110 PASS / 3 FAIL |
+
+Worse on the measure it was meant to improve, and no better on tests. Exempting a
+destination from the copy filter is not the same as exempting a *placement*, and
+`allowFrom` is a set of destinations -- so exempting them removes precisely the
+duplicates the filter should keep dropping.
+
+Reverted. Two things are now established beyond doubt:
+
+1. the return's **destination** authority is canonical and already available
+   (`canonicalRuntimeTargets...allowFrom`, `canonicalSites...domains`);
+2. the return's **placement** authority -- which interface, which table -- is not
+   published anywhere, and cannot be inferred from a destination set.
+
+Which is the same conclusion as the previous attempt, now tested rather than
+argued: the missing collection is per (destination, interface, table), not per
+destination.
+
+Four occurrences of the same trap also now exist in this run -- a value threaded
+through six files with `? { }` defaults, silently empty at the far end (attempts
+eight, ten, eleven and thirty-two). Each cost a full suite run to notice.
