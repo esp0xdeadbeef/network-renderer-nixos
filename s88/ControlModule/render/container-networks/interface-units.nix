@@ -2,6 +2,7 @@
   lib,
   containerModel,
   canonicalPolicyRoutesByInterface ? { },
+  modelledTenantPrefixes ? [ ],
 
   relationEgressInterfaces ? [ ],
   interfaces,
@@ -514,8 +515,10 @@ let
         "${r.Destination or r.dst or ""}|${toString (r.Table or r.table or null)}"
         + "|${toString (r.Gateway or r.gateway or null)}"
         + "|${toString (r.Metric or r.metric or null)}";
+
+      isModelledDestination = r: builtins.elem (r.Destination or r.dst or null) modelledTenantPrefixes;
     in
-    builtins.filter (r: !(canonicalFor ? ${keyOf r})) routes;
+    builtins.filter (r: isModelledDestination r || !(canonicalFor ? ${keyOf r})) routes;
 
 in
 {

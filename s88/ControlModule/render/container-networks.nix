@@ -4,6 +4,8 @@
 
   canonicalRoutes ? [ ],
   canonicalForwarding ? { },
+
+  canonicalSites ? { },
   uplinks,
   wanUplinkName,
   forwardingIntent ? null,
@@ -224,7 +226,7 @@ let
       common
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
-    inherit canonicalPolicyRoutesByInterface;
+    inherit canonicalPolicyRoutesByInterface modelledTenantPrefixes;
     inherit relationEgressInterfaces;
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
@@ -382,6 +384,23 @@ let
           ) relations;
     in
     builtins.filter (x: x != null) (map (r: r.egressRuntimeInterface or null) mine);
+
+  modelledTenantPrefixes =
+    let
+      sites = canonicalSites.sites or [ ];
+      collect =
+        value:
+        if builtins.isAttrs value then
+          builtins.concatLists (map (n: collect value.${n}) (builtins.attrNames value))
+        else if builtins.isList value then
+          builtins.concatLists (map collect value)
+        else if builtins.isString value && lib.hasInfix "/" value then
+
+          [ value ]
+        else
+          [ ];
+    in
+    lib.unique (builtins.concatMap (s: collect (s.facts.domains or { })) sites);
 
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };
