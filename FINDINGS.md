@@ -779,3 +779,46 @@ tests), and the tests must move with it -- `test-upstream-selector-core-main-rou
 was already corrected in this run for asserting the wrong thing. It is not
 landable as a patch, and thirteen attempts have now established that from every
 direction available without writing it.
+
+## The scoping key for step 1 (measured)
+
+Step 1 of the four-step fix is "filter `canonicalRoutes` to this container's
+target". Two facts make that implementable without string guessing:
+
+1. `canonicalRoutes[].target` is the qualified name
+   `<enterprise>-<site>-<logicalName>`:
+
+   ```
+   esp0xdeadbeef-site-a-s-router-access-admin
+   esp0xdeadbeef-site-a-s-router-policy
+   esp0xdeadbeef-site-a-s-router-upstream-selector
+   ```
+
+2. `canonicalRuntimeTargets.targets[]` publishes the same identity as explicit
+   fields, so nothing has to be parsed:
+
+   ```
+   { enterprise = "esp0xdeadbeef"; site = "site-a";
+     target = "esp0xdeadbeef-site-a-s-router-policy"; ... }
+   ```
+
+   (`target` there is the same qualified string as in `canonicalRoutes`.)
+
+So a container can select its own routes with:
+
+```nix
+myTarget = "<enterprise>-<site>-<logicalNodeName>";   # or from canonicalRuntimeTargets
+mine = builtins.filter (r: r.target == myTarget) canonicalRoutes;
+```
+
+and the container's `logicalNode.name` (`s-router-policy`) is already on the
+runtime target. `unitName` is NOT on the raw target -- it is derived by the
+renderer -- so it must not be used as the key.
+
+This removes the ambiguity that made attempts eleven and twelve match foreign
+targets: once the filter is by `target`, `(runtimeIfName, dst, gateway)` matches
+at most one record per target and the table is unambiguous.
+
+Not applied: it is step 1 of four, and steps 2-3 delete the pipeline, which is
+the part that cannot be done piecemeal. Recorded because it is the piece every
+future attempt will need first, and it is now measured rather than assumed.
