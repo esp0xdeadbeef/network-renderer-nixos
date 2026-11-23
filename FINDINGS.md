@@ -267,3 +267,65 @@ Two things to fix, and the second is why four attempts have now failed:
    interface it names, not that it exists somewhere in that interface's table.
    As written it cannot fail when `core` loses its routes, which is exactly the
    condition it exists to detect.
+
+## Root cause, finally: `routeOutputInterface` relocates a route by peer address
+
+Six attempts narrowed it to the installation path; this names the function.
+
+`policy-routing/route-helpers.nix`:
+
+```nix
+routeOutputInterface =
+  sourceIfName: route:
+  let
+    gateway = routeGateway route;
+    matchingInterfaces =
+      lib.filter
+        (ifName: interfacePeerForFamily gateway.family interfaces.${ifName} == gateway.gateway)
+        interfaceNames;
+  in
+  if gateway == null || sourceInterfacePeer == gateway.gateway || matchingInterfaces == [ ] then
+    sourceIfName
+  else
+    builtins.head matchingInterfaces;
+```
+
+A route is MOVED from the interface that declares it to whichever interface has
+`gateway` as its p2p peer address. Measured on
+`s-router-overlay-dns-lane-policy`, target `c-router-upstream-selector`:
+
+```
+core             addr4 10.80.0.5/31   -> peer 10.80.0.4
+pol-dmz-ew       addr4 10.80.0.17/31  -> peer 10.80.0.16
+policy-dmz-wan   addr4 10.80.0.19/31  -> peer 10.80.0.18
+```
+
+The model declares `10.90.10.0/24` on `core` in table 1001 with gateway
+`10.80.0.18`. `10.80.0.18` is `policy-dmz-wan`'s peer, so the route is
+installed on `policy-dmz-wan` and `core` keeps nothing. That is why:
+
+- `10-core` has no `10.90.10.0/24`, however the table is chosen;
+- the rendered set carries copies on `10-pol-*` interfaces;
+- and `test-upstream-selector-core-main-routes` passes: it searches every
+  interface for table 1001 and finds the relocated copy.
+
+This is precisely what FS-310-HDS-020-SDS-010-SMS-060 forbids, in its own words:
+
+> "The renderer shall not choose, infer, or withhold a route's table or lane
+>  occurrence: it shall not gate a route's materialization on the presence of a
+>  forwarding rule, **derive occurrence from interface topology**, or rely on an
+>  environment-supplied fallback table."
+
+`routeOutputInterface` IS "derive occurrence from interface topology". That is
+the defect. Not the dedupe, not the table choice, not the stamping site.
+
+Fixing it means the route is installed on the interface the canonical record
+names, and `matchingInterfaces` disappears from the materialization path. It is
+also why five earlier attempts failed: each of them worked downstream of this
+function, on a set that had already been relocated.
+
+Caveat before changing it: `routeOutputInterface` is called from 6 places in
+`raw-routes.nix` and is also used for the return-route and lane scoping paths.
+Removing it is not a one-line change, and the first thing to do is make
+`test-upstream-selector-core-main-routes` assert per-interface so the change can
+be validated at all.
