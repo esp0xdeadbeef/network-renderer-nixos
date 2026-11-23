@@ -482,3 +482,37 @@ replaced by a mapping from `canonicalRoutes`, and `routeOutputInterface`,
 `policy-routing-sources.nix`, `tableForOutputIfName`, `tableForRoute` and
 `extraTableForRoute` all leave the materialization path. Seven attempts have now
 established that from seven directions.
+
+## Attempt eight: threading canonicalRoutes through the render is a silent no-op
+
+Reverted. Worth recording because it looked like the fix and did nothing.
+
+The plan was a narrow one: filter at final assembly
+(`render/container-networks/interface-units.nix`) so a policy-table route the
+canonical set does not declare on this interface/table is dropped. The predicate
+was added, and the value threaded:
+
+```
+flake.nix  (canonical.hostModule)     -> cpm = validated.controlPlaneEnvelope
+render/containers.nix                 -> canonicalRoutes from cpm.control_plane_model
+render/containers/default.nix         -> inputs.nix
+render/containers/inputs.nix          -> returned in the inputs attrset
+render/containers/emission.nix        -> module.nix
+render/containers/module.nix          -> container-networks.nix
+render/container-networks.nix         -> interface-units.nix
+```
+
+Every file parses, the suite runs, and the filter matches NOTHING. Verified two
+ways: with the predicate relaxed to `(interface, dst)` -- still nothing -- and
+with a `builtins.trace` on the list length, which never printed.
+
+So one of those six hops drops the value, and `canonicalRoutes ? [ ]` makes every
+hop silently succeed at doing nothing. That is the same failure shape as the
+whole defect: a default that turns "I have no data" into "there is nothing to
+check".
+
+This is why the fix has to be a rewrite in which `canonicalRoutes` is not an
+optional parameter threaded through eight files but the ONLY source of routes.
+An optional parameter on a deep call chain cannot be distinguished from an empty
+one, and eight attempts have now shown that every partial route to the answer
+gets swallowed by exactly that property.
