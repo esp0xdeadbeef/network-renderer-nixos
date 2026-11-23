@@ -1821,3 +1821,55 @@ tell which without that answer.
 Until it is answered, the honest state is the one with the best test result --
 110 PASS / 3 FAIL, 62 duplicate rows -- because a smaller duplicate count bought
 with a broken contract is not an improvement to the site.
+
+## The modelling question, answered from evidence
+
+Attempt thirty-one went looking for the authority behind the two contested
+placements. Neither has one in published canonical content.
+
+**FS-540-SMS-040** needs `10.90.10.0/24` in table 1004 on `pol-hostile-ew` of
+`espbranch-site-b-b-router-upstream-selector`. What exists:
+
+```
+canonicalRoutes:  core-nebula t=1002, policy-branch t=1005     (not pol-hostile-ew)
+canonicalForwarding for that target names as egress:
+  core-isp, pol-branch-ew, policy-branch                       (not pol-hostile-ew)
+```
+
+Interface allocations for the target, for reference:
+
+```
+core-nebula                  1002
+core-simulated-isp           1001
+pol-branch-ew (east-west)    1003
+pol-branch-ew (wan)          1005
+pol-hostile-ew (east-west)   1004
+```
+
+**test-transit-endpoint-return-routes** needs `10.70.10.0/24` in table 1004 on
+`core-nebula`, and `canonicalRoutes` has it on `core-nebula` t=1002 only.
+
+### So the answer to "does the model declare every required placement?"
+
+**No, and it does not currently have the vocabulary to.** Both placements are
+routed-prefix / hostile-lane returns, which the renderer computes from
+`returnDestinationsFor*` plus the lane's table allocation -- the destination is
+modelled (`canonicalSites.facts.domains` carries `10.90.10.0/24` and
+`10.70.10.0/24`), but the *table* it must be installed in is not published
+anywhere. `canonicalRoutes` states one table per route; the contract needs the same
+route in a second table on a different interface, and no collection says so.
+
+**Which makes the duplicate check's verdict correct and incomplete at once:** those
+routes ARE copies under the model's own statement, and they ARE required by
+contracts the model does not express. Both readings are true because the model
+under-specifies placement for returns.
+
+The fix is therefore producer-side and specific: a canonical collection listing,
+per (destination, interface, table), every placement a return or routed-prefix
+relation requires -- the same shape as `canonicalRoutes` but for derived
+placements. Then the duplicate check has something to compare against and the
+ownership rule has nothing to guess.
+
+That is the last change. It is a producer change of the kind this run has already
+made five times, and it is the only one left that resolves a contradiction rather
+than trading one side of it for the other.
