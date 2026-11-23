@@ -822,3 +822,32 @@ at most one record per target and the table is unambiguous.
 Not applied: it is step 1 of four, and steps 2-3 delete the pipeline, which is
 the part that cannot be done piecemeal. Recorded because it is the piece every
 future attempt will need first, and it is now measured rather than assumed.
+
+### Step 1 verified: target-scoping makes the identity effectively unique
+
+The claim above, measured rather than asserted. For `s-router-policy` in
+`wireguard-provider-overlay`, filtering `canonicalRoutes` to that one target:
+
+| | |
+| --- | --- |
+| routes for the target | **97** |
+| distinct `(runtimeIfName, dst, gateway)` | **95** |
+| ambiguous within the target | **2** |
+| keys that also exist on another target | **0** |
+
+So once the list is scoped to the target:
+
+- matching on `(runtimeIfName, dst, gateway)` resolves to a single record for
+  95 of 97 routes;
+- none of those keys appears on another target, so the cross-target collision
+  that broke attempts eleven and twelve cannot occur;
+- the remaining 2 need a decision (two canonical routes on one interface with
+  one destination and one gateway, differing only in table -- either the model
+  genuinely models both or the CPM should have merged them, which is the
+  `canonical-routes.nix` merge contract this run already tightened).
+
+This is the first part of the fix with a measured, unambiguous result, and it is
+independent of any renderer change: filter, then match.
+
+Not applied, because applying it alone changes nothing -- the pipeline still
+overwrites the table afterwards, as attempts ten and twelve showed.
