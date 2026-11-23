@@ -29,16 +29,7 @@ let
     in
     if fromCanonical != { } then
       fromCanonical
-    else if
-      cpm != null
-      && builtins.isAttrs cpm
-      && cpm ? control_plane_model
-      && builtins.isAttrs cpm.control_plane_model
-      && cpm.control_plane_model ? realization
-      && builtins.isAttrs cpm.control_plane_model.realization
-      && builtins.isAttrs (cpm.control_plane_model.realization.nodes or null)
-    then
-      cpm.control_plane_model.realization.nodes
+
     else if
       cpm != null
       && builtins.isAttrs cpm
