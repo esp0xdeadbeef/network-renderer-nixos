@@ -1172,3 +1172,41 @@ it is not re-derived.
 Reverted (suite back to 109/1/4) because a partial emission plus the existing
 pipeline is not a coherent state: it must be emission **instead of**, which is
 the deletion in step 3.
+
+## Attempt fifteen: the /31 is named by either half
+
+Applied the wholesale replacement (canonical projection as the only route
+source, keyed by modelled interface name). Stranded count stayed 2,025, so the
+measurement became the subject, and it was wrong twice:
+
+1. filtering to `Table != null` reported connected routes as lost. Removing the
+   filter did not change the count, so that was not the cause.
+2. **the real cause: a /31 or /127 prefix is named by either half.** Measured on
+   `s-router-access-admin` / `ens3`:
+
+   ```
+   model  : 10.10.0.2/31     (the peer address)
+   unit   : 10.10.0.0/31     (the network address)
+   ```
+
+   Same prefix, compared as different strings. A prefix normaliser is needed
+   before the stranded count can be trusted as a score.
+
+So 2,025 is dominated by a representation difference, not by missing routes.
+That matters because it means the earlier "2,117 stranded" figure -- and the
+160/1,957 split derived from it -- are inflated by the same artefact. They
+measured string inequality, not route loss.
+
+The comparable, artefact-free numbers remain the ones that do not depend on
+prefix notation:
+
+| measurement | value |
+| --- | --- |
+| canonical policy routes for s-router-policy | 97 |
+| rendered policy-table routes | 363 |
+| overlapping on the 5-part identity | 10 |
+| present somewhere at right (dst, table) | 346 of 385 |
+| missing entirely | 39 |
+
+Those four are consistent with each other and with the emission prototype
+(97 -> 97). The stranded count is the one that needs re-measuring.
