@@ -1210,3 +1210,44 @@ prefix notation:
 
 Those four are consistent with each other and with the emission prototype
 (97 -> 97). The stranded count is the one that needs re-measuring.
+
+## Attempt sixteen: the emission improves the score; a second seam remains
+
+With the measurement now correct (prefix normalisation, all routes not just
+policy-table ones), the wholesale replacement was applied and scored:
+
+| state | stranded routes |
+| --- | --- |
+| pipeline (baseline) | **769** |
+| canonical projection as the only route source | **654** |
+
+So the seam is right -- it removed 115 wrong-interface copies -- but it is not
+sufficient. Spot-checked why: `10.20.15.0/24` is declared by the model for
+`ens3` of `s-router-access-admin` and is still absent from `10-ens3` afterwards,
+because `interface-units.nix` builds that interface's list from
+`rawRoutes = (iface.routes or []) ++ ...` and keeps only the routes already
+attributed to that interface. Replacing `policyRoutingByInterface.routes` does
+not reach that path.
+
+**So there is a second seam**, and it is the one that decides attribution in the
+first place:
+
+```
+interface-units.nix
+  rawRoutes = (iface.routes or []) ++ (advertisedOnlinkRoutesByInterface.${ifName} or [])
+  staticRawRoutes   = filter ... rawRoutes
+  policyMainRoutes  = ... policyRoutingByInterface.routes.${ifName}
+  renderedRoutes    = mainStatic + mainServiceIngress + ...
+```
+
+`policyRoutingByInterface.routes` is only ONE of several inputs to
+`renderedRoutes`. The replacement has to supply the whole policy-route set for
+that interface, not just that one list -- which means `renderedRoutes` becomes
+"the canonical records for this (container, interface)" plus the genuinely local
+items (connected prefixes, advertised on-link routes), rather than a chain of
+filters over derived sets.
+
+That is the shape of the remaining work, and it is what step 3 of REWRITE.md
+describes: delete the derivation, do not filter it.
+
+Reverted to the 109 PASS / 1 SKIP / 4 FAIL baseline.
