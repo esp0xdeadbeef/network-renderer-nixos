@@ -2,6 +2,7 @@
   lib,
   debugEnabled ? false,
   canonicalRoutes ? [ ],
+  canonicalForwarding ? { },
   deploymentHostName,
   containerName,
   renderedModel,
@@ -164,6 +165,7 @@ let
       uplinks
       wanUplinkName
       canonicalRoutes
+      canonicalForwarding
       ;
   };
 

@@ -3,6 +3,7 @@
   containerModel,
 
   canonicalRoutes ? [ ],
+  canonicalForwarding ? { },
   uplinks,
   wanUplinkName,
   forwardingIntent ? null,
@@ -224,6 +225,7 @@ let
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
     inherit canonicalPolicyRoutesByInterface;
+    inherit relationEgressInterfaces;
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
       mkRoute
@@ -359,6 +361,27 @@ let
       ) (builtins.filter (r: builtins.isInt (r.tableId or null)) mine);
     in
     lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) keyed);
+
+  relationEgressInterfaces =
+    let
+      logicalName = containerModel.unitName or containerModel.containerName or null;
+      relations = canonicalForwarding.relations or [ ];
+      mine =
+        if logicalName == null then
+          [ ]
+        else
+          builtins.filter (
+            r:
+            let
+              target = r.target or "";
+              suffix = "-" + logicalName;
+              n = builtins.stringLength target;
+              m = builtins.stringLength suffix;
+            in
+            n > m && builtins.substring (n - m) m target == suffix
+          ) relations;
+    in
+    builtins.filter (x: x != null) (map (r: r.egressRuntimeInterface or null) mine);
 
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };

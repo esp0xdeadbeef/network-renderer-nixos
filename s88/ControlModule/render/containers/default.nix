@@ -1,6 +1,7 @@
 {
   lib,
   canonicalRoutes,
+  canonicalForwarding ? { },
   pkgs ? null,
   repoPath,
   hostPlan ? null,
@@ -86,7 +87,7 @@ let
           ;
         uplinks = inputs.uplinks;
         wanUplinkName = inputs.wanUplinkName;
-        inherit canonicalRoutes;
+        inherit canonicalRoutes canonicalForwarding;
       }
     );
 

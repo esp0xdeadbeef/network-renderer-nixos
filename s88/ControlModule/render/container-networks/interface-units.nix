@@ -2,6 +2,8 @@
   lib,
   containerModel,
   canonicalPolicyRoutesByInterface ? { },
+
+  relationEgressInterfaces ? [ ],
   interfaces,
   interfaceNames,
   renderedInterfaceNames,

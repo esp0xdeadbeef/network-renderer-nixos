@@ -3,6 +3,7 @@
   containerName,
   renderedModel,
   canonicalRoutes ? [ ],
+  canonicalForwarding ? { },
   firewallArg,
   alarmModel,
   uplinks,
@@ -32,6 +33,7 @@ let
       uplinks
       wanUplinkName
       canonicalRoutes
+      canonicalForwarding
       ;
     containerModel = renderedModel;
     forwardingIntent =
