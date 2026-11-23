@@ -1536,3 +1536,38 @@ Closing that is a change to the check (load `forwardingModel` relations into the
 canonical set, or exempt relation-derived routes explicitly with the relation id
 recorded), and it belongs with the same work that would let the check be a true
 assertion rather than a report.
+
+## Attempt twenty-five: the ownership rule trades one test for a 4x duplicate cut
+
+Applied the ownership rule again, now that the check loads forwarding relations
+(so the relation-derived routes no longer count as invented):
+
+| | duplicate rows | suite |
+| --- | --- | --- |
+| committed (e2121b43) | 236 | 111 PASS / 2 FAIL |
+| ownership rule | **62** | 110 PASS / 3 FAIL |
+
+236 -> 62 is a 4x reduction, and it costs exactly one test,
+`test-transit-endpoint-return-routes`. Exempting `internal-reachability` from the
+ownership set did not save it -- the transited route is not that class -- so the
+regression is inherent to the rule, not a gap in how it is written.
+
+Measured, the case the rule is right about: `10.19.0.1/32` in table 1002 is
+declared for `ens3` only on `s-router-access-admin`, and `tenant-admin` carries a
+copy. That copy serves no relation.
+
+And the case it is wrong about is the transitive return: a route the model names
+for one interface that a *different* forwarding relation requires on another.
+
+**So the choice is a policy decision, not a defect to fix:**
+
+- keep 236 rows and the return-route contract intact (current);
+- or take 62 rows and lose one return route.
+
+Neither is obviously right without knowing which the site needs, and this is the
+kind of call the repository's own rules reserve for a human -- "never claim a row
+is OK without evidence", applied to a trade-off between two evidence-backed
+tests.
+
+Recorded rather than chosen. The committed state is e2121b43 (111 PASS / 2 FAIL),
+and the ownership rule is a one-line change away with its cost measured.
