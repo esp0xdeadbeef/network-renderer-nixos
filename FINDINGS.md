@@ -232,3 +232,38 @@ passed because the renderer invented copies, so it agreed with the bug it was
 meant to constrain. Correcting it is part of the fix, not a separate cosmetic
 change -- and doing it before the renderer is fixed would just make the test
 wrong in a different direction.
+
+## Fourth attempt: the stamping site is not the installation site
+
+Attempt four, also reverted. It changed `raw-routes.nix` to stamp each route
+with its SOURCE interface's allocation instead of the iterating interface's:
+
+```nix
+sourceTableId =
+  let allocation = policyRoutingAllocations.${sourceIfName} or null; in
+  if builtins.isAttrs allocation then allocation.tableId or tableId else tableId;
+```
+
+That is where the route RECORD is built, and it is not where the route is
+INSTALLED. `tableForOutputIfName` and `tableForRoute` in `aggregate.nix`
+override the stamped value before anything is rendered, so the change had no
+effect on the emitted tables -- verified by rendering `10-core` afterwards and
+finding `10.90.10.0/24` still absent from it.
+
+What it DID do was make `test-upstream-selector-core-main-routes` pass. That is
+a false green: the test asks `tableForInterface "core"`, which resolves to
+table 1001 and then searches EVERY interface's routes for that table, so it
+found the copy on `10-pol-dmz-ew` (table 1001, gateway 10.80.0.16) instead of
+the route the model declares on `core` (table 1001, gateway 10.80.0.18). The
+test cannot tell "core has this route" from "some interface has this route in
+core's table".
+
+Two things to fix, and the second is why four attempts have now failed:
+
+1. the installation path (`tableForOutputIfName`, `tableForRoute`,
+   `extraTableForRoute`, and the per-output accumulation in `aggregate.nix`),
+   not the record-building path in `raw-routes.nix`;
+2. `test-upstream-selector-core-main-routes` must assert the route is on the
+   interface it names, not that it exists somewhere in that interface's table.
+   As written it cannot fail when `core` loses its routes, which is exactly the
+   condition it exists to detect.
