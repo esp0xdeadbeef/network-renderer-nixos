@@ -2093,3 +2093,31 @@ records' identity, not the kernel's: `(dst, table, metric, policyOnly, lane)`, o
 equivalently "the same model record emitted twice", not "two records the kernel
 would collapse". That is a change to the check's semantics and belongs with the FS
 text, not a renderer edit.
+
+## After narrowing the key: 114 remain, and they are real
+
+`FS-310-HDS-020-SDS-010-SMS-060` now counts a duplicate by canonical record rather
+than by kernel identity (see the section above). Duplicates: **236 -> 114**. The
+remaining 114 are not the intended-pair class; they are over-emission.
+
+All of them are in `s-router-upstream-selector`, and the shape is:
+
+```
+s-router-upstream-selector|4|1001|10.19.0.0/32|50  claimed by ens10, ens5, ens6
+```
+
+Three interfaces carry `10.19.0.0/32` in **table 1001**. Asking the model: `ens3`,
+`ens5`, `ens6`, `ens7` and `ens10` each have their own copy of that prefix, in their
+own target, with their own reasons (`policy-table-internal-reachability`,
+`policy-table-service-reachability`). They are distinct records **on distinct
+interfaces, in distinct tables**.
+
+The renderer flattens them into one table on the upstream-selector container, so
+three interfaces' records appear as three routes in 1001. That is occurrence derived
+from topology -- the thing the SMS forbids by name -- and it is a genuine renderer
+defect, distinct from the intended-pair class that the key change removed.
+
+Not attempted here: the fix touches `tableForOutputIfName` and the aggregate, which
+is where three previous attempts (`40d11d79`, `63f0df23`, `688d62b2`) each passed this
+suite and broke the HAT. It needs the HAT at every step, and the earlier attempts
+show that a table change of this shape is the highest-risk edit in the renderer.
