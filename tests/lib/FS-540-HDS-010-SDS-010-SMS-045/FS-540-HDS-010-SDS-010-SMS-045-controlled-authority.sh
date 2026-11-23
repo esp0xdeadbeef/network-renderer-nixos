@@ -39,6 +39,11 @@ let
       (renderer.libBySystem.${system}.renderer.hostModule {
         inherit cpm;
         hostName = "s-router-nixos";
+        # The canonical collections, as a SIBLING of the control-plane model. This
+        # test compiles its own CPM and can plainly hand over the collections it
+        # publishes, which is what the bundle entry point does; without it the
+        # renderer falls back to the plain CPM read (RR_RAW_CPM_INPUT).
+        canonicalCollections = cpm.control_plane_model;
       })
       ({ ... }: {
         boot.isContainer = true;

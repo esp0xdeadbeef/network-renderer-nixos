@@ -9,14 +9,6 @@
 }:
 
 let
-  cpmRoot =
-    if builtins.isAttrs (controlPlane.control_plane_model or null) then
-      controlPlane.control_plane_model
-    else if builtins.isAttrs controlPlane then
-      controlPlane
-    else
-      { };
-
   fromCanonical =
     let
       sites =
@@ -24,13 +16,7 @@ let
     in
     if builtins.isAttrs (sites.byEnterprise or null) then sites.byEnterprise else null;
 
-  data =
-    if fromCanonical != null then
-      fromCanonical
-    else if builtins.isAttrs (cpmRoot.data or null) then
-      cpmRoot.data
-    else
-      { };
+  data = if fromCanonical != null then fromCanonical else { };
   runtimeTargets = lib.concatMap (
     enterprise:
     lib.concatMap (
