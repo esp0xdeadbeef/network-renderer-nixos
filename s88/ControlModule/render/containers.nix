@@ -12,28 +12,31 @@ args@{
   ...
 }:
 
+let
+  canonicalCollection =
+    name: default:
+    let
+      fromBundle = (args.canonicalCollections or { }).${name} or null;
+    in
+    if fromBundle != null then
+      fromBundle
+    else
+      let
+        envelope =
+          if builtins.isAttrs (args.cpm.control_plane_model or null) then
+            args.cpm.control_plane_model
+          else
+            args.cpm;
+      in
+      if builtins.isAttrs envelope then envelope.${name} or default else default;
+
+in
 import ./containers/default.nix (
   args
   // {
 
-    canonicalRoutes =
-      let
-        envelope =
-          if builtins.isAttrs (cpm.control_plane_model or null) then cpm.control_plane_model else cpm;
-      in
-      if builtins.isAttrs envelope then envelope.canonicalRoutes or [ ] else [ ];
-
-    canonicalSites =
-      let
-        envelope =
-          if builtins.isAttrs (cpm.control_plane_model or null) then cpm.control_plane_model else cpm;
-      in
-      if builtins.isAttrs envelope then envelope.canonicalSites or { } else { };
-    canonicalForwarding =
-      let
-        envelope =
-          if builtins.isAttrs (cpm.control_plane_model or null) then cpm.control_plane_model else cpm;
-      in
-      if builtins.isAttrs envelope then envelope.canonicalForwarding or { } else { };
+    canonicalRoutes = canonicalCollection "canonicalRoutes" [ ];
+    canonicalSites = canonicalCollection "canonicalSites" { };
+    canonicalForwarding = canonicalCollection "canonicalForwarding" { };
   }
 )

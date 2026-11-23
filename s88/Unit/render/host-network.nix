@@ -1,10 +1,13 @@
-{ lib
-, repoPath
-, hostName
-, cpm
-, source ? { }
-, hostContext ? null
-, ...
+{
+  lib,
+  repoPath,
+  hostName,
+  cpm,
+
+  canonicalCollections ? { },
+  source ? { },
+  hostContext ? null,
+  ...
 }:
 
 let
@@ -23,56 +26,66 @@ let
     if !builtins.isAttrs data then
       { }
     else
-      builtins.mapAttrs
-        (
-          _enterprise: sites:
-            if !builtins.isAttrs sites then
+      builtins.mapAttrs (
+        _enterprise: sites:
+        if !builtins.isAttrs sites then
+          { }
+        else
+          builtins.mapAttrs (
+            _siteName: siteObj:
+            if !builtins.isAttrs siteObj then
               { }
             else
-              builtins.mapAttrs
-                (
-                  _siteName: siteObj:
-                    if !builtins.isAttrs siteObj then
-                      { }
-                    else
-                      {
-                        ipv6 = siteObj.ipv6 or { };
-                        routing = siteObj.routing or { };
-                        transit = siteObj.transit or { };
-                      }
-                )
-                sites
-        )
-        data;
+              {
+                ipv6 = siteObj.ipv6 or { };
+                routing = siteObj.routing or { };
+                transit = siteObj.transit or { };
+              }
+          ) sites
+      ) data;
 
-  hostPlan = trace.emit "host-network:${hostName}:host-plan" (import ./host-plan.nix {
-    inherit repoPath;
-    inherit
-      lib
-      hostName
-      cpm
-      source
-      hostContext
-      ;
-  });
+  hostPlan = trace.emit "host-network:${hostName}:host-plan" (
+    import ./host-plan.nix {
+      inherit repoPath;
+      inherit
+        lib
+        hostName
+        cpm
+        source
+        hostContext
+        ;
+    }
+  );
 
-  hostSystemd = trace.emit "host-network:${hostName}:systemd-host-network" (import ../../ControlModule/render/systemd-host-network.nix {
-    inherit lib hostPlan;
-  });
+  hostSystemd = trace.emit "host-network:${hostName}:systemd-host-network" (
+    import ../../ControlModule/render/systemd-host-network.nix {
+      inherit lib hostPlan;
+    }
+  );
 
-  containerRenderings = trace.emit "host-network:${hostName}:containers" (import ../../ControlModule/render/containers.nix {
-    inherit repoPath;
-    inherit
-      lib
-      hostPlan
-      cpm
-      source
-      ;
-  });
+  containerRenderings = trace.emit "host-network:${hostName}:containers" (
+    import ../../ControlModule/render/containers.nix {
+      inherit repoPath;
+      inherit
+        lib
+        hostPlan
+        cpm
+        canonicalCollections
+        source
+        ;
+    }
+  );
 
-  pppoeServerContainers = trace.emit "host-network:${hostName}:pppoe-server-containers" (import ../../ControlModule/render/pppoe-server-containers.nix {
-    inherit lib cpm hostName hostPlan;
-  });
+  pppoeServerContainers = trace.emit "host-network:${hostName}:pppoe-server-containers" (
+    import ../../ControlModule/render/pppoe-server-containers.nix {
+      inherit
+        lib
+        cpm
+        hostName
+        hostPlan
+        ;
+    }
+  );
 
   pipelineAlarmModel = trace.emit "host-network:${hostName}:alarms" (isa.normalizeModel cpm);
 in

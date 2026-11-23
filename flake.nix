@@ -431,6 +431,8 @@
           forwarded
           // {
             cpm = validated.controlPlaneEnvelope;
+
+            canonicalCollections = validated.canonical or { };
             canonicalBundleIdentity = validated.bundleIdentity;
             canonicalBindingIdentity = validated.bindingIdentity;
             validatedPlatformBinding = validated.validatedPlatformBinding or null;
