@@ -675,3 +675,45 @@ None of that was applied: attempt eleven was still building the wiring when the
 trace answered the question, and applying a third half-wired variant would repeat
 the trap. The three steps above are the whole remaining change, each with the
 specific evidence that justifies it.
+
+## Attempt twelve: the lookup WORKS, and the rewrite is proven to reach output
+
+Reverted, but this attempt got the mechanism working end to end for the first
+time. Two results that all earlier attempts lacked:
+
+**1. The emit path is confirmed by injection.** Appending one synthetic route to
+`renderedRoutes` made it appear on all six interfaces of `s-router-policy`
+(`10-ens3` .. `10-ens9`). `interface-units.nix` is the final source of the routes
+that reach networkd -- attempt ten's open question, answered by observation.
+
+**2. The canonical table lookup works.** With `canonicalRoutes` threaded
+(required, not defaulted) and the modelled name translated through
+`renderedInterfaceNames`, rewriting `Table` from the canonical record CHANGED THE
+OUTPUT:
+
+```
+before: 10-ens6 carried 100.64.0.2/32 in tables 1002, 1003, 1004, 1005, 1006
+after : 10-ens6 carried 100.64.0.2/32 in table 1004 x8   <- the one the model names
+```
+
+So every piece of the mechanism is now demonstrated: the code path, the data
+reaching it, the name translation, and the table rewrite landing in the rendered
+output.
+
+**What still fails.** 11 tests, because the rewrite is unconditional wherever
+the model names a single table, and several of those cases are ones where the
+renderer's own table was correct for a reason the model does not express -- the
+hostile-lane returns (`FS-540-SMS-040`: `::/0` modelled on five interfaces,
+where any single-table rule discards the rest), and the FS-800 contracts. An
+ambiguity guard (only rewrite when the model names exactly one table for the
+pair) reduced the damage but not to zero.
+
+Reverted to the 110 PASS / 3 FAIL baseline.
+
+**So the remaining work is not the mechanism -- it is the policy.** The
+mechanism works. What is missing is the rule for when the canonical table
+overrides the renderer's: it cannot be "always", because some rendered tables are
+correct and unmodelled, and it cannot be "never", because that is the defect.
+Establishing that rule needs the FS-800 and FS-540 expectations read as a whole
+rather than discovered one red test at a time, which is what the last four
+attempts have been doing.
