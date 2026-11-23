@@ -1,5 +1,5 @@
 {
-  controlPlane, # The validated bundle's canonical collections: a SIBLING of the control-plane
+  controlPlane,
 
   canonicalCollections ? { },
 }:
