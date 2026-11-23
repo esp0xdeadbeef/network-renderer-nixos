@@ -3,9 +3,19 @@
   cpm,
   hostName,
   renderedNetworks ? { },
+
+  canonicalCollections ? { },
 }:
 
 let
+
+  canonicalSites =
+    (if builtins.isAttrs canonicalCollections then canonicalCollections else { }).canonicalSites or { };
+  fromCanonical =
+    if builtins.isAttrs (canonicalSites.byEnterprise or null) then
+      canonicalSites.byEnterprise
+    else
+      null;
   controlPlaneModel =
     if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
       cpm.control_plane_model
@@ -13,7 +23,13 @@ let
       cpm
     else
       { };
-  data = if builtins.isAttrs (controlPlaneModel.data or null) then controlPlaneModel.data else { };
+  data =
+    if fromCanonical != null then
+      fromCanonical
+    else if builtins.isAttrs (controlPlaneModel.data or null) then
+      controlPlaneModel.data
+    else
+      { };
   siteEntries = lib.concatMap (
     enterpriseName:
     let

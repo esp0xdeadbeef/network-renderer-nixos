@@ -113,6 +113,8 @@
           hostManagementRender = import ./s88/ControlModule/render/host-management.nix {
             inherit lib hostName renderedNetworks;
             cpm = effectiveCpm;
+
+            canonicalCollections = rendererInput.canonicalCollections or { };
           };
           vmNicRender = import ./s88/ControlModule/render/vm-nics.nix {
             inherit lib hostName;
