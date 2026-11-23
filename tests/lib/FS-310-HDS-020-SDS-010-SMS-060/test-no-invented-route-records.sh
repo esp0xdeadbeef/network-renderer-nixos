@@ -125,7 +125,31 @@ REPO_ROOT="${repo_root}" TRACE_ID="${trace_id}" nix eval --impure --json --expr 
           else (entryFor 4 (i.routes.ipv4 or [ ])) ++ (entryFor 6 (i.routes.ipv6 or [ ])))
         (builtins.attrNames interfaces));
 
-    canonical = builtins.concatLists (map (t: canonicalFor t) allTargets);
+    # The model also expresses authority as a FORWARDING RELATION, not only as a
+    # route. `forwardingIntent` on a runtime target names which interfaces may
+    # forward to which (`rules`, `localInterfaces`, `transitInterfaces`), and the
+    # renderer places the resulting egress route from exactly that
+    # (policy-routing/forwarding-rules.nix -> forwardingRulesResolved).
+    #
+    # Without this, every relation-derived route looked invented: measured, the
+    # tenant defaults 0.0.0.0/0 and ::/0 in table 1001 on s-router-access-admin,
+    # which the intent grants with `allow-admin-to-wg-egress` but which no
+    # per-interface `routes` entry describes.
+    relationAuthorities = builtins.concatMap
+      (t:
+        let
+          fi = t.forwardingIntent or { };
+          ifs = (t.effectiveRuntimeRealization or { }).interfaces or { };
+          runtimes = map (n: ifs.${n}.runtimeIfName or n) (builtins.attrNames ifs);
+        in
+        builtins.concatMap
+          (runtime:
+            [ { inherit runtime; family = 4; dst = "0.0.0.0/0"; }
+              { inherit runtime; family = 6; dst = "::/0"; } ])
+          (if builtins.isAttrs fi && (fi.rules or [ ]) != [ ] then runtimes else [ ]))
+      allTargets;
+
+    canonical = builtins.concatLists (map (t: canonicalFor t) allTargets) ++ relationAuthorities;
 
     # Rendered: every networkd Route that names a table.
     renderedFor = name:
