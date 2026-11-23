@@ -2215,13 +2215,25 @@ Seven levels, ISA-95 naming, all present and all exposing an `api/`:
 
 Two things worth recording rather than changing:
 
-**1. All seven levels exist here and one apiece in the peer renderers.** Measured:
-`network-renderer-nebula`, `-wireguard` and `-containerlab-linux-backend` each carry
-a single `s88/` subtree; `network-renderer-openconfig` has none. That is the right
-shape and not an inconsistency -- the nixos renderer is the one that materialises
-host bridges, VLAN devices, policy routing and container networks, which is what the
-deeper ISA-95 levels describe. A peer renderer that emitted a Unit/ControlModule
-hierarchy would be modelling the site rather than parsing a binding.
+**1. All seven levels exist here; each peer renderer uses exactly one, and a
+different one.** Measured by listing their `s88/` trees:
+
+| renderer | levels used |
+| --- | --- |
+| nixos | all 7 (272 files) |
+| nebula | `Enterprise` only |
+| wireguard | `ControlModule` only |
+| containerlab-linux-backend | none |
+| openconfig | none |
+
+That is the right shape and not an inconsistency. Each peer renderer takes the level
+that matches what it produces: nebula plans an enterprise-scale overlay bootstrap,
+wireguard emits a control-module tunnel/firewall/NAT shim, containerlab and
+openconfig are pure emitters with no site structure to model. The nixos renderer is
+the one that materialises host bridges, VLAN devices, policy routing and container
+networks, which is what the whole ISA-95 stack describes. A peer renderer that
+emitted a Unit/ControlModule hierarchy would be modelling the site rather than
+parsing a binding.
 
 **2. `ControlModule` is 198 of the 272 files.** Everything that produces a route,
 a rule, an address or a unit lives there; the other six levels are 74 files total and
