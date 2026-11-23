@@ -933,3 +933,56 @@ Concretely, the change is:
 
 That is a rewrite, and this repository's own rule is that a red test is fixed in
 the layer that owns the behaviour -- here, by replacing the layer.
+
+## Step 1 works, and it is 20 lines
+
+Prototyped (not wired): take `canonicalRoutes` filtered to the target, drop the
+records with no `tableId`, and map each to a networkd route.
+
+```nix
+toRoute = r: {
+  Destination = r.dst;
+  Table = r.tableId;
+  Gateway = r.gateway;
+  GatewayOnLink = true;
+} // (if r.metric == null then { } else { Metric = r.metric; });
+```
+
+Measured for `s-router-policy`:
+
+| | |
+| --- | --- |
+| canonical records for the target | **97** |
+| networkd routes emitted | **97** |
+| interfaces covered | `ens3 ens4 ens5 ens6 ens7 ens9` |
+
+Exactly the six interfaces the model names, 1:1, no duplication, no derivation.
+Sample output:
+
+```json
+{"Destination":"0.0.0.0/0","Gateway":"10.10.0.17","GatewayOnLink":true,
+ "Metric":2000,"Table":1004}
+```
+
+So the *emission* is a 20-line function and it is correct by construction,
+because it copies the model instead of deriving anything. Every failed attempt in
+this document was an attempt to make the existing pipeline produce these 97 from
+the 363 it generates -- and "only 10 of 363" shows that is not a reconciliation
+problem.
+
+### What is actually left
+
+Two things, both ordinary work rather than discovery:
+
+1. **Put the 20 lines in the right place.** `container-networks.nix` needs the
+   target identity (enterprise + site + logical name) and the canonical list. The
+   target identity is the one piece not yet threaded; `canonicalRuntimeTargets`
+   publishes `{ enterprise, site, target }` so it is a lookup, not a parse.
+2. **Delete what the 20 lines replace.** `rawRoutesForPolicyTable`,
+   `routesByOutputInterface`, `routeOutputInterface`, `tableForOutputIfName`,
+   `tableForRoute`, `extraTableForRoute`, `policy-routing-sources.nix` -- and
+   then the ~30 tests that assert their output need to assert the model's
+   instead.
+
+Step 2 is the large part, and it is large because of the tests, not the code:
+3,685 lines of derivation is deleted, not rewritten.
