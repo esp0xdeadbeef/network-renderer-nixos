@@ -1489,3 +1489,50 @@ question, not a renderer fix:
 Reverted to the committed state. This is the boundary of what a renderer-side
 change can establish: the renderer and the model disagree about whether tenant
 interfaces get a default, and no amount of renderer measurement settles it.
+
+## The boundary resolved: the residual routes have model authority the check cannot see
+
+The last SMS-060 failures are tenant defaults (`0.0.0.0/0`, `::/0` in table 1001).
+They are not renderer-local invention, and the model does express them -- as a
+**forwarding relation**, not as a route:
+
+```nix
+# network-labs/examples/wireguard-provider-overlay/intent.nix
+{ action = "allow";
+  id = "allow-admin-to-wg-egress";
+  from = { kind = "tenant"; name = "admin"; };
+  to   = { kind = "external"; name = "wg-egress"; };
+  trafficType = "wireguard"; }
+```
+
+and the renderer consumes exactly that: `forwardingRulesResolved` is threaded
+into `policy-routing.nix` and used to place the tenant's egress. The route is
+therefore derived from a model statement -- it is not a renderer-local default.
+
+**Why the check calls it invented.** `test-no-invented-route-records.sh` builds its
+canonical set from the CPM's per-interface `routes`:
+
+```nix
+canonicalFor = target: ... (i.routes.ipv4 or []) ...
+canonical = builtins.concatLists (map canonicalFor allTargets);
+```
+
+which is the set *before* relation-derived forwarding is applied. The renderer
+emits routes plus relations; the check compares that against routes only. Every
+relation-derived route therefore looks unauthorized.
+
+So this is a **gap in the check**, not a renderer defect: SMS-060 asks "does every
+rendered route trace to canonical authority", and the authority for these routes
+is the forwarding relation, which the check does not load.
+
+### What that means for the whole investigation
+
+The defect this run fixed was real and is measured: occurrence derived from
+interface topology (`routeOutputInterface`), duplication 121 -> 0, placement
+67 -> 0, suite 109/4 -> 111/2. What is left in SMS-060 is a check whose notion of
+"authority" is narrower than the model's -- it knows routes and not relations.
+
+Closing that is a change to the check (load `forwardingModel` relations into the
+canonical set, or exempt relation-derived routes explicitly with the relation id
+recorded), and it belongs with the same work that would let the check be a true
+assertion rather than a report.
