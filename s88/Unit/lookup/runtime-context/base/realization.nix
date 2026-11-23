@@ -1,18 +1,35 @@
-{ lib, common, targets }:
+{
+  lib,
+  common,
+  targets,
+}:
 
 let
   inherit (common) sortedAttrNames;
-  inherit
-    (targets)
+  inherit (targets)
     runtimeTargetIdForUnit
     logicalNodeForUnit
     ;
 
-  # CMC-NIXOS-INTENT-CLEANUP: realizationNodesFor takes cpm or source, not inventory.
-  # Per SMS-100/SMS-101, CPM is the sole data source. Inventory fallback removed.
   realizationNodesFor =
-    { cpm ? null, source ? { } }:
-    if
+    {
+      cpm ? null,
+      source ? { }, # The validated bundle's canonical collections: a SIBLING of the
+
+      canonicalCollections ? { },
+    }:
+    let
+      canonicalTargets =
+        (if builtins.isAttrs canonicalCollections then canonicalCollections else { })
+        .canonicalRuntimeTargets or { };
+
+      fromCanonical = builtins.foldl' (
+        acc: target: acc // { ${target.target or (target.name or "")} = target; }
+      ) { } (builtins.filter (t: builtins.isAttrs t) (canonicalTargets.targets or [ ]));
+    in
+    if fromCanonical != { } then
+      fromCanonical
+    else if
       cpm != null
       && builtins.isAttrs cpm
       && cpm ? control_plane_model
@@ -22,9 +39,20 @@ let
       && builtins.isAttrs (cpm.control_plane_model.realization.nodes or null)
     then
       cpm.control_plane_model.realization.nodes
-    else if cpm != null && builtins.isAttrs cpm && cpm ? realization && builtins.isAttrs cpm.realization && builtins.isAttrs (cpm.realization.nodes or null) then
+    else if
+      cpm != null
+      && builtins.isAttrs cpm
+      && cpm ? realization
+      && builtins.isAttrs cpm.realization
+      && builtins.isAttrs (cpm.realization.nodes or null)
+    then
       cpm.realization.nodes
-    else if builtins.isAttrs source && source ? realization && builtins.isAttrs source.realization && builtins.isAttrs (source.realization.nodes or null) then
+    else if
+      builtins.isAttrs source
+      && source ? realization
+      && builtins.isAttrs source.realization
+      && builtins.isAttrs (source.realization.nodes or null)
+    then
       source.realization.nodes
     else
       { };
@@ -36,14 +64,48 @@ rec {
   inherit realizationNodesFor logicalNodeForRealizationNode;
 
   candidateRealizationNodeNamesForUnit =
-    { cpm ? null, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    {
+      cpm ? null,
+      source ? { },
+      canonicalCollections ? { },
+      unitName,
+      file ? "s88/Unit/lookup/runtime-context.nix",
+    }:
     let
-      realizationNodes = realizationNodesFor { inherit cpm source; };
-      runtimeTargetId = if cpm != null then runtimeTargetIdForUnit { inherit cpm source unitName file; } else null;
-      logicalNode = if cpm != null then logicalNodeForUnit { inherit cpm source unitName file; } else { };
-      logicalName = if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else null;
-      logicalSite = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
-      logicalEnterprise = if logicalNode ? enterprise && builtins.isString logicalNode.enterprise then logicalNode.enterprise else null;
+      realizationNodes = realizationNodesFor { inherit cpm source canonicalCollections; };
+      runtimeTargetId =
+        if cpm != null then
+          runtimeTargetIdForUnit {
+            inherit
+              cpm
+              source
+              unitName
+              file
+              ;
+          }
+        else
+          null;
+      logicalNode =
+        if cpm != null then
+          logicalNodeForUnit {
+            inherit
+              cpm
+              source
+              unitName
+              file
+              ;
+          }
+        else
+          { };
+      logicalName =
+        if logicalNode ? name && builtins.isString logicalNode.name then logicalNode.name else null;
+      logicalSite =
+        if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
+      logicalEnterprise =
+        if logicalNode ? enterprise && builtins.isString logicalNode.enterprise then
+          logicalNode.enterprise
+        else
+          null;
       exactNames = lib.unique (
         lib.filter (name: builtins.isString name && builtins.hasAttr name realizationNodes) [
           unitName
@@ -51,36 +113,47 @@ rec {
           logicalName
         ]
       );
-      logicalMatches = lib.filter
-        (
-          nodeName:
-          let nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
-          in
-          logicalName != null
-          && (nodeLogical.name or null) == logicalName
-          && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
-          && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
-        )
-        (sortedAttrNames realizationNodes);
-      prefixMatches = lib.filter
-        (
-          nodeName:
-          let nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
-          in
-          runtimeTargetId != null
-          && lib.hasSuffix runtimeTargetId nodeName
-          && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
-          && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
-        )
-        (sortedAttrNames realizationNodes);
+      logicalMatches = lib.filter (
+        nodeName:
+        let
+          nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
+        in
+        logicalName != null
+        && (nodeLogical.name or null) == logicalName
+        && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
+        && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
+      ) (sortedAttrNames realizationNodes);
+      prefixMatches = lib.filter (
+        nodeName:
+        let
+          nodeLogical = logicalNodeForRealizationNode realizationNodes.${nodeName};
+        in
+        runtimeTargetId != null
+        && lib.hasSuffix runtimeTargetId nodeName
+        && (logicalSite == null || (nodeLogical.site or null) == logicalSite)
+        && (logicalEnterprise == null || (nodeLogical.enterprise or null) == logicalEnterprise)
+      ) (sortedAttrNames realizationNodes);
     in
     lib.unique (exactNames ++ logicalMatches ++ prefixMatches);
 
   realizationNodeForUnit =
-    { cpm ? null, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
+    {
+      cpm ? null,
+      source ? { },
+      canonicalCollections ? { },
+      unitName,
+      file ? "s88/Unit/lookup/runtime-context.nix",
+    }:
     let
-      realizationNodes = realizationNodesFor { inherit cpm source; };
-      candidates = candidateRealizationNodeNamesForUnit { inherit cpm source unitName file; };
+      realizationNodes = realizationNodesFor { inherit cpm source canonicalCollections; };
+      candidates = candidateRealizationNodeNamesForUnit {
+        inherit
+          cpm
+          source
+          unitName
+          file
+          ;
+      };
     in
     if builtins.hasAttr unitName realizationNodes && builtins.isAttrs realizationNodes.${unitName} then
       realizationNodes.${unitName}
@@ -97,7 +170,22 @@ rec {
       '';
 
   realizationHostForUnit =
-    { cpm ? null, source ? { }, unitName, file ? "s88/Unit/lookup/runtime-context.nix" }:
-    let node = realizationNodeForUnit { inherit cpm source unitName file; };
-    in if node != null && node ? host && builtins.isString node.host then node.host else null;
+    {
+      cpm ? null,
+      source ? { },
+      canonicalCollections ? { },
+      unitName,
+      file ? "s88/Unit/lookup/runtime-context.nix",
+    }:
+    let
+      node = realizationNodeForUnit {
+        inherit
+          cpm
+          source
+          unitName
+          file
+          ;
+      };
+    in
+    if node != null && node ? host && builtins.isString node.host then node.host else null;
 }
