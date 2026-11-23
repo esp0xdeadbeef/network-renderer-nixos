@@ -3,6 +3,7 @@
   containerModel,
   canonicalPolicyRoutesByInterface ? { },
   modelledTenantPrefixes ? [ ],
+  canonicalOwnersByDestinationTable ? { },
 
   relationEgressInterfaces ? [ ],
   interfaces,
@@ -517,8 +518,16 @@ let
         + "|${toString (r.Metric or r.metric or null)}";
 
       isModelledDestination = r: builtins.elem (r.Destination or r.dst or null) modelledTenantPrefixes;
+      destTableOf = r: "${r.Destination or r.dst or ""}|${toString (r.Table or r.table or null)}";
+      isCopy =
+        r:
+        let
+          owners = canonicalOwnersByDestinationTable.${destTableOf r} or [ ];
+        in
+        !(isModelledDestination r)
+        && (canonicalFor ? ${keyOf r} || (owners != [ ] && !(builtins.elem ifName owners)));
     in
-    builtins.filter (r: isModelledDestination r || !(canonicalFor ? ${keyOf r})) routes;
+    builtins.filter (r: !(isCopy r)) routes;
 
 in
 {
