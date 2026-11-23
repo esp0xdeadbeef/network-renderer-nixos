@@ -1044,3 +1044,33 @@ pipeline produces (363 routes) rather than what the model declares (97), and
 each has to be re-read to decide whether its assertion is about the model or
 about the pipeline. That is a review job over the FS catalogue, not a code
 change, and it is why fifteen attempts at the code alone could not finish it.
+
+## Attribution: which function strands how many routes
+
+The 2,117 stranded routes ("declared route absent from the interface that
+declares it") needed splitting between the two candidate mechanisms. Done by
+making `routeOutputInterface` identity (`sourceIfName`, the peer-match branch
+deleted) and re-measuring:
+
+| `routeOutputInterface` | stranded routes |
+| --- | --- |
+| peer-address match (file state) | **2,117** |
+| returns its source interface | **1,957** |
+| difference | **160** |
+
+So the peer-address relocation accounts for 160 routes. The other **1,957** are
+stranded before it -- in the source and lane selection
+(`policy-routing-sources.nix`, `forTarget`, `sourceIfNames`), which decides which
+interfaces a route is even considered for.
+
+That settles the last open question about scope:
+
+- removing `routeOutputInterface` alone fixes 160 of 2,117 (7.6%) -- and it broke
+  `FS-540-SMS-040`, so it is not even a net improvement on its own;
+- the bulk of the defect is upstream of it, in the code that decides which lanes
+  carry a route;
+- both are the same clause ("derive occurrence from interface topology"), and
+  both disappear only when the routes are built from `canonicalRoutes`.
+
+Reverted; the file state is unchanged and the measurement is reproducible from
+the test case committed as `c6c201ad`.
