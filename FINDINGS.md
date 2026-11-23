@@ -2165,3 +2165,36 @@ left the cobalt tenant with 100% packet loss. The diagnosis above is the contrib
 the next attempt should change `tableForOutputIfName` only, and should be judged by a
 HAT run that exercises policy-routed traffic through the upstream selector, which the
 current cobalt fixture's tang probe is the closest thing to.
+
+## The remaining 114 are a fixture artifact, not a deployed defect
+
+The probe the diagnosis asked for exists now: `scripts/hat-isp.py policy <site>`,
+which reads the **installed** tables on a booted box rather than the rendered config.
+
+On the booted cobalt fixture, `upstream-selector`:
+
+```
+distinct tables: 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012
+table 1001: 73 routes, 0 matching 10.19.0.*
+table 1002: 10.1.0.0/31, 10.1.0.40/31, 10.1.0.42/31, 10.1.1.0 ...
+table 1003: 10.1.0.2/31, 10.1.0.44/31, 10.1.0.46/31, 10.1.1.1 ...
+```
+
+Twelve distinct tables, each with its own route set, and none of the
+`10.19.0.0/32` records that the duplicate check reports. The renderer is **not**
+flattening the upstream selector on the deployed model.
+
+So the 114 duplicates are specific to `examples/wireguard-provider-overlay`, whose
+intent gives the upstream selector six interfaces including `ens10`, and the check
+iterates *that* fixture. The deployed cobalt intent does not have that shape.
+
+**What that changes:** the remaining 114 are a property of a test fixture, not a
+statement about a site. Before treating them as a renderer defect worth a fourth
+table change, the question is whether that fixture's intent is one the model intends
+to support -- six policy-table interfaces with overlapping host routes -- or whether
+the fixture is simply shaped like a stress case. The booted box says the deployed
+shapes are fine.
+
+This is the useful outcome of the probe: a construction metric that named a
+renderer defect stops naming one once you look at the installed tables on a real
+boot, and the round trip costs one command.
