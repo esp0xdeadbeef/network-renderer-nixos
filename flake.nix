@@ -297,6 +297,8 @@
             lib = userLib;
             inherit pkgs hostName;
             controlPlane = effectiveCpm;
+
+            canonicalCollections = rendererInput.canonicalCollections or { };
           };
         in
         {
