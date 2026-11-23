@@ -516,3 +516,50 @@ optional parameter threaded through eight files but the ONLY source of routes.
 An optional parameter on a deep call chain cannot be distinguished from an empty
 one, and eight attempts have now shown that every partial route to the answer
 gets swallowed by exactly that property.
+
+## Attempt nine: the thread works; the predicate is the problem
+
+This attempt found the bug that made attempt eight a silent no-op, and then hit
+the real wall.
+
+**Bug found (why attempt eight matched nothing).** `canonicalAllows` compared
+`ifName` -- the MODELLED name, `ens6` -- against the rendered network unit name,
+`10-ens6`. Measured with the prefix removed:
+
+```
+rendered policy routes on s-router-policy : 363
+matched on (interface, table, dst)        : 109   (with the 10- prefix stripped)
+matched with the raw rendered name        :   0
+```
+
+So the code was correct except for a prefix, and `0` looked exactly like "no
+canonical data reached me". Confirmed separately that the data does arrive, with
+a trace on the list length after fixing the plumbing:
+
+```
+trace: CANLEN=385
+trace: CANLEN=385
+```
+
+**The real wall.** With the plumbing correct, the filter is too strict. It asks
+for `(interface, table, destination)` equality, and the renderer frequently
+installs a route in a *different table* than the model names -- the
+table-assignment defect, which this document already established is independent
+of the duplication. Result: 12 test failures, because routes the model DOES
+declare are dropped when their table differs.
+
+```
+PASS: 101, SKIP: 1, FAIL: 12  (baseline is 110 / 1 / 3)
+```
+
+Reverted. The attempt confirms both halves of the diagnosis with numbers:
+
+1. the filter cannot be `(interface, table, destination)` equality while the
+   renderer still chooses tables, so de-duplication alone cannot work;
+2. the table choice must come from the canonical record FIRST, before any
+   filtering is meaningful.
+
+That is the same conclusion as attempts four, six and seven, now with the
+plumbing proven and the exact prefix bug named. The next attempt should change
+`tableForOutputIfName`/`tableForRoute` to return the canonical `tableId` for the
+route's `(interface, destination)`, and only then apply the filter.
