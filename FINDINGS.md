@@ -429,3 +429,56 @@ A correct renderer maps (3) and deletes (1) and (2) from the materialization
 path. That is a rewrite of the policy-routing layer, not a patch, which is why
 six focused attempts all failed and why each one produced either a regression or
 a false green.
+
+## Attempt seven: the relocation is not purely wrong, which narrows the fix
+
+Reverted, but it produced the last missing fact.
+
+Making `routeOutputInterface` return its source interface (`sourceIfName`) made
+`test-upstream-selector-core-main-routes` pass LEGITIMATELY -- that test now
+asserts per-interface, so a pass means `core` really carries its routes. It also
+broke `FS-540-HDS-010-SDS-010-SMS-040`, which requires
+
+```
+::/0 gw fd42:dead:feed:1000:0:0:0:4
+```
+
+on `pol-hostile-ew` table 1004 -- and the model DOES declare exactly that there:
+
+```
+espbranch-site-b-b-router-upstream-selector
+  core-nebula       t=1002  ::/0  gw fd42:dead:feed:1000:0:0:0:4
+  core-isp          t=1001  ::/0  gw fd42:dead:feed:1000:0:0:0:6
+  pol-branch-ew     t=1003  ::/0  gw fd42:dead:feed:1000:0:0:0:4  (and :6, :c)
+  policy-branch     t=1005  ::/0  gw fd42:dead:feed:1000:0:0:0:4 / :6
+  pol-hostile-ew    t=1004  ::/0  gw fd42:dead:feed:1000:0:0:0:4 / :10 / :c
+```
+
+So the same prefix is modelled on five interfaces in five different tables, and
+each must be installed where the model says. `routeOutputInterface` is used both
+to place those correctly AND to relocate routes that should have stayed put --
+one function doing a legitimate job and an illegitimate one, which is why
+neither removing it nor keeping it passes.
+
+### The model itself is nearly clean
+
+Same target, measured:
+
+| | count |
+| --- | --- |
+| canonicalRoutes for `b-router-upstream-selector` | **104** |
+| distinct `(interface, table, dst, gateway)` among them | **102** |
+
+Only 2 duplicates in the model (worth a separate look, but tiny). Against
+`s-router-policy`'s 97 canonical vs 427 rendered, that establishes the ratio:
+**the model is essentially clean and the renderer inflates by roughly 4x.**
+
+### What this means
+
+The fix cannot be a change to `routeOutputInterface`'s return value, and cannot
+be a dedupe. It has to install each canonical route at exactly its
+`(runtimeIfName, tableId)` -- which means `rawRoutesForPolicyTable` must be
+replaced by a mapping from `canonicalRoutes`, and `routeOutputInterface`,
+`policy-routing-sources.nix`, `tableForOutputIfName`, `tableForRoute` and
+`extraTableForRoute` all leave the materialization path. Seven attempts have now
+established that from seven directions.
