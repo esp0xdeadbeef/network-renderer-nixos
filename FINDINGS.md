@@ -1316,3 +1316,41 @@ Not "replace", and not "filter". It has to:
 file has to distinguish "policy-table route" from "everything else" and take the
 former from canonical only. Seventeen attempts have established that this cannot
 be reached by editing the inputs around it.
+
+## Attempt twenty: the ownership rule, and the trade-off it exposes
+
+With placement fixed (stranded 67 -> 0, committed), the remaining duplication was
+121 rows. The derived path places a policy route on every interface it considers
+reachable, so a route the model puts on `ens6` in table 1004 also appears on
+`ens3`.
+
+The rule tried: build `(destination, table) -> interfaces the model names` for
+the container, and drop a derived route in that (destination, table) on any other
+interface.
+
+| measure | before | ownership rule |
+| --- | --- | --- |
+| duplicate rows (SMS-060) | 121 | **34** |
+| stranded routes | 0 | 0 |
+| suite | 109 PASS / 4 FAIL | 108 PASS / 5 FAIL |
+
+So it removes two thirds of the duplication without losing placement -- and it
+breaks `test-transit-endpoint-return-routes`, which needs
+`10.70.10.0/24` via `10.50.0.16` on the branch upstream selector. The model names
+that (destination, table) for a DIFFERENT interface, but the return-route contract
+requires it here as well.
+
+**That is the trade-off, stated exactly:** for these two cases the same
+`(destination, table)` legitimately exists on more than one interface, and neither
+"the model names it elsewhere" nor "the model names it here" distinguishes a copy
+from a required return route.
+
+Resolving it needs a discriminator the canonical records do not currently carry --
+the renderer knows (from `kind` and from the forwarding relations) which routes are
+returns; `canonicalRoutes.kind` publishes `internal-reachability`,
+`provider-reachability`, `default-reachability` and the rest, so the information
+may already be there and is simply not consulted.
+
+Reverted; the committed state is 40d11d79 (placement fixed, stranded 0, 109 PASS /
+4 FAIL, no regressions). The ownership rule is the next step, with the number it
+needs to preserve and the one test that constrains it.
