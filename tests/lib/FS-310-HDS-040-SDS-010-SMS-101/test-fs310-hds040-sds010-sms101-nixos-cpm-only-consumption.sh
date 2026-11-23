@@ -610,7 +610,10 @@ env REPO_ROOT="${repo_root}" \
       (import (repoRoot + "/s88/ControlModule/module/public-ingress.nix") {
         inherit lib;
         hostName = "s-router-sms101";
+        # Both carriers, both empty: "no CPM authority" expressed in the shape the
+        # module now accepts alongside the legacy one. The guard must still fire.
         controlPlane = { data = { }; };
+        canonicalCollections = { canonicalSites = { byEnterprise = { }; }; };
         runtimeFacts.publicIngress = {
           bridgeInterface = "ppp0";
           snatSourceCidr4 = "192.168.3.0/24";
