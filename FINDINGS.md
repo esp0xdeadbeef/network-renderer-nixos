@@ -1251,3 +1251,68 @@ That is the shape of the remaining work, and it is what step 3 of REWRITE.md
 describes: delete the derivation, do not filter it.
 
 Reverted to the 109 PASS / 1 SKIP / 4 FAIL baseline.
+
+## Attempt seventeen: replacing the route set removes routes the pipeline supplied from elsewhere
+
+Implemented the shape attempt sixteen suggested -- canonical policy routes
+replacing the derived policy-route term, main-table derivation kept. Suite went
+from 109 PASS / 4 FAIL to **104 PASS / 9 FAIL**: replaced five passing tests'
+routes with nothing.
+
+The instructive case: `10.90.10.0/24` for
+`esp0xdeadbeef-site-c-c-router-upstream-selector` IS in `canonicalRoutes`, on
+`core` in table 1001:
+
+```
+core           t=1001 10.90.10.0/24
+pol-client-ew  t=1003 10.90.10.0/24
+pol-client-wan t=1004 10.90.10.0/24
+policy-dmz-wan t=1006 10.90.10.0/24
+```
+
+and `test-upstream-selector-core-main-routes` still failed after the swap. So the
+pipeline was not merely duplicating that route -- it was supplying it to those
+interfaces **from a different source than `canonicalRoutes.routes`**
+(`rawRoutes`, the lane/forwarding selection, `advertisedOnlinkRoutesByInterface`,
+`serviceIngressMainRawRoutes`, ...). Removing the policy term removed the ability
+of those other paths to produce it.
+
+### What that means, without overstating it
+
+Seventeen attempts have produced a set of facts rather than a working patch. The
+ones that are measured and stable:
+
+- `canonicalRoutes` is clean: 97 policy routes for `s-router-policy`, all distinct
+  on `(runtimeIfName, dst, gateway, tableId, metric)`.
+- The renderer emits 363 policy routes for that target, 10 of which match the
+  model on that identity.
+- 346 of 385 canonical routes exist somewhere at the right `(destination,
+  table)`; 39 do not exist at all.
+- With the container's records correctly scoped by target, **67** declared routes
+  are absent from their declaring interface -- a figure that took three
+  measurement corrections to reach (`2117 -> 769 -> 67`).
+- Emitting policy routes from the canonical records takes that 67 to **0**.
+- Doing so alone removes five other routes' worth of coverage, because the
+  pipeline supplies some routes from paths `canonicalRoutes` does not describe.
+
+The last two together are the real constraint: the canonical set is sufficient for
+the routes the model describes and insufficient for the routes it does not, and
+the renderer currently conflates them in one derived set.
+
+### What a correct change therefore has to do
+
+Not "replace", and not "filter". It has to:
+
+1. emit every canonical record as one networkd route at its
+   `(runtimeIfName, tableId, gateway, metric)` -- proven sufficient for those;
+2. keep the derivation for the things `canonicalRoutes` does not carry --
+   main-table entries, connected prefixes, advertised on-link routes,
+   service-ingress routes;
+3. and, critically, **not** let the derived path also emit policy-table routes,
+   which is what duplicates them today.
+
+(3) is the part that makes this a deletion inside `interface-units.nix`'s
+`renderedRoutes` construction rather than a substitution of one input to it. That
+file has to distinguish "policy-table route" from "everything else" and take the
+former from canonical only. Seventeen attempts have established that this cannot
+be reached by editing the inputs around it.
