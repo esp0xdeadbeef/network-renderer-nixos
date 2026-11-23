@@ -292,6 +292,8 @@
             inherit pkgs hostName;
             controlPlane = effectiveCpm;
             runtimeFacts = rendererInput.runtimeFacts or { };
+
+            canonicalCollections = rendererInput.canonicalCollections or { };
           };
           dnsValidationAuthorityConfig = import ./s88/ControlModule/module/dns-validation-authority.nix {
             lib = userLib;

@@ -4,20 +4,23 @@ let
   attrOr = value: if builtins.isAttrs value then value else { };
   listOr = value: if builtins.isList value then value else [ ];
   strOrNull = value: if builtins.isString value && value != "" then value else null;
-  requiredString = path: value:
-    let stringValue = strOrNull value;
-    in if stringValue == null then fail "${path} is required" else stringValue;
+  requiredString =
+    path: value:
+    let
+      stringValue = strOrNull value;
+    in
+    if stringValue == null then fail "${path} is required" else stringValue;
   stripMask = value: builtins.head (lib.splitString "/" (toString value));
-  sortedUniqueInts = values:
-    lib.sort (left: right: left < right) (lib.unique (builtins.filter builtins.isInt values));
-  nftName = value:
-    lib.replaceStrings
-      [ "-" "." ":" "/" "::" ]
-      [ "_" "_" "_" "_" "_" ]
-      value;
+  sortedUniqueInts =
+    values: lib.sort (left: right: left < right) (lib.unique (builtins.filter builtins.isInt values));
+  nftName = value: lib.replaceStrings [ "-" "." ":" "/" "::" ] [ "_" "_" "_" "_" "_" ] value;
 
   publicIPv4Binding =
-    { path, value, setName }:
+    {
+      path,
+      value,
+      setName,
+    }:
     let
       publicIPv4 = strOrNull (value.publicIPv4 or null);
       publicIPv4SecretPath = strOrNull (value.publicIPv4SecretPath or null);
@@ -35,44 +38,54 @@ let
     else
       fail "${path}.publicIPv4 or ${path}.publicIPv4SecretPath is required";
 
-  cpmDataFrom = controlPlane:
-    if builtins.isAttrs (controlPlane.control_plane_model.data or null) then
+  cpmDataFrom =
+    controlPlane: canonicalCollections:
+    let
+      sites =
+        (if builtins.isAttrs canonicalCollections then canonicalCollections else { }).canonicalSites or { };
+    in
+    if builtins.isAttrs (sites.byEnterprise or null) then
+      sites.byEnterprise
+    else if builtins.isAttrs (controlPlane.control_plane_model.data or null) then
       controlPlane.control_plane_model.data
     else if builtins.isAttrs (controlPlane.data or null) then
       controlPlane.data
     else
-      fail "controlPlane must contain control_plane_model.data";
+      fail "public-ingress needs the bundle's canonicalSites.byEnterprise (or a control plane carrying `data`)";
 
-  serviceBindingFor = site: serviceName:
-    attrOr (((attrOr ((attrOr (site.policy or { })).endpointBindings or { })).services or { }).${serviceName} or { });
+  serviceBindingFor =
+    site: serviceName:
+    attrOr (
+      ((attrOr ((attrOr (site.policy or { })).endpointBindings or { })).services or { }).${serviceName}
+        or { }
+    );
 
-  externalAllowServiceRelations = site: serviceName:
+  externalAllowServiceRelations =
+    site: serviceName:
     let
       relationList =
         listOr (((attrOr ((attrOr (site.policy or { })).endpointBindings or { })).relations or null))
         ++ listOr (((attrOr (site.communicationContract or { })).relations or null))
         ++ listOr (site.relations or null);
     in
-    builtins.filter
-      (relation:
-        let
-          from = attrOr (relation.from or { });
-          to = attrOr (relation.to or { });
-        in
-        (relation.action or null) == "allow"
-        && (from.kind or null) == "external"
-        && (to.kind or null) == "service"
-        && (to.name or null) == serviceName)
-      relationList;
+    builtins.filter (
+      relation:
+      let
+        from = attrOr (relation.from or { });
+        to = attrOr (relation.to or { });
+      in
+      (relation.action or null) == "allow"
+      && (from.kind or null) == "external"
+      && (to.kind or null) == "service"
+      && (to.name or null) == serviceName
+    ) relationList;
 
-  trafficTypeMatchFor = site: trafficTypeName:
+  trafficTypeMatchFor =
+    site: trafficTypeName:
     let
-      matches =
-        builtins.filter
-          (trafficType:
-            builtins.isAttrs trafficType
-            && (trafficType.name or null) == trafficTypeName)
-          (listOr (((attrOr (site.communicationContract or { })).trafficTypes or null)));
+      matches = builtins.filter (
+        trafficType: builtins.isAttrs trafficType && (trafficType.name or null) == trafficTypeName
+      ) (listOr (((attrOr (site.communicationContract or { })).trafficTypes or null)));
     in
     if trafficTypeName == null then
       [ ]
@@ -81,7 +94,8 @@ let
     else
       fail "CPM traffic type '${trafficTypeName}' must have exactly one match definition";
 
-  relationMatches = site: relation:
+  relationMatches =
+    site: relation:
     let
       directMatches = listOr (relation.match or null);
     in
@@ -90,22 +104,27 @@ let
     else
       trafficTypeMatchFor site (relation.trafficType or null);
 
-  serviceRuntimeFact = publicIngressFacts: enterpriseName: siteName: serviceName:
-    attrOr ((((publicIngressFacts.services or { }).${enterpriseName} or { }).${siteName} or { }).${serviceName} or { });
+  serviceRuntimeFact =
+    publicIngressFacts: enterpriseName: siteName: serviceName:
+    attrOr (
+      (((publicIngressFacts.services or { }).${enterpriseName} or { }).${siteName} or { }).${serviceName}
+        or { }
+    );
 
-  serviceDefinitionFor = site: serviceName:
+  serviceDefinitionFor =
+    site: serviceName:
     let
-      matches =
-        builtins.filter
-          (service: builtins.isAttrs service && (service.name or null) == serviceName)
-          (listOr (site.services or null));
+      matches = builtins.filter (
+        service: builtins.isAttrs service && (service.name or null) == serviceName
+      ) (listOr (site.services or null));
     in
     if builtins.length matches == 1 then
       builtins.head matches
     else
       fail "CPM service '${serviceName}' must have exactly one resolved service definition";
 
-  singleProviderEndpoint4 = serviceName: service:
+  singleProviderEndpoint4 =
+    serviceName: service:
     let
       endpoints = listOr (service.providerEndpoints or null);
       endpoint =
@@ -120,18 +139,18 @@ let
     else
       fail "CPM service '${serviceName}' provider endpoint must have exactly one IPv4 address";
 
-  siteItemsFrom = cpmRoot:
-    lib.concatMap
-      (enterpriseName:
-        let enterprise = attrOr cpmRoot.${enterpriseName};
-        in
-        map
-          (siteName: {
-            inherit enterpriseName siteName;
-            site = attrOr enterprise.${siteName};
-          })
-          (lib.sort builtins.lessThan (builtins.attrNames enterprise)))
-      (lib.sort builtins.lessThan (builtins.attrNames cpmRoot));
+  siteItemsFrom =
+    cpmRoot:
+    lib.concatMap (
+      enterpriseName:
+      let
+        enterprise = attrOr cpmRoot.${enterpriseName};
+      in
+      map (siteName: {
+        inherit enterpriseName siteName;
+        site = attrOr enterprise.${siteName};
+      }) (lib.sort builtins.lessThan (builtins.attrNames enterprise))
+    ) (lib.sort builtins.lessThan (builtins.attrNames cpmRoot));
 
   helpers = {
     inherit
@@ -153,15 +172,15 @@ let
   runtimeTargetAddress4 =
     cpmRoot: targetRef:
     let
-      enterpriseName = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].target.enterpriseName" (
-        targetRef.enterpriseName or null
-      );
+      enterpriseName =
+        requiredString "runtimeFacts.publicIngress.runtimeForwards[*].target.enterpriseName"
+          (targetRef.enterpriseName or null);
       siteName = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].target.siteName" (
         targetRef.siteName or null
       );
-      runtimeTargetName = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].target.runtimeTarget" (
-        targetRef.runtimeTarget or null
-      );
+      runtimeTargetName =
+        requiredString "runtimeFacts.publicIngress.runtimeForwards[*].target.runtimeTarget"
+          (targetRef.runtimeTarget or null);
       interfaceName = requiredString "runtimeFacts.publicIngress.runtimeForwards[*].target.interface" (
         targetRef.interface or null
       );
@@ -170,76 +189,63 @@ let
       interfaces = attrOr ((runtimeTarget.effectiveRuntimeRealization or { }).interfaces or { });
       iface = attrOr (interfaces.${interfaceName} or { });
     in
-    stripMask (requiredString
-      "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.effectiveRuntimeRealization.interfaces.${interfaceName}.addr4"
-      (iface.addr4 or null));
+    stripMask (
+      requiredString
+        "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.effectiveRuntimeRealization.interfaces.${interfaceName}.addr4"
+        (iface.addr4 or null)
+    );
 
   publicServiceInputDports =
     cpmRoot:
     sortedUniqueInts (
-      lib.concatMap
-        (item:
-        lib.concatMap
-          (service:
+      lib.concatMap (
+        item:
+        lib.concatMap (
+          service:
           let
             serviceName = service.name or null;
             relations =
+              if serviceName == null then [ ] else externalAllowServiceRelations item.site serviceName;
+            matches = lib.concatMap (relation: relationMatches item.site relation) relations;
+          in
+          lib.concatMap (match: listOr (match.dports or null)) matches
+        ) (listOr (item.site.services or null))
+      ) (siteItemsFrom cpmRoot)
+    );
+
+  runtimeForwardAuthorityFor =
+    cpmRoot: targetIPv4:
+    let
+      candidates = lib.concatMap (
+        item:
+        lib.concatMap (
+          service:
+          let
+            serviceName = strOrNull ((attrOr service).name or null);
+            endpointAddresses = lib.concatMap (
+              endpoint: map stripMask (listOr ((attrOr endpoint).ipv4 or null))
+            ) (listOr ((attrOr service).providerEndpoints or null));
+            authorityRelations =
               if serviceName == null then
                 [ ]
               else
-                externalAllowServiceRelations item.site serviceName;
-            matches = lib.concatMap (relation: relationMatches item.site relation) relations;
+                builtins.filter (
+                  relation:
+                  strOrNull ((attrOr (relation.publicIngressTupleAuthority or null)).translationMode or null) != null
+                ) (externalAllowServiceRelations item.site serviceName);
           in
-          lib.concatMap (match: listOr (match.dports or null)) matches)
-          (listOr (item.site.services or null)))
-        (siteItemsFrom cpmRoot)
-    );
-
-  # FS-310-HDS-010-SDS-010-SMS-130: a runtime forward is a caller-supplied
-  # runtime FACT, never policy authority. DNAT materialization requires a
-  # corresponding public-ingress authority in the CPM artifact: an external
-  # allow relation to a modeled service that carries a
-  # publicIngressTupleAuthority translation decision and whose provider
-  # endpoint (the integrated production host entry) owns the forward target
-  # address. A synthetic-only runtime fact — one with no such CPM authority —
-  # fails closed here instead of materializing DNAT.
-  runtimeForwardAuthorityFor = cpmRoot: targetIPv4:
-    let
-      candidates = lib.concatMap
-        (item:
-          lib.concatMap
-            (service:
-              let
-                serviceName = strOrNull ((attrOr service).name or null);
-                endpointAddresses = lib.concatMap
-                  (endpoint: map stripMask (listOr ((attrOr endpoint).ipv4 or null)))
-                  (listOr ((attrOr service).providerEndpoints or null));
-                authorityRelations =
-                  if serviceName == null then
-                    [ ]
-                  else
-                    builtins.filter
-                      (relation:
-                        strOrNull
-                          ((attrOr (relation.publicIngressTupleAuthority or null)).translationMode
-                            or null) != null)
-                      (externalAllowServiceRelations item.site serviceName);
-              in
-              if builtins.elem targetIPv4 endpointAddresses && authorityRelations != [ ] then
-                map
-                  (relation: {
-                    source = "cpm-artifact";
-                    inherit (item) enterpriseName siteName;
-                    inherit serviceName;
-                    relationId = strOrNull (relation.id or relation.name or null);
-                    translationMode =
-                      (attrOr (relation.publicIngressTupleAuthority or null)).translationMode;
-                  })
-                  authorityRelations
-              else
-                [ ])
-            (listOr (item.site.services or null)))
-        (siteItemsFrom cpmRoot);
+          if builtins.elem targetIPv4 endpointAddresses && authorityRelations != [ ] then
+            map (relation: {
+              source = "cpm-artifact";
+              inherit (item) enterpriseName siteName;
+              inherit serviceName;
+              relationId = strOrNull (relation.id or relation.name or null);
+              translationMode = (attrOr (relation.publicIngressTupleAuthority or null)).translationMode;
+            }) authorityRelations
+          else
+            [ ]
+        ) (listOr (item.site.services or null))
+      ) (siteItemsFrom cpmRoot);
     in
     if candidates == [ ] then null else builtins.head candidates;
 
@@ -263,7 +269,10 @@ let
           true;
     in
     builtins.seq _requireAuthority (
-      (builtins.removeAttrs forward [ "publicIPv4" "publicIPv4SecretPath" ])
+      (builtins.removeAttrs forward [
+        "publicIPv4"
+        "publicIPv4SecretPath"
+      ])
       // publicIPv4Binding {
         path = runtimePath;
         value = forward;
@@ -275,9 +284,11 @@ let
       // {
         comment = forward.comment or "s88-public-runtime-forward-${toString index}";
       }
-      // lib.optionalAttrs (!hasForwardInputDports && !hasContainerInputDports && derivedInputDports != [ ]) {
-        inputDports = derivedInputDports;
-      }
+      //
+        lib.optionalAttrs (!hasForwardInputDports && !hasContainerInputDports && derivedInputDports != [ ])
+          {
+            inputDports = derivedInputDports;
+          }
     );
 
   runtimeForwardsFor =
