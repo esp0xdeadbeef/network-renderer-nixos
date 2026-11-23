@@ -1,16 +1,22 @@
-{ lib
-, interfaces
-, interfaceNames
-, peers
-,
+{
+  lib,
+  interfaces,
+  interfaceNames,
+  peers,
 }:
 let
   routeGateway =
     route:
     if builtins.isString (route.via4 or null) && route.via4 != "" then
-      { family = 4; gateway = route.via4; }
+      {
+        family = 4;
+        gateway = route.via4;
+      }
     else if builtins.isString (route.via6 or null) && route.via6 != "" then
-      { family = 6; gateway = route.via6; }
+      {
+        family = 6;
+        gateway = route.via6;
+      }
     else
       null;
 
@@ -45,7 +51,10 @@ let
             let
               hextets = lib.splitString ":" ip;
             in
-            if builtins.length hextets >= 4 then "${lib.concatStringsSep ":" (lib.take 4 hextets)}::/64" else null
+            if builtins.length hextets >= 4 then
+              "${lib.concatStringsSep ":" (lib.take 4 hextets)}::/64"
+            else
+              null
         else
           null
       else
@@ -75,14 +84,12 @@ in
         if gateway == null then
           [ ]
         else
-          lib.filter
-            (ifName: interfacePeerForFamily gateway.family interfaces.${ifName} == gateway.gateway)
-            interfaceNames;
+          lib.filter (
+            ifName: interfacePeerForFamily gateway.family interfaces.${ifName} == gateway.gateway
+          ) interfaceNames;
     in
-    if gateway == null || sourceInterfacePeer == gateway.gateway || matchingInterfaces == [ ] then
-      sourceIfName
-    else
-      builtins.head matchingInterfaces;
+
+    sourceIfName;
 
   isDefaultRoute =
     route:
@@ -91,12 +98,13 @@ in
     || (route.dst or null) == "0000:0000:0000:0000:0000:0000:0000:0000/0";
 
   isPolicyOnlyRoute =
-    route: builtins.isAttrs route && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
+    route:
+    builtins.isAttrs route
+    && ((route.policyOnly or false) == true || (route._s88PolicyOnly or false) == true);
 
   isServiceDnsReachabilityRoute =
     route:
-    builtins.isAttrs route
-    && (((route.intent or { }).kind or null) == "service-dns-reachability");
+    builtins.isAttrs route && (((route.intent or { }).kind or null) == "service-dns-reachability");
 
   connectedP2pRoutesForInterface =
     ifName:
@@ -147,11 +155,9 @@ in
   connectedScopeRoutesForInterface =
     ifName:
     lib.filter (route: route.dst != null) (
-      map
-        (address: {
-          dst = addressNetworkPrefix address;
-          scope = "link";
-        })
-        (interfaces.${ifName}.addresses or [ ])
+      map (address: {
+        dst = addressNetworkPrefix address;
+        scope = "link";
+      }) (interfaces.${ifName}.addresses or [ ])
     );
 }
