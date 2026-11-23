@@ -378,3 +378,54 @@ It is not a renderer patch. Two producer-side facts are missing:
 Until (1) exists, "install the route on the interface the model names" cannot
 be expressed: the model does not name a source set. That is why six renderer
 attempts failed, and it is a producer change, not a renderer one.
+
+## The source of every source set: a renderer-invented topology rule table
+
+`s88/Unit/mapping/runtime-targets/interfaces/policy-routing-sources.nix` computes
+`policyRoutingSources` from scratch, for every target, out of interface CLASS and
+LANE TOPOLOGY:
+
+```nix
+sourcesFor = target:
+  if isSelector && hasClass "edgeFacing" target then
+    lib.filter (name: hasClass "fabricFacing" name && sameAccess target name) names
+  else if isUpstreamSelector && hasClass "coreFacing" target then
+    lib.unique ([ target ] ++ lib.filter (name: hasClass "exitFacing" name && sameUplink target name) names)
+  else if isPolicy && hasClass "fabricFacing" target then
+    lib.filter (name: hasClass "fabricFacing" name || (hasClass "exitFacing" name && sameAccess target name)) names
+  ...
+```
+
+with helpers `hasClass`, `sameAccess` (equal `backingRef.lane.access`) and
+`sameUplink` (shared `backingRef.uplinks`). Nothing here is model output -- the
+CPM publishes no `policyRoutingSources` at all (verified: the string appears
+nowhere in `network-control-plane-model/src`), so this function is the sole
+author of every source set, and therefore of every route occurrence.
+
+FS-310-HDS-020-SDS-010-SMS-060, verbatim:
+
+> "Install each canonical route into exactly the context table and lane the
+>  canonical record names. The renderer shall not choose, infer, or withhold a
+>  route's table or lane occurrence: it shall not gate a route's materialization
+>  on the presence of a forwarding rule, derive occurrence from interface
+>  topology, or rely on an environment-supplied fallback table."
+
+This file is a rule table that derives lane occurrence from interface topology.
+Together with `routeOutputInterface` (which relocates an individual route by
+peer address) it accounts for every symptom in this document: the duplicates,
+the missing routes on the declaring interface, and the tests that passed because
+copies elsewhere satisfied them.
+
+### The whole picture, in three lines
+
+1. `policy-routing-sources.nix` decides, from class/lane/uplink topology, which
+   interfaces feed which policy table.
+2. `routeOutputInterface` moves each route to the interface whose p2p peer
+   equals the route's gateway.
+3. `canonicalRoutes` already states both answers per route
+   (`runtimeIfName`, `tableId`) and is ignored.
+
+A correct renderer maps (3) and deletes (1) and (2) from the materialization
+path. That is a rewrite of the policy-routing layer, not a patch, which is why
+six focused attempts all failed and why each one produced either a regression or
+a false green.
