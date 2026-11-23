@@ -223,6 +223,7 @@ let
       common
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
+    inherit canonicalPolicyRoutesByInterface;
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
       mkRoute
@@ -299,6 +300,66 @@ let
     pairs =
       if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ];
   };
+
+  canonicalPolicyRoutesByInterface =
+    let
+      logicalName = containerModel.unitName or containerModel.containerName or null;
+      mine =
+        if logicalName == null then
+          [ ]
+        else
+          builtins.filter (
+            r:
+            let
+              target = r.target or "";
+              suffix = "-" + logicalName;
+              n = builtins.stringLength target;
+              m = builtins.stringLength suffix;
+            in
+            n > m && builtins.substring (n - m) m target == suffix
+          ) canonicalRoutes;
+      modelledNameFor =
+        rendered:
+        let
+          hits = builtins.filter (
+            n: (renderedInterfaceNames.${n} or null) == rendered
+          ) interfaceView.interfaceNames;
+        in
+        if hits == [ ] then null else builtins.head hits;
+      factsOf = r: if builtins.isAttrs (r.facts or null) then r.facts else { };
+      toRoute =
+        r:
+        {
+          Destination = r.dst;
+          Table = r.tableId;
+          Gateway = r.gateway;
+          GatewayOnLink = true;
+        }
+        // lib.optionalAttrs (builtins.isInt (r.metric or null)) { Metric = r.metric; }
+        // lib.optionalAttrs (builtins.isString (r.preferredSource or null) && r.preferredSource != "") {
+          PreferredSource = r.preferredSource;
+        }
+        // lib.optionalAttrs (builtins.isString ((factsOf r).scope or null) && (factsOf r).scope != "") {
+          Scope = (factsOf r).scope;
+        };
+      keyed = builtins.concatMap (
+        r:
+        let
+          n = modelledNameFor (r.runtimeIfName or null);
+        in
+        if n == null then
+          [ ]
+        else
+          [
+            {
+              _ifName = n;
+              route = toRoute r;
+            }
+          ]
+      ) (builtins.filter (r: builtins.isInt (r.tableId or null)) mine);
+    in
+    lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) keyed);
+
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };
     networks =

@@ -1,6 +1,7 @@
 {
   lib,
   containerModel,
+  canonicalPolicyRoutesByInterface ? { },
   interfaces,
   interfaceNames,
   renderedInterfaceNames,
@@ -339,9 +340,10 @@ let
                       && lib.hasPrefix (builtins.head (lib.splitString "/" dst)) od
                     ) (fabricHostMainRoutes ++ serviceIngressMainRawRoutes)
                   )
-                ) (policyRoutingByInterface.routes.${ifName} or [ ])
+                ) (dropDerivedCopies ifName (policyRoutingByInterface.routes.${ifName} or [ ]))
               )
-            );
+            )
+            ++ (canonicalPolicyRoutesByInterface.${ifName} or [ ]);
         in
         if
           builtins.elem ifName skipInterfaceNames
@@ -492,6 +494,27 @@ let
         ) (policyRoutingByInterface.rules.${ifName} or [ ])
     ) interfaceNames
   );
+  dropDerivedCopies =
+    ifName: routes:
+    let
+      canonicalFor = builtins.listToAttrs (
+        map (r: {
+          name =
+            "${r.Destination or ""}|${toString (r.Table or null)}"
+            + "|${toString (r.Gateway or null)}"
+            + "|${toString (r.Metric or null)}";
+          value = true;
+        }) (canonicalPolicyRoutesByInterface.${ifName} or [ ])
+      );
+
+      keyOf =
+        r:
+        "${r.Destination or r.dst or ""}|${toString (r.Table or r.table or null)}"
+        + "|${toString (r.Gateway or r.gateway or null)}"
+        + "|${toString (r.Metric or r.metric or null)}";
+    in
+    builtins.filter (r: !(canonicalFor ? ${keyOf r})) routes;
+
 in
 {
   inherit interfaceUnits;
