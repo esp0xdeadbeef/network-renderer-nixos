@@ -2121,3 +2121,47 @@ Not attempted here: the fix touches `tableForOutputIfName` and the aggregate, wh
 is where three previous attempts (`40d11d79`, `63f0df23`, `688d62b2`) each passed this
 suite and broke the HAT. It needs the HAT at every step, and the earlier attempts
 show that a table change of this shape is the highest-risk edit in the renderer.
+
+## Where the remaining 114 come from, precisely
+
+Narrowed to two functions.
+
+`tableForOutputIfName` (aggregate.nix) still returns the container's `tableId` for
+`isUpstreamSelectorCoreInterface` / `isUpstreamSelectorPolicyInterface`. And
+`tableForRoute` returns `tableId` whenever an `internal-reachability` route names no
+`lane`:
+
+```nix
+tableForRoute = route:
+  let routeLane = (route.lane or { }).access or null;
+      isInternal = ((route.intent or { }).kind or null) == "internal-reachability";
+  in
+  if ((route.intent or { }).kind or null) == "service-endpoint-reachability" then tableId
+  else if isInternal && routeLane != null then (laneTableIdFor routeLane) or tableId
+  else null;
+```
+
+A route with no lane and no service kind therefore falls through to the interface's
+own table via `tableForOutputIfName` -- except on the upstream-selector, where that
+function returns the container's `tableId` (1001) for every output interface. So:
+
+- the model gives `s-router-upstream-selector` six interfaces with six tables:
+  ens10 1001, ens3 1002, ens4 1003, ens5 1004, ens6 1005, ppp0 1006;
+- `10.19.0.0/32` exists as a distinct record in `ens3`, `ens5`, `ens6` and `ens10`'s
+  own targets;
+- every one of them is emitted into 1001, so three interfaces' records render as
+  three routes for one (prefix, table) -- `claimed by ens10, ens5, ens6`.
+
+**The fix is to drop the two container-level arms from `tableForOutputIfName` and let
+every route land in its output interface's own allocation**, which is what the model
+already states. That is a two-line change and it is exactly what `688d62b2` attempted
+and the HAT rejected -- so it must be validated on the HAT, not the suite, and the
+HAT must be checked at `s-router-upstream-selector`'s traffic, not only at the
+tenant's ping.
+
+**Not attempted again here.** Three edits of this shape (`40d11d79`, `63f0df23`,
+`688d62b2`) each reduced a construction metric, each passed 110-111 of 114, and each
+left the cobalt tenant with 100% packet loss. The diagnosis above is the contribution:
+the next attempt should change `tableForOutputIfName` only, and should be judged by a
+HAT run that exercises policy-routed traffic through the upstream selector, which the
+current cobalt fixture's tang probe is the closest thing to.
