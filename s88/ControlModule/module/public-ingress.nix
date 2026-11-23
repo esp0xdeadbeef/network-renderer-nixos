@@ -3,7 +3,7 @@
   pkgs ? null,
   controlPlane,
   hostName,
-  runtimeFacts ? { }, # The validated bundle's canonical collections: a SIBLING of the control-plane
+  runtimeFacts ? { },
 
   canonicalCollections ? { },
 }:
