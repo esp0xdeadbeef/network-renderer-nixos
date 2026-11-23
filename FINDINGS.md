@@ -612,3 +612,66 @@ produced by two independent code paths, and nothing in this repository
 establishes which one actually reaches networkd. That is the question a
 successful fix must answer first -- with a runtime check, not more static
 reading.
+
+## Attempt eleven: the runtime answer to attempt ten's question
+
+Reverted, but it answered the question attempt ten left open, with a runtime
+observation rather than more static reading.
+
+**Q: which code path supplies the routes that reach networkd?**
+
+A: `interface-units.nix`. Proven by injection, not by inspection. Appending one
+synthetic route to `renderedRoutes` at the emit point:
+
+```nix
+) (renderedRoutes ++ [ { Destination = "203.0.113.77/32"; Table = 9999; ... } ])
+```
+
+made that route appear on **all six** interfaces of `s-router-policy`:
+
+```
+["10-ens3","10-ens4","10-ens5","10-ens6","10-ens7","10-ens9"]
+```
+
+So the emit point is real, it is evaluated per interface, and it is the final
+source. The route list is built once and rendered under each interface's unit
+name -- which is also why the same prefix can appear on every interface.
+
+**Two distinct bugs, both now identified, both in my own attempts:**
+
+1. **`canonicalRoutes` is empty at that point.** Traced directly:
+
+   ```
+   trace: CAN_EMPTY at p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-client--uplink-wan
+   trace: CAN_EMPTY at p2p-s-router-policy-...--uplink-nebula
+   ```
+
+   The value did reach the file in attempt nine (`CANLEN=385`) but only after the
+   whole `container-networks.nix` -> `interface-units.nix` chain was wired; the
+   minimal rewrites in attempts ten and eleven dropped that wiring again. This is
+   exactly the "optional parameter on a deep call chain" trap this document
+   already names.
+
+2. **`ifName` at that point is the MODELLED p2p name.** The trace prints
+   `p2p-s-router-policy-s-router-upstream-selector--access-s-router-access-admin--uplink-nebula`,
+   not `ens6`. `canonicalRoutes.runtimeIfName` is `ens6`. So even with the list
+   populated, the comparison `runtimeIfName == ifName` cannot match: the
+   renderer's emit path is keyed by the modelled *attachment* name while the
+   canonical record is keyed by the *rendered* interface name.
+
+**The fix that follows from this**, concretely:
+
+- translate `ifName` (modelled attachment name) to the rendered interface name
+  before the lookup -- `renderedInterfaceNames` is already in scope at that
+  point and is the intended mapping;
+- thread `canonicalRoutes` all the way to `interface-units.nix` and make it a
+  REQUIRED argument there (no `? [ ]`), so a dropped wire is an evaluation error
+  instead of a silent no-op;
+- then rewrite `Table` from the canonical record; the earlier 12-test failure
+  should not recur because the table now comes from the model, not from the
+  renderer's derivation.
+
+None of that was applied: attempt eleven was still building the wiring when the
+trace answered the question, and applying a third half-wired variant would repeat
+the trap. The three steps above are the whole remaining change, each with the
+specific evidence that justifies it.
