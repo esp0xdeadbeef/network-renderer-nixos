@@ -75,7 +75,7 @@ let
     {
       cpm,
       unitName,
-      file ? "s88/Unit/mapping/runtime-targets.nix", # The validated bundle's canonical collections: a SIBLING of the
+      file ? "s88/Unit/mapping/runtime-targets.nix",
 
       canonicalCollections ? { },
     }:
