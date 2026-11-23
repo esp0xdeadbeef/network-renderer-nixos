@@ -51,6 +51,13 @@ in
       onInterface =
         ifName:
         builtins.map (r: normalise (r.Destination or "")) ((nets."10-${ifName}" or { }).routes or [ ]);
+
+      targetFor =
+        name:
+        let
+          hits = builtins.filter (c: lib.hasSuffix ("-" + name) (c.target or "")) canonical;
+        in
+        if hits == [ ] then "" else (builtins.head hits).target or "";
       renderableInterfaces = builtins.map (n: lib.removePrefix "10-" n) (
         builtins.filter (n: lib.hasPrefix "10-" n) (builtins.attrNames nets)
       );
@@ -61,7 +68,7 @@ in
         builtins.isString c.dst
         && builtins.elem c.runtimeIfName renderableInterfaces
         && !(builtins.elem (normalise c.dst) (onInterface c.runtimeIfName))
-      ) canonical
+      ) (builtins.filter (c: c.target or "" == targetFor containerName) canonical)
     )
   ) (builtins.attrNames containers);
 }
