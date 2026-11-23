@@ -1119,3 +1119,56 @@ form of reconciliation.
 Every mechanism is measured, every number is reproducible from the committed
 test case, and the fix's shape is proven by prototype. What is not done is the
 rewrite that applies it.
+
+## Attempt fourteen: the name translation has TWO directions, and I had one
+
+Applied the emission for real, now that `canonicalRoutes` is verified reaching
+`container-networks.nix`. Two results.
+
+**Target selection works.** Matching `canonicalRoutes[].target` on the `-<logicalName>`
+suffix picks exactly the right records per container:
+
+```
+s-router-access-admin        30
+s-router-access-client       26
+s-router-access-mgmt         24
+s-router-core-nebula         18
+s-router-core-wan            20
+s-router-downstream-selector 94
+```
+
+**The interface key is the other direction.** `interface-units.nix` looks routes
+up by
+
+```nix
+policyRoutingByInterface.routes.${ifName}
+```
+
+where `ifName` is the **modelled** interface key, and renders the unit as
+`10-${renderedInterfaceNames.${ifName}}`. The canonical record carries the
+**rendered** name (`ens6`). So the routes must be grouped by the modelled name
+whose rendered name equals the record's `runtimeIfName`:
+
+```nix
+modelledNameFor = rendered:
+  let hits = builtins.filter (n: renderedInterfaceNames.${n} == rendered) interfaceNames;
+  in if hits == [] then null else builtins.head hits;
+```
+
+With that correction the stranded count went **2,117 -> 2,025**. Progress, and
+proof the emission reaches output -- but not zero, because the pipeline is still
+in place and adds its own routes alongside.
+
+### The two directions, stated once
+
+| direction | where | used by |
+| --- | --- | --- |
+| modelled -> rendered | `renderedInterfaceNames.${ifName}` | building the unit `10-<name>` |
+| rendered -> modelled | the lookup above | keying `routes.${ifName}` |
+
+Every earlier attempt used one and needed the other. That is now written down so
+it is not re-derived.
+
+Reverted (suite back to 109/1/4) because a partial emission plus the existing
+pipeline is not a coherent state: it must be emission **instead of**, which is
+the deletion in step 3.
