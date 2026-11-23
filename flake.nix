@@ -454,7 +454,12 @@
             "platformBinding"
           ];
           rendered = api.renderer.buildHostFromControlPlane (
-            forwarded // { controlPlaneOut = validated.controlPlaneEnvelope; }
+            forwarded
+            // {
+              controlPlaneOut = validated.controlPlaneEnvelope;
+
+              canonicalCollections = validated.canonical or { };
+            }
           );
         in
         rendered

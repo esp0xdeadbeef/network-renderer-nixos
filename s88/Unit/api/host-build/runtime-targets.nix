@@ -16,6 +16,7 @@ let
     if fromCanonical != null then
       fromCanonical
     else
+
       ((controlPlaneOut.control_plane_model or { }).data or { });
 in
 builtins.listToAttrs (

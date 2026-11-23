@@ -150,6 +150,8 @@ let
       selector ? null,
       hostname ? null,
       source ? { },
+
+      canonicalCollections ? { },
       compilerOut ? null,
       forwardingOut ? null,
       system ? currentSystem,
