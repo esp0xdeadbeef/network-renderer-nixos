@@ -1074,3 +1074,48 @@ That settles the last open question about scope:
 
 Reverted; the file state is unchanged and the measurement is reproducible from
 the test case committed as `c6c201ad`.
+
+## The route exists; it is on the wrong interface
+
+One more measurement, and it sharpens the diagnosis decisively. For every
+canonical route, is there a rendered route with the same `(destination, table)`
+anywhere in the host's containers?
+
+| | |
+| --- | --- |
+| canonical routes | **385** |
+| present somewhere at the right (dst, table) | **346** |
+| missing entirely | **39** |
+
+So the renderer is **not** failing to produce the routes. 346 of 385 exist, at
+the right destination and the right table. They are on the wrong *interfaces* --
+which is exactly what the 2,117 stranded count and the 160/1,957 attribution
+say, from a different angle.
+
+This matters for the fix:
+
+- it is not a set-difference problem (39 routes to add);
+- it is a placement problem (346 routes on the wrong link), plus 39 missing;
+- and placement is what "derive occurrence from interface topology" controls.
+
+It also means a fix that *only* corrected placement would already restore 346 of
+385 routes without inventing anything -- which is why the emission prototype (97
+for 97, on the model's six interfaces) is the shape to build on, rather than any
+form of reconciliation.
+
+### The complete diagnosis, in one table
+
+| finding | number |
+| --- | --- |
+| canonical routes for `s-router-policy` (policy tables) | 97 |
+| rendered policy-table routes | 363 |
+| rendered routes matching canonical on the 5-part identity | 10 |
+| canonical routes stranded off their declaring interface (whole example) | 2,117 |
+| -- of those, caused by `routeOutputInterface` | 160 |
+| -- of those, caused upstream in source/lane selection | 1,957 |
+| canonical routes that exist somewhere at the right (dst, table) | 346 of 385 |
+| canonical routes missing entirely | 39 |
+
+Every mechanism is measured, every number is reproducible from the committed
+test case, and the fix's shape is proven by prototype. What is not done is the
+rewrite that applies it.
