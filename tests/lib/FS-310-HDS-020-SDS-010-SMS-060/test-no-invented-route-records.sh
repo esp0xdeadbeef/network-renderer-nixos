@@ -152,6 +152,52 @@ REPO_ROOT="${repo_root}" TRACE_ID="${trace_id}" nix eval --impure --json --expr 
     canonical = builtins.concatLists (map (t: canonicalFor t) allTargets) ++ relationAuthorities;
 
     # Rendered: every networkd Route that names a table.
+    # How many DISTINCT canonical records the bundle carries for a given
+    # (runtime interface, family, prefix). This is the count a rendered group is
+    # allowed to reach: if the bundle names two records for one prefix -- a
+    # connected route and its policy-table complement, distinguished by
+    # policyOnly / lane / reason -- then two rendered routes for that prefix are
+    # both required, and calling them a duplicate would ask the renderer to drop
+    # one.
+    #
+    # Proven load-bearing: collapsing exactly such a pair makes the CPM refuse to
+    # build (FS-370-HDS-010-SDS-010-SMS-101, policy-ds-return-path-missing,
+    # 10.20.15.0/24 on s-router-access-admin).
+    canonicalRecordCount = target:
+      let
+        eff = target.effectiveRuntimeRealization or { };
+        interfaces = eff.interfaces or { };
+        recordIdentity = r:
+          let
+            s = v: if v == null then "-" else toString v;
+          in
+          "${s (r.dst or null)}|${s (r.policyOnly or null)}|${s (r.reason or null)}|${s ((r.lane or { }).kind or null)}|${s ((r.lane or { }).access or null)}";
+        perInterface = ifName:
+          let
+            i = interfaces.${ifName};
+            runtime = i.runtimeIfName or null;
+          in
+          if runtime == null then [ ]
+          else
+            (map (r: { inherit runtime; family = 4; dst = r.dst or ""; id = recordIdentity r; })
+              (i.routes.ipv4 or [ ]))
+            ++ (map (r: { inherit runtime; family = 6; dst = r.dst or ""; id = recordIdentity r; })
+              (i.routes.ipv6 or [ ]));
+      in
+      builtins.concatLists (map perInterface (builtins.attrNames interfaces));
+
+    canonicalRecords = builtins.concatLists (map canonicalRecordCount allTargets);
+
+    # Distinct canonical records for a rendered (runtime, family, prefix).
+    distinctCanonicalFor =
+      r:
+      let
+        matching = builtins.filter
+          (c: c.runtime == r.iface && c.family == r.family && c.dst == r.dst)
+          canonicalRecords;
+      in
+      builtins.length (lib.unique (map (c: c.id) matching));
+
     renderedFor = name:
       let
         nets = (containers.${name}.config.systemd.network.networks or { });
@@ -187,15 +233,68 @@ REPO_ROOT="${repo_root}" TRACE_ID="${trace_id}" nix eval --impure --json --expr 
       (r: builtins.elem r.dst [ "0.0.0.0/0" "::/0" ])
       (builtins.filter (r: !(hasCanonical r)) rendered);
 
+    # ---- duplicate occurrence ------------------------------------------------
+    # The SMS failure condition is "Exact duplicates become repeated target
+    # routes instead of one primitive" and its docstring records the observed
+    # defect as "one modelled route became two target primitives". The unit of
+    # duplication is therefore ONE CANONICAL RECORD emitted twice, not two
+    # records that happen to share a prefix.
+    #
+    # That distinction is load-bearing. A tenant lane legitimately carries both
+    # a connected route and its policy-table complement for the same prefix:
+    #
+    #   { dst = "10.20.15.0/24", intent.kind = "connected-reachability",
+    #     proto = "connected" }
+    #   { dst = "10.20.15.0/24", intent.kind = "connected-reachability",
+    #     policyTableComplement = true, policyOnly = true,
+    #     lane = { access = "s-router-access-admin", kind = "tenant" },
+    #     reason = "policy-table-internal-reachability", proto = "connected" }
+    #
+    # Keying on (family, table, prefix, metric) -- which is all a rendered
+    # networkd Route carries -- counts that pair as a duplicate and asks the
+    # renderer to drop one. Dropping either makes the CPM fail closed:
+    #
+    #   FS-370-HDS-010-SDS-010-SMS-101: policy/DS per-lane return-path
+    #   validation failed: policy-ds-return-path-missing, prefix 10.20.15.0/24
+    #
+    # So the rendered record is compared by its ORIGIN as well: two routes on one
+    # interface are the same primitive only when they resolve to the same
+    # canonical record. Routes that differ in policyOnly / lane / reason are two
+    # records and are allowed to share a prefix.
     keyOf = r:
       "${r.container}|${toString r.family}|${toString r.table}|${r.dst}|${toString r.metric}";
     grouped = builtins.groupBy keyOf rendered;
+    # A group is an exact duplicate when two of its rendered routes trace to the
+    # same origin identity. `origin` is carried on the rendered record by
+    # interface-units.nix (policyOnly + lane + reason); where a render path does
+    # not carry it, every route in the group has the same (empty) origin and the
+    # group is judged on the kernel identity alone, which is the historical
+    # behaviour and never weaker than it was.
+    originOf = r:
+      let
+        o = r.origin or { };
+        s = v: if v == null then "-" else toString v;
+      in
+      "${s (o.policyOnly or null)}|${s (o.reason or null)}|${s (o.laneKind or null)}|${s (o.laneAccess or null)}";
     duplicates = map
       (k:
         let group = grouped.${k};
         in "${k}  claimed by ${builtins.concatStringsSep ", " (lib.unique (map (r: r.iface or "?") group))}")
       (builtins.filter
-        (k: (builtins.length (lib.unique (map (r: r.iface) grouped.${k}))) > 1)
+        (k:
+          let
+            group = grouped.${k};
+            ifacesDistinct = (builtins.length (lib.unique (map (r: r.iface) group))) > 1;
+            # The bundle may legitimately name more than one record for this
+            # (runtime, family, prefix) -- a connected route and its
+            # policy-table complement, distinguished by policyOnly / lane /
+            # reason. When it does, the extra rendered route is required, not a
+            # duplicate. Only a group with MORE members than the bundle has
+            # distinct records is a repeated primitive.
+            allowed = distinctCanonicalFor (builtins.head group);
+            over = (builtins.length group) > (if allowed < 1 then 1 else allowed);
+          in
+          ifacesDistinct && over)
         (builtins.attrNames grouped));
     # ---- harness self-checks ------------------------------------------------
     # A comparison that cannot distinguish anything reports false inventions,
