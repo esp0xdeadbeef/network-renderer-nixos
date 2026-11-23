@@ -717,3 +717,65 @@ correct and unmodelled, and it cannot be "never", because that is the defect.
 Establishing that rule needs the FS-800 and FS-540 expectations read as a whole
 rather than discovered one red test at a time, which is what the last four
 attempts have been doing.
+
+## Attempt thirteen: the gateway is rewritten too, which is why every identity match failed
+
+Reverted. This closes the question that attempts ten, eleven and twelve opened.
+
+Attempt twelve proved the mechanism works when a canonical route is found, and
+failed 11 tests. Attempt thirteen added the gateway to the identity
+(`interface, destination, gateway`) to stop matching a foreign target's route,
+since `fd42:dead:feed:70::/64` is declared 30 times across the host. Result:
+**zero rewrites** -- the predicate never fired once.
+
+The reason, measured on `s-router-policy` / `10-ens6` / `100.64.0.2/32`:
+
+```
+canonical gateway : 10.10.0.2
+rendered  gateway : 10.10.0.10
+```
+
+The renderer rewrites the gateway as well as the interface name. So:
+
+| identity used | why it cannot work |
+| --- | --- |
+| `(ifName, dst)` | `ifName` is the modelled p2p attachment name; canonical is the rendered `ens6` |
+| `(renderedName, dst)` | matches every target's route for a shared prefix (30 for one /64) |
+| `(renderedName, dst, gateway)` | the gateway is rewritten: `10.10.0.2` becomes `10.10.0.10` |
+
+Every value the renderer emits for a route differs from the value the canonical
+record carries: the interface name, and the gateway. There is no identity on the
+rendered side that can be matched back to the canonical side without the
+renderer's own translation functions (`routeOutputInterface`,
+`interfacePeerForFamily`, the gateway rewrite in `route-helpers.nix`) -- and those
+are exactly the functions the FS clause forbids relying on.
+
+### This is the real conclusion
+
+The canonical record and the rendered route are not two views of one object with
+a naming difference to bridge. The renderer has *transformed* the route: new
+interface, new gateway, new table. To install a route "where the canonical record
+names it", the renderer must **not transform it** -- which means the route has to
+be built from the canonical record rather than stamped, rewritten and relocated
+afterwards.
+
+Thirteen attempts, each eliminating one hypothesis, arrive where attempt one
+started but with the reason now known: this is not a mapping to add, it is a
+pipeline to replace. `rawRoutesForPolicyTable` -> `routesByOutputInterface` ->
+`routeOutputInterface` -> gateway rewrite -> `tableForOutputIfName` is the
+pipeline, and every stage of it changes the route.
+
+What a successful change looks like, concretely:
+
+1. `canonicalRoutes` filtered to this container's target;
+2. for each, one networkd route: `Destination = dst`, `Table = tableId`,
+   `Gateway = gateway`, on the network unit for `runtimeIfName`;
+3. the existing pipeline deleted, not filtered;
+4. `canonicalRoutes` a required argument from `flake.nix` down, so a dropped
+   wire is an evaluation error.
+
+That is a rewrite of the policy-routing layer (3,685 lines, 111 dependent
+tests), and the tests must move with it -- `test-upstream-selector-core-main-routes`
+was already corrected in this run for asserting the wrong thing. It is not
+landable as a patch, and thirteen attempts have now established that from every
+direction available without writing it.
