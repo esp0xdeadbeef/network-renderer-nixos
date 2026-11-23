@@ -54,16 +54,20 @@ run_case() {
             policyRules = builtins.filter (rule: (rule.Table or 254) != 254) rules;
           in
           if policyRules == [ ] then null else (builtins.head policyRules).Table;
-        routesForTable =
-          table:
+        # Routes in `table` carried by the NAMED interface, not by any
+        # interface. The previous form searched every network, so it answered
+        # "does something carry this in the core table" -- which passed while
+        # `core` itself carried nothing, because `routeOutputInterface` moves a
+        # route to whichever interface has its gateway as the p2p peer address.
+        # A test that cannot fail on the condition it exists to detect is worse
+        # than no test.
+        routesForInterface =
+          renderedName: table:
           if table == null then
             [ ]
           else
-            lib.concatLists (
-              lib.mapAttrsToList
-                (_: network: builtins.filter (route: (route.Table or null) == table) (network.routes or [ ]))
-                networks
-            );
+            builtins.filter (route: (route.Table or null) == table)
+              ((networkForInterface renderedName).routes or [ ]);
         isMainTable =
           route:
           !(route ? Table) || route.Table == 254;
@@ -89,12 +93,17 @@ run_case() {
           renderedName: gateway:
           builtins.any
             (route: isDefault route && (route.Gateway or null) == gateway)
-            (routesForTable (tableForInterface renderedName));
+            (routesForInterface renderedName (tableForInterface renderedName));
+        hasRoute = 
+          renderedName: destination:
+          builtins.any
+            (route: (route.Destination or null) == destination)
+            (routesForInterface renderedName (tableForInterface renderedName));
         hasRouteVia =
           renderedName: destination: gateway:
           builtins.any
             (route: (route.Destination or null) == destination && (route.Gateway or null) == gateway)
-            (routesForTable (tableForInterface renderedName));
+            (routesForInterface renderedName (tableForInterface renderedName));
         exampleReturnRouteChecks =
           if label != "example" then
             { }
@@ -121,9 +130,9 @@ run_case() {
         inherit checks badPolicyLaneDefaults;
         debug = {
           polAdminBTable = tableForInterface "pol-admin-b";
-          polAdminBRoutes = routesForTable (tableForInterface "pol-admin-b");
+          polAdminBRoutes = routesForInterface "pol-admin-b" (tableForInterface "pol-admin-b");
           polMgmtBTable = tableForInterface "pol-mgmt-b";
-          polMgmtBRoutes = routesForTable (tableForInterface "pol-mgmt-b");
+          polMgmtBRoutes = routesForInterface "pol-mgmt-b" (tableForInterface "pol-mgmt-b");
         };
       }
     '
