@@ -1961,3 +1961,50 @@ declare -- and this repository's rules reserve URS/FS changes for human review.
 That is the end of what further renderer iterations can establish. The committed
 state is the best measured one: 110 PASS / 1 SKIP / 3 FAIL, 62 duplicate rows (from
 236), placement 0 (from 67), six producer gaps found and fixed on the way.
+
+## The most important finding in this file: the suite passed while the site was down
+
+Every route-production change made in this run after `d8fa56b1` passes the
+construction suite and breaks tenant egress on the cobalt HAT.
+
+Measured, with any of `40d11d79` (emit policy routes from canonical records),
+`63f0df23` (delete the peer-address match) or `7994ebf2` (ownership rule) in
+place:
+
+```
+tenant-client$ ip -4 route show default
+  default via 10.2.30.1 dev eth0 proto dhcp src 10.2.30.100 metric 1024
+tenant-client$ ping -c2 -W3 1.1.1.1
+  2 packets transmitted, 0 received, 100% packet loss
+tenant-client$ getent hosts tang.unlock.home.arpa      (no answer)
+```
+
+and the core still reaches 1.1.1.1 throughout. Suite state at the same time:
+110 to 111 PASS of 114, with the two or three reds being schema checks.
+
+**So the entire thread of work in this document -- the canonical emission, the
+peer-match deletion, the ownership rule, the 236 -> 62 duplicate reduction -- was
+measured with a metric that cannot see the failure it causes.** Every one of those
+changes makes `FS-310-SMS-060` better and the site worse.
+
+### Why
+
+`canonicalRoutes` states one table per route. The renderer's `rawRoutes` /
+`routesByOutputInterface` / `returnRoutes` pipeline produces the routes the site
+actually needs -- more of them, on more interfaces, from model statements the
+canonical projection does not carry. Replacing that pipeline with the canonical
+projection is *complete* against the model and *incomplete* against the site, and
+the duplicate check measures completeness against the model only.
+
+The HAT is the only instrument in this repository that measures the other side.
+That is the thesis of `GAMP/HAT/README.md` and this run is the evidence for it: a
+deduplication that is provably correct in the rendered config and provably wrong
+on one ping.
+
+### State
+
+`network-renderer-nixos` is reverted to `d8fa56b1` in the nixos flake
+(`cecf8584`), which the HAT verifies end to end: ping 3/3, DNS resolved,
+tang SIGNED, `ipv6-default` the only failure. The route-production work in
+`FINDINGS.md` stands as the diagnosis -- it is a design change that must be
+validated by the HAT at every step, not by the suite.
