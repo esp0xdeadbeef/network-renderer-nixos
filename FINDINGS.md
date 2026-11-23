@@ -877,3 +877,59 @@ choice would be the renderer inferring -- exactly what the FS clause forbids.
 `(runtimeIfName, dst, gateway, tableId, metric)`, which is unique across the
 target by construction. That is now measured, not assumed, and it is the last
 open detail of step 1.
+
+## The number that ends the filtering approach
+
+Measured for `s-router-policy` in `wireguard-provider-overlay`, comparing what
+the renderer emits against what the model declares on the full identity:
+
+| | count |
+| --- | --- |
+| canonical routes for the target (policy tables) | **97** |
+| rendered policy-table routes | **363** |
+| rendered routes matching canonical on the 5-part key | **10** |
+
+Only **10 of 363** rendered routes exist in the model on
+`(runtimeIfName, dst, gateway, tableId, metric)`.
+
+This is the whole story. The renderer is not duplicating a route set -- it is
+producing a *different* route set, in which 353 of 363 entries are not the
+model's routes at all under the identity the model defines. That is why:
+
+- every dedupe attempt passed or failed for reasons unrelated to correctness
+  (attempts 1-3, 5-6);
+- every table rewrite found no match to rewrite (attempts 4, 10);
+- matching on the interface/destination alone matched foreign targets
+  (attempts 11-12);
+- adding the gateway matched nothing at all (attempt 13).
+
+A filter cannot turn one route set into the other. `canonicalAllows`-style
+filtering was never going to work, and now the reason is a number rather than an
+argument.
+
+## So the fix is smaller than the previous section implied, and larger
+
+Smaller: only 10 rendered routes currently agree with the model, so there is no
+careful "merge the two views" problem to solve. The canonical set is the answer,
+in full, and the renderer's set is discarded.
+
+Larger: discarding it means deleting the pipeline that produces those 363, which
+is the 3,685-line `policy-routing/` layer and its 111 dependent tests. The tests
+encode the current pipeline's behaviour; several (as
+`test-upstream-selector-core-main-routes` did before this run corrected it)
+assert the pipeline's output rather than the model's.
+
+Concretely, the change is:
+
+1. in `container-networks.nix`, build the policy routes from
+   `canonicalRoutes` filtered to this target, keyed by `runtimeIfName`, with
+   `Destination = dst`, `Table = tableId`, `Gateway = gateway`,
+   `Metric = metric`;
+2. delete `rawRoutesForPolicyTable`, `routesByOutputInterface`,
+   `routeOutputInterface`, `tableForOutputIfName`, `tableForRoute`,
+   `extraTableForRoute` and `policy-routing-sources.nix` from that path;
+3. thread `canonicalRoutes` as a REQUIRED argument from `flake.nix`;
+4. update the tests that assert the old pipeline.
+
+That is a rewrite, and this repository's own rule is that a red test is fixed in
+the layer that owns the behaviour -- here, by replacing the layer.
