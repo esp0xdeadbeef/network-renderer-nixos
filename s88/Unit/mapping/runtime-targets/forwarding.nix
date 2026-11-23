@@ -24,6 +24,39 @@ let
     in
     if count == 0 then null else builtins.elemAt parts (count - 1);
 
+  forwardingFromCanonical =
+    collections:
+    let
+      relations =
+        ((if builtins.isAttrs collections then collections else { }).canonicalForwarding or { }).relations
+          or [ ];
+    in
+    builtins.foldl' (
+      acc: rel:
+      if !(builtins.isAttrs rel) then
+        acc
+      else
+        let
+          e = rel.enterprise or null;
+          s = rel.site or null;
+        in
+        if !(builtins.isString e) || !(builtins.isString s) then
+          acc
+        else
+          acc
+          // {
+            enterprise = (acc.enterprise or { }) // {
+              ${e} = (acc.enterprise.${e} or { }) // {
+                site = (acc.enterprise.${e}.site or { }) // {
+                  ${s} = (acc.enterprise.${e}.site.${s} or { }) // {
+                    relations = ((acc.enterprise.${e}.site.${s} or { }).relations or [ ]) ++ [ rel ];
+                  };
+                };
+              };
+            };
+          }
+    ) { } relations;
+
   forwardingModelFromCpm =
     cpm:
     if cpm ? forwardingModel && builtins.isAttrs cpm.forwardingModel then
@@ -39,10 +72,12 @@ let
       { };
 
   forwardingSiteForUnit =
-    { cpm
-    , unitName
-    , file ? "s88/Unit/mapping/runtime-targets.nix"
-    ,
+    {
+      cpm,
+      unitName,
+      file ? "s88/Unit/mapping/runtime-targets.nix", # The validated bundle's canonical collections: a SIBLING of the
+
+      canonicalCollections ? { },
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -63,8 +98,16 @@ let
 
       site = if logicalNode ? site && builtins.isString logicalNode.site then logicalNode.site else null;
 
+      fromCanonical = forwardingFromCanonical canonicalCollections;
       candidate =
-        if enterprise != null && site != null then
+        if enterprise != null && site != null && fromCanonical != { } then
+          attrPathOrNull fromCanonical [
+            "enterprise"
+            enterprise
+            "site"
+            site
+          ]
+        else if enterprise != null && site != null then
           attrPathOrNull (forwardingModelFromCpm cpm) [
             "enterprise"
             enterprise
@@ -77,10 +120,10 @@ let
     if builtins.isAttrs candidate then candidate else { };
 
   forwardingNodeInterfacesForUnit =
-    { cpm
-    , unitName
-    , file ? "s88/Unit/mapping/runtime-targets.nix"
-    ,
+    {
+      cpm,
+      unitName,
+      file ? "s88/Unit/mapping/runtime-targets.nix",
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -111,12 +154,12 @@ let
     if node ? interfaces && builtins.isAttrs node.interfaces then node.interfaces else { };
 
   semanticInterfaceForUnit =
-    { cpm
-    , unitName
-    , ifName
-    , iface
-    , file ? "s88/Unit/mapping/runtime-targets.nix"
-    ,
+    {
+      cpm,
+      unitName,
+      ifName,
+      iface,
+      file ? "s88/Unit/mapping/runtime-targets.nix",
     }:
     let
       nodeInterfaces = forwardingNodeInterfacesForUnit {
