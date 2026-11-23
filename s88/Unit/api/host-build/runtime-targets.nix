@@ -12,12 +12,8 @@ let
         (if builtins.isAttrs canonicalCollections then canonicalCollections else { }).canonicalSites or { };
     in
     if builtins.isAttrs (sites.byEnterprise or null) then sites.byEnterprise else null;
-  controlPlaneData =
-    if fromCanonical != null then
-      fromCanonical
-    else
 
-      ((controlPlaneOut.control_plane_model or { }).data or { });
+  controlPlaneData = if fromCanonical != null then fromCanonical else { };
 in
 builtins.listToAttrs (
   builtins.concatLists (

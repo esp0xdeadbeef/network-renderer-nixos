@@ -32,6 +32,8 @@ let
       intent ? null,
       source ? null,
       controlPlaneOut ? null,
+
+      canonicalCollectionsInput ? { },
       compilerOut ? null,
       forwardingOut ? null,
       system ? currentSystem,
@@ -79,7 +81,7 @@ let
 
       runtimeTargets = trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
         flattenRuntimeTargets resolvedControlPlaneOut (
-          if builtins.isAttrs canonicalCollections then canonicalCollections else { }
+          if builtins.isAttrs canonicalCollectionsInput then canonicalCollectionsInput else { }
         )
       );
 
@@ -151,7 +153,7 @@ let
       hostname ? null,
       source ? { },
 
-      canonicalCollections ? { },
+      canonicalCollectionsInput ? { },
       compilerOut ? null,
       forwardingOut ? null,
       system ? currentSystem,
@@ -166,6 +168,7 @@ let
         selector
         hostname
         source
+        canonicalCollectionsInput
         compilerOut
         forwardingOut
         system

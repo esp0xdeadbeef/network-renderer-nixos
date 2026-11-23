@@ -458,7 +458,7 @@
             // {
               controlPlaneOut = validated.controlPlaneEnvelope;
 
-              canonicalCollections = validated.canonical or { };
+              canonicalCollectionsInput = validated.canonical or { };
             }
           );
         in
