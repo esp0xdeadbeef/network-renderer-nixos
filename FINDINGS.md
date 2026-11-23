@@ -1571,3 +1571,52 @@ tests.
 
 Recorded rather than chosen. The committed state is e2121b43 (111 PASS / 2 FAIL),
 and the ownership rule is a one-line change away with its cost measured.
+
+## Attempt twenty-six: the transited return is not in canonicalRoutes at all
+
+The one test the ownership rule breaks is
+`test-transit-endpoint-return-routes`. Checked what the model says about the route
+it needs -- `10.70.10.0/24` in table 1001 on the branch upstream selector:
+
+```
+canonicalRoutes for espbranch-site-b-b-router-upstream-selector, dst 10.70.10.0/24:
+  core-nebula     t=1002  kind=internal-reachability
+  pol-hostile-ew  t=1004  kind=internal-reachability
+```
+
+and for table 1001 specifically: **nothing**. The model does not declare that route
+in that table on that target.
+
+So the test requires a route the canonical set does not carry. The renderer
+derives it from a forwarding relation (`forwardingIntent` on that target has
+`direction = "selector-default-egress"`, `fromInterface = "pol-branch-ew"`,
+`toInterface = "policy-branch"`), and the ownership rule -- which is built from
+`canonicalRoutes` -- cannot know about it.
+
+### That closes the loop on the whole investigation
+
+Three separate authority sources exist, and they are not the same set:
+
+| source | published by | consulted by |
+| --- | --- | --- |
+| `canonicalRoutes` | CPM, per-interface routes | the renderer's emission, SMS-060's check |
+| `forwardingIntent` relations | CPM, per-target forwarding | the renderer only |
+| derived return/ingress paths | the renderer | nothing else |
+
+Every remaining difficulty in this document is a consequence of those three being
+disjoint:
+
+- the check called relation-derived routes invented until it loaded relations
+  (`e2121b43`);
+- the ownership rule, built from (1), calls a relation-derived return a copy;
+- and `canonicalRoutes` itself was missing `preferredSource`, `scope` and the
+  complete record, all of which (2) and (3) already knew.
+
+**The structural fix is to publish (2) as canonical content too** -- the natural
+home is the `facts` field added to `canonicalRoutes` (a route's `intent` already
+carries the relation) plus a canonical forwarding collection, so a renderer and a
+check read one set of authorities instead of three. That is a producer change of
+the same kind as the three already made this run, and it is the last one.
+
+Recorded. Committed state stays e2121b43 (111 PASS / 2 FAIL, duplicates 236,
+placement 0, check loading relations).
