@@ -851,3 +851,29 @@ independent of any renderer change: filter, then match.
 
 Not applied, because applying it alone changes nothing -- the pipeline still
 overwrites the table afterwards, as attempts ten and twelve showed.
+
+### Correction: those 2 were not ambiguous -- the key was too short
+
+I wrote above that 2 routes were "ambiguous within the target". That was wrong,
+and the mistake is instructive.
+
+Grouping on the 3-part key `(runtimeIfName, dst, gateway)`:
+
+| key | groups | groups with >1 member |
+| --- | --- | --- |
+| `(runtimeIfName, dst, gateway)` | 95 | **2** |
+| `(runtimeIfName, dst, gateway, tableId, metric)` | **97** | **0** |
+
+All 97 canonical routes for `s-router-policy` are distinct on the full identity,
+so `canonicalRoutes` carries no duplicates at all -- confirming the CPM fix
+(`11ad3ac`, `844bb70`, `aac8b5c`) from another direction.
+
+The 2 "ambiguous" pairs were two routes with the same interface, destination and
+gateway but different `metric`: legitimate multipath entries, not duplicates. If
+a matcher used the 3-part key it would have to choose between them, and any
+choice would be the renderer inferring -- exactly what the FS clause forbids.
+
+**So the match identity a fix must use is the 5-part one**
+`(runtimeIfName, dst, gateway, tableId, metric)`, which is unique across the
+target by construction. That is now measured, not assumed, and it is the last
+open detail of step 1.
