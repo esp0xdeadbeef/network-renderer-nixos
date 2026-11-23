@@ -96,6 +96,30 @@ Part (2) is why the `policyOnly`-keyed dedupe in the CPM was worth fixing
 (`11ad3ac`) — the model no longer contributes it — but the renderer still
 produces both kinds on its own.
 
+### The number that makes the fix unambiguous
+
+`s-router-policy` in `wireguard-provider-overlay`:
+
+| | routes |
+| --- | --- |
+| canonicalRoutes for that target | **97** |
+| rendered across its 6 interfaces | **427** |
+
+and the canonical 97 have exactly one home each:
+
+```
+ens3/1001  ens4/1002  ens5/1003  ens6/1004  ens7/1005  ens9/1006
+```
+
+Six `(runtimeIfName, tableId)` pairs, one table per interface, no overlaps. The
+mapping is therefore 1:1 and already complete: every rendered route that is not
+one of those 97 is invented by the renderer.
+
+That also removes the worry that motivated the failed attempts. There is no
+ambiguity to resolve, no owner to elect, no order to preserve — just "install
+this record on this interface in this table", which is what
+`canonicalRoutes` already says.
+
 ### What does NOT work, and why
 
 - Dropping duplicates by iteration order (`d7c96ba0`) deletes the declaring
