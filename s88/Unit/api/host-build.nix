@@ -1,9 +1,11 @@
-{ lib
-, repoPath
-, selectors
-, renderHostNetwork
-, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
-,
+{
+  lib,
+  repoPath,
+  selectors,
+  renderHostNetwork,
+  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux", # The validated bundle's canonical collections: a SIBLING of the control-plane
+
+  canonicalCollections ? { },
 }:
 
 let
@@ -17,28 +19,26 @@ let
 
   inherit (hostSelection) disabledSelectionFrom;
 
-  inherit (import ../../ControlModule/api/container-defaults.nix { inherit lib; }) mergeContainerDefaults;
+  inherit (import ../../ControlModule/api/container-defaults.nix { inherit lib; })
+    mergeContainerDefaults
+    ;
 
   flattenRuntimeTargets = import ./host-build/runtime-targets.nix { };
 
-  # NOTE: buildHost uses only pre-built CPM output. Per FS-310-HDS-010-SDS-010-SMS-100,
-  # renderers must consume ONLY CPM output. The fallback that ran compiler->NFM->CPM
-  # internally when controlPlaneOut was null has been removed (CMC-NIXOS-REMOVE-INTENT-V2).
-  # Pipeline orchestration belongs in the nixos host repo, not the renderer.
   buildHost =
-    { selector ? null
-    , hostname ? null
-    , intent ? null
-    , source ? null
-    , controlPlaneOut ? null
-    , compilerOut ? null
-    , forwardingOut ? null
-    , system ? currentSystem
-    , containerDefaults ? { }
-    , disabled ? { }
-    , containerSelection ? disabledSelectionFrom disabled
-    , file ? "s88/Unit/api/host-build.nix"
-    ,
+    {
+      selector ? null,
+      hostname ? null,
+      intent ? null,
+      source ? null,
+      controlPlaneOut ? null,
+      compilerOut ? null,
+      forwardingOut ? null,
+      system ? currentSystem,
+      containerDefaults ? { },
+      disabled ? { },
+      containerSelection ? disabledSelectionFrom disabled,
+      file ? "s88/Unit/api/host-build.nix",
     }:
     let
       resolved = buildInputs.resolveBuildInputs {
@@ -51,9 +51,6 @@ let
           ;
       };
 
-      # CMC-NIXOS-REMOVE-INTENT-V2: controlPlaneOut is REQUIRED.
-      # The renderer no longer runs compiler->NFM->CPM internally.
-      # Pipeline orchestration belongs in the host repo.
       resolvedControlPlaneOut =
         if controlPlaneOut != null then
           controlPlaneOut
@@ -80,26 +77,33 @@ let
         else
           { };
 
-      runtimeTargets =
-        trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
-          flattenRuntimeTargets resolvedControlPlaneOut
-        );
+      runtimeTargets = trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
+        flattenRuntimeTargets resolvedControlPlaneOut (
+          if builtins.isAttrs canonicalCollections then canonicalCollections else { }
+        )
+      );
 
-      renderedHost = trace.emit "host-build:${resolved.selectorValue}:render-host-network" (renderHostNetwork {
-        hostName = resolved.selectorValue;
-        hostContext = resolved.hostContext;
-        cpm = resolvedControlPlaneOut;
-        source = resolved.globalInventory;
-      });
+      renderedHost =
+        trace.emit "host-build:${resolved.selectorValue}:render-host-network"
+          (renderHostNetwork {
+            hostName = resolved.selectorValue;
+            hostContext = resolved.hostContext;
+            cpm = resolvedControlPlaneOut;
+            source = resolved.globalInventory;
+          });
 
-      renderedHostWithSelectedContainers = trace.emit "host-build:${resolved.selectorValue}:select-containers" (hostSelection.selectedContainersForHost {
-        inherit
-          containerDefaults
-          containerSelection
-          renderedHost
-          mergeContainerDefaults
-          ;
-      });
+      renderedHostWithSelectedContainers =
+        trace.emit "host-build:${resolved.selectorValue}:select-containers"
+          (
+            hostSelection.selectedContainersForHost {
+              inherit
+                containerDefaults
+                containerSelection
+                renderedHost
+                mergeContainerDefaults
+                ;
+            }
+          );
 
       debugPayload = import ../../ControlModule/api/debug-payload.nix {
         inherit
@@ -140,22 +144,19 @@ let
       runtimeTargetNames = builtins.attrNames runtimeTargets;
     };
 
-  # CMC-NIXOS-REMOVE-INTENT-V2: buildHostFromControlPlane is the primary entry point.
-  # It accepts pre-built CPM output and skips internal pipeline compilation.
-  # Inventory/source data is extracted from CPM output — no separate parameter.
   buildHostFromControlPlane =
-    { controlPlaneOut
-    , selector ? null
-    , hostname ? null
-    , source ? { }
-    , compilerOut ? null
-    , forwardingOut ? null
-    , system ? currentSystem
-    , containerDefaults ? { }
-    , disabled ? { }
-    , containerSelection ? disabledSelectionFrom disabled
-    , file ? "s88/Unit/api/host-build.nix"
-    ,
+    {
+      controlPlaneOut,
+      selector ? null,
+      hostname ? null,
+      source ? { },
+      compilerOut ? null,
+      forwardingOut ? null,
+      system ? currentSystem,
+      containerDefaults ? { },
+      disabled ? { },
+      containerSelection ? disabledSelectionFrom disabled,
+      file ? "s88/Unit/api/host-build.nix",
     }:
     buildHost {
       inherit
