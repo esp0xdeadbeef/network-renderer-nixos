@@ -986,3 +986,61 @@ Two things, both ordinary work rather than discovery:
 
 Step 2 is the large part, and it is large because of the tests, not the code:
 3,685 lines of derivation is deleted, not rewritten.
+
+## Step 1's missing piece, resolved: the container can find its own target
+
+The one thing step 1 still needed was a way for a container to know which
+`canonicalRoutes` entries are its own. Measured: it can, from the logical name
+alone, with no string parsing.
+
+`canonicalRuntimeTargets.targets[]` publishes
+
+```nix
+{ enterprise = "esp0xdeadbeef"; site = "site-a";
+  target = "esp0xdeadbeef-site-a-s-router-policy";
+  logicalNode = { name = "s-router-policy"; ... };
+  containers = ...; interfaces = ...; role = ...; ... }
+```
+
+so the whole selection is:
+
+```nix
+targetRec =
+  builtins.head (builtins.filter (x: (x.logicalNode.name or null) == logicalName)
+                   cpm.control_plane_model.canonicalRuntimeTargets.targets);
+mine = builtins.filter (r: r.target == targetRec.target) canonicalRoutes;
+```
+
+Verified with `logicalName = "s-router-policy"`:
+
+```
+resolvedTarget : esp0xdeadbeef-site-a-s-router-policy
+routes         : 97
+policyRoutes   : 97
+```
+
+No parsing, no guessing, no renderer-derived field (`unitName` is not involved).
+Combined with the emission prototype above, all of step 1 is now demonstrated:
+
+| piece | status |
+| --- | --- |
+| find the container's target | verified (logical name -> target record) |
+| select its canonical routes | verified (97) |
+| emit one networkd route each | verified (97, six interfaces) |
+
+### The remaining job, stated exactly
+
+Two edits to the real tree, both ordinary:
+
+1. `container-networks.nix`: resolve the target as above, build the routes as
+   above, and feed them where `policyRoutingByInterface.routes` is produced;
+2. delete `raw-routes.nix`, `routes-by-output-interface.nix`,
+   `routeOutputInterface`, `tableForOutputIfName`, `tableForRoute`,
+   `extraTableForRoute`, `policy-routing-sources.nix` -- and update the tests
+   that assert the output of each.
+
+Step 2 is the whole of the remaining risk: ~30 tests currently describe what the
+pipeline produces (363 routes) rather than what the model declares (97), and
+each has to be re-read to decide whether its assertion is about the model or
+about the pipeline. That is a review job over the FS catalogue, not a code
+change, and it is why fifteen attempts at the code alone could not finish it.
