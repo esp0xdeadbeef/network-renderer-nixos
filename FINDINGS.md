@@ -1354,3 +1354,49 @@ may already be there and is simply not consulted.
 Reverted; the committed state is 40d11d79 (placement fixed, stranded 0, 109 PASS /
 4 FAIL, no regressions). The ownership rule is the next step, with the number it
 needs to preserve and the one test that constrains it.
+
+## The discriminator, narrowed to one question
+
+Attempt twenty-one tried gating the ownership rule on `kind`, keeping
+`internal-reachability` (the return-route class) exempt. Result: suite back to its
+baseline of 109 PASS / 4 FAIL with no regressions -- and duplication back to 121,
+because `internal-reachability` is exactly the class the copies are in.
+
+Measured, which is why neither gate works:
+
+| case | model declares | needs to survive |
+| --- | --- | --- |
+| `100.64.0.0/24` t=1004 on `s-router-downstream-selector` | **ens6 only**; `ens3` carries a derived copy | no |
+| `10.70.10.0/24` t=1004 on `branch upstream-selector` | `pol-hostile-ew` (t=1004) and `core-nebula` (t=1002) | yes, on `10-upstream` |
+
+Same class (`internal-reachability`), same table in the first case, and in the
+second the surviving route is on an interface the model names for a *different*
+table. So `kind` does not separate them and the (destination, table) owner does
+not either.
+
+**The question that does separate them, and the one a fix has to answer: is a
+route on this interface required by a forwarding relation that the model
+expresses somewhere other than `canonicalRoutes`?**
+
+- For `100.64.0.0/24` in t=1004 on `ens3`: nothing requires it; it is the derived
+  path's reachability heuristic.
+- For `10.70.10.0/24` via `10.50.0.16` on `10-upstream`: a return path the
+  forwarding model states (the hostile-lane return), and the renderer's
+  `returnRoutes`/`explicitReturnRoutes` computation is what expresses it.
+
+Which means the two sets are already distinguishable *inside the renderer* --
+`policyRoutingByInterface.routes` mixes "routes the model declares" with "routes
+this renderer computes for returns". Splitting that one set at its source, rather
+than filtering it after the fact, is the remaining change:
+
+| set | source | action |
+| --- | --- | --- |
+| model routes | `canonicalRoutes` | emit as-is |
+| return/ingress routes | `returnRoutes`, `explicitReturnRoutes`, `serviceIngressMainRawRoutes`, `advertisedOnlinkRoutesByInterface` | keep |
+| reachability expansion | `routesByOutputInterface` + `routeOutputInterface` | **delete** |
+
+The third is what duplicates and what relocates. It is also the only one of the
+three that has no statement in the model behind it. Deleting it is the change this
+document has been converging on since attempt one, and the reason it is not a
+filter is now demonstrable rather than asserted: the three sets are produced by
+three different code paths and only one of them is inventing.
