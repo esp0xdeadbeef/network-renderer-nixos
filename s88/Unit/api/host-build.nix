@@ -3,7 +3,7 @@
   repoPath,
   selectors,
   renderHostNetwork,
-  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux", # The validated bundle's canonical collections: a SIBLING of the control-plane
+  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
 
   canonicalCollections ? { },
 }:
