@@ -1440,3 +1440,52 @@ Three decisions inside one function. The evidence for which to change:
 
 Reverted: the committed state stays 40d11d79 (placement fixed, stranded 0, suite
 at baseline, no regressions).
+
+## Attempt twenty-four: the residual invention is the renderer doing its job
+
+The committed state (63f0df23) has duplicate rows at 0 and stranded routes at 0,
+with 111 PASS / 2 FAIL. SMS-060's remaining failures are a different thing:
+
+```
+s-router-access-admin/tenant-admin: 0.0.0.0/0 table 1001 metric 50
+                                    has no canonical route for that interface
+```
+
+Checked what the model gives that interface:
+
+```
+tenant-admin t=1001 10.20.15.0/24              kind=connected-reachability
+tenant-admin t=1001 fd42:dead:beef:0015::/64    kind=connected-reachability
+```
+
+Two connected prefixes and **no default**. The renderer adds `0.0.0.0/0` and
+`::/0` in the same table.
+
+Tried dropping every policy-table route whose (destination, table) the model
+declares nowhere in the container, exempting host routes and
+`internal-reachability`:
+
+| | suite |
+| --- | --- |
+| committed (63f0df23) | 111 PASS / 2 FAIL |
+| with the invention filter | **106 PASS / 7 FAIL** |
+
+Worse. So those defaults are not the expansion inventing reach -- the renderer
+adds them because a tenant interface with no default cannot reach anything, and
+several contracts depend on it (service ingress, firewall parity, upstream
+selector core routes).
+
+**Which raises the question the model has to answer, and it is the same one as
+the IPv6 finding earlier in this run:** does the model declare a default for a
+tenant interface? `canonicalRoutes` says no. The renderer says the site does not
+work without one. One of those is wrong, and deciding which is a modelling
+question, not a renderer fix:
+
+- if a tenant interface SHOULD have a default, `canonicalRoutes` is missing it and
+  the producer must publish it -- then SMS-060 goes green with no renderer change;
+- if it should NOT, the renderer is inventing and the contracts that depend on it
+  are asserting invented behaviour -- a much bigger finding.
+
+Reverted to the committed state. This is the boundary of what a renderer-side
+change can establish: the renderer and the model disagree about whether tenant
+interfaces get a default, and no amount of renderer measurement settles it.
