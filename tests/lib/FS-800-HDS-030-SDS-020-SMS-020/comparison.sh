@@ -6,13 +6,15 @@
 set -euo pipefail
 
 repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
-# The CLAB renderer is a separate repository and not an input of this flake, so
-# this repo's CI cannot check it out. The comparison runs where that checkout is
-# supplied (the CLAB renderer's own pipeline); here it skips with the reason.
-clab_repo="${NETWORK_RENDERER_CLAB_PATH:-}"
-if [[ -z "${clab_repo}" || ! -d "${clab_repo}" ]]; then
-  echo "SKIP FS-800 comparison: set NETWORK_RENDERER_CLAB_PATH to a network-renderer-containerlab-linux-backend checkout"
-  exit 0
+
+# The CLAB renderer is a separate repository. Default to the sibling checkout so
+# the comparison RUNS wherever the workspace is present, and FAIL -- not skip --
+# when it is absent: a comparison that silently passes when it cannot compare is
+# an assertion with no subject, and a green run then means nothing.
+clab_repo="${NETWORK_RENDERER_CLAB_PATH:-${repo_root}/../network-renderer-containerlab-linux-backend}"
+if [[ ! -d "${clab_repo}" ]]; then
+  echo "FAIL FS-800 comparison: network-renderer-containerlab-linux-backend not found at '${clab_repo}'; set NETWORK_RENDERER_CLAB_PATH to a checkout. This comparison has no subject without it, so it must not report success." >&2
+  exit 1
 fi
 
 # ---- NixOS normalized contract (same as main test) ----------------------
