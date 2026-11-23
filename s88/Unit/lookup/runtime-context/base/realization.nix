@@ -14,7 +14,7 @@ let
   realizationNodesFor =
     {
       cpm ? null,
-      source ? { }, # The validated bundle's canonical collections: a SIBLING of the
+      source ? { },
 
       canonicalCollections ? { },
     }:
