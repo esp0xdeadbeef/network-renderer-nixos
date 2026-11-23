@@ -227,7 +227,6 @@ let
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
     inherit canonicalPolicyRoutesByInterface modelledTenantPrefixes;
-    inherit canonicalOwnersByDestinationTable;
     inherit relationEgressInterfaces;
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
@@ -402,18 +401,6 @@ let
           [ ];
     in
     lib.unique (builtins.concatMap (s: collect (s.facts.domains or { })) sites);
-
-  canonicalOwnersByDestinationTable =
-    let
-      pairs = builtins.concatMap (
-        ifName:
-        map (r: {
-          name = "${r.Destination}|${toString (r.Table or null)}";
-          inherit ifName;
-        }) (canonicalPolicyRoutesByInterface.${ifName} or [ ])
-      ) (builtins.attrNames canonicalPolicyRoutesByInterface);
-    in
-    builtins.mapAttrs (_: es: builtins.map (e: e.ifName) es) (builtins.groupBy (p: p.name) pairs);
 
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };
