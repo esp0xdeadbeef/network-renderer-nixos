@@ -327,7 +327,9 @@ builtins.foldl'
         tableForOutputIfName =
           outputIfName:
           if
-            isUpstreamSelectorCoreInterface interfaceName || isUpstreamSelectorPolicyInterface interfaceName
+            isPolicy
+            || isUpstreamSelectorCoreInterface interfaceName
+            || isUpstreamSelectorPolicyInterface interfaceName
           then
             tableId
           else
