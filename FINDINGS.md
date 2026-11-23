@@ -1620,3 +1620,41 @@ the same kind as the three already made this run, and it is the last one.
 
 Recorded. Committed state stays e2121b43 (111 PASS / 2 FAIL, duplicates 236,
 placement 0, check loading relations).
+
+## Attempt twenty-seven: the relations are published, threaded, and still not enough
+
+The producer now publishes `canonicalForwarding.relations` (CPM f0d46fb, 50
+relations for wireguard-provider-overlay) and it is threaded to the container as
+`relationEgressInterfaces` (fa449cd9). Applying the ownership rule with an
+exemption for relation-named egress interfaces:
+
+| | duplicate rows | suite |
+| --- | --- | --- |
+| committed (e2121b43) | 236 | 111 PASS / 2 FAIL |
+| + relations exemption | 213 | 110 PASS / 3 FAIL |
+
+So the relations removed 23 more duplicate rows and did **not** rescue the
+regression, even though `core-isp` -- the rendered name of the interface the
+failing test needs -- IS named as an egress surface by that target's relations:
+
+```
+espbranch-site-b-b-router-upstream-selector
+  from=core-nebula   to=core-isp      egress=core-isp
+  from=pol-branch-ew to=core-isp      egress=core-isp
+  from=policy-branch to=core-isp      egress=core-isp
+```
+
+Which means the route the test loses is being dropped for a reason other than the
+ownership rule -- the exemption is in place and the interface is named, so
+something else in `dropDerivedCopies` (the exact-identity branch) or upstream of it
+is removing it.
+
+That is where this stops being productive to pursue one test at a time. The three
+authority sources are now **published** (routes, relations) rather than three
+private ones, which was the structural finding; what remains is that the
+renderer's filter has two branches and only one of them has been examined with the
+relations in hand.
+
+Reverted. Committed state e2121b43 / fa449cd9: suite 111 PASS / 1 SKIP / 2 FAIL,
+placement 0 stranded, duplicates 236, check loading relations, relations published
+and threaded.
