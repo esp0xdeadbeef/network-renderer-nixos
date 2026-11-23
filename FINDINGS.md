@@ -72,6 +72,30 @@ installing one record's route in every policy table of the node.
 That is why every "merge the duplicates" approach fails -- there are no
 duplicates in the model. There are extra copies in the renderer.
 
+Rendered per interface (`s-router-policy`, same prefix), which shows the shape
+of the broadcast and not just its size:
+
+```
+10-ens4  t=1002 t=1002 t=1004 t=1004 t=1006                       (5)
+10-ens5  t=1001 t=1001 t=1003 t=1003 t=1004 t=1005                (6)
+10-ens6  t=1002 t=1002 t=1003 t=1004 t=1004 t=1005 t=1006 t=1006  (8)
+10-ens7  t=1003 t=1004 t=1005                                     (3)
+10-ens9  t=1002 t=1004 t=1004 t=1006 t=1006                       (5)
+```
+
+29 rendered copies for 5 canonical records. Note the pairs: `t=1002 t=1002` on
+one interface is the same route installed twice in the same table, and
+`t=1004` appears on all five interfaces though the model names it on ens6 only.
+
+So the defect has two parts, and both have to go:
+
+1. a record's route is installed on interfaces that do not declare it;
+2. some records are installed twice in the same table on the same interface.
+
+Part (2) is why the `policyOnly`-keyed dedupe in the CPM was worth fixing
+(`11ad3ac`) — the model no longer contributes it — but the renderer still
+produces both kinds on its own.
+
 ### What does NOT work, and why
 
 - Dropping duplicates by iteration order (`d7c96ba0`) deletes the declaring
