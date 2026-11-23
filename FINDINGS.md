@@ -1400,3 +1400,43 @@ three that has no statement in the model behind it. Deleting it is the change th
 document has been converging on since attempt one, and the reason it is not a
 filter is now demonstrable rather than asserted: the three sets are produced by
 three different code paths and only one of them is inventing.
+
+## Attempt twenty-two: the expansion is the whole duplication AND half the coverage
+
+Made `routesByOutputInterface` return empty, to measure what the reachability
+expansion contributes. It is the cleanest experiment available and it settles the
+question the last two attempts were circling.
+
+| measure | baseline | expansion removed |
+| --- | --- | --- |
+| duplicate rows (SMS-060) | 121 | **0** |
+| suite | 109 PASS / 4 FAIL | 98 PASS / 15 FAIL |
+
+So the expansion is **the entire source of the duplicate rows** -- every one of
+the 121 disappears with it. And it is also **half the coverage**: 15 tests fail
+without it, across FS-180, FS-230, FS-270, FS-370, FS-380-SMS-050 and
+FS-380-SMS-120. Those are contracts with real routes behind them, not tests of the
+expansion itself.
+
+**That is why no filter and no deletion works, and it is now proven rather than
+argued.** The same code path produces both the routes the model wants placed once
+and the routes the site needs placed several times. A fix has to split it *inside*
+`routesByOutputInterface`, not remove or post-filter it:
+
+- it iterates `sourceIfNames` and, for each source, emits that source's routes on
+  the source's own output interface. That part is legitimate;
+- `routeOutputInterface` then decides the output interface by peer-address match,
+  which is what relocates a route the model already placed;
+- and `tableForOutputIfName` answers for every output on a policy node, which is
+  what multiplies tables.
+
+Three decisions inside one function. The evidence for which to change:
+
+| decision | evidence |
+| --- | --- |
+| `routeOutputInterface` peer match | FS-310-SMS-130's source scan now fails on it, by name |
+| `tableForOutputIfName` returning `tableId` for all outputs | 427 rendered vs 97 canonical for s-router-policy |
+| emitting every source's routes on every output | the 121 duplicates and the 82 that remained under the coarser key |
+
+Reverted: the committed state stays 40d11d79 (placement fixed, stranded 0, suite
+at baseline, no regressions).
