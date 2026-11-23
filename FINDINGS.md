@@ -2038,3 +2038,58 @@ depends on. The fix belongs upstream -- in how the model attributes routes to
 interfaces (`canonicalRuntimeTargets` re-publishes
 `effectiveRuntimeRealization.interfaces`, and that is where the tenant prefixes sit
 on the p2p link, duplicated) -- and must be verified by the HAT, not the suite.
+
+## The duplicates are not duplicates: a connected route and its policy-table complement share (dst, table, metric)
+
+This is the answer to the whole investigation, and it invalidates every count in
+this file after the first section.
+
+Dumping the ONE interface whose routes the check flagged, with the record intact:
+
+```
+tenant-admin  routes.ipv4:
+  { dst = "10.20.15.0/24", intent.kind = "connected-reachability", proto = "connected" }
+  { dst = "10.20.15.0/24", intent.kind = "connected-reachability",
+    policyTableComplement = true, policyOnly = true,
+    lane = { access = "s-router-access-admin", kind = "tenant" },
+    reason = "policy-table-internal-reachability",
+    proto = "connected" }
+```
+
+Two records with the **same** `dst`, the **same** table and the **same** metric (the
+four fields `FS-310-HDS-020-SDS-010-SMS-060` compares) and **different meaning**: one
+is the connected route, the other is the policy-table complement that makes the
+tenant lane reachable under policy routing. They are not duplicates. They are two
+routes that happen to have the same prefix.
+
+Proof that they are both required: deduplicating them on
+`(dst, gateway, table, metric)` -- which is what "a route list is a set" invites --
+makes the CPM's own validation fail closed:
+
+```
+FS-370-HDS-010-SDS-010-SMS-101: policy/DS per-lane return-path validation failed
+  {"code":"policy-ds-return-path-missing","expectedLane":"s-router-access-admin",
+   "interface":"p2p-...-downstream-selector","prefix":"10.20.15.0/24",
+   "role":"downstream-selector"}
+```
+
+The CPM refused to build. Reverted.
+
+### What this means for the SMS
+
+The check's duplicate key is **too coarse**. It compares
+`(family, table, prefix, metric)` -- the kernel's notion of an installed route -- but
+the model distinguishes these records by `policyOnly`, `lane` and `reason`, and the
+renderer emits both deliberately. A rendered config with both is correct.
+
+So `FS-310-HDS-020-SDS-010-SMS-060` has been counting as "duplicates" the pairs the
+model *intends*, and every attempt in this file to drive that count down was an
+attempt to delete a required policy route. That is why all of them passed the suite
+(which compares what the renderer emitted to what the model said) and broke the HAT
+(the box could no longer return traffic on the tenant lane).
+
+**The SMS needs its key narrowed before the count means anything** -- to the
+records' identity, not the kernel's: `(dst, table, metric, policyOnly, lane)`, or
+equivalently "the same model record emitted twice", not "two records the kernel
+would collapse". That is a change to the check's semantics and belongs with the FS
+text, not a renderer edit.
