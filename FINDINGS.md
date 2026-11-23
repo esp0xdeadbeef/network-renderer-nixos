@@ -1696,3 +1696,48 @@ be exact.
 
 Recorded. Committed state fa449cd9: 111 PASS / 1 SKIP / 2 FAIL, placement 0,
 duplicates 236, relations published and threaded.
+
+## Attempt twenty-nine: the modelled prefixes do not rescue the return either
+
+Checked whether the return's authority is reachable from canonical content, and it
+is: `10.70.10.0/24` appears in `canonicalSites.sites[].facts.domains`, and
+`site-destinations.nix` computes `returnDestinationsFor*` from exactly those
+domains. So the return route has a canonical authority behind it after all.
+
+Threaded `canonicalSites` to the container as `modelledTenantPrefixes` and exempted
+any route whose destination is one of them, on top of the relation exemption:
+
+| | duplicate rows | suite |
+| --- | --- | --- |
+| committed (fa449cd9) | 236 | 111 PASS / 2 FAIL |
+| + relations + modelled prefixes | 213 | 109 PASS / 4 FAIL |
+
+Duplicates down 23, two tests worse. The exemption does not rescue the return,
+because the route the contract loses is not dropped by the ownership branch at all
+-- with `isModelledDestination` true for that prefix the ownership branch cannot
+be what removes it, so it is the exact-identity branch, which matches
+`(destination, table, gateway, metric)` and has no exemption.
+
+### Honest summary of where this stands
+
+The committed state is the best measured one and is what stays:
+
+```
+suite          111 PASS / 1 SKIP / 2 FAIL   (was 109 / 4 at the start of the run)
+placement      0 declared routes off their declaring interface   (was 67)
+duplication    121 -> 0 under the routeOutputInterface deletion, measured
+               separately; 236 rows remain in the committed state because the
+               deletion is not committed with the ownership rule
+relations      published as canonical content (CPM f0d46fb)
+```
+
+Every remaining path is now a specific, one-branch change to
+`dropDerivedCopies` -- exempt the exact-identity branch the way the ownership branch
+was exempted -- but each of the last six attempts has traded one test for a few
+dozen duplicate rows, and the trade is not obviously worth making without knowing
+which the site needs.
+
+That is the point at which recording is more useful than a further attempt: the
+diagnosis is complete and measured, the structural gaps are closed, and what is
+left is a series of judgement calls about which authority wins when two of them
+disagree. Those belong to the repository's owner, not to another iteration.
