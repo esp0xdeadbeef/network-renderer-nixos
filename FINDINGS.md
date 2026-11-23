@@ -329,3 +329,52 @@ Caveat before changing it: `routeOutputInterface` is called from 6 places in
 Removing it is not a one-line change, and the first thing to do is make
 `test-upstream-selector-core-main-routes` assert per-interface so the change can
 be validated at all.
+
+## The producer half: `policyRoutingSources` is never published
+
+The last piece, and it explains why every renderer-side attempt failed.
+
+`policy-routing/source-interfaces.nix` prefers model data when it exists:
+
+```nix
+forTarget = targetName:
+  let unitSources = policyRoutingSources.${targetName} or null;
+  in
+  if unitSources != null then lib.unique (unitSources ++ ...)
+  else lib.unique (selfSources ++ acceptedForwardSources ++ acceptedForwardTargets ++ serviceDnsForwardTargets);
+```
+
+That `policyRoutingSources` value comes from
+`runtimeTarget.policyRoutingSources` via
+`mapping/container-runtime/model/container-assembly.nix`. Measured for
+`esp0xdeadbeef-site-c-c-router-upstream-selector` -- the target whose routes this
+whole investigation is about:
+
+```
+keys: advertisements effectiveRuntimeRealization egressIntent forwardingFunctions
+      forwardingIntent forwardingResponsibility logicalNode placement role
+      routingAuthority routingMode services stateContracts traversalParticipation
+policyRoutingSources: ABSENT
+```
+
+So `forTarget` takes the `else` branch: `selfSources ++ acceptedForwardSources
+++ acceptedForwardTargets ++ serviceDnsForwardTargets`, all of which the
+renderer derives from topology. Combined with `routeOutputInterface` above,
+that is the complete mechanism: the renderer decides which lanes carry a
+route and which interface installs it, from link topology, because the model
+never says.
+
+### What that means for the fix
+
+It is not a renderer patch. Two producer-side facts are missing:
+
+1. `runtimeTarget.policyRoutingSources` -- per target, which source interfaces
+   feed which policy table. With it, `forTarget` stops guessing.
+2. the canonical route record already carries `(runtimeIfName, tableId)` per
+   route (the 97-vs-427 measurement); the renderer should install exactly those
+   and nothing else, which removes the need for `routeOutputInterface` in the
+   materialization path entirely.
+
+Until (1) exists, "install the route on the interface the model names" cannot
+be expressed: the model does not name a source set. That is why six renderer
+attempts failed, and it is a producer change, not a renderer one.
