@@ -518,7 +518,8 @@ let
 
       isModelledDestination = r: builtins.elem (r.Destination or r.dst or null) modelledTenantPrefixes;
     in
-    builtins.filter (r: isModelledDestination r || !(canonicalFor ? ${keyOf r})) routes;
+
+    builtins.filter (r: !(canonicalFor ? ${keyOf r})) routes;
 
 in
 {
