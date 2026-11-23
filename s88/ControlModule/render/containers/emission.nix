@@ -1,6 +1,7 @@
 {
   lib,
   debugEnabled ? false,
+  canonicalRoutes ? [ ],
   deploymentHostName,
   containerName,
   renderedModel,
@@ -162,6 +163,7 @@ let
       alarmModel
       uplinks
       wanUplinkName
+      canonicalRoutes
       ;
   };
 

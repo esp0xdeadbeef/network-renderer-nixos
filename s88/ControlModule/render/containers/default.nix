@@ -1,15 +1,17 @@
-{ lib
-, pkgs ? null
-, repoPath
-, hostPlan ? null
-, cpm ? null
-, source ? { }
-, debugEnabled ? false
-, containerModelsByHost ? null
-, containerModels ? null
-, deploymentContainers ? null
-, models ? null
-, ...
+{
+  lib,
+  canonicalRoutes,
+  pkgs ? null,
+  repoPath,
+  hostPlan ? null,
+  cpm ? null,
+  source ? { },
+  debugEnabled ? false,
+  containerModelsByHost ? null,
+  containerModels ? null,
+  deploymentContainers ? null,
+  models ? null,
+  ...
 }:
 
 let
@@ -28,9 +30,7 @@ let
 
   sortedNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  renderModel =
-    model:
-    import ./mapping.nix { inherit lib model; };
+  renderModel = model: import ./mapping.nix { inherit lib model; };
 
   firewallArgForModel =
     renderedModel:
@@ -63,64 +63,70 @@ let
   emitContainer =
     deploymentHostName: containerName: model:
     let
-      renderedModel = trace.emit "containers:${deploymentHostName}:${containerName}:model" (renderModel model);
-      firewallArg = trace.emit "containers:${deploymentHostName}:${containerName}:firewall" (firewallArgForModel renderedModel);
+      renderedModel = trace.emit "containers:${deploymentHostName}:${containerName}:model" (
+        renderModel model
+      );
+      firewallArg = trace.emit "containers:${deploymentHostName}:${containerName}:firewall" (
+        firewallArgForModel renderedModel
+      );
       alarmModel = trace.emit "containers:${deploymentHostName}:${containerName}:alarms" (
         alarmModelForRenderedModel renderedModel firewallArg
       );
     in
-    trace.emit "containers:${deploymentHostName}:${containerName}:emission" (import ./emission.nix {
-      inherit
-        lib
-        debugEnabled
-        deploymentHostName
-        containerName
-        renderedModel
-        firewallArg
-        alarmModel
-        ;
-      uplinks = inputs.uplinks;
-      wanUplinkName = inputs.wanUplinkName;
-    });
+    trace.emit "containers:${deploymentHostName}:${containerName}:emission" (
+      import ./emission.nix {
+        inherit
+          lib
+          debugEnabled
+          deploymentHostName
+          containerName
+          renderedModel
+          firewallArg
+          alarmModel
+          ;
+        uplinks = inputs.uplinks;
+        wanUplinkName = inputs.wanUplinkName;
+        inherit canonicalRoutes;
+      }
+    );
 
   renderFlatContainers =
     containerModelsFlat:
-    builtins.mapAttrs
-      (
-        containerName: model:
-        emitContainer
-          (
-            if model ? deploymentHostName && builtins.isString model.deploymentHostName then
-              model.deploymentHostName
-            else
-              inputs.defaultDeploymentHostName
-          )
-          containerName
-          model
-      )
-      containerModelsFlat;
+    builtins.mapAttrs (
+      containerName: model:
+      emitContainer (
+        if model ? deploymentHostName && builtins.isString model.deploymentHostName then
+          model.deploymentHostName
+        else
+          inputs.defaultDeploymentHostName
+      ) containerName model
+    ) containerModelsFlat;
 
   renderNestedContainers =
     nestedModels:
-    lib.mapAttrs
-      (
-        deploymentHostName: deploymentHostContainers:
-        builtins.mapAttrs
-          (
-            containerName: model: emitContainer deploymentHostName containerName model
-          )
-          deploymentHostContainers
-      )
-      nestedModels;
+    lib.mapAttrs (
+      deploymentHostName: deploymentHostContainers:
+      builtins.mapAttrs (
+        containerName: model: emitContainer deploymentHostName containerName model
+      ) deploymentHostContainers
+    ) nestedModels;
 in
-# Guard: if selectedUnits exist but container-runtime produced empty models,
-# fail loudly instead of silently deploying zero containers.
+
 if inputs.flatModels != null then
-  builtins.seq
-    (if inputs.flatModels == {} && (hostPlan.selectedUnits or []) != [] then
-      builtins.trace "network-renderer-nixos: containers.nix — WARNING: renderer has ${toString (builtins.length (hostPlan.selectedUnits or []))} selected units (selectedRoleNames: ${builtins.toJSON (hostPlan.selectedRoleNames or [])}) but container-runtime produced empty models (flatModels={}). This is expected if no deployment host roles have container.enable=true. Debug: deploymentHostRoleNames=${builtins.toJSON (hostPlan.deploymentHostRoleNames or [])}, hostPlan has deploymentHostRoles=${toString (hostPlan ? deploymentHostRoles)}. Returning empty containers."
-    else null)
-  (renderFlatContainers inputs.flatModels)
+  builtins.seq (
+    if inputs.flatModels == { } && (hostPlan.selectedUnits or [ ]) != [ ] then
+      builtins.trace "network-renderer-nixos: containers.nix — WARNING: renderer has ${
+        toString (builtins.length (hostPlan.selectedUnits or [ ]))
+      } selected units (selectedRoleNames: ${
+        builtins.toJSON (hostPlan.selectedRoleNames or [ ])
+      }) but container-runtime produced empty models (flatModels={}). This is expected if no deployment host roles have container.enable=true. Debug: deploymentHostRoleNames=${
+        builtins.toJSON (hostPlan.deploymentHostRoleNames or [ ])
+      }, hostPlan has deploymentHostRoles=${
+        toString (hostPlan ? deploymentHostRoles)
+      }. Returning empty containers."
+    else
+      null
+  ) (renderFlatContainers inputs.flatModels)
 else if inputs.modelsByHost != null then
   renderNestedContainers inputs.modelsByHost
 else

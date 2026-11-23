@@ -2,6 +2,7 @@
   lib,
   containerName,
   renderedModel,
+  canonicalRoutes ? [ ],
   firewallArg,
   alarmModel,
   uplinks,
@@ -26,7 +27,12 @@ let
   };
 
   containerNetworkRender = import ../container-networks.nix {
-    inherit lib uplinks wanUplinkName;
+    inherit
+      lib
+      uplinks
+      wanUplinkName
+      canonicalRoutes
+      ;
     containerModel = renderedModel;
     forwardingIntent =
       (firewallArg.lookup or { }).forwardingIntent or firewallArg.forwardingIntent or null;
@@ -170,10 +176,7 @@ in
     frrEcmp.config
     (lib.optionalAttrs firewallArg.enable {
       networking.nftables.enable = true;
-      # One `table inet router`, declared once by the firewall. The DNS service
-      # contributes rules to those chains upstream of render-ruleset.nix, so
-      # the container gets a single declarative nftables.conf rather than a
-      # second table appended as text.
+
       networking.nftables.ruleset = firewallArg.ruleset;
     })
   ];

@@ -1,6 +1,8 @@
 {
   lib,
   containerModel,
+
+  canonicalRoutes ? [ ],
   uplinks,
   wanUplinkName,
   forwardingIntent ? null,
