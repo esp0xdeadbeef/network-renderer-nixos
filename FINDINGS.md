@@ -1784,3 +1784,40 @@ accumulation, not in the copy filter, and the model does not declare
 That is the next change, and it is the one attempt one in this document already
 named: `tableForOutputIfName`. It has been tried alone (109/4) and it needs the
 ownership rule to land with it -- which is now in place.
+
+## The pattern, stated once, with both measurements
+
+Three levers now exist for the duplication, and each one reduces rows while costing
+a contract whose route placement the model does not declare:
+
+| change | duplicate rows | suite | contract lost |
+| --- | --- | --- | --- |
+| committed (de7994 + 7ab2c5a) | 62 | 110 / 3 | transit return route |
+| + `tableForOutputIfName` -> output allocation | **40** | 109 / 4 | FS-540-SMS-040 `branch_hostile_sitec_dns_uses_overlay` |
+| + the above and no ownership rule | 121 | 111 / 2 | none |
+
+Measured for the second row's loss: `10.90.10.0/24` is declared for
+`policy-branch` t=1005 and `core-nebula` t=1002 on
+`espbranch-site-b-b-router-upstream-selector`, and FS-540-SMS-040 requires it in
+the hostile-EW table on `pol-hostile-ew`. The model does not declare that
+placement, exactly like the return route:
+
+```
+core-nebula    t=1002  gw 10.50.0.4
+policy-branch  t=1005  gw 10.50.0.14
+```
+
+**So the duplication and the two contracts disagree about the same thing:** the
+renderer places a route on an interface/table the model does not name, because a
+relation or a return requires it, and the duplicate check counts that placement as
+a copy of the model's route.
+
+That is one question, not three, and it is a modelling question: **does the model
+declare every (interface, table) a route is required on, or is some placement the
+renderer's to derive?** `canonicalRoutes` says the former; three contracts and the
+renderer's relation/return machinery say the latter; and the duplicate check cannot
+tell which without that answer.
+
+Until it is answered, the honest state is the one with the best test result --
+110 PASS / 3 FAIL, 62 duplicate rows -- because a smaller duplicate count bought
+with a broken contract is not an improvement to the site.
