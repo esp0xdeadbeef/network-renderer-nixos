@@ -1914,3 +1914,50 @@ destination.
 Four occurrences of the same trap also now exist in this run -- a value threaded
 through six files with `? { }` defaults, silently empty at the far end (attempts
 eight, ten, eleven and thirty-two). Each cost a full suite run to notice.
+
+## Attempt thirty-three: placement authority does not exist and must not be invented
+
+Looked for the last candidate collection: what `canonicalRuntimeTargets.facts`
+publishes about a resolver/access target's routes.
+
+```
+services.dns.allowFrom        destinations
+services.dns.routeContracts   [{ dst, scope, source }]  -- destinations, no table, no interface
+services.dns.policyMatrix     destinations + scope
+services.dns.listen, forwarders, localZones, roles, ...
+```
+
+Every one of them is a set of **destinations**. None names a `(table, interface)`
+placement. So:
+
+- the return's destination authority is published, as established last attempt;
+- the return's **placement** authority is not published anywhere, and is not
+  derivable from what is.
+
+**And it must not be derived by the producer either.** The repository's own rule,
+quoted in this file's neighbours, is that realization "may make declared meaning
+executable but may not reinterpret, weaken, widen, reclassify, or repair upstream
+intent". A CPM that computed `returnDestinationsFor*` plus the lane's table
+allocation would be doing exactly what the renderer's `return-routes.nix` does --
+moving the derivation one layer upstream, not publishing a model fact. The model
+does not state which table a return belongs in; no amount of producing code makes
+that a declared fact.
+
+**So the contradiction is genuinely in the specifications, not in either
+implementation:**
+
+| authority | where it lives | what it says |
+| --- | --- | --- |
+| `canonicalRoutes` | model | one table per route |
+| `forwardingIntent` / `allowFrom` | model | which destinations may be reached, from where |
+| contracts (FS-540-SMS-040, transit returns) | tests | the same route also required in another table on another interface |
+| `canonicalSites.facts.domains` | model | which prefixes are modelled at all |
+
+No collection reconciles the third with the first, because the model never states
+it. Resolving it is a **URS/FS** decision -- either the model gains a placement
+vocabulary, or those contracts stop requiring a placement the model does not
+declare -- and this repository's rules reserve URS/FS changes for human review.
+
+That is the end of what further renderer iterations can establish. The committed
+state is the best measured one: 110 PASS / 1 SKIP / 3 FAIL, 62 duplicate rows (from
+236), placement 0 (from 67), six producer gaps found and fixed on the way.
