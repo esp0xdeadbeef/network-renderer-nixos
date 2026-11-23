@@ -563,3 +563,52 @@ That is the same conclusion as attempts four, six and seven, now with the
 plumbing proven and the exact prefix bug named. The next attempt should change
 `tableForOutputIfName`/`tableForRoute` to return the canonical `tableId` for the
 route's `(interface, destination)`, and only then apply the filter.
+
+## Attempt ten: the canonical table was written and did not reach the unit
+
+Reverted. Implemented the ordering attempt nine demanded: `canonicalTableFor`
+looks up `(runtimeIfName, dst)` in `canonicalRoutes` and `withCanonicalTable`
+rewrites each emitted route's `Table` to that value, applied in
+`interface-units.nix` right before `routes = map stripRouteMetadata (...)`.
+Verified `canonicalRoutes` with 385 entries reaches this file (a trace printed
+the count in attempt nine, and the plumbing was unchanged).
+
+Result: **no change**. Still 115 duplicate rows in
+`FS-310-HDS-020-SDS-010-SMS-060`, and the suite is unchanged at 110 PASS / 3
+FAIL. Rendered `10-ens6` still carries `100.64.0.2/32` in tables 1002, 1003,
+1004, 1005 and 1006, while the model names exactly one (`ens6` / 1004):
+
+```
+["t=1002 100.64.0.2/32","t=1002 ...","t=1003 ...","t=1004 ...","t=1004 ...",
+ "t=1005 ...","t=1006 ...","t=1006 ..."]
+```
+
+So the code is present and parseable, the value arrives, and the rewrite still
+does not appear in the output. Either `networkForInterface` is not the producer
+of those routes, or a later `mkMerge`/`mkForce` overwrites `Table`.
+
+Checked where else a `10-<name>` network unit is written
+(`public-ingress/container-forwards.nix`, `dns-services.nix`,
+`pppoe-vlan-bridge.nix`, `systemd-host-network/*.nix`): none of them emit
+container policy-table routes for these interfaces. That is as far as static
+reading goes.
+
+### What ten attempts have established
+
+| attempt | change | outcome |
+| --- | --- | --- |
+| 1-2 | dedupe by iteration order | deleted the declaring route; core return-route tests red |
+| 3 | de-dupe by own table | SMS-060 green, then DMZ routes missing (masking exposed) |
+| 4 | stamp source allocation in raw-routes | no effect: stamping is not installing |
+| 5-6 | tableForOutputIfName -> output allocation | no effect on the copies |
+| 7 | routeOutputInterface returns source | SMS-060 target green legitimately, FS-540-SMS-040 red |
+| 8 | filter at final assembly | matched nothing: compared `ens6` with `10-ens6` |
+| 9 | same, prefix fixed | 109/363 match, but 12 tests red: tables differ |
+| 10 | rewrite Table from canonical | no effect at all |
+
+Each attempt disproved one hypothesis and none was wasted, but the remaining gap
+is the same in every one: the rendered route set and the canonical route set are
+produced by two independent code paths, and nothing in this repository
+establishes which one actually reaches networkd. That is the question a
+successful fix must answer first -- with a runtime check, not more static
+reading.
