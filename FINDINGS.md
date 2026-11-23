@@ -2008,3 +2008,33 @@ on one ping.
 tang SIGNED, `ipv6-default` the only failure. The route-production work in
 `FINDINGS.md` stands as the diagnosis -- it is a design change that must be
 validated by the HAT at every step, not by the suite.
+
+## The tableForOutputIfName fix is the third suite-green, HAT-red change
+
+`688d62b2` is reverted. It is worth recording because it was the *best-motivated*
+attempt of the three: it fixed a genuine defect (a policy container's output
+interface took the container's tableId instead of its own), it reduced duplicate
+rows 236 -> 213, and the suite stayed at 110 PASS / 1 SKIP / 3 FAIL.
+
+The HAT then reported:
+
+```
+tenant-client$ ping -c3 1.1.1.1        -> 0 received, 100% packet loss
+tenant-client$ getent hosts tang...    -> no answer
+```
+
+and the reverted state restores ping 3/3, DNS resolved, tang SIGNED.
+
+So the count now stands at three: `40d11d79`, `63f0df23`/`7994ebf2`, `688d62b2`.
+Every one of them improves a construction metric, passes the suite, and takes the
+tenant's packets away. What they share is that they change *which interface a
+route is installed on*; what the site needs is the set the pipeline produces,
+including the placements no canonical collection describes.
+
+**Conclusion, now with three independent measurements:** the renderer's route
+placement cannot be re-derived from the canonical projection without losing
+reachability, because the projection does not carry the placements the site
+depends on. The fix belongs upstream -- in how the model attributes routes to
+interfaces (`canonicalRuntimeTargets` re-publishes
+`effectiveRuntimeRealization.interfaces`, and that is where the tenant prefixes sit
+on the p2p link, duplicated) -- and must be verified by the HAT, not the suite.
