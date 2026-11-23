@@ -73,23 +73,7 @@ in
 {
   inherit addressNetworkPrefix;
 
-  routeOutputInterface =
-    sourceIfName: route:
-    let
-      gateway = routeGateway route;
-      sourceIface = interfaces.${sourceIfName};
-      sourceInterfacePeer =
-        if gateway == null then null else interfacePeerForFamily gateway.family sourceIface;
-      matchingInterfaces =
-        if gateway == null then
-          [ ]
-        else
-          lib.filter (
-            ifName: interfacePeerForFamily gateway.family interfaces.${ifName} == gateway.gateway
-          ) interfaceNames;
-    in
-
-    sourceIfName;
+  routeOutputInterface = sourceIfName: _route: sourceIfName;
 
   isDefaultRoute =
     route:
