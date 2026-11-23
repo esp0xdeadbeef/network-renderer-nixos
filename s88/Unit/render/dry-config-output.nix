@@ -1,12 +1,12 @@
-{ repoRoot
-, lib ? null
-, renderer ? null
-, cpm ? null
-, cpmPath ? null
-, source ? { }
-, exampleDir ? null
-, debug ? false
-,
+{
+  repoRoot,
+  lib ? null,
+  renderer ? null,
+  cpm ? null,
+  cpmPath ? null,
+  source ? { },
+  exampleDir ? null,
+  debug ? false,
 }:
 
 let
@@ -44,10 +44,18 @@ let
   renderInputs = import ../../ControlModule/lookup/render-inputs.nix {
     lib = resolvedLib;
     renderer = resolvedRenderer;
-    inherit repoRoot cpm cpmPath source exampleDir;
+    inherit
+      repoRoot
+      cpm
+      cpmPath
+      source
+      exampleDir
+      ;
   };
 
   controlPlane = renderInputs.controlPlane;
+
+  canonicalCollections = renderInputs.canonicalCollections or { };
   resolvedInventory = renderInputs.resolvedInventory;
   metadataSourcePaths = renderInputs.metadataSourcePaths;
 
@@ -68,31 +76,27 @@ let
 
   deploymentHostNames = resolvedLib.sort builtins.lessThan (
     resolvedLib.unique (
-      map
-        (
-          unitName:
-          runtimeContext.deploymentHostForUnit {
-            cpm = controlPlane;
-            source = resolvedInventory;
-            inherit unitName;
-            file = "s88/Unit/render/dry-config-output.nix";
-          }
-        )
-        unitNames
+      map (
+        unitName:
+        runtimeContext.deploymentHostForUnit {
+          cpm = controlPlane;
+          source = resolvedInventory;
+          inherit unitName;
+          file = "s88/Unit/render/dry-config-output.nix";
+        }
+      ) unitNames
     )
   );
 
   hostRenderings = builtins.listToAttrs (
-    map
-      (hostName: {
-        name = hostName;
-        value = resolvedRenderer.renderHostNetwork {
-          inherit hostName;
-          cpm = controlPlane;
-          source = resolvedInventory;
-        };
-      })
-      deploymentHostNames
+    map (hostName: {
+      name = hostName;
+      value = resolvedRenderer.renderHostNetwork {
+        inherit hostName;
+        cpm = controlPlane;
+        source = resolvedInventory;
+      };
+    }) deploymentHostNames
   );
 
   output = import ../../ControlModule/render/dry-config-model.nix {
@@ -104,6 +108,7 @@ let
       hostRenderings
       deploymentHostNames
       controlPlane
+      canonicalCollections
       resolvedInventory
       ;
     debugEnabled = debug;
