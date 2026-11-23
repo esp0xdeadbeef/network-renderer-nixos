@@ -2198,3 +2198,39 @@ shapes are fine.
 This is the useful outcome of the probe: a construction metric that named a
 renderer defect stops naming one once you look at the installed tables on a real
 boot, and the round trip costs one command.
+
+## S88 structure review (requested): consistent, and the depth is justified
+
+Seven levels, ISA-95 naming, all present and all exposing an `api/`:
+
+| level | files | `api/default.nix` |
+| --- | --- | --- |
+| `s88/Enterprise` | 2 (+`default.nix`) | yes |
+| `s88/Site` | 1 | yes |
+| `s88/Area` | 1 | yes |
+| `s88/ProcessCell` | 1 | yes |
+| `s88/Unit` | 56 | yes |
+| `s88/EquipmentModule` | 13 (+`default.nix`) | yes |
+| `s88/ControlModule` | 198 | yes |
+
+Two things worth recording rather than changing:
+
+**1. All seven levels exist here and one apiece in the peer renderers.** Measured:
+`network-renderer-nebula`, `-wireguard` and `-containerlab-linux-backend` each carry
+a single `s88/` subtree; `network-renderer-openconfig` has none. That is the right
+shape and not an inconsistency -- the nixos renderer is the one that materialises
+host bridges, VLAN devices, policy routing and container networks, which is what the
+deeper ISA-95 levels describe. A peer renderer that emitted a Unit/ControlModule
+hierarchy would be modelling the site rather than parsing a binding.
+
+**2. `ControlModule` is 198 of the 272 files.** Everything that produces a route,
+a rule, an address or a unit lives there; the other six levels are 74 files total and
+are mostly lookup and mapping. That matches the goal's statement that a renderer
+should be "a small shim around the realization schemas -- a parser to the correct
+hardware": the volume is in turning canonical objects into nixos primitives, not in
+re-deciding anything, which is why the defects found this run
+(`routeOutputInterface`, `tableForOutputIfName`, the duplicate key) were all in
+`ControlModule` and none in the enterprise/site/area layers.
+
+No structural change is proposed. The review found no misplaced level, no level
+missing its `api/`, and no peer renderer with a hierarchy it does not need.
