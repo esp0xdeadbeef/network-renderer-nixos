@@ -51,6 +51,27 @@ iterated) for EVERY output interface, and
 route's table. Changing it to the output interface's own allocation stops the
 table widening but leaves duplicates where two interfaces share one table.
 
+### The measurement that makes this exact
+
+For `s-router-policy` and the prefix `100.64.0.2/32`, the model declares FIVE
+records, each on its own link in its own table:
+
+```
+ens6  table 1004  gateway 10.10.0.10
+ens5  table 1003  gateway 10.10.0.12
+ens7  table 1005  gateway 10.10.0.14
+ens4  table 1002  gateway 10.10.0.17
+ens9  table 1006  gateway 10.10.0.19
+```
+
+The renderer emits that prefix THREE times in table 1005 alone (and again in
+1004, 1002, ...). So the disagreement is not a tie to break: every canonical
+record has a unique `(runtimeIfName, tableId)` home, and the renderer is
+installing one record's route in every policy table of the node.
+
+That is why every "merge the duplicates" approach fails -- there are no
+duplicates in the model. There are extra copies in the renderer.
+
 ### What does NOT work, and why
 
 - Dropping duplicates by iteration order (`d7c96ba0`) deletes the declaring
