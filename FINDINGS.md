@@ -1741,3 +1741,46 @@ That is the point at which recording is more useful than a further attempt: the
 diagnosis is complete and measured, the structural gaps are closed, and what is
 left is a series of judgement calls about which authority wins when two of them
 disagree. Those belong to the repository's owner, not to another iteration.
+
+## Attempt thirty: the exempted route never reaches the filter
+
+Threaded `canonicalSites` all the way to `modelledTenantPrefixes` and verified the
+exemption is live -- a trace printed
+
+```
+PFX_COUNT=22 has1070=1
+```
+
+so `10.70.10.0/24` **is** in the exempt set and `isCopy` therefore returns false for
+it. The route still does not appear in `b-router-upstream-selector`'s rendered
+routes.
+
+So it is dropped **upstream of `dropDerivedCopies`**, in the aggregate's
+`routesByInterfaceScoped` / `forTarget` path -- the third decision this document
+named two dozen attempts ago:
+
+> `tableForOutputIfName` returns `tableId` (the iterating interface's) for every
+> output on a policy / upstream-selector node, and the per-output accumulation
+> folds every source's routes into every output.
+
+That is where a route the model puts in `core-nebula` t=1002 stops being produced
+in `core-nebula` t=1004, before any filter runs. Every filter-based attempt --
+including the six that preceded this one -- has been downstream of it.
+
+### Final measured state (committed)
+
+```
+suite           110 PASS / 1 SKIP / 3 FAIL
+duplicate rows   62   (was 236; 121 -> 0 under the routeOutputInterface deletion,
+                       measured separately)
+placement        0 declared routes off their declaring interface (was 67)
+```
+
+The one failing contract is `test-transit-endpoint-return-routes`, and its cause is
+now precise rather than vague: the route is lost in the aggregate's table/output
+accumulation, not in the copy filter, and the model does not declare
+`core-nebula` t=1004 for that destination at all.
+
+That is the next change, and it is the one attempt one in this document already
+named: `tableForOutputIfName`. It has been tried alone (109/4) and it needs the
+ownership rule to land with it -- which is now in place.
