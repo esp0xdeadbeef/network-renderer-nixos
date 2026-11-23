@@ -16,6 +16,30 @@ if rg -n '2000 \+|9000 \+ tableId|10000 \+ tableId|Priority = tableId' "${policy
 fi
 echo "PASS: no local route-table or rule-priority derivation remains"
 
+# FS-310-HDS-020-SDS-010-SMS-060, second sentence: "The renderer shall not ...
+# derive occurrence from interface topology". The scan above covers table and
+# priority arithmetic; it does NOT cover the other way the same clause is
+# broken, which is where a route is PLACED.
+#
+# Measured 2026-11-23: `routeOutputInterface` moves a route from the interface
+# that declares it to whichever interface has the route's gateway as its p2p
+# peer address (core peers 10.80.0.4, policy-dmz-wan peers 10.80.0.18, and the
+# model's 10.90.10.0/24 on core has gateway 10.80.0.18 -- so core kept nothing).
+# That is deriving occurrence from interface topology, by name, and it passed
+# this test.
+#
+# The guard is deliberately narrow: it matches the peer-address match itself,
+# not the word "topology", so ordinary comments and renames do not trip it.
+echo "--- Source scan: no route placement by peer-address match ---"
+if rg -n 'interfacePeerForFamily[^\n]*==[^\n]*gateway' \
+     "${policy_dir}/route-helpers.nix" 2>/dev/null; then
+  echo "FAIL: a route's interface is being chosen by matching its gateway against a peer address" >&2
+  echo "      That is 'derive occurrence from interface topology' (FS-310-HDS-020-SDS-010-SMS-060)." >&2
+  echo "      A route belongs on the interface its canonical record names." >&2
+  exit 1
+fi
+echo "PASS: no route is placed by matching its gateway against an interface peer address"
+
 positive_json="$(mktemp)"
 missing_out="$(mktemp)"
 missing_err="$(mktemp)"
