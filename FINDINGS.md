@@ -1658,3 +1658,41 @@ relations in hand.
 Reverted. Committed state e2121b43 / fa449cd9: suite 111 PASS / 1 SKIP / 2 FAIL,
 placement 0 stranded, duplicates 236, check loading relations, relations published
 and threaded.
+
+## Attempt twenty-eight: the regression is the ownership rule's conflict, full stop
+
+Corrected a wrong inference from attempt twenty-seven. `test-transit-endpoint-return-routes`
+**passes at HEAD** (fa449cd9); the regression appears only when the ownership rule
+is applied. So the relations exemption was not "insufficient because something
+else drops it" -- the ownership rule itself is what drops it, and the relations do
+not name the interface the route actually lives on.
+
+Measured on `b-router-upstream-selector` (host `s-router-test`), `10.70.10.0/24`:
+
+```
+10-core-nebula   t=1002  g=10.50.0.16  m=50
+10-core-nebula   t=1002  g=10.50.0.16  m=50
+10-core-nebula   t=1004  g=10.50.0.16  m=50
+10-pol-branch-ew t=1002  g=10.50.0.16  m=50
+10-pol-hostile-ew t=1002 g=10.50.0.16  m=50
+...
+```
+
+The route legitimately exists on `core-nebula` in **two** tables (1002 and 1004)
+and on the policy interfaces. The model's canonical records name `pol-hostile-ew`
+(t=1004) and `core-nebula` (t=1002) only. So the copy on `core-nebula` **t=1004**
+is, by the ownership rule, a copy -- and the return-route contract requires it.
+
+**That is the conflict, exactly:** the model declares a (destination, table) for
+one interface, and the contract requires the same (destination, table) on another
+interface for the return path. No authority in the model separates them, because
+the second placement is a *return*, and returns are computed by the renderer from
+`returnRoutes`/`explicitReturnRoutes`, which are not canonical content.
+
+Which means the last structural gap is the same class as the three already fixed:
+**returns are a fourth authority source, unpublished.** Publishing them the way
+`canonicalForwarding` was published is the step that would let the ownership rule
+be exact.
+
+Recorded. Committed state fa449cd9: 111 PASS / 1 SKIP / 2 FAIL, placement 0,
+duplicates 236, relations published and threaded.
