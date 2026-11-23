@@ -182,3 +182,53 @@ publish those as canonical collections (`canonicalForwarding`,
 URS/FS-level contract change and the repository rules require human review for
 those. Filed here rather than worked around: a fallback to the model would
 restore exactly the dependency the gate exists to remove.
+
+## The duplication masks a second, independent defect
+
+Found while attempting the fix that this file describes (attempt three, reverted
+like the first two). De-duplicating by "keep only the copy whose table is this
+interface's own allocation" made
+`FS-310-HDS-020-SDS-010-SMS-060` pass -- 740 routes, no duplicate occurrence --
+and simultaneously removed a route the model DOES declare:
+
+```
+model, target esp0xdeadbeef-site-c-c-router-upstream-selector, interface core,
+table 1001:
+  0.0.0.0/0                  gw 10.80.0.4
+  10.80.0.4/31               connected
+  10.89.0.2/32               gw 10.80.0.4
+  10.90.10.0/24              gw 10.80.0.18
+  10.90.20.0/24              gw 10.80.0.14
+  ::/0                       gw fd42:dead:cafe:1000:0:0:0:4
+  fd42:dead:cafe:0010::/64   gw fd42:dead:cafe:1000:0:0:0:12
+  fd42:dead:cafe:1000::4/127 connected
+  fd42:dead:cafe:1900::2/128 gw fd42:dead:cafe:1000:0:0:0:4
+
+after that de-duplication, the rendered 10-core (table 1001) carried only:
+  0.0.0.0/0, 10.89.0.2/32, ::/0, fd42:dead:cafe:1900::2/128
+```
+
+So the renderer does not put `10.90.10.0/24` in table 1001 for `core` at all --
+it puts it somewhere else, and the duplicated copies were what made
+`test-upstream-selector-core-main-routes` see it. The two defects are
+independent:
+
+1. **duplication** -- one authority installed several times (the 97 vs 427
+   measurement above);
+2. **table assignment** -- a route installed in a table other than the one the
+   canonical record names (`10.90.10.0/24` on `core` is table 1001 in the model
+   and not there after de-duplication).
+
+Neither can be fixed alone. De-duplicating alone unmasks (2) and the core
+return-route contracts go red; fixing table assignment alone leaves (1). A
+correct change must install each canonical route on exactly the
+`(runtimeIfName, tableId)` it names -- which handles both at once, and is why
+the fix is "map canonicalRoutes", not "dedupe" or "retable".
+
+Also worth recording: `test-upstream-selector-core-main-routes` asserted
+`10.90.10.0/24` via `10.80.0.16` and a `10.80.0.2/31` on `core`. The model says
+`10.80.0.18` and does not declare `10.80.0.2/31` on `core` at all. The test
+passed because the renderer invented copies, so it agreed with the bug it was
+meant to constrain. Correcting it is part of the fix, not a separate cosmetic
+change -- and doing it before the renderer is fixed would just make the test
+wrong in a different direction.
