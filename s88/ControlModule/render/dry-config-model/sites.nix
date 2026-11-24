@@ -13,7 +13,6 @@ let
       canonicalSites.byEnterprise
     else
       null;
-
   data =
     if fromCanonical != null then
       fromCanonical

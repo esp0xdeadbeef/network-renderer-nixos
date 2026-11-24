@@ -7,6 +7,13 @@
 }:
 
 let
+  controlPlaneModel =
+    if builtins.isAttrs (controlPlane.control_plane_model or null) then
+      controlPlane.control_plane_model
+    else if builtins.isAttrs controlPlane then
+      controlPlane
+    else
+      { };
 
   fromCanonical =
     let
