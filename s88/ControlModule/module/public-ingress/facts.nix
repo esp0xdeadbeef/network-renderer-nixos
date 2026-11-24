@@ -46,8 +46,8 @@ let
     in
     if builtins.isAttrs (sites.byEnterprise or null) then
       sites.byEnterprise
-    else if builtins.isAttrs (controlPlane.model.data or null) then
-      controlPlane.model.data
+    else if builtins.isAttrs (controlPlane.control_plane_model.data or null) then
+      controlPlane.control_plane_model.data
     else if builtins.isAttrs (controlPlane.data or null) then
       controlPlane.data
     else
@@ -191,7 +191,7 @@ let
     in
     stripMask (
       requiredString
-        "model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.effectiveRuntimeRealization.interfaces.${interfaceName}.addr4"
+        "control_plane_model.data.${enterpriseName}.${siteName}.runtimeTargets.${runtimeTargetName}.effectiveRuntimeRealization.interfaces.${interfaceName}.addr4"
         (iface.addr4 or null)
     );
 

@@ -83,9 +83,10 @@ let
         if builtins.isAttrs canonicalCollectionsInput && canonicalCollectionsInput != { } then
           canonicalCollectionsInput
         else if
-          builtins.isAttrs resolvedControlPlaneOut && builtins.isAttrs (resolvedControlPlaneOut.model or null)
+          builtins.isAttrs resolvedControlPlaneOut
+          && builtins.isAttrs (resolvedControlPlaneOut.control_plane_model or null)
         then
-          resolvedControlPlaneOut.model
+          resolvedControlPlaneOut.control_plane_model
         else
           { };
 

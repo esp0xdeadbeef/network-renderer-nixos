@@ -1,10 +1,10 @@
-{
-  lib,
-  repoPath,
-  hostName,
-  cpm,
-  source ? { },
-  hostContext ? null,
+{ lib
+, repoPath
+, hostName
+, cpm
+, source ? { }
+, hostContext ? null
+,
 }:
 
 let
@@ -13,20 +13,26 @@ let
   realizationPorts = import ../../physical/realization-ports.nix { inherit lib; };
 
   sitesData =
-    let
-      model = if builtins.isAttrs cpm then (cpm.model or cpm) else { };
-      byEnterprise = (model.canonicalSites or { }).byEnterprise or null;
-    in
-    if builtins.isAttrs byEnterprise then
-      byEnterprise
-    else if builtins.isAttrs (model.data or null) then
-      model.data
+    if
+      cpm ? control_plane_model
+      && builtins.isAttrs cpm.control_plane_model
+      && cpm.control_plane_model ? data
+      && builtins.isAttrs cpm.control_plane_model.data
+    then
+      cpm.control_plane_model.data
+    else if cpm ? data && builtins.isAttrs cpm.data then
+      cpm.data
     else
       { };
 
+  # CMC-NIXOS-INTENT-CLEANUP: inventory.controlPlane.sites removed.
+  # Renderers consume CPM output only. Sites come from CPM.data.
+
+  # Extract source data from CPM for realization-ports lookups.
+  # CPM carries realization/deployment data that replaces raw inventory.
   cpmSourceBase =
-    if builtins.isAttrs (cpm.model or null) then
-      cpm.model
+    if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
+      cpm.control_plane_model
     else if builtins.isAttrs cpm then
       cpm
     else
@@ -51,89 +57,75 @@ let
 
   cpmSource = cpmSourceBase // cpmTopLevelSource;
 
-  hostRuntime = trace.emit "host-plan:${hostName}:host-runtime" (
-    import ../../lookup/host-runtime.nix {
-      inherit repoPath;
-      inherit
-        lib
-        hostName
-        cpm
-        hostContext
-        ;
+  hostRuntime = trace.emit "host-plan:${hostName}:host-runtime" (import ../../lookup/host-runtime.nix {
+    inherit repoPath;
+    inherit
+      lib
+      hostName
+      cpm
+      hostContext
+      ;
+    # CMC-NIXOS-INTENT-CLEANUP: CPM provides all needed source data.
+    source = cpmSource;
+  });
 
-      source = cpmSource;
-    }
-  );
+  attachTargetsRuntime = trace.emit "host-plan:${hostName}:attach-targets-all-host-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
+    source = cpmSource;
+    selectedUnits = hostRuntime.unitsOnDeploymentHost;
+    normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
+    file = "s88/Unit/render/host-plan.nix";
+  });
 
-  attachTargetsRuntime = trace.emit "host-plan:${hostName}:attach-targets-all-host-units" (
-    realizationPorts.attachTargetsForUnitsFromRuntime {
-      source = cpmSource;
-      selectedUnits = hostRuntime.unitsOnDeploymentHost;
-      normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
-      file = "s88/Unit/render/host-plan.nix";
-    }
-  );
+  attachTargetsRuntimeSelected = trace.emit "host-plan:${hostName}:attach-targets-selected-units" (realizationPorts.attachTargetsForUnitsFromRuntime {
+    source = cpmSource;
+    selectedUnits = hostRuntime.selectedUnits;
+    normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
+    file = "s88/Unit/render/host-plan.nix";
+  });
 
-  attachTargetsRuntimeSelected = trace.emit "host-plan:${hostName}:attach-targets-selected-units" (
-    realizationPorts.attachTargetsForUnitsFromRuntime {
-      source = cpmSource;
-      selectedUnits = hostRuntime.selectedUnits;
-      normalizedRuntimeTargets = hostRuntime.normalizedRuntimeTargets;
-      file = "s88/Unit/render/host-plan.nix";
-    }
-  );
+  bridgeModel = trace.emit "host-plan:${hostName}:bridge-model" (import ../../../EquipmentModule/mapping/host-bridges.nix {
+    inherit
+      lib
+      attachTargetsRuntime
+      ;
+    inherit (hostRuntime)
+      deploymentHost
+      ;
+  });
 
-  bridgeModel = trace.emit "host-plan:${hostName}:bridge-model" (
-    import ../../../EquipmentModule/mapping/host-bridges.nix {
-      inherit
-        lib
-        attachTargetsRuntime
-        ;
-      inherit (hostRuntime)
-        deploymentHost
-        ;
-    }
-  );
+  wanAttachment = trace.emit "host-plan:${hostName}:wan-attachment" (import ../../../EquipmentModule/mapping/wan-attachment.nix {
+    inherit
+      lib
+      hostName
+      cpm
+      ;
+    inherit (hostRuntime)
+      deploymentHostName
+      deploymentHost
+      renderHostConfig
+      ;
+    inherit (bridgeModel) attachTargetsBase;
+    # CMC-NIXOS-INTENT-CLEANUP: source no longer passed; CPM provides wan data.
+    source = { };
+  });
 
-  wanAttachment = trace.emit "host-plan:${hostName}:wan-attachment" (
-    import ../../../EquipmentModule/mapping/wan-attachment.nix {
-      inherit
-        lib
-        hostName
-        cpm
-        ;
-      inherit (hostRuntime)
-        deploymentHostName
-        deploymentHost
-        renderHostConfig
-        ;
-      inherit (bridgeModel) attachTargetsBase;
+  transitBridgeModel = trace.emit "host-plan:${hostName}:transit-bridges" (import ../../../EquipmentModule/physical/transit-bridges.nix {
+    inherit lib;
+    inherit (hostRuntime)
+      deploymentHostName
+      deploymentHost
+      realizationNodes
+      ;
+  });
 
-      source = { };
-    }
-  );
-
-  transitBridgeModel = trace.emit "host-plan:${hostName}:transit-bridges" (
-    import ../../../EquipmentModule/physical/transit-bridges.nix {
-      inherit lib;
-      inherit (hostRuntime)
-        deploymentHostName
-        deploymentHost
-        realizationNodes
-        ;
-    }
-  );
-
-  effectiveBridgeModel = trace.emit "host-plan:${hostName}:effective-bridge-model" (
-    import ../../../EquipmentModule/mapping/effective-host-bridges.nix {
-      inherit
-        lib
-        bridgeModel
-        wanAttachment
-        transitBridgeModel
-        ;
-    }
-  );
+  effectiveBridgeModel = trace.emit "host-plan:${hostName}:effective-bridge-model" (import ../../../EquipmentModule/mapping/effective-host-bridges.nix {
+    inherit
+      lib
+      bridgeModel
+      wanAttachment
+      transitBridgeModel
+      ;
+  });
 in
 {
   inherit (hostRuntime)

@@ -1,10 +1,10 @@
-{
-  lib,
-  hostName,
-  cpm ? null,
-  source ? { },
-  hostContext ? null,
-  file ? "s88/Unit/lookup/host-runtime.nix",
+{ lib
+, hostName
+, cpm ? null
+, source ? { }
+, hostContext ? null
+, file ? "s88/Unit/lookup/host-runtime.nix"
+,
 }:
 
 let
@@ -21,8 +21,7 @@ let
 
   ensureAttrs = value: if builtins.isAttrs value then value else { };
 
-  singletonName =
-    attrs:
+  singletonName = attrs:
     let
       names = builtins.attrNames attrs;
     in
@@ -55,8 +54,10 @@ let
   cpmRootBase =
     if cpm == null then
       { }
-    else if builtins.isAttrs cpm && builtins.isAttrs (cpm.model or null) then
-      cpm.model
+    else if
+      builtins.isAttrs cpm && cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model
+    then
+      cpm.control_plane_model
     else if builtins.isAttrs cpm then
       cpm
     else
@@ -95,7 +96,10 @@ let
       { };
 
   cpmDeploymentHosts =
-    if cpmRoot ? deploymentHosts && builtins.isAttrs cpmRoot.deploymentHosts then
+    if
+      cpmRoot ? deploymentHosts
+      && builtins.isAttrs cpmRoot.deploymentHosts
+    then
       cpmRoot.deploymentHosts
     else if
       cpmRoot ? deployment
@@ -169,6 +173,9 @@ let
     else
       { };
 
+  # CMC-NIXOS-INTENT-CLEANUP: Inventory fallback removed.
+  # Per SMS-100/SMS-101, renderers consume CPM output only.
+  # hostContext resolution uses CPM data exclusively.
   resolvedHostContext =
     if hostContext != null && builtins.isAttrs hostContext && hostContext != { } then
       hostContext // { hostname = requestedHostName; }
@@ -184,6 +191,7 @@ let
         realizationNode = null;
       };
 
+  # CMC-NIXOS-INTENT-CLEANUP: Use CPM realization nodes only.
   realizationNodes = cpmRealizationNodes;
 
   effectiveHostContext = resolvedHostContext // {

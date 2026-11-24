@@ -5,14 +5,15 @@
 
   controlPlaneData =
     cpm:
-    let
-      model = if builtins.isAttrs cpm && builtins.isAttrs (cpm.model or null) then cpm.model else cpm;
-      fromModel = (if builtins.isAttrs model then model else { }).canonicalSites or { };
-    in
-    if builtins.isAttrs (fromModel.byEnterprise or null) then
-      fromModel.byEnterprise
-    else if builtins.isAttrs (model.data or null) then
-      model.data
+    if
+      cpm ? control_plane_model
+      && builtins.isAttrs cpm.control_plane_model
+      && cpm.control_plane_model ? data
+      && builtins.isAttrs cpm.control_plane_model.data
+    then
+      cpm.control_plane_model.data
+    else if cpm ? data && builtins.isAttrs cpm.data then
+      cpm.data
     else
       { };
 

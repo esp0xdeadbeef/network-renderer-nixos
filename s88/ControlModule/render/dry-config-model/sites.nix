@@ -16,8 +16,8 @@ let
   data =
     if fromCanonical != null then
       fromCanonical
-    else if builtins.isAttrs (controlPlane.model or null) then
-      controlPlane.model.data or { }
+    else if builtins.isAttrs (controlPlane.control_plane_model or null) then
+      controlPlane.control_plane_model.data or { }
     else
       { };
 in

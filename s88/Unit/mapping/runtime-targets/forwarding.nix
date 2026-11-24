@@ -49,9 +49,7 @@ let
               ${enterpriseName} = (acc.enterprise.${enterpriseName} or { }) // {
                 site = (acc.enterprise.${enterpriseName}.site or { }) // {
                   ${siteName} = (acc.enterprise.${enterpriseName}.site.${siteName} or { }) // {
-                    relations = ((acc.enterprise.${enterpriseName}.site.${siteName} or { }).relations or [ ]) ++ [
-                      rel
-                    ];
+                    relations = ((acc.enterprise.${enterpriseName}.site.${siteName} or { }).relations or [ ]) ++ [ rel ];
                   };
                 };
               };
@@ -64,12 +62,12 @@ let
     if cpm ? forwardingModel && builtins.isAttrs cpm.forwardingModel then
       cpm.forwardingModel
     else if
-      cpm ? model
-      && builtins.isAttrs cpm.model
-      && cpm.model ? forwardingModel
-      && builtins.isAttrs cpm.model.forwardingModel
+      cpm ? control_plane_model
+      && builtins.isAttrs cpm.control_plane_model
+      && cpm.control_plane_model ? forwardingModel
+      && builtins.isAttrs cpm.control_plane_model.forwardingModel
     then
-      cpm.model.forwardingModel
+      cpm.control_plane_model.forwardingModel
     else
       { };
 

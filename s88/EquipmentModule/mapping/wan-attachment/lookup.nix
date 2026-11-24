@@ -3,92 +3,87 @@
   deploymentHostName,
   deploymentHost,
   cpm,
-  source ? { },
+  source ? {},
   attachTargetsBase,
-}:
-let
-  runtimeContext = import ../../../Unit/lookup/runtime-context.nix { inherit lib; };
+}: let
+  runtimeContext = import ../../../Unit/lookup/runtime-context.nix {inherit lib;};
 
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
-  overlayNameSet =
-    let
-      data =
-        if
-          builtins.isAttrs (cpm.model or null)
-          && builtins.isAttrs (cpm.model.canonicalSites or null)
-          && builtins.isAttrs (cpm.model.canonicalSites.byEnterprise or null)
-        then
-          cpm.model.canonicalSites.byEnterprise
-        else
-          { };
-      siteOverlayNames =
-        enterpriseName: siteName:
-        let
-          site = data.${enterpriseName}.${siteName};
-          overlays =
-            if builtins.isAttrs (site.overlays or null) then builtins.attrNames site.overlays else [ ];
-          overlayReachability =
-            if builtins.isAttrs (site.overlayReachability or null) then
-              builtins.attrNames site.overlayReachability
-            else
-              [ ];
-        in
-        overlays ++ overlayReachability;
-      overlayNames = lib.concatMap (
-        enterpriseName:
-        lib.concatMap (siteName: siteOverlayNames enterpriseName siteName) (
-          builtins.attrNames data.${enterpriseName}
-        )
-      ) (builtins.attrNames data);
+  overlayNameSet = let
+    data =
+      if
+        cpm ? control_plane_model
+        && builtins.isAttrs cpm.control_plane_model
+        && cpm.control_plane_model ? data
+        && builtins.isAttrs cpm.control_plane_model.data
+      then cpm.control_plane_model.data
+      else {};
+    siteOverlayNames = enterpriseName: siteName: let
+      site = data.${enterpriseName}.${siteName};
+      overlays =
+        if builtins.isAttrs (site.overlays or null)
+        then builtins.attrNames site.overlays
+        else [];
+      overlayReachability =
+        if builtins.isAttrs (site.overlayReachability or null)
+        then builtins.attrNames site.overlayReachability
+        else [];
     in
+      overlays ++ overlayReachability;
+    overlayNames =
+      lib.concatMap
+      (
+        enterpriseName:
+          lib.concatMap (siteName: siteOverlayNames enterpriseName siteName) (
+            builtins.attrNames data.${enterpriseName}
+          )
+      )
+      (builtins.attrNames data);
+  in
     builtins.listToAttrs (
-      map (name: {
+      map
+      (name: {
         inherit name;
         value = true;
-      }) (lib.unique (lib.filter builtins.isString overlayNames))
+      })
+      (lib.unique (lib.filter builtins.isString overlayNames))
     );
 
-  sourceKindForTarget =
-    target:
+  sourceKindForTarget = target:
     if
       target ? connectivity
       && builtins.isAttrs target.connectivity
       && target.connectivity ? sourceKind
       && builtins.isString target.connectivity.sourceKind
-    then
-      target.connectivity.sourceKind
-    else
-      null;
+    then target.connectivity.sourceKind
+    else null;
 
-  logicalNodeIdentityForTarget =
-    target:
+  logicalNodeIdentityForTarget = target:
     runtimeContext.logicalNodeIdentityForUnit {
       inherit cpm source;
       unitName = target.unitName;
       file = "s88/EquipmentModule/mapping/wan-attachment.nix";
     };
 
-  isOverlayTransportTarget =
-    target:
-    sourceKindForTarget target == "wan"
+  isOverlayTransportTarget = target:
+    sourceKindForTarget target
+    == "wan"
     && target ? connectivity
     && builtins.isAttrs target.connectivity
     && builtins.isString (target.connectivity.upstream or null)
     && builtins.hasAttr target.connectivity.upstream overlayNameSet;
 
-  wanGroupNameForTarget =
-    target:
-    if sourceKindForTarget target == "wan" && !isOverlayTransportTarget target then
-      logicalNodeIdentityForTarget target
-    else
-      null;
+  wanGroupNameForTarget = target:
+    if sourceKindForTarget target == "wan" && !isOverlayTransportTarget target
+    then logicalNodeIdentityForTarget target
+    else null;
 
   uplinksRaw =
-    if !(deploymentHost ? uplinks) then
-      { }
-    else if builtins.isAttrs deploymentHost.uplinks then
-      deploymentHost.uplinks
+    if !(deploymentHost ? uplinks)
+    then {}
+    else if builtins.isAttrs deploymentHost.uplinks
+    then deploymentHost.uplinks
     else
       throw ''
         s88/EquipmentModule/mapping/wan-attachment.nix: deployment host '${deploymentHostName}' has non-attr uplinks
@@ -97,7 +92,7 @@ let
         ${builtins.toJSON deploymentHost}
       '';
 
-  hostHasUplinks = uplinksRaw != { };
+  hostHasUplinks = uplinksRaw != {};
 
   uplinkNames = sortedAttrNames uplinksRaw;
 
@@ -105,22 +100,18 @@ let
     lib.unique (lib.filter builtins.isString (map wanGroupNameForTarget attachTargetsBase))
   );
 
-  wanTargetsForGroup =
-    wanGroupName: lib.filter (target: wanGroupNameForTarget target == wanGroupName) attachTargetsBase;
+  wanTargetsForGroup = wanGroupName: lib.filter (target: wanGroupNameForTarget target == wanGroupName) attachTargetsBase;
 
-  upstreamNamesForWanGroup =
-    wanGroupName:
+  upstreamNamesForWanGroup = wanGroupName:
     lib.unique (
       lib.filter builtins.isString (
         map (target: target.connectivity.upstream or null) (wanTargetsForGroup wanGroupName)
       )
     );
 
-  uplinkMatchKeys =
-    uplinkName:
-    let
-      uplink = uplinksRaw.${uplinkName};
-    in
+  uplinkMatchKeys = uplinkName: let
+    uplink = uplinksRaw.${uplinkName};
+  in
     lib.unique (
       lib.filter builtins.isString [
         uplinkName
@@ -133,40 +124,35 @@ let
       ]
     );
 
-  candidateUplinkNamesForKeys =
-    keys:
-    lib.filter (
-      uplinkName:
-      let
+  candidateUplinkNamesForKeys = keys:
+    lib.filter
+    (
+      uplinkName: let
         uplinkKeys = uplinkMatchKeys uplinkName;
       in
-      lib.any (key: builtins.elem key uplinkKeys) keys
-    ) uplinkNames;
+        lib.any (key: builtins.elem key uplinkKeys) keys
+    )
+    uplinkNames;
 
-  candidateUplinkNamesForWanGroup =
-    wanGroupName:
+  candidateUplinkNamesForWanGroup = wanGroupName:
     candidateUplinkNamesForKeys (
       lib.unique (
-        lib.filter builtins.isString ([ wanGroupName ] ++ (upstreamNamesForWanGroup wanGroupName))
+        lib.filter builtins.isString ([wanGroupName] ++ (upstreamNamesForWanGroup wanGroupName))
       )
     );
 
-  candidateUplinkNamesForTarget =
-    target:
-    let
-      upstream = target.connectivity.upstream or null;
-      wanGroupName = wanGroupNameForTarget target;
-      keys =
-        if builtins.isString upstream then
-          [ upstream ]
-        else if wanGroupName != null then
-          [ wanGroupName ]
-        else
-          [ ];
-    in
+  candidateUplinkNamesForTarget = target: let
+    upstream = target.connectivity.upstream or null;
+    wanGroupName = wanGroupNameForTarget target;
+    keys =
+      if builtins.isString upstream
+      then [upstream]
+      else if wanGroupName != null
+      then [wanGroupName]
+      else [];
+  in
     candidateUplinkNamesForKeys keys;
-in
-{
+in {
   inherit
     sourceKindForTarget
     logicalNodeIdentityForTarget
