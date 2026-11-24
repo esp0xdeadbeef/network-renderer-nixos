@@ -124,8 +124,22 @@ in
         inherit unitName containerName;
         interfaces = runtimeTarget.interfaces or { };
       };
-      policyRoutingSources = runtimeTarget.policyRoutingSources or { };
-      networkBehavior = runtimeTarget.networkBehavior or { keepInterfaceRoutesInMain = true; };
+      # FS-310-HDS-020-SDS-010-SMS-060: the model publishes `policyRoutingSources`
+      # and `networkBehavior` on the runtime target, or this render cannot say
+      # which interfaces feed which policy table or what class the unit is. The
+      # `or { }` / `or { keepInterfaceRoutesInMain = true; }` defaults that used to
+      # stand here were the renderer authoring those facts: a target the model did
+      # not describe rendered as an ordinary, learn-forwarding host, which is
+      # indistinguishable from a correct one. The read throws instead; the
+      # derivation in s88/Unit/mapping/runtime-targets/ is the defect, not the read.
+      modelFactFor =
+        field:
+        if runtimeTarget ? ${field} && runtimeTarget.${field} != null then
+          runtimeTarget.${field}
+        else
+          throw "FS-310-HDS-020-SDS-010-SMS-060: the model supplies no '${field}' for runtime target '${unitName}'. The renderer may not author it: which interfaces feed a policy table, and which class flags a unit carries, are model facts. The control-plane model must publish '${field}' on the runtime target under FS-310-HDS-020-SDS-010-SMS-060.";
+      policyRoutingSources = modelFactFor "policyRoutingSources";
+      networkBehavior = modelFactFor "networkBehavior";
       interfaceNames = lookup.sortedAttrNames renderedInterfaces;
       primaryHostBridgeInterfaceNames = lib.filter
         (
