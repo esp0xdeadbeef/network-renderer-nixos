@@ -322,14 +322,24 @@ let
             in
             n > m && builtins.substring (n - m) m target == suffix
           ) canonicalRoutes;
+
       modelledNameFor =
-        rendered:
+        r:
         let
-          hits = builtins.filter (
-            n: (renderedInterfaceNames.${n} or null) == rendered
-          ) interfaceView.interfaceNames;
+          own = r.interface or null;
         in
-        if hits == [ ] then null else builtins.head hits;
+        if builtins.isString own && own != "" then
+          own
+        else
+          let
+            rendered = r.runtimeIfName or null;
+            hits =
+              if rendered == null then
+                [ ]
+              else
+                builtins.filter (n: (renderedInterfaceNames.${n} or null) == rendered) interfaceView.interfaceNames;
+          in
+          if hits == [ ] then null else builtins.head hits;
       factsOf = r: if builtins.isAttrs (r.facts or null) then r.facts else { };
       toRoute =
         r:
@@ -350,7 +360,7 @@ let
       keyed = builtins.concatMap (
         r:
         let
-          n = modelledNameFor (r.runtimeIfName or null);
+          n = modelledNameFor r;
         in
         if n == null then
           [ ]
