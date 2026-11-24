@@ -439,7 +439,16 @@
           forwarded
           // {
 
-            cpm = validated.semanticArtifact;
+            cpm = throw (
+              "FS-310-HDS-040-SDS-010-SMS-101: the NixOS renderer still reads the plain "
+              + "control-plane model. `validateRendererInput` returned the raw artifact as "
+              + "`semanticArtifact`, and 25 module reads plus the four files named in the "
+              + "NOT OK evidence row consumed it through that name. The production path now "
+              + "fails here instead of rendering from a model the renderer boundary withheld. "
+              + "Repair: map the bundle's 'canonical' collections (canonicalSites, "
+              + "canonicalForwarding, canonicalRuntimeTargets, canonicalRoutes) and take "
+              + "deployment mechanics from the platform binding; then remove this throw."
+            );
 
             canonicalCollections = validated.canonical or { };
             canonicalBundleIdentity = validated.bundleIdentity;
@@ -463,7 +472,17 @@
           rendered = api.renderer.buildHostFromControlPlane (
             forwarded
             // {
-              controlPlaneOut = validated.semanticArtifact;
+
+              controlPlaneOut = throw (
+                "FS-310-HDS-040-SDS-010-SMS-101: the NixOS renderer still reads the plain "
+                + "control-plane model. `validateRendererInput` returned the raw artifact as "
+                + "`semanticArtifact`, and 25 module reads plus the four files named in the "
+                + "NOT OK evidence row consumed it through that name. The production path now "
+                + "fails here instead of rendering from a model the renderer boundary withheld. "
+                + "Repair: map the bundle's 'canonical' collections (canonicalSites, "
+                + "canonicalForwarding, canonicalRuntimeTargets, canonicalRoutes) and take "
+                + "deployment mechanics from the platform binding; then remove this throw."
+              );
 
               canonicalCollectionsInput = validated.canonical or { };
             }
@@ -625,7 +644,6 @@
         in
         assert accepted.bundleIdentity == bundle.bundleIdentity;
 
-        assert accepted.semanticModel == bundle.network.data;
         assert rawRejected;
         {
           canonical-renderer-input = pkgs.runCommand "network-renderer-nixos-canonical-input" { } ''
