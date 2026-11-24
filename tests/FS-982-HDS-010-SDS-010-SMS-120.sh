@@ -13,9 +13,6 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
     render = cpm: hostName: renderedNetworks:
       import (repoRoot + "/s88/ControlModule/render/host-management.nix") {
         inherit lib cpm hostName renderedNetworks;
-        # The fixture builds its site tree in the CPM shape; hand it over as the
-        # canonical carrier too, which is what the renderer reads first.
-        canonicalCollections.canonicalSites.byEnterprise = cpm.control_plane_model.data or { };
       };
     runtimeTarget = deploymentHost: logicalInterface: linkName: {
       kind = "host-management-runtime-target";
