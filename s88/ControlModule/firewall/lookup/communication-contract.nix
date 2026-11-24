@@ -113,18 +113,11 @@ let
         else
           null;
 
-  anyPublishedSite =
-    builtins.isAttrs ((cpmEnvelope.canonicalSites or { }).byEnterprise or null)
-    && ((cpmEnvelope.canonicalSites.byEnterprise or { }) != { });
-
   currentSite =
     if canonicalSiteRecord != null then
       canonicalSiteRecord
     else if soleSiteRecord != null then
       soleSiteRecord
-    else if !anyPublishedSite then
-
-      { }
     else
       throw (
         "FS-540-HDS-010-SDS-010-SMS-040: cannot resolve the site record for the "
