@@ -1,8 +1,15 @@
+# FS-310-HDS-030-SDS-010-SMS-110 and FS-984-HDS-010-SDS-010-SMS-010:
+# retained compatibility alias is trace-bound and delegates to the current
+# source-model path instead of preserving an unreviewed legacy surface.
 { lib }:
 
 let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
+  # NOTE: CMC-NIXOS-INTENT-CLEANUP: renamed from 'inventory' to 'source'.
+  # Per SMS-100/SMS-101, renderers consume CPM output. This function accepts
+  # any source container with a .realization.nodes structure — whether from
+  # CPM (cpm.control_plane_model) or CPM-preserved inventory data.
   realizationNodesFor =
     source:
     if
@@ -28,9 +35,9 @@ let
     ];
 
   namespacedDirectBridgeName =
-    {
-      node,
-      linkName,
+    { node
+    , linkName
+    ,
     }:
     let
       namespaceSegments = namespaceSegmentsForNode node;
@@ -39,10 +46,10 @@ let
     builtins.concatStringsSep "--" segments;
 
   nodeForUnit =
-    {
-      source,
-      unitName,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { source
+    , unitName
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       realizationNodes = realizationNodesFor source;
@@ -58,10 +65,10 @@ let
       '';
 
   portsForUnit =
-    {
-      source,
-      unitName,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { source
+    , unitName
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       node = nodeForUnit {
@@ -79,12 +86,12 @@ let
       '';
 
   attachForPort =
-    {
-      node,
-      port,
-      unitName ? "<unknown>",
-      portName ? "<unknown>",
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { node
+    , port
+    , unitName ? "<unknown>"
+    , portName ? "<unknown>"
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       attach = if port ? attach && builtins.isAttrs port.attach then port.attach else { };
@@ -143,10 +150,10 @@ let
       '';
 
   attachMapForUnit =
-    {
-      source,
-      unitName,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { source
+    , unitName
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       node = nodeForUnit {
@@ -158,37 +165,42 @@ let
       };
     in
     builtins.listToAttrs (
-      map (portName: {
-        name = portName;
-        value = attachForPort {
-          inherit
-            node
-            unitName
-            portName
-            file
-            ;
-          port = ports.${portName};
-        };
-      }) (sortedAttrNames ports)
+      map
+        (portName: {
+          name = portName;
+          value = attachForPort {
+            inherit
+              node
+              unitName
+              portName
+              file
+              ;
+            port = ports.${portName};
+          };
+        })
+        (sortedAttrNames ports)
     );
 
   attachMapForSource =
-    {
-      source,
-      file ? "s88/Unit/physical/realization-ports.nix",
+    { source
+    , file ? "s88/Unit/physical/realization-ports.nix"
+    ,
     }:
     let
       realizationNodes = realizationNodesFor source;
     in
     builtins.listToAttrs (
-      map (unitName: {
-        name = unitName;
-        value = attachMapForUnit {
-          inherit source unitName file;
-        };
-      }) (sortedAttrNames realizationNodes)
+      map
+        (unitName: {
+          name = unitName;
+          value = attachMapForUnit {
+            inherit source unitName file;
+          };
+        })
+        (sortedAttrNames realizationNodes)
     );
 
+  # Legacy alias for backward compatibility (used by deployment-host.nix)
   attachMapForInventory = attachMapForSource;
 
   deploymentHostHelpers = import ./inventory/deployment-host.nix {

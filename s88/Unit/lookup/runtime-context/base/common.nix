@@ -4,14 +4,8 @@
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   controlPlaneData =
-    cpm: canonicalCollections:
-    let
-      sites =
-        (if builtins.isAttrs canonicalCollections then canonicalCollections else { }).canonicalSites or { };
-    in
-    if builtins.isAttrs (sites.byEnterprise or null) then
-      sites.byEnterprise
-    else if
+    cpm:
+    if
       cpm ? control_plane_model
       && builtins.isAttrs cpm.control_plane_model
       && cpm.control_plane_model ? data
