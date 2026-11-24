@@ -15,21 +15,17 @@ let
     {
       cpm ? null,
       source ? { },
-
-      canonicalCollections ? { },
     }:
-    let
-      canonicalTargets =
-        (if builtins.isAttrs canonicalCollections then canonicalCollections else { })
-        .canonicalRuntimeTargets or { };
-
-      fromCanonical = builtins.foldl' (
-        acc: target: acc // { ${target.target or (target.name or "")} = target; }
-      ) { } (builtins.filter (t: builtins.isAttrs t) (canonicalTargets.targets or [ ]));
-    in
-    if fromCanonical != { } then
-      fromCanonical
-
+    if
+      cpm != null
+      && builtins.isAttrs cpm
+      && cpm ? control_plane_model
+      && builtins.isAttrs cpm.control_plane_model
+      && cpm.control_plane_model ? realization
+      && builtins.isAttrs cpm.control_plane_model.realization
+      && builtins.isAttrs (cpm.control_plane_model.realization.nodes or null)
+    then
+      cpm.control_plane_model.realization.nodes
     else if
       cpm != null
       && builtins.isAttrs cpm
@@ -58,12 +54,11 @@ rec {
     {
       cpm ? null,
       source ? { },
-      canonicalCollections ? { },
       unitName,
       file ? "s88/Unit/lookup/runtime-context.nix",
     }:
     let
-      realizationNodes = realizationNodesFor { inherit cpm source canonicalCollections; };
+      realizationNodes = realizationNodesFor { inherit cpm source; };
       runtimeTargetId =
         if cpm != null then
           runtimeTargetIdForUnit {
@@ -131,12 +126,11 @@ rec {
     {
       cpm ? null,
       source ? { },
-      canonicalCollections ? { },
       unitName,
       file ? "s88/Unit/lookup/runtime-context.nix",
     }:
     let
-      realizationNodes = realizationNodesFor { inherit cpm source canonicalCollections; };
+      realizationNodes = realizationNodesFor { inherit cpm source; };
       candidates = candidateRealizationNodeNamesForUnit {
         inherit
           cpm
@@ -164,7 +158,6 @@ rec {
     {
       cpm ? null,
       source ? { },
-      canonicalCollections ? { },
       unitName,
       file ? "s88/Unit/lookup/runtime-context.nix",
     }:
