@@ -92,9 +92,39 @@ let
     else
       null;
 
+  soleSiteRecord =
+    let
+      byEnterprise = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
+    in
+    if !(builtins.isAttrs byEnterprise) then
+      null
+    else
+      let
+        enterprises = builtins.attrNames byEnterprise;
+      in
+      if builtins.length enterprises != 1 then
+        null
+      else
+        let
+          sites = builtins.attrNames (byEnterprise.${builtins.head enterprises});
+        in
+        if builtins.length sites == 1 then
+          byEnterprise.${builtins.head enterprises}.${builtins.head sites}
+        else
+          null;
+
+  anyPublishedSite =
+    builtins.isAttrs ((cpmEnvelope.canonicalSites or { }).byEnterprise or null)
+    && ((cpmEnvelope.canonicalSites.byEnterprise or { }) != { });
+
   currentSite =
     if canonicalSiteRecord != null then
       canonicalSiteRecord
+    else if soleSiteRecord != null then
+      soleSiteRecord
+    else if !anyPublishedSite then
+
+      { }
     else
       throw (
         "FS-540-HDS-010-SDS-010-SMS-040: cannot resolve the site record for the "

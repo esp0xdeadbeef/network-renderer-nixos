@@ -1,7 +1,7 @@
-{ lib
-, currentSite
-, common
-,
+{
+  lib,
+  currentSite,
+  common,
 }:
 
 let
@@ -60,30 +60,35 @@ let
     let
       lane = attrsOrEmpty (adjacency.lane or null);
       laneMeta = attrsOrEmpty (adjacency.laneMeta or null);
-      uplinks =
-        sortedStrings (
-          (if builtins.isList (adjacency.uplinks or null) then adjacency.uplinks else [ ])
-          ++ (if builtins.isList (lane.uplinks or null) then lane.uplinks else [ ])
-          ++ (if builtins.isList (laneMeta.uplinks or null) then laneMeta.uplinks else [ ])
-          ++ [ (lane.uplink or null) (laneMeta.uplink or null) ]
-        );
+      uplinks = sortedStrings (
+        (if builtins.isList (adjacency.uplinks or null) then adjacency.uplinks else [ ])
+        ++ (if builtins.isList (lane.uplinks or null) then lane.uplinks else [ ])
+        ++ (if builtins.isList (laneMeta.uplinks or null) then laneMeta.uplinks else [ ])
+        ++ [
+          (lane.uplink or null)
+          (laneMeta.uplink or null)
+        ]
+      );
     in
     builtins.isString uplinkName && uplinkName != "" && builtins.elem uplinkName uplinks;
 
   adjacenciesForPair =
     { firstUnit, secondUnit }:
-    lib.filter
-      (
-        adjacency:
-        let
-          units = adjacencyUnits adjacency;
-        in
-        builtins.length units == 2 && builtins.elem firstUnit units && builtins.elem secondUnit units
-      )
-      transitAdjacencies;
+    lib.filter (
+      adjacency:
+      let
+        units = adjacencyUnits adjacency;
+      in
+      builtins.length units == 2 && builtins.elem firstUnit units && builtins.elem secondUnit units
+    ) transitAdjacencies;
 
   adjacencyForPair =
-    { firstUnit, secondUnit, linkNameMatches ? null, adjacencyMatches ? null }:
+    {
+      firstUnit,
+      secondUnit,
+      linkNameMatches ? null,
+      adjacencyMatches ? null,
+    }:
     let
       matches = adjacenciesForPair { inherit firstUnit secondUnit; };
 
@@ -91,20 +96,14 @@ let
         if linkNameMatches == null then
           [ ]
         else
-          lib.filter
-            (
-              adjacency:
-              let
-                ln = adjacencyLinkName adjacency;
-              in
-              ln != null && linkNameMatches ln
-            )
-            matches;
-      matchesByAdjacency =
-        if adjacencyMatches == null then
-          [ ]
-        else
-          lib.filter adjacencyMatches matches;
+          lib.filter (
+            adjacency:
+            let
+              ln = adjacencyLinkName adjacency;
+            in
+            ln != null && linkNameMatches ln
+          ) matches;
+      matchesByAdjacency = if adjacencyMatches == null then [ ] else lib.filter adjacencyMatches matches;
     in
     if builtins.length matchesByAdjacency == 1 then
       builtins.head matchesByAdjacency
@@ -119,7 +118,7 @@ let
       builtins.head matchesByLink
     else if builtins.length matchesByLink > 1 then
       throw ''
-        s88/ControlModule/firewall/mapping/policy-endpoints.nix: lane selector matched multiple transit adjacencies for '${a}' and '${b}'
+        s88/ControlModule/firewall/mapping/policy-endpoints.nix: lane selector matched multiple transit adjacencies for '${firstUnit}' and '${secondUnit}'
 
         matches:
         ${builtins.toJSON (map adjacencyLinkName matchesByLink)}
@@ -130,7 +129,7 @@ let
       null
     else
       throw ''
-        s88/ControlModule/firewall/mapping/policy-endpoints.nix: multiple transit adjacencies matched '${a}' and '${b}'
+        s88/ControlModule/firewall/mapping/policy-endpoints.nix: multiple transit adjacencies matched '${firstUnit}' and '${secondUnit}'
 
         matches:
         ${builtins.toJSON (map adjacencyLinkName matches)}
