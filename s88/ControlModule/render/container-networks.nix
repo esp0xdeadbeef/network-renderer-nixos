@@ -365,14 +365,14 @@ let
       keyed = builtins.concatMap (
         r:
         let
-          n = modelledNameFor r;
+          renderedName = modelledNameFor r;
         in
-        if n == null then
+        if renderedName == null then
           [ ]
         else
           [
             {
-              _ifName = n;
+              _ifName = renderedName;
               route = toRoute r;
             }
           ]

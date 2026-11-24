@@ -71,21 +71,21 @@ let
     builtins.isString uplinkName && uplinkName != "" && builtins.elem uplinkName uplinks;
 
   adjacenciesForPair =
-    { a, b }:
+    { firstUnit, secondUnit }:
     lib.filter
       (
         adjacency:
         let
           units = adjacencyUnits adjacency;
         in
-        builtins.length units == 2 && builtins.elem a units && builtins.elem b units
+        builtins.length units == 2 && builtins.elem firstUnit units && builtins.elem secondUnit units
       )
       transitAdjacencies;
 
   adjacencyForPair =
-    { a, b, linkNameMatches ? null, adjacencyMatches ? null }:
+    { firstUnit, secondUnit, linkNameMatches ? null, adjacencyMatches ? null }:
     let
-      matches = adjacenciesForPair { inherit a b; };
+      matches = adjacenciesForPair { inherit firstUnit secondUnit; };
 
       matchesByLink =
         if linkNameMatches == null then
@@ -110,7 +110,7 @@ let
       builtins.head matchesByAdjacency
     else if builtins.length matchesByAdjacency > 1 then
       throw ''
-        s88/ControlModule/firewall/mapping/policy-endpoints.nix: lane metadata selector matched multiple transit adjacencies for '${a}' and '${b}'
+        s88/ControlModule/firewall/mapping/policy-endpoints.nix: lane metadata selector matched multiple transit adjacencies for '${firstUnit}' and '${secondUnit}'
 
         matches:
         ${builtins.toJSON (map adjacencyLinkName matchesByAdjacency)}

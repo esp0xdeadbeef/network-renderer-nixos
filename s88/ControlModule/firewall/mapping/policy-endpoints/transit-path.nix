@@ -23,12 +23,12 @@ let
       in
       if builtins.length units == 2 then
         let
-          a = builtins.elemAt units 0;
-          b = builtins.elemAt units 1;
+          firstUnit = builtins.elemAt units 0;
+          secondUnit = builtins.elemAt units 1;
         in
         [
-          { from = a; to = b; }
-          { from = b; to = a; }
+          { from = firstUnit; to = secondUnit; }
+          { from = secondUnit; to = firstUnit; }
         ]
       else
         [ ]
@@ -41,9 +41,9 @@ let
   lastElem =
     list:
     let
-      n = builtins.length list;
+      unitCount = builtins.length list;
     in
-    if n == 0 then null else builtins.elemAt list (n - 1);
+    if unitCount == 0 then null else builtins.elemAt list (unitCount - 1);
 
   findPath =
     { start, goal }:
@@ -86,8 +86,8 @@ in
           if hop != null then
             adjacenciesForPair
               {
-                a = currentNodeName;
-                b = hop;
+                firstUnit = currentNodeName;
+                secondUnit = hop;
               }
           else
             [ ];

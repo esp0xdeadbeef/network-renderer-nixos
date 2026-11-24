@@ -290,18 +290,18 @@ builtins.foldl'
       cidrCovers =
         cidr: address:
         let
-          c = cidrParts cidr;
-          a = cidrParts address;
+          parsedCidr = cidrParts cidr;
+          parsedAddress = cidrParts address;
         in
-        c != null
-        && a != null
-        && a.len > c.len
+        parsedCidr != null
+        && parsedAddress != null
+        && parsedAddress.len > parsedCidr.len
         && (
-          if lib.hasInfix ":" c.addr then
-            lib.take 4 (lib.splitString ":" c.addr) == lib.take 4 (lib.splitString ":" a.addr)
+          if lib.hasInfix ":" parsedCidr.addr then
+            lib.take 4 (lib.splitString ":" parsedCidr.addr) == lib.take 4 (lib.splitString ":" parsedAddress.addr)
           else
-            (c.len / 8) * 8 == c.len
-            && lib.take (c.len / 8) (ipv4Octets c.addr) == lib.take (c.len / 8) (ipv4Octets a.addr)
+            (parsedCidr.len / 8) * 8 == parsedCidr.len
+            && lib.take (parsedCidr.len / 8) (ipv4Octets parsedCidr.addr) == lib.take (parsedCidr.len / 8) (ipv4Octets parsedAddress.addr)
         );
       admittedOutDestinations =
         if returnRoutes == null then
@@ -366,9 +366,9 @@ builtins.foldl'
 
           sourceRenderedOrSelf =
             let
-              r = renderedInterfaceNames.${sourceIfName} or null;
+              renderedName = renderedInterfaceNames.${sourceIfName} or null;
             in
-            if r != null then r else sourceIfName;
+            if renderedName != null then renderedName else sourceIfName;
           crossesAccess =
             isDownstreamSelectorAccessInterface interfaceName
             && isDownstreamSelectorPolicyInterface sourceRenderedOrSelf;

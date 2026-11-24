@@ -276,11 +276,11 @@ let
       s88Debug =
         if specialArgs ? s88Debug && builtins.isAttrs specialArgs.s88Debug then
           let
-            d = sanitizeDebug specialArgs.s88Debug;
+            sanitizedDebug = sanitizeDebug specialArgs.s88Debug;
           in
-          lib.optionalAttrs (d ? roleName) { inherit (d) roleName; }
+          lib.optionalAttrs (sanitizedDebug ? roleName) { inherit (sanitizedDebug) roleName; }
           // {
-            unitName = d.unitName or containerName;
+            unitName = sanitizedDebug.unitName or containerName;
           }
         else
           { };

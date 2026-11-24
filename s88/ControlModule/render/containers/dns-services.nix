@@ -53,9 +53,9 @@ else
         runtimeNameOf =
           ifName:
           let
-            i = realizedInterfaces.${ifName} or { };
+            realizedInterface = realizedInterfaces.${ifName} or { };
           in
-          i.runtimeIfName or i.renderedIfName or ifName;
+          realizedInterface.runtimeIfName or realizedInterface.renderedIfName or ifName;
         interfaceCarrying =
           addr:
           let

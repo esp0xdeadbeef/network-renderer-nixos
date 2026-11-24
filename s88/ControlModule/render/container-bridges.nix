@@ -72,8 +72,8 @@ let
   interfaceBindings =
     name: container:
     let
-      c = containerBinding name;
-      ifs = if isAttrs (c.interfaces or null) then c.interfaces else { };
+      binding = containerBinding name;
+      ifs = if isAttrs (binding.interfaces or null) then binding.interfaces else { };
       perContainer = builtins.mapAttrs (_: bridgeBinding) ifs;
 
       vethKeys = builtins.attrNames (
@@ -129,8 +129,8 @@ let
   unboundInterfaces =
     name:
     let
-      c = containerBinding name;
-      ifs = if isAttrs (c.interfaces or null) then c.interfaces else { };
+      binding = containerBinding name;
+      ifs = if isAttrs (binding.interfaces or null) then binding.interfaces else { };
     in
     builtins.filter (ifName: bridgeBinding ifs.${ifName} == null) (builtins.attrNames ifs);
 

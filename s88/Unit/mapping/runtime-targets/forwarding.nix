@@ -37,19 +37,19 @@ let
         acc
       else
         let
-          e = rel.enterprise or null;
-          s = rel.site or null;
+          enterpriseName = rel.enterprise or null;
+          siteName = rel.site or null;
         in
-        if !(builtins.isString e) || !(builtins.isString s) then
+        if !(builtins.isString enterpriseName) || !(builtins.isString siteName) then
           acc
         else
           acc
           // {
             enterprise = (acc.enterprise or { }) // {
-              ${e} = (acc.enterprise.${e} or { }) // {
-                site = (acc.enterprise.${e}.site or { }) // {
-                  ${s} = (acc.enterprise.${e}.site.${s} or { }) // {
-                    relations = ((acc.enterprise.${e}.site.${s} or { }).relations or [ ]) ++ [ rel ];
+              ${enterpriseName} = (acc.enterprise.${enterpriseName} or { }) // {
+                site = (acc.enterprise.${enterpriseName}.site or { }) // {
+                  ${siteName} = (acc.enterprise.${enterpriseName}.site.${siteName} or { }) // {
+                    relations = ((acc.enterprise.${enterpriseName}.site.${siteName} or { }).relations or [ ]) ++ [ rel ];
                   };
                 };
               };
