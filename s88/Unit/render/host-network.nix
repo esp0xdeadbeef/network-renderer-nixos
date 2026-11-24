@@ -17,11 +17,15 @@ let
 
   renderSites =
     let
-      data =
-        if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
-          cpm.control_plane_model.data or { }
+
+      canonicalSites =
+        (if builtins.isAttrs canonicalCollections then canonicalCollections else { }).canonicalSites or { };
+      fromCanonical =
+        if builtins.isAttrs (canonicalSites.byEnterprise or null) then
+          canonicalSites.byEnterprise
         else
-          { };
+          null;
+      data = if fromCanonical != null then fromCanonical else { };
     in
     if !builtins.isAttrs data then
       { }
