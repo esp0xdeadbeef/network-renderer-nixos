@@ -17,8 +17,8 @@ let
     else
       null;
   controlPlaneModel =
-    if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
-      cpm.control_plane_model
+    if cpm ? model && builtins.isAttrs cpm.model then
+      cpm.model
     else if builtins.isAttrs cpm then
       cpm
     else

@@ -22,11 +22,7 @@ let
       fromBundle
     else
       let
-        envelope =
-          if builtins.isAttrs (args.cpm.control_plane_model or null) then
-            args.cpm.control_plane_model
-          else
-            args.cpm;
+        envelope = if builtins.isAttrs (args.cpm.model or null) then args.cpm.model else args.cpm;
       in
       if builtins.isAttrs envelope then envelope.${name} or default else default;
 

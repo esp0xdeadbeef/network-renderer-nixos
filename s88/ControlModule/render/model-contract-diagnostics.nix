@@ -6,8 +6,8 @@
 
 let
   controlPlaneModel =
-    if builtins.isAttrs (controlPlane.control_plane_model or null) then
-      controlPlane.control_plane_model
+    if builtins.isAttrs (controlPlane.model or null) then
+      controlPlane.model
     else if builtins.isAttrs controlPlane then
       controlPlane
     else
