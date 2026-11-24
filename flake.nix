@@ -439,16 +439,11 @@
           forwarded
           // {
 
-            cpm = throw (
-              "FS-310-HDS-040-SDS-010-SMS-101: the NixOS renderer still reads the plain "
-              + "control-plane model. `validateRendererInput` returned the raw artifact as "
-              + "`semanticArtifact`, and 25 module reads plus the four files named in the "
-              + "NOT OK evidence row consumed it through that name. The production path now "
-              + "fails here instead of rendering from a model the renderer boundary withheld. "
-              + "Repair: map the bundle's 'canonical' collections (canonicalSites, "
-              + "canonicalForwarding, canonicalRuntimeTargets, canonicalRoutes) and take "
-              + "deployment mechanics from the platform binding; then remove this throw."
-            );
+            cpm = import ./s88/Unit/mapping/canonical-structural-view.nix {
+              inherit lib;
+              canonical = validated.canonical;
+              platformBinding = validated.validatedPlatformBinding or null;
+            };
 
             canonicalCollections = validated.canonical or { };
             canonicalBundleIdentity = validated.bundleIdentity;
@@ -473,16 +468,11 @@
             forwarded
             // {
 
-              controlPlaneOut = throw (
-                "FS-310-HDS-040-SDS-010-SMS-101: the NixOS renderer still reads the plain "
-                + "control-plane model. `validateRendererInput` returned the raw artifact as "
-                + "`semanticArtifact`, and 25 module reads plus the four files named in the "
-                + "NOT OK evidence row consumed it through that name. The production path now "
-                + "fails here instead of rendering from a model the renderer boundary withheld. "
-                + "Repair: map the bundle's 'canonical' collections (canonicalSites, "
-                + "canonicalForwarding, canonicalRuntimeTargets, canonicalRoutes) and take "
-                + "deployment mechanics from the platform binding; then remove this throw."
-              );
+              controlPlaneOut = import ./s88/Unit/mapping/canonical-structural-view.nix {
+                inherit lib;
+                canonical = validated.canonical;
+                platformBinding = validated.validatedPlatformBinding or null;
+              };
 
               canonicalCollectionsInput = validated.canonical or { };
             }
