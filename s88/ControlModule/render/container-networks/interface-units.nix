@@ -346,7 +346,7 @@ let
                 ) (dropDerivedCopies ifName (policyRoutingByInterface.routes.${ifName} or [ ]))
               )
             )
-            ++ [ ];
+            ++ (canonicalPolicyRoutesByInterface.${ifName} or [ ]);
         in
         if
           builtins.elem ifName skipInterfaceNames
