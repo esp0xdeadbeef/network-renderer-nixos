@@ -16,9 +16,6 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
       import (repoRoot + "/s88/ControlModule/render/model-contract-diagnostics.nix") {
         inherit lib controlPlane;
         hostName = "test-host";
-        # The fixture builds its site tree in the CPM shape; hand it over as the
-        # canonical carrier too, which is what the renderer reads first.
-        canonicalCollections.canonicalSites.byEnterprise = controlPlane.control_plane_model.data;
       };
     ipv6Pd = {
       mode = "dhcpv6-pd";
