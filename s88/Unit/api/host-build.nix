@@ -82,12 +82,8 @@ let
       effectiveCanonicalCollections =
         if builtins.isAttrs canonicalCollectionsInput && canonicalCollectionsInput != { } then
           canonicalCollectionsInput
-        else if
-          builtins.isAttrs resolvedControlPlaneOut && builtins.isAttrs (resolvedControlPlaneOut.model or null)
-        then
-          resolvedControlPlaneOut.model
         else
-          { };
+          throw "FS-310-HDS-040-SDS-010-SMS-100: buildHostFromControlPlane was called without canonicalCollectionsInput. A renderer maps the validated canonical bundle and may not read the plain control-plane model, so there is no fallback here. Callers: pass `canonicalCollectionsInput = (network-realization-model.realize { ... }).canonical` (the canonical entry points in flake.nix do this), or use the raw-CPM path explicitly and accept that it proves nothing about canonical consumption.";
 
       runtimeTargets = trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
         flattenRuntimeTargets resolvedControlPlaneOut effectiveCanonicalCollections
@@ -100,6 +96,8 @@ let
             hostContext = resolved.hostContext;
             cpm = resolvedControlPlaneOut;
             source = resolved.globalInventory;
+
+            canonicalCollections = effectiveCanonicalCollections;
           });
 
       renderedHostWithSelectedContainers =

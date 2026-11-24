@@ -495,8 +495,20 @@ let
       ];
     };
   };
+  # FS-310-HDS-040-SDS-010-SMS-100: hostModule requires the validated bundle's
+  # canonical section. This fixture models a CPM, so it publishes the canonical
+  # site record that CPM describes -- the same site object the CPM carries, under
+  # the bundle's key. That is the fixture stating what the bundle would carry, not
+  # the renderer reaching into the plain model (which is what this whole row
+  # forbids, and what the removed host-build fallback used to do).
+  canonicalCollections = {
+    canonicalSites.byEnterprise.esp.site-a = cpm.control_plane_model.data.esp.site-a;
+    canonicalRoutes = [ ];
+    canonicalForwarding = { };
+    canonicalRuntimeTargets = { };
+  };
   module = flake.lib.renderer.hostModule {
-    inherit lib system cpm runtimeFacts;
+    inherit lib system cpm runtimeFacts canonicalCollections;
     hostName = "s-router-sms101";
     selectorFile = "tests/test-fs310-hds040-sds010-sms101-nixos-cpm-only-consumption.sh";
   };

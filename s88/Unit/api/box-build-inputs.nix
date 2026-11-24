@@ -1,27 +1,24 @@
-{ lib
-, repoPath
-, selectors
-, buildHostFromControlPlane
-, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
-,
+{
+  lib,
+  repoPath,
+  selectors,
+  buildHostFromControlPlane,
+  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
 }:
-
-# NOTE: Path-based discovery of intent.nix/inventory.nix removed (CMC-NIXOS-REMOVE-INTENT-INVENTORY).
-# Per FS-310-HDS-010-SDS-010-SMS-100, renderers must consume ONLY CPM output.
-# Callers must provide pre-built CPM output via the 'cpm' parameter.
-# The 'resolvePaths' function and path-based fallback logic have been removed.
 
 let
   resolve =
-    { enterpriseName ? null
-    , siteName ? null
-    , boxName ? null
-    , selector ? null
-    , cpm ? null
-    , inventory ? { }
-    , system ? currentSystem
-    , file ? "s88/Unit/api/box-build-inputs.nix"
-    , ...
+    {
+      enterpriseName ? null,
+      siteName ? null,
+      boxName ? null,
+      selector ? null,
+      cpm ? null,
+      inventory ? { },
+      canonicalCollections ? { },
+      system ? currentSystem,
+      file ? "s88/Unit/api/box-build-inputs.nix",
+      ...
     }:
     let
       selectorValue =
@@ -46,6 +43,7 @@ let
 
       builtHost = buildHostFromControlPlane {
         controlPlaneOut = resolvedCpm;
+        canonicalCollectionsInput = canonicalCollections;
         inherit system file;
         selector = selectorValue;
       };
@@ -87,7 +85,6 @@ let
         boxName = selectorValue;
       };
 
-      # NOTE: fabric no longer carries intentPath/inventoryPath — removed per SMS-100
       fabric = { };
 
       inherit
@@ -103,6 +100,8 @@ let
         forwardingOut
         controlPlaneOut
         ;
+
+      canonicalCollections = canonicalCollections;
 
       hostContext = narrowedHostContext;
     };

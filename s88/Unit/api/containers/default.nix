@@ -1,9 +1,9 @@
-{ lib
-, repoPath
-, selectors
-, buildHostFromControlPlane
-, currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux"
-,
+{
+  lib,
+  repoPath,
+  selectors,
+  buildHostFromControlPlane,
+  currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
 }:
 
 let
@@ -24,44 +24,42 @@ let
     let
       disabledNames = sortedAttrNames disabled;
 
-      _validateDisabledValues = builtins.foldl'
-        (
-          acc: name:
-            let
-              value = disabled.${name};
-            in
-            if builtins.isBool value then
-              acc
-            else
-              throw ''
-                s88/Unit/api/containers/default.nix: disabled entry '${name}' must be a boolean
+      _validateDisabledValues = builtins.foldl' (
+        acc: name:
+        let
+          value = disabled.${name};
+        in
+        if builtins.isBool value then
+          acc
+        else
+          throw ''
+            s88/Unit/api/containers/default.nix: disabled entry '${name}' must be a boolean
 
-                value:
-                ${builtins.toJSON value}
-              ''
-        )
-        true
-        disabledNames;
+            value:
+            ${builtins.toJSON value}
+          ''
+      ) true disabledNames;
     in
     builtins.seq _validateDisabledValues (
       builtins.listToAttrs (
-        map
-          (name: {
-            inherit name;
-            value = false;
-          })
-          (lib.filter (name: disabled.${name}) disabledNames)
+        map (name: {
+          inherit name;
+          value = false;
+        }) (lib.filter (name: disabled.${name}) disabledNames)
       )
     );
 
-  inherit (import ../../../ControlModule/api/container-defaults.nix { inherit lib; }) mergeContainerDefaults;
+  inherit (import ../../../ControlModule/api/container-defaults.nix { inherit lib; })
+    mergeContainerDefaults
+    ;
 in
 {
   buildForBox =
-    { defaults ? { }
-    , disabled ? { }
-    , file ? "s88/Unit/api/containers/default.nix"
-    , ...
+    {
+      defaults ? { },
+      disabled ? { },
+      file ? "s88/Unit/api/containers/default.nix",
+      ...
     }@args:
     let
       resolved = boxInputs.resolve (args // { inherit file; });
@@ -72,6 +70,8 @@ in
         hostPlan = resolved.hostPlan;
         cpm = resolved.controlPlaneOut;
         source = resolved.globalInventory;
+
+        canonicalCollections = resolved.canonicalCollections;
       };
 
       selectedContainers = import ../../../ControlModule/api/container-selection.nix {

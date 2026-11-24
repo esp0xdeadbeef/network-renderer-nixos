@@ -102,6 +102,8 @@
             system = resolvedSystem;
             compilerOut = artifactCompilerOut;
             forwardingOut = artifactForwardingOut;
+
+            canonicalCollectionsInput = rendererInput.canonicalCollections or { };
           };
           rendered = hostBuild.renderedHost;
           renderedNetdevs = rendered.netdevs or { };

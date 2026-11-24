@@ -301,6 +301,27 @@ let
           diagnosticMainRoutes = map (route: builtins.removeAttrs route [ "Table" ]) (
             lib.filter (isDiagnosticMainRoute iface) (policyRoutingByInterface.routes.${ifName} or [ ])
           );
+
+          installedDerivedRoutes = builtins.filter (
+            route:
+            let
+              dst = route.dst or route.Destination or null;
+              isHost = builtins.isString dst && (lib.hasSuffix "/32" dst || lib.hasSuffix "/128" dst);
+            in
+            !(
+              isHost
+              && builtins.any (
+                other:
+                let
+                  od = other.dst or other.Destination or null;
+                in
+                builtins.isString od
+                && lib.hasInfix "/31" od
+                && lib.hasPrefix (builtins.head (lib.splitString "/" dst)) od
+              ) (fabricHostMainRoutes ++ serviceIngressMainRawRoutes)
+            )
+          ) (dropDerivedCopies ifName (policyRoutingByInterface.routes.${ifName} or [ ]));
+
           renderedRoutes =
             (lib.optionals keepStaticRoutesInMain (
               lib.filter (route: route != null) (map mkRoute mainStaticRawRoutes)
@@ -318,49 +339,19 @@ let
               map mkRoute (policyRoutingByInterface.mainRoutes.${ifName} or [ ])
             ))
 
-            ++ (map
-              (
-                route:
-                route
-                // lib.optionalAttrs (
-                  builtins.isInt (route.table or null) && !(builtins.isInt (route.Table or null))
-                ) { Table = route.table; }
-              )
-              (
-                lib.filter (
-                  route:
-                  let
-                    dst = route.dst or route.Destination or null;
-                    isHost = builtins.isString dst && (lib.hasSuffix "/32" dst || lib.hasSuffix "/128" dst);
-                  in
-                  !(
-                    isHost
-                    && builtins.any (
-                      other:
-                      let
-                        od = other.dst or other.Destination or null;
-                      in
-                      builtins.isString od
-                      && lib.hasInfix "/31" od
-                      && lib.hasPrefix (builtins.head (lib.splitString "/" dst)) od
-                    ) (fabricHostMainRoutes ++ serviceIngressMainRawRoutes)
-                  )
-                ) (dropDerivedCopies ifName (policyRoutingByInterface.routes.${ifName} or [ ]))
-              )
-            )
+            ++ (map (
+              route:
+              route
+              // lib.optionalAttrs (
+                builtins.isInt (route.table or null) && !(builtins.isInt (route.Table or null))
+              ) { Table = route.table; }
+            ) installedDerivedRoutes)
             ++ (canonicalPolicyRoutesByInterface.${ifName} or [ ]);
 
-          # FS-310-HDS-020-SDS-010-SMS-060: the placement the model published is
-          # in `canonicalPolicyRoutesByInterface`; the placement the renderer
-          # recomputed is in `policyRoutingByInterface`. Where they describe the
-          # same route in two tables the render throws -- see
-          # ./placement-agreement.nix for why the duplicate survives
-          # `dropDerivedCopies` and why this is the enforcement rather than the
-          # repair.
           _placementAgrees = placementAgreement.assertAgrees {
             inherit ifName;
             canonicalRoutes = canonicalPolicyRoutesByInterface.${ifName} or [ ];
-            derivedRoutes = policyRoutingByInterface.routes.${ifName} or [ ];
+            derivedRoutes = installedDerivedRoutes;
           };
         in
         if
@@ -399,43 +390,43 @@ let
               routes = map stripRouteMetadata (
                 builtins.seq _placementAgrees (
                   lib.filter (
-                  route:
-                  let
-                    dstHere = route.Destination or route.dst or null;
-                    ownAddress =
-                      iface.addr4 or iface.addr6 or (
-                        let
-                          a = iface.addresses or [ ];
-                        in
-                        if a == [ ] then null else (builtins.head a).Address or null
-                      );
-                    ownNetwork =
-                      if !(builtins.isString ownAddress) || !(lib.hasInfix "/" ownAddress) then
-                        null
-                      else
-                        let
-                          parts = lib.splitString "/" ownAddress;
-                          octets = lib.splitString "." (builtins.head parts);
-                        in
-                        if builtins.elemAt parts 1 == "31" && builtins.length octets == 4 then
+                    route:
+                    let
+                      dstHere = route.Destination or route.dst or null;
+                      ownAddress =
+                        iface.addr4 or iface.addr6 or (
                           let
-                            last = builtins.fromJSON (builtins.elemAt octets 3);
+                            a = iface.addresses or [ ];
                           in
-                          "${builtins.elemAt octets 0}.${builtins.elemAt octets 1}."
-                          + "${builtins.elemAt octets 2}.${toString (last - builtins.bitAnd last 1)}/31"
+                          if a == [ ] then null else (builtins.head a).Address or null
+                        );
+                      ownNetwork =
+                        if !(builtins.isString ownAddress) || !(lib.hasInfix "/" ownAddress) then
+                          null
                         else
-                          null;
-                    isForeignFabric31 =
-                      value:
-                      builtins.isString value && lib.hasSuffix "/31" value && ownNetwork != null && value != ownNetwork;
+                          let
+                            parts = lib.splitString "/" ownAddress;
+                            octets = lib.splitString "." (builtins.head parts);
+                          in
+                          if builtins.elemAt parts 1 == "31" && builtins.length octets == 4 then
+                            let
+                              last = builtins.fromJSON (builtins.elemAt octets 3);
+                            in
+                            "${builtins.elemAt octets 0}.${builtins.elemAt octets 1}."
+                            + "${builtins.elemAt octets 2}.${toString (last - builtins.bitAnd last 1)}/31"
+                          else
+                            null;
+                      isForeignFabric31 =
+                        value:
+                        builtins.isString value && lib.hasSuffix "/31" value && ownNetwork != null && value != ownNetwork;
 
-                    cls = if builtins.isAttrs (iface.interfaceClass or null) then iface.interfaceClass else { };
-                    isPolicyPoint =
-                      (cls.coreTransit or false) || (cls.coreFacing or false) || (iface.owningRole or null) == "policy";
-                  in
-                  (keepStaticRoutesInMain || !(isMainTableDefaultRoute route))
+                      cls = if builtins.isAttrs (iface.interfaceClass or null) then iface.interfaceClass else { };
+                      isPolicyPoint =
+                        (cls.coreTransit or false) || (cls.coreFacing or false) || (iface.owningRole or null) == "policy";
+                    in
+                    (keepStaticRoutesInMain || !(isMainTableDefaultRoute route))
 
-                  && (isPolicyPoint || !(isForeignFabric31 dstHere))
+                    && (isPolicyPoint || !(isForeignFabric31 dstHere))
                   ) renderedRoutes
                 )
               );
@@ -514,22 +505,21 @@ let
         ) (policyRoutingByInterface.rules.${ifName} or [ ])
     ) interfaceNames
   );
+
   dropDerivedCopies =
     ifName: routes:
     let
       canonicalFor = builtins.listToAttrs (
         map (r: {
           name =
-            "${r.Destination or ""}|${toString (r.Table or null)}"
-            + "|${toString (r.Gateway or null)}"
-            + "|${toString (r.Metric or null)}";
+            "${r.Destination or ""}" + "|${toString (r.Gateway or null)}" + "|${toString (r.Metric or null)}";
           value = true;
         }) (canonicalPolicyRoutesByInterface.${ifName} or [ ])
       );
 
       keyOf =
         r:
-        "${r.Destination or r.dst or ""}|${toString (r.Table or r.table or null)}"
+        "${r.Destination or r.dst or ""}"
         + "|${toString (r.Gateway or r.gateway or null)}"
         + "|${toString (r.Metric or r.metric or null)}";
 
