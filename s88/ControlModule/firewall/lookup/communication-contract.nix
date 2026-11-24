@@ -41,12 +41,9 @@ let
 
   controlPlaneData =
     if
-      cpm ? control_plane_model
-      && builtins.isAttrs cpm.control_plane_model
-      && cpm.control_plane_model ? data
-      && builtins.isAttrs cpm.control_plane_model.data
+      cpm ? model && builtins.isAttrs cpm.model && cpm.model ? data && builtins.isAttrs cpm.model.data
     then
-      cpm.control_plane_model.data
+      cpm.model.data
     else if cpm ? data && builtins.isAttrs cpm.data then
       cpm.data
     else
@@ -73,10 +70,7 @@ let
   ) (sortedAttrNames controlPlaneData);
 
   cpmEnvelope =
-    if builtins.isAttrs cpm && builtins.isAttrs (cpm.control_plane_model or null) then
-      cpm.control_plane_model
-    else
-      cpm;
+    if builtins.isAttrs cpm && builtins.isAttrs (cpm.model or null) then cpm.model else cpm;
 
   targetEnterprise =
     if builtins.isAttrs runtimeTarget then runtimeTarget.enterprise or null else null;

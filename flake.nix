@@ -436,7 +436,8 @@
         hostModule (
           forwarded
           // {
-            cpm = validated.controlPlaneEnvelope;
+
+            cpm = validated.semanticArtifact;
 
             canonicalCollections = validated.canonical or { };
             canonicalBundleIdentity = validated.bundleIdentity;
@@ -460,7 +461,7 @@
           rendered = api.renderer.buildHostFromControlPlane (
             forwarded
             // {
-              controlPlaneOut = validated.controlPlaneEnvelope;
+              controlPlaneOut = validated.semanticArtifact;
 
               canonicalCollectionsInput = validated.canonical or { };
             }
@@ -616,14 +617,13 @@
           rawRejected =
             !(builtins.tryEval (
               builtins.deepSeq (canonicalRendererInput {
-                bundle = {
-                  control_plane_model = { };
-                };
+                bundle = import ./tests/lib/boundary/raw-cpm-fixture.nix;
               }) true
             )).success;
         in
         assert accepted.bundleIdentity == bundle.bundleIdentity;
-        assert accepted.controlPlaneEnvelope.control_plane_model == bundle.network.data;
+
+        assert accepted.semanticModel == bundle.network.data;
         assert rawRejected;
         {
           canonical-renderer-input = pkgs.runCommand "network-renderer-nixos-canonical-input" { } ''

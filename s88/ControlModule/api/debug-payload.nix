@@ -56,11 +56,11 @@ let
     in
     current ++ children;
 
-  controlPlaneData = controlPlaneOut.control_plane_model.data or { };
+  controlPlaneData = controlPlaneOut.model.data or { };
 
   trafficPathValidations = collectTrafficPathValidations [
     "controlPlaneOut"
-    "control_plane_model"
+    "model"
     "data"
   ] controlPlaneData;
 
@@ -151,7 +151,7 @@ let
         {
           spec = "FS-500-HDS-010-SDS-010-SMS-010";
           kind = "reachability-decision";
-          source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.validPaths";
+          source = "controlPlaneOut.model.data.*.trafficPathValidation.validPaths";
           modelPath = firstValidRow.modelPath;
           decision = {
             result = firstNonEmptyString [
@@ -182,7 +182,7 @@ let
         {
           spec = "FS-500-HDS-010-SDS-010-SMS-030";
           kind = "decision-reason";
-          source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.diagnostics";
+          source = "controlPlaneOut.model.data.*.trafficPathValidation.diagnostics";
           modelPath = firstDiagnosticRow.modelPath;
           diagnostic = {
             reason = firstNonEmptyString [
@@ -204,7 +204,7 @@ let
         {
           spec = "FS-500-HDS-010-SDS-010-SMS-030";
           kind = "decision-reason";
-          source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.invalidPaths";
+          source = "controlPlaneOut.model.data.*.trafficPathValidation.invalidPaths";
           modelPath = firstInvalidRow.modelPath;
           diagnostic = {
             reason = firstNonEmptyString [
@@ -224,7 +224,7 @@ let
         {
           spec = "FS-500-HDS-010-SDS-010-SMS-030";
           kind = "decision-reason";
-          source = "controlPlaneOut.control_plane_model.data.*.trafficPathValidation.validPaths";
+          source = "controlPlaneOut.model.data.*.trafficPathValidation.validPaths";
           modelPath = firstValidRow.modelPath;
           diagnostic = {
             reason = "no-invalid-traffic-paths";
