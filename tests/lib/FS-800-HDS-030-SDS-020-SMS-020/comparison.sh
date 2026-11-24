@@ -7,13 +7,40 @@ set -euo pipefail
 
 repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
 
-# The CLAB renderer is a separate repository. Default to the sibling checkout so
-# the comparison RUNS wherever the workspace is present, and FAIL -- not skip --
-# when it is absent: a comparison that silently passes when it cannot compare is
-# an assertion with no subject, and a green run then means nothing.
-clab_repo="${NETWORK_RENDERER_CLAB_PATH:-${repo_root}/../network-renderer-containerlab-linux-backend}"
-if [[ ! -d "${clab_repo}" ]]; then
-  echo "FAIL FS-800 comparison: network-renderer-containerlab-linux-backend not found at '${clab_repo}'; set NETWORK_RENDERER_CLAB_PATH to a checkout. This comparison has no subject without it, so it must not report success." >&2
+# The CLAB side is a COMMITTED FIXTURE, not a live peer checkout.
+#
+# The renderer under comparison is a pure function of a fixed input, so its output
+# for that input is a constant. Reaching into a sibling repository made this test
+# depend on the environment rather than on the artefact: it failed wherever the
+# checklist was absent (measured in CI: "not found at
+# /home/runner/work/network-renderer-nixos/..."), and skipping instead would have
+# counted as a pass while comparing nothing. A comparison needs two ARTEFACTS;
+# one is produced here, the other is checked in beside this file.
+#
+# Regenerate the fixture from the owning repository when the CLAB renderer's
+# output for this input changes:
+#
+#   cd ../network-renderer-containerlab-linux-backend
+#   PYTHONPATH="$PWD" python3 - <<'PY' > ../network-renderer-nixos/tests/lib/FS-800-HDS-030-SDS-020-SMS-020/clab-nominal.fixture
+#   from clabgen.s88.CM.pppoe_runtime import render
+#   ipv6 = {"mode": "dhcpv6-pd", "defaultRoute": True, "iaid": 7,
+#           "prefixDelegationRequestId": 11, "duidMode": "persistent",
+#           "resolverMode": "disabled", "ipv4Mode": "disabled",
+#           "routerSolicitation": False, "fallbackPolicy": "none"}
+#   client = {"interface": "provider-handoff", "runtimeInterface": "ppp-test",
+#             "defaultRoute": True, "usePeerDns": False, "mtu": 1492,
+#             "credentials": {"usernameFile": "/run/secrets/test-username",
+#                             "passwordFile": "/run/secrets/test-password"},
+#             "ipv6": ipv6}
+#   node = {"services": {"pppoe": {"client": client}}}
+#   print("\n".join(render("test-core", node, {"provider-handoff": "eth1"})))
+#   PY
+#
+# The fixture is the artefact the comparison binds to; regenerating it is a
+# deliberate act with a diff to review, which a live import could never give.
+clab_fixture="${repo_root}/tests/lib/FS-800-HDS-030-SDS-020-SMS-020/clab-nominal.fixture"
+if [[ ! -s "${clab_fixture}" ]]; then
+  echo "FAIL FS-800 comparison: fixture '${clab_fixture}' is missing or empty. A comparison with no second artefact must not report success." >&2
   exit 1
 fi
 
@@ -66,28 +93,7 @@ nixos_eval="$(REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
 ')"
 
 # ---- CLAB normalized artifacts (nominal) ---------------------------------
-clab_nominal="$(PYTHONPATH="${clab_repo}" python3 -c '
-from clabgen.s88.CM.pppoe_runtime import render
-
-ipv6 = {
-    "mode": "dhcpv6-pd", "defaultRoute": True, "iaid": 7,
-    "prefixDelegationRequestId": 11, "duidMode": "persistent",
-    "resolverMode": "disabled", "ipv4Mode": "disabled",
-    "routerSolicitation": False, "fallbackPolicy": "none",
-}
-client = {
-    "interface": "provider-handoff", "runtimeInterface": "ppp-test",
-    "defaultRoute": True, "usePeerDns": False, "mtu": 1492,
-    "credentials": {
-        "usernameFile": "/run/secrets/test-username",
-        "passwordFile": "/run/secrets/test-password",
-    },
-    "ipv6": ipv6,
-}
-node = {"services": {"pppoe": {"client": client}}}
-output = "\n".join(render("test-core", node, {"provider-handoff": "eth1"}))
-print(output)
-')"
+clab_nominal="$(cat "${clab_fixture}")"
 
 failures=0
 fail() { echo "FAIL FS-800 eq: $*" >&2; failures=$((failures + 1)); }
@@ -152,28 +158,13 @@ if [[ "${nixos_iaid}" != "${clab_iaid}" ]]; then
   fail "iaid mismatch: NixOS=${nixos_iaid} CLAB=${clab_iaid}"
 fi
 
-# Mutation: change CLAB iaid from 7 to 8, re-render, verify divergence
-mutant_clab="$(PYTHONPATH="${clab_repo}" python3 -c '
-from clabgen.s88.CM.pppoe_runtime import render
-ipv6 = {
-    "mode": "dhcpv6-pd", "defaultRoute": True, "iaid": 8,
-    "prefixDelegationRequestId": 11, "duidMode": "persistent",
-    "resolverMode": "disabled", "ipv4Mode": "disabled",
-    "routerSolicitation": False, "fallbackPolicy": "none",
-}
-client = {
-    "interface": "provider-handoff", "runtimeInterface": "ppp-test",
-    "defaultRoute": True, "usePeerDns": False, "mtu": 1492,
-    "credentials": {
-        "usernameFile": "/run/secrets/test-username",
-        "passwordFile": "/run/secrets/test-password",
-    },
-    "ipv6": ipv6,
-}
-node = {"services": {"pppoe": {"client": client}}}
-output = "\n".join(render("test-core", node, {"provider-handoff": "eth1"}))
-print(output)
-')"
+# Seeded negative: mutate the artefact, not the environment.
+#
+# The CLAB output for this fixed input is a constant, so its mutation is a
+# constant too -- take the nominal fixture and change the iaid. That keeps the
+# negative self-contained: it proves the comparison can FAIL, which a green run
+# over an unmutated pair would never establish.
+mutant_clab="$(sed -e 's/\biaid 7\b/iaid 8/' "${clab_fixture}")"
 mutant_iaid=$(extract_int "${mutant_clab}" 'iaid \K\d+')
 
 if [[ "${nixos_iaid}" == "${mutant_iaid}" ]]; then

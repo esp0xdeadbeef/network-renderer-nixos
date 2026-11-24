@@ -1,0 +1,33 @@
+sh -c 'command -v pppd >/dev/null || { echo '"'"'missing pppd'"'"' >&2; exit 1; }
+command -v pppoe >/dev/null || { echo '"'"'missing pppoe'"'"' >&2; exit 1; }
+mkdir -p /etc/ppp /run/ppp /run/pppd
+ip link set eth1 up
+user="$(cat /run/secrets/test-username)"
+pass="$(cat /run/secrets/test-password)"
+install -m 0600 /dev/null /etc/ppp/chap-secrets
+install -m 0600 /dev/null /etc/ppp/pap-secrets
+printf '"'"'%s * %s *\n'"'"' "$user" "$pass" > /etc/ppp/chap-secrets
+printf '"'"'%s * %s *\n'"'"' "$user" "$pass" > /etc/ppp/pap-secrets
+pkill -x pppd >/dev/null 2>&1 || true
+nohup pppd pty '"'"'pppoe -I eth1'"'"' ifname ppp-test user "$user" password "$pass" noauth noipdefault defaultroute replacedefaultroute defaultroute6  persist maxfail 0 +ipv6 ipv6cp-accept-local ipv6cp-accept-remote mtu 1492 mru 1492 >/tmp/s88-pppoe-client-eth1.log 2>&1 &
+command -v dhcpcd >/dev/null || { echo '"'"'missing dhcpcd'"'"' >&2; exit 1; }
+cat >/etc/s88-pppoe-ipv6-pd.conf <<'"'"'EOF'"'"'
+duid
+persistent
+nohook resolv.conf
+noipv6rs
+noipv4
+ipv6only
+
+interface ppp-test
+  iaid 7
+  ia_pd 11
+EOF
+nft add rule inet filter input iifname ppp-test ip6 saddr fe80::/10 udp sport 547 udp dport 546 counter accept comment "s88-pppoe-dhcpv6-pd-replies"
+nohup sh -c '"'"'while :; do
+  while ! ip link show dev ppp-test >/dev/null 2>&1; do sleep 2; done
+  if ! dhcpcd -6 -d -B -f /etc/s88-pppoe-ipv6-pd.conf ppp-test; then
+    echo '"'"'"'"'"'"'"'"'PPPoE DHCPv6-PD client exited; retrying'"'"'"'"'"'"'"'"' >&2
+  fi
+  sleep 2
+done'"'"' >/tmp/s88-pppoe-ipv6-pd.log 2>&1 &'
