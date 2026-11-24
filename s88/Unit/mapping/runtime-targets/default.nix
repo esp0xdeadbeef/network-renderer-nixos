@@ -7,10 +7,10 @@ let
   sortedAttrNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);
 
   normalizedRuntimeTargetForUnit =
-    {
-      cpm,
-      unitName,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , unitName
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       runtimeTarget = runtimeContext.runtimeTargetForUnit {
@@ -23,38 +23,34 @@ let
     runtimeTarget
     // {
       interfaces = normalizedInterfaces;
-
-      canonicalForwarding =
-        let
-          model = if builtins.isAttrs cpm then (cpm.model or cpm) else { };
-        in
-        model.canonicalForwarding or { };
-      policyRoutingSources = interfaces.policyRoutingSources normalizedInterfaces runtimeTarget;
-      networkBehavior = interfaces.networkBehavior normalizedInterfaces runtimeTarget;
+      policyRoutingSources = interfaces.policyRoutingSources normalizedInterfaces;
+      networkBehavior = interfaces.networkBehavior normalizedInterfaces;
       loopback = interfaces.emittedLoopbackForUnit {
         inherit cpm unitName file;
       };
     };
 
   normalizedRuntimeTargets =
-    {
-      cpm,
-      file ? "s88/Unit/mapping/runtime-targets.nix",
+    { cpm
+    , file ? "s88/Unit/mapping/runtime-targets.nix"
+    ,
     }:
     let
       targets = runtimeContext.runtimeTargets cpm;
     in
     builtins.listToAttrs (
-      map (unitName: {
-        name = unitName;
-        value = normalizedRuntimeTargetForUnit {
-          inherit cpm unitName file;
-        };
-      }) (sortedAttrNames targets)
+      map
+        (unitName: {
+          name = unitName;
+          value = normalizedRuntimeTargetForUnit {
+            inherit cpm unitName file;
+          };
+        })
+        (sortedAttrNames targets)
     );
 in
 interfaces
-// {
+  // {
   inherit
     normalizedRuntimeTargetForUnit
     normalizedRuntimeTargets

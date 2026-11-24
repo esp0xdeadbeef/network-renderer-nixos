@@ -1,6 +1,6 @@
 { lib, common }:
 
-interfaces: runtimeTarget:
+interfaces:
 let
   names = common.sortedAttrNames interfaces;
 
@@ -10,6 +10,13 @@ let
       iface = interfaces.${name};
     in
     if builtins.isString (iface.renderedIfName or null) then iface.renderedIfName else name;
+
+  classFor =
+    name:
+    let
+      ifaceClass = interfaces.${name}.interfaceClass or { };
+    in
+    if builtins.isAttrs ifaceClass then ifaceClass else { };
 
   backingRefFor =
     name:
@@ -47,36 +54,50 @@ let
     in
     lib.unique (explicit ++ laneUplinks);
 
-  relations =
+  sameAccess =
+    left: right:
     let
-      canonical =
-        if builtins.isAttrs runtimeTarget then runtimeTarget.canonicalForwarding or { } else { };
-      targetName = if builtins.isAttrs runtimeTarget then runtimeTarget.target or null else null;
+      access = laneAccessFor left;
     in
-    builtins.filter (
-      r: builtins.isAttrs r && (r.action or null) == "accept" && (r.target or null) == targetName
-    ) (canonical.relations or [ ]);
+    access != null && laneAccessFor right == access;
 
-  modelledForRendered =
-    rendered:
-    let
-      hits = lib.filter (name: renderedNameFor name == rendered) names;
-    in
-    if hits == [ ] then null else builtins.head hits;
+  sameUplink =
+    left: right: lib.any (uplink: builtins.elem uplink (uplinksFor right)) (uplinksFor left);
+
+  hasClass = flag: name: (classFor name).${flag} or false;
+
+  isSelector = lib.any (hasClass "edgeFacing") names && lib.any (hasClass "fabricFacing") names;
+  isUpstreamSelector = lib.any (hasClass "coreFacing") names && lib.any (hasClass "exitFacing") names;
+  isPolicy = lib.any (hasClass "fabricFacing") names && lib.any (hasClass "exitFacing") names;
 
   sourcesFor =
     target:
-    let
-      renderedTarget = renderedNameFor target;
-      forwardPeers = map (r: modelledForRendered (r.fromInterface or null)) (
-        builtins.filter (r: (r.toInterface or null) == renderedTarget) relations
-      );
-      returnPeers = map (r: modelledForRendered (r.toInterface or null)) (
-        builtins.filter (r: (r.fromInterface or null) == renderedTarget) relations
-      );
-      usable = lib.filter (n: n != null) (forwardPeers ++ returnPeers);
-    in
-    if usable == [ ] then [ target ] else lib.unique ([ target ] ++ usable);
+    if isSelector && hasClass "edgeFacing" target then
+      lib.filter (name: hasClass "fabricFacing" name && sameAccess target name) names
+    else if isSelector && hasClass "fabricFacing" target then
+      lib.filter (name: hasClass "edgeFacing" name && sameAccess target name) names
+    else if isUpstreamSelector && hasClass "coreFacing" target then
+      lib.unique (
+        [ target ] ++ lib.filter (name: hasClass "exitFacing" name && sameUplink target name) names
+      )
+    else if isUpstreamSelector && hasClass "exitFacing" target then
+      lib.unique (
+        [ target ] ++ lib.filter (name: hasClass "coreFacing" name && sameUplink target name) names
+      )
+    else if isPolicy && hasClass "fabricFacing" target then
+      lib.filter (
+        name: hasClass "fabricFacing" name || (hasClass "exitFacing" name && sameAccess target name)
+      ) names
+    else if isPolicy && hasClass "exitFacing" target then
+      lib.filter (
+        name: (hasClass "fabricFacing" name || hasClass "exitFacing" name) && sameAccess target name
+      ) names
+    else if hasClass "overlay" target then
+      lib.unique ([ target ] ++ lib.filter (hasClass "coreTransit") names)
+    else if hasClass "coreTransit" target then
+      lib.unique ([ target ] ++ lib.filter (hasClass "overlay") names)
+    else
+      [ target ];
 in
 builtins.listToAttrs (
   map (target: {

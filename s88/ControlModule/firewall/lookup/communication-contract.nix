@@ -77,15 +77,9 @@ let
 
   targetSite = if builtins.isAttrs runtimeTarget then runtimeTarget.site or null else null;
 
-  siteTree =
-    let
-      canonical = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
-    in
-    if builtins.isAttrs canonical then canonical else cpmEnvelope.data or { };
-
   canonicalSiteRecord =
     let
-      byEnterprise = if builtins.isAttrs siteTree then siteTree else { };
+      byEnterprise = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
     in
     if
       builtins.isAttrs byEnterprise
@@ -100,7 +94,7 @@ let
 
   soleSiteRecord =
     let
-      byEnterprise = if builtins.isAttrs siteTree then siteTree else { };
+      byEnterprise = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
     in
     if !(builtins.isAttrs byEnterprise) then
       null
