@@ -72,49 +72,6 @@ let
     }) (sortedAttrNames siteTree)
   ) (sortedAttrNames controlPlaneData);
 
-  hintedSiteEntries = lib.filter (
-    entry:
-    (currentRootHint == null || entry.rootName == currentRootHint)
-    && (currentSiteHint == null || entry.siteName == currentSiteHint)
-  ) siteEntries;
-
-  siteNameMatches =
-    if currentSiteHint == null then
-      [ ]
-    else
-      lib.filter (entry: entry.siteName == currentSiteHint) siteEntries;
-
-  directSiteEntry =
-    if currentRootHint != null && currentSiteHint != null then
-      let
-        rootValue = attrPathOrNull controlPlaneData [ currentRootHint ];
-        siteTree = if builtins.isAttrs rootValue then siteTreeFromRoot rootValue else { };
-      in
-      if builtins.hasAttr currentSiteHint siteTree then
-        {
-          rootName = currentRootHint;
-          siteName = currentSiteHint;
-          site = siteTree.${currentSiteHint};
-        }
-      else
-        null
-    else
-      null;
-
-  currentSiteEntry =
-    if directSiteEntry != null then
-      directSiteEntry
-    else if builtins.length hintedSiteEntries == 1 then
-      builtins.head hintedSiteEntries
-    else if builtins.length siteNameMatches == 1 then
-      builtins.head siteNameMatches
-    else
-      null;
-
-  currentRootName = if currentSiteEntry != null then currentSiteEntry.rootName else currentRootHint;
-
-  currentSiteName = if currentSiteEntry != null then currentSiteEntry.siteName else currentSiteHint;
-
   cpmEnvelope =
     if builtins.isAttrs cpm && builtins.isAttrs (cpm.control_plane_model or null) then
       cpm.control_plane_model
@@ -144,66 +101,24 @@ let
   currentSite =
     if canonicalSiteRecord != null then
       canonicalSiteRecord
-    else if currentSiteEntry != null then
-      currentSiteEntry.site
     else
-      { };
+      throw (
+        "FS-540-HDS-010-SDS-010-SMS-040: cannot resolve the site record for the "
+        + "firewall of runtime target '${toString (runtimeTarget.target or "<unknown>")}' "
+        + "(enterprise='${toString targetEnterprise}', site='${toString targetSite}'). "
+        + "The communication contract -- and every allow relation NFM authored -- lives on "
+        + "that record. The renderer will not synthesise an empty policy: an empty contract "
+        + "renders 'policy drop' with no allows, which silently blocks the whole site. "
+        + "Supply the validated bundle's canonicalSites.byEnterprise, and make sure the "
+        + "runtime target carries its enterprise and site identity from the CPM."
+      );
 
-  forwardingModel =
-    if cpm ? forwardingModel && builtins.isAttrs cpm.forwardingModel then
-      cpm.forwardingModel
-    else if
-      cpm ? control_plane_model
-      && builtins.isAttrs cpm.control_plane_model
-      && cpm.control_plane_model ? forwardingModel
-      && builtins.isAttrs cpm.control_plane_model.forwardingModel
-    then
-      cpm.control_plane_model.forwardingModel
-    else
-      { };
-
-  forwardingSite =
-    let
-      candidate =
-        if currentRootName != null && currentSiteName != null then
-          attrPathOrNull forwardingModel [
-            "enterprise"
-            currentRootName
-            "site"
-            currentSiteName
-          ]
-        else
-          null;
-    in
-    if builtins.isAttrs candidate then candidate else { };
-
-  communicationContract = firstNonEmptyAttrs [
-    (
-      if currentSite ? communicationContract && builtins.isAttrs currentSite.communicationContract then
-        mergeCommunicationContracts currentSite currentSite.communicationContract
-      else
-        canonicalCommunicationContract currentSite
-    )
-    (
-      if
-        forwardingSite ? communicationContract && builtins.isAttrs forwardingSite.communicationContract
-      then
-        mergeCommunicationContracts forwardingSite forwardingSite.communicationContract
-      else
-        canonicalCommunicationContract forwardingSite
-    )
-  ];
+  communicationContract = canonicalCommunicationContract currentSite;
 
   ownership = firstNonEmptyAttrs [
     (
       if currentSite ? ownership && builtins.isAttrs currentSite.ownership then
         currentSite.ownership
-      else
-        { }
-    )
-    (
-      if forwardingSite ? ownership && builtins.isAttrs forwardingSite.ownership then
-        forwardingSite.ownership
       else
         { }
     )
@@ -217,12 +132,10 @@ let
 in
 {
   inherit
-    currentRootName
-    currentSiteName
     currentSite
-    forwardingModel
-    forwardingSite
     communicationContract
     ownership
     ;
+
+  inherit targetEnterprise targetSite;
 }

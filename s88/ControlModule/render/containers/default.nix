@@ -2,6 +2,8 @@
   lib,
   canonicalRoutes,
   canonicalForwarding ? { },
+
+  canonicalRuntimeTargets ? { },
   pkgs ? null,
   repoPath,
   hostPlan ? null,
@@ -61,11 +63,51 @@ let
       endpointMap = (firewallArg.lookup or { }).endpointMap or null;
     };
 
+  runtimeTargetByContainer =
+    let
+      targets = canonicalRuntimeTargets.targets or [ ];
+    in
+    builtins.listToAttrs (
+      builtins.concatMap (
+        target:
+        let
+          name = (target.logicalNode or { }).name or null;
+        in
+        if builtins.isString name && name != "" then
+          [
+            {
+              inherit name;
+              value = target;
+            }
+          ]
+        else
+          [ ]
+      ) targets
+    );
+
   emitContainer =
     deploymentHostName: containerName: model:
     let
       renderedModel = trace.emit "containers:${deploymentHostName}:${containerName}:model" (
-        renderModel model
+        renderModel (
+          if runtimeTargetByContainer ? ${containerName} then
+
+            let
+              canonicalTarget = runtimeTargetByContainer.${containerName};
+              existingTarget =
+                if builtins.isAttrs (model.runtimeTarget or null) then model.runtimeTarget else { };
+            in
+            model
+            // {
+              runtimeTarget = existingTarget // {
+                enterprise = canonicalTarget.enterprise or null;
+                site = canonicalTarget.site or null;
+                target = canonicalTarget.target or null;
+              };
+            }
+          else
+            model
+        )
       );
       firewallArg = trace.emit "containers:${deploymentHostName}:${containerName}:firewall" (
         firewallArgForModel renderedModel

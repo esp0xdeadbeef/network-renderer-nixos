@@ -305,23 +305,19 @@ let
       if forwardingIntent == null then [ ] else forwardingIntent.normalizedExplicitForwardPairs or [ ];
   };
 
+  selfRuntimeTarget =
+    let
+      rt = containerModel.runtimeTarget or null;
+    in
+    if builtins.isAttrs rt && builtins.isString (rt.target or null) then rt.target else null;
+
   canonicalPolicyRoutesByInterface =
     let
-      logicalName = containerModel.unitName or containerModel.containerName or null;
       mine =
-        if logicalName == null then
+        if selfRuntimeTarget == null then
           [ ]
         else
-          builtins.filter (
-            r:
-            let
-              target = r.target or "";
-              suffix = "-" + logicalName;
-              n = builtins.stringLength target;
-              m = builtins.stringLength suffix;
-            in
-            n > m && builtins.substring (n - m) m target == suffix
-          ) canonicalRoutes;
+          builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
 
       modelledNameFor =
         r:
@@ -388,20 +384,14 @@ let
     let
       logicalName = containerModel.unitName or containerModel.containerName or null;
       relations = canonicalForwarding.relations or [ ];
+
+      selfTarget =
+        let
+          rt = containerModel.runtimeTarget or null;
+        in
+        if builtins.isAttrs rt && builtins.isString (rt.target or null) then rt.target else null;
       mine =
-        if logicalName == null then
-          [ ]
-        else
-          builtins.filter (
-            r:
-            let
-              target = r.target or "";
-              suffix = "-" + logicalName;
-              n = builtins.stringLength target;
-              m = builtins.stringLength suffix;
-            in
-            n > m && builtins.substring (n - m) m target == suffix
-          ) relations;
+        if selfTarget == null then [ ] else builtins.filter (r: (r.target or null) == selfTarget) relations;
     in
     builtins.filter (x: x != null) (map (r: r.egressRuntimeInterface or null) mine);
 

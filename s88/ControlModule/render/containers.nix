@@ -38,5 +38,7 @@ import ./containers/default.nix (
     canonicalRoutes = canonicalCollection "canonicalRoutes" [ ];
     canonicalSites = canonicalCollection "canonicalSites" { };
     canonicalForwarding = canonicalCollection "canonicalForwarding" { };
+
+    canonicalRuntimeTargets = canonicalCollection "canonicalRuntimeTargets" { };
   }
 )
