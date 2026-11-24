@@ -346,7 +346,16 @@ let
         {
           Destination = r.dst;
           Table = r.tableId;
-          Gateway = r.gateway;
+
+          Gateway =
+            if builtins.isString (r.gateway or null) then
+              r.gateway
+            else if builtins.isString (r.via4 or null) then
+              r.via4
+            else if builtins.isString (r.via6 or null) then
+              r.via6
+            else
+              null;
 
           GatewayOnLink = builtins.isString (r.preferredSource or null) && r.preferredSource != "";
         }
