@@ -80,7 +80,15 @@ let
           { };
 
       effectiveCanonicalCollections =
-        if builtins.isAttrs canonicalCollectionsInput then canonicalCollectionsInput else { };
+        if builtins.isAttrs canonicalCollectionsInput && canonicalCollectionsInput != { } then
+          canonicalCollectionsInput
+        else if
+          builtins.isAttrs resolvedControlPlaneOut
+          && builtins.isAttrs (resolvedControlPlaneOut.control_plane_model or null)
+        then
+          resolvedControlPlaneOut.control_plane_model
+        else
+          { };
 
       runtimeTargets = trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
         flattenRuntimeTargets resolvedControlPlaneOut effectiveCanonicalCollections
