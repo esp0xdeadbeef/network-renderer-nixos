@@ -134,6 +134,8 @@
           modelContractDiagnostics = import ./s88/ControlModule/render/model-contract-diagnostics.nix {
             inherit lib hostName;
             controlPlane = effectiveCpm;
+
+            canonicalCollections = rendererInput.canonicalCollections or { };
           };
 
           mgmtHost =
@@ -613,16 +615,16 @@
             producerRevision = network-realization-model.rev;
           };
           accepted = canonicalRendererInput { inherit bundle; };
+
           rawRejected =
             !(builtins.tryEval (
               builtins.deepSeq (canonicalRendererInput {
-                bundle = {
-                  control_plane_model = { };
-                };
+                bundle = import ./tests/lib/boundary/raw-cpm-fixture.nix;
               }) true
             )).success;
         in
         assert accepted.bundleIdentity == bundle.bundleIdentity;
+
         assert accepted.controlPlaneEnvelope.control_plane_model == bundle.network.data;
         assert rawRejected;
         {

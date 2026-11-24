@@ -2,6 +2,8 @@
   lib,
   controlPlane,
   hostName,
+
+  canonicalCollections ? { },
 }:
 
 let
@@ -12,7 +14,14 @@ let
       controlPlane
     else
       { };
-  data = if builtins.isAttrs (controlPlaneModel.data or null) then controlPlaneModel.data else { };
+
+  fromCanonical =
+    let
+      sites =
+        (if builtins.isAttrs canonicalCollections then canonicalCollections else { }).canonicalSites or { };
+    in
+    if builtins.isAttrs (sites.byEnterprise or null) then sites.byEnterprise else null;
+  data = if fromCanonical != null then fromCanonical else { };
   attrsOrEmpty = value: if builtins.isAttrs value then value else { };
   listOrEmpty = value: if builtins.isList value then value else [ ];
   sortedNames = attrs: lib.sort builtins.lessThan (builtins.attrNames attrs);

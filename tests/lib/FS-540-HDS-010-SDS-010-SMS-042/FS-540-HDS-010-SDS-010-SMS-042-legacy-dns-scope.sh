@@ -14,6 +14,9 @@ let
   mkEntry = targets: { runtimeTargets = targets; };
   diag = model: hostName: import ./s88/ControlModule/render/model-contract-diagnostics.nix {
     controlPlane = model // { deploymentHosts.${hostName} = { }; };
+    # The fixtures build their site tree in the CPM shape; hand it over as the
+    # canonical carrier too, which is what the renderer reads first.
+    canonicalCollections.canonicalSites.byEnterprise = model.control_plane_model.data or { };
     inherit hostName lib;
   };
   # A routing selector with no DNS service at all: nothing to be invalid about.
