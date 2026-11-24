@@ -140,8 +140,14 @@ full_row_result="$({ REPO_ROOT="${repo_root}" nix eval --impure --json --expr '
       inventory = import (row + "/inventory-nixos.nix");
     };
     site = cpm.control_plane_model.data."mini-smt".${traceId};
+    # FS-310-HDS-040-SDS-010-SMS-100: the renderer maps the validated canonical
+    # bundle, so the fixture realizes it exactly the way production does.
+    canonicalCollections = import (root + "/tests/nix/realize-canonical.nix") {
+      inherit flake cpm;
+      identity = "fs230-hds010-sds010-sms040";
+    };
     hostModule = flake.lib.renderer.hostModule {
-      inherit lib system cpm;
+      inherit lib system cpm canonicalCollections;
       hostName = "s-router-nixos";
       selectorFile = "tests/FS-230-HDS-010-SDS-010-SMS-040.sh";
     };

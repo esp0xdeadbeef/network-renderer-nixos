@@ -506,16 +506,21 @@ let
     ) interfaceNames
   );
 
+  canonicalRouteKeysForTarget = builtins.listToAttrs (
+    builtins.concatMap (
+      otherIfName:
+      map (r: {
+        name =
+          "${r.Destination or ""}" + "|${toString (r.Gateway or null)}" + "|${toString (r.Metric or null)}";
+        value = otherIfName;
+      }) (canonicalPolicyRoutesByInterface.${otherIfName} or [ ])
+    ) (builtins.attrNames canonicalPolicyRoutesByInterface)
+  );
+
   dropDerivedCopies =
     ifName: routes:
     let
-      canonicalFor = builtins.listToAttrs (
-        map (r: {
-          name =
-            "${r.Destination or ""}" + "|${toString (r.Gateway or null)}" + "|${toString (r.Metric or null)}";
-          value = true;
-        }) (canonicalPolicyRoutesByInterface.${ifName} or [ ])
-      );
+      canonicalFor = canonicalRouteKeysForTarget;
 
       keyOf =
         r:

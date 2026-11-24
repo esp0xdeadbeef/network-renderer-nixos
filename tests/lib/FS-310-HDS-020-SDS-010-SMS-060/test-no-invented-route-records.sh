@@ -86,8 +86,16 @@ REPO_ROOT="${repo_root}" TRACE_ID="${trace_id}" nix eval --impure --json --expr 
       (builtins.concatLists (map (ent: builtins.attrValues ent)
         (builtins.attrValues cpm.control_plane_model.data))));
 
+    # FS-310-HDS-040-SDS-010-SMS-100: the renderer maps the VALIDATED CANONICAL
+    # BUNDLE; buildHostFromControlPlane no longer fills the gap from the plain
+    # model. This test is one of the ones that proved the difference: with the
+    # fallback gone it can see a route the canonical records do not name.
+    canonicalCollections = import (repoRoot + "/tests/nix/realize-canonical.nix") {
+      inherit flake cpm;
+      identity = "fs310-hds020-sds010-sms060-no-invented-routes";
+    };
     hostModule = flake.lib.renderer.hostModule {
-      inherit lib system cpm;
+      inherit lib system cpm canonicalCollections;
       hostName = "s-router-nixos";
       selectorFile = "tests/${traceId}.sh";
     };

@@ -14,8 +14,13 @@ let
   };
   canonical = cpm.control_plane_model.canonicalRoutes;
 
+  canonicalCollections = import (repoRoot + "/tests/nix/realize-canonical.nix") {
+    inherit flake cpm;
+    identity = "fs310-hds020-sds010-sms060-declaring-interface";
+  };
+
   hostModule = flake.lib.renderer.hostModule {
-    inherit lib cpm;
+    inherit lib cpm canonicalCollections;
     inherit system;
     hostName = "s-router-nixos";
     selectorFile = "tests/FS-310-HDS-020-SDS-010-SMS-060.sh";

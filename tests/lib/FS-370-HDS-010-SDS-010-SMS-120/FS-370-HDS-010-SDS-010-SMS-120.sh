@@ -61,8 +61,29 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P1: per-lane ip rules" \
           validateRuntimeModel = false;
         };
 
+        # FS-310-HDS-040-SDS-010-SMS-100: this renderer maps the VALIDATED
+        # CANONICAL BUNDLE. buildHostFromControlPlane used to fill the missing
+        # canonical section from the plain control-plane model; that fallback is
+        # gone, so the fixture realises the bundle the way the production chain
+        # does and hands over its canonical section.
+        canonicalBundle = flake.inputs.network-realization-model.lib.realize {
+          input = {
+            kind = "network-control-plane-artifact";
+            artifactIdentity = "fs370-sms120-fixture";
+            artifactDigest = builtins.hashString "sha256" (builtins.toJSON cpm.control_plane_model);
+            inherit (cpm) control_plane_model;
+          };
+          requestScope = {
+            kind = "complete-artifact";
+            identity = "fs370-sms120-fixture";
+          };
+          rootLockIdentity = "fs370-sms120-lock";
+          producerRevision = flake.inputs.network-realization-model.rev or "uncommitted";
+        };
+
         hostBuild = flake.lib.renderer.buildHostFromControlPlane {
           controlPlaneOut = cpm;
+          canonicalCollectionsInput = canonicalBundle.canonical or { };
           selector = "s-router-test";
           system = "x86_64-linux";
         };
@@ -147,8 +168,29 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P2: nftables forward rules
           validateRuntimeModel = false;
         };
 
+        # FS-310-HDS-040-SDS-010-SMS-100: this renderer maps the VALIDATED
+        # CANONICAL BUNDLE. buildHostFromControlPlane used to fill the missing
+        # canonical section from the plain control-plane model; that fallback is
+        # gone, so the fixture realises the bundle the way the production chain
+        # does and hands over its canonical section.
+        canonicalBundle = flake.inputs.network-realization-model.lib.realize {
+          input = {
+            kind = "network-control-plane-artifact";
+            artifactIdentity = "fs370-sms120-fixture";
+            artifactDigest = builtins.hashString "sha256" (builtins.toJSON cpm.control_plane_model);
+            inherit (cpm) control_plane_model;
+          };
+          requestScope = {
+            kind = "complete-artifact";
+            identity = "fs370-sms120-fixture";
+          };
+          rootLockIdentity = "fs370-sms120-lock";
+          producerRevision = flake.inputs.network-realization-model.rev or "uncommitted";
+        };
+
         hostBuild = flake.lib.renderer.buildHostFromControlPlane {
           controlPlaneOut = cpm;
+          canonicalCollectionsInput = canonicalBundle.canonical or { };
           selector = "s-router-test";
           system = "x86_64-linux";
         };
@@ -219,8 +261,29 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P3: no catch-all rules" \
           validateRuntimeModel = false;
         };
 
+        # FS-310-HDS-040-SDS-010-SMS-100: this renderer maps the VALIDATED
+        # CANONICAL BUNDLE. buildHostFromControlPlane used to fill the missing
+        # canonical section from the plain control-plane model; that fallback is
+        # gone, so the fixture realises the bundle the way the production chain
+        # does and hands over its canonical section.
+        canonicalBundle = flake.inputs.network-realization-model.lib.realize {
+          input = {
+            kind = "network-control-plane-artifact";
+            artifactIdentity = "fs370-sms120-fixture";
+            artifactDigest = builtins.hashString "sha256" (builtins.toJSON cpm.control_plane_model);
+            inherit (cpm) control_plane_model;
+          };
+          requestScope = {
+            kind = "complete-artifact";
+            identity = "fs370-sms120-fixture";
+          };
+          rootLockIdentity = "fs370-sms120-lock";
+          producerRevision = flake.inputs.network-realization-model.rev or "uncommitted";
+        };
+
         hostBuild = flake.lib.renderer.buildHostFromControlPlane {
           controlPlaneOut = cpm;
+          canonicalCollectionsInput = canonicalBundle.canonical or { };
           selector = "s-router-test";
           system = "x86_64-linux";
         };
@@ -291,8 +354,29 @@ nix_eval_true_or_fail "FS-370-HDS-010-SDS-010-SMS-120 P4: tenant subnet routes" 
           validateRuntimeModel = false;
         };
 
+        # FS-310-HDS-040-SDS-010-SMS-100: this renderer maps the VALIDATED
+        # CANONICAL BUNDLE. buildHostFromControlPlane used to fill the missing
+        # canonical section from the plain control-plane model; that fallback is
+        # gone, so the fixture realises the bundle the way the production chain
+        # does and hands over its canonical section.
+        canonicalBundle = flake.inputs.network-realization-model.lib.realize {
+          input = {
+            kind = "network-control-plane-artifact";
+            artifactIdentity = "fs370-sms120-fixture";
+            artifactDigest = builtins.hashString "sha256" (builtins.toJSON cpm.control_plane_model);
+            inherit (cpm) control_plane_model;
+          };
+          requestScope = {
+            kind = "complete-artifact";
+            identity = "fs370-sms120-fixture";
+          };
+          rootLockIdentity = "fs370-sms120-lock";
+          producerRevision = flake.inputs.network-realization-model.rev or "uncommitted";
+        };
+
         hostBuild = flake.lib.renderer.buildHostFromControlPlane {
           controlPlaneOut = cpm;
+          canonicalCollectionsInput = canonicalBundle.canonical or { };
           selector = "s-router-test";
           system = "x86_64-linux";
         };
