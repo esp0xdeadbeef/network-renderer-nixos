@@ -23,11 +23,20 @@
 #
 # This is that gate.
 #
-# THIS TEST CURRENTLY FAILS. That is the point: every renderer in the fleet still
-# reaches the plain CPM somewhere, so the platform's claim that network-semantics
-# enter through one validated canonical bundle holds only for validation, not for
-# content. Do not make this pass by adding the hits to the allowlist below --
-# each entry there is a documented, deliberate exception, and there are none yet.
+# THIS TEST USED TO FAIL, and for a real reason: every renderer in the fleet
+# reached the plain CPM somewhere, so the platform's claim that network-semantics
+# enter through one validated canonical bundle held only for validation, not for
+# content.
+#
+# It passes here now, and not because the gate was widened -- the allowlist below
+# is still empty. The last read in this repository was the repair in
+# s88/ControlModule/render/containers.nix, which fell back to
+# args.cpm.model / args.cpm.control_plane_model when the bundle did not carry a
+# canonical collection; FS-310-HDS-040-SDS-010-SMS-100 replaced that fallback
+# with a throw, so the read is gone and a bundle missing canonical content now
+# fails the render instead of being silently repaired. Do not make this pass by
+# adding hits to the allowlist -- each entry there has to be a documented,
+# deliberate exception, and there are none.
 set -euo pipefail
 
 repo_root="${SMS_TEST_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)}"
