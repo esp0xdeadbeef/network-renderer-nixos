@@ -1,8 +1,8 @@
-{ lib
-, cpm
-, flakeInputs ? null
-, runtimeTarget ? { }
-,
+{
+  lib,
+  cpm,
+  flakeInputs ? null,
+  runtimeTarget ? { },
 }:
 
 let
@@ -61,28 +61,22 @@ let
     else
       { };
 
-  siteEntries = lib.concatMap
-    (
-      rootName:
-      let
-        siteTree = siteTreeFromRoot controlPlaneData.${rootName};
-      in
-      map
-        (siteName: {
-          inherit rootName siteName;
-          site = siteTree.${siteName};
-        })
-        (sortedAttrNames siteTree)
-    )
-    (sortedAttrNames controlPlaneData);
+  siteEntries = lib.concatMap (
+    rootName:
+    let
+      siteTree = siteTreeFromRoot controlPlaneData.${rootName};
+    in
+    map (siteName: {
+      inherit rootName siteName;
+      site = siteTree.${siteName};
+    }) (sortedAttrNames siteTree)
+  ) (sortedAttrNames controlPlaneData);
 
-  hintedSiteEntries = lib.filter
-    (
-      entry:
-      (currentRootHint == null || entry.rootName == currentRootHint)
-      && (currentSiteHint == null || entry.siteName == currentSiteHint)
-    )
-    siteEntries;
+  hintedSiteEntries = lib.filter (
+    entry:
+    (currentRootHint == null || entry.rootName == currentRootHint)
+    && (currentSiteHint == null || entry.siteName == currentSiteHint)
+  ) siteEntries;
 
   siteNameMatches =
     if currentSiteHint == null then
@@ -121,7 +115,39 @@ let
 
   currentSiteName = if currentSiteEntry != null then currentSiteEntry.siteName else currentSiteHint;
 
-  currentSite = if currentSiteEntry != null then currentSiteEntry.site else { };
+  cpmEnvelope =
+    if builtins.isAttrs cpm && builtins.isAttrs (cpm.control_plane_model or null) then
+      cpm.control_plane_model
+    else
+      cpm;
+
+  targetEnterprise =
+    if builtins.isAttrs runtimeTarget then runtimeTarget.enterprise or null else null;
+
+  targetSite = if builtins.isAttrs runtimeTarget then runtimeTarget.site or null else null;
+
+  canonicalSiteRecord =
+    let
+      byEnterprise = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
+    in
+    if
+      builtins.isAttrs byEnterprise
+      && builtins.isString targetEnterprise
+      && builtins.isString targetSite
+      && builtins.isAttrs (byEnterprise.${targetEnterprise} or null)
+      && builtins.isAttrs (byEnterprise.${targetEnterprise}.${targetSite} or null)
+    then
+      byEnterprise.${targetEnterprise}.${targetSite}
+    else
+      null;
+
+  currentSite =
+    if canonicalSiteRecord != null then
+      canonicalSiteRecord
+    else if currentSiteEntry != null then
+      currentSiteEntry.site
+    else
+      { };
 
   forwardingModel =
     if cpm ? forwardingModel && builtins.isAttrs cpm.forwardingModel then
