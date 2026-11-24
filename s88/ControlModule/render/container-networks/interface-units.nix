@@ -172,6 +172,8 @@ let
       "lane"
       "policyOnly"
     ];
+  placementAgreement = import ./placement-agreement.nix { inherit lib; };
+
   tenantPrefixOwners =
     if builtins.isAttrs (((containerModel.site or { }).tenantPrefixOwners or null)) then
       (containerModel.site or { }).tenantPrefixOwners
@@ -347,6 +349,19 @@ let
               )
             )
             ++ (canonicalPolicyRoutesByInterface.${ifName} or [ ]);
+
+          # FS-310-HDS-020-SDS-010-SMS-060: the placement the model published is
+          # in `canonicalPolicyRoutesByInterface`; the placement the renderer
+          # recomputed is in `policyRoutingByInterface`. Where they describe the
+          # same route in two tables the render throws -- see
+          # ./placement-agreement.nix for why the duplicate survives
+          # `dropDerivedCopies` and why this is the enforcement rather than the
+          # repair.
+          _placementAgrees = placementAgreement.assertAgrees {
+            inherit ifName;
+            canonicalRoutes = canonicalPolicyRoutesByInterface.${ifName} or [ ];
+            derivedRoutes = policyRoutingByInterface.routes.${ifName} or [ ];
+          };
         in
         if
           builtins.elem ifName skipInterfaceNames
@@ -382,7 +397,8 @@ let
                 }
               ) (if isPppoeSessionInterface iface then [ ] else (iface.addresses or [ ]));
               routes = map stripRouteMetadata (
-                lib.filter (
+                builtins.seq _placementAgrees (
+                  lib.filter (
                   route:
                   let
                     dstHere = route.Destination or route.dst or null;
@@ -420,7 +436,8 @@ let
                   (keepStaticRoutesInMain || !(isMainTableDefaultRoute route))
 
                   && (isPolicyPoint || !(isForeignFabric31 dstHere))
-                ) renderedRoutes
+                  ) renderedRoutes
+                )
               );
               routingPolicyRules =
                 (policyRoutingByInterface.rules.${ifName} or [ ])
