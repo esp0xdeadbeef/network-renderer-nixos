@@ -1,22 +1,37 @@
-{ lib, common }:
+{ lib }:
 
-interfaces:
+interfaces: runtimeTarget:
+
 let
-  names = common.sortedAttrNames interfaces;
-  classFor =
-    name:
-    let ifaceClass = interfaces.${name}.interfaceClass or { };
-    in if builtins.isAttrs ifaceClass then ifaceClass else { };
-  hasClass = flag: name: (classFor name).${flag} or false;
-  hasSourceKind =
-    kind: name:
-    (interfaces.${name}.sourceKind or null) == kind;
-  isSelector = lib.any (hasClass "edgeFacing") names && lib.any (hasClass "fabricFacing") names;
-  isUpstreamSelector = lib.any (hasClass "coreFacing") names && lib.any (hasClass "exitFacing") names;
-  isPolicy = lib.any (hasClass "fabricFacing") names && lib.any (hasClass "exitFacing") names;
-  isAccessGateway = lib.any (hasClass "edgeFacing") names && lib.any (hasSourceKind "tenant") names;
+  facts = if builtins.isAttrs runtimeTarget then runtimeTarget.facts or { } else { };
+
+  participation =
+    let
+      tp = facts.traversalParticipation or null;
+    in
+    if builtins.isAttrs tp then tp else { };
+
+  published = builtins.isAttrs (facts.traversalParticipation or null);
+
+  flag = name: (participation.${name} or false) == true;
+
+  decision = {
+    isSelector =
+      flag "transit"
+      && !(flag "ingress")
+      && !(flag "enforcement")
+      && !(flag "upstreamSelection")
+      && !(flag "exit");
+    isUpstreamSelector = flag "upstreamSelection";
+    isPolicy = flag "enforcement";
+    isAccessGateway = flag "ingress";
+  };
 in
-{
-  inherit isSelector isUpstreamSelector isPolicy isAccessGateway;
-  keepInterfaceRoutesInMain = !(isSelector || isUpstreamSelector || isPolicy || isAccessGateway);
+decision
+// {
+  inherit published participation;
+  keepInterfaceRoutesInMain =
+    !(
+      decision.isSelector || decision.isUpstreamSelector || decision.isPolicy || decision.isAccessGateway
+    );
 }
