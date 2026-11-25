@@ -13,20 +13,11 @@ let
       canonicalSites.byEnterprise
     else
       null;
-
-  envelope =
-    if builtins.isAttrs (controlPlane.model or null) then
-      controlPlane.model
-    else if builtins.isAttrs (controlPlane.control_plane_model or null) then
-      controlPlane.control_plane_model
-    else
-      null;
-
   data =
     if fromCanonical != null then
       fromCanonical
-    else if envelope != null then
-      envelope.data or { }
+    else if builtins.isAttrs (controlPlane.model or null) then
+      controlPlane.model.data or { }
     else
       { };
 in
