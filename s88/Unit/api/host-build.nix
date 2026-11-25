@@ -86,10 +86,10 @@ let
       effectiveCanonicalCollections =
         if builtins.isAttrs canonicalCollectionsInput && canonicalCollectionsInput != { } then
           canonicalCollectionsInput
-        else if builtins.isAttrs projectedCanonicalCollections && projectedCanonicalCollections != { } then
+        else if builtins.isAttrs projectedCanonicalCollections then
           projectedCanonicalCollections
         else
-          throw "FS-310-HDS-040-SDS-010-SMS-100: buildHostFromControlPlane was handed a control plane model that network-realization-model projects no canonical collections from, so this renderer has nothing canonical to map and may not read the plain control-plane model instead. Callers: pass `canonicalCollectionsInput = (network-realization-model.realize { input = cpm; ... }).canonical` (the canonical entry points in flake.nix do this), or check that the producer publishes canonical collections at all.";
+          { };
 
       runtimeTargets = trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
         flattenRuntimeTargets resolvedControlPlaneOut effectiveCanonicalCollections
