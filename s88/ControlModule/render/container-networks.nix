@@ -400,6 +400,37 @@ let
       tenantIfNames = builtins.filter (n: builtins.isString n && n != "") (
         lib.unique (map modelledNameFor (builtins.filter (r: (r.sourceKind or null) == "tenant") mine))
       );
+
+      laneDefaults = builtins.filter (
+        r:
+        (r.dst or null) == "0.0.0.0/0"
+        && builtins.isInt (r.tableId or null)
+        && builtins.isString ((r.facts or { }).lane.access or null)
+      ) mine;
+
+      laneTableFor =
+        lane:
+        let
+          hits = builtins.filter (x: ((x.facts or { }).lane.access or null) == lane) laneDefaults;
+        in
+        if hits == [ ] then null else (builtins.head hits).tableId;
+
+      laneLaneTableByInterface =
+        let
+          entries = builtins.filter (e: e.value != null) (
+            map (
+              ifName:
+              let
+                lane = ((interfaces.${ifName}.backingRef or { }).lane or { }).access or null;
+              in
+              {
+                name = ifName;
+                value = if builtins.isString lane && lane != "" then laneTableFor lane else null;
+              }
+            ) (builtins.attrNames interfaces)
+          );
+        in
+        builtins.listToAttrs entries;
     in
     {
       byInterface = lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) keyed);
@@ -409,12 +440,16 @@ let
           { }
         else
           lib.genAttrs tenantIfNames (_: (builtins.head advertisedDefaults).tableId);
+
+      inherit laneLaneTableByInterface;
     };
 
   canonicalPolicyRoutesByInterface = canonicalRouteProjection.byInterface;
   inherit (canonicalRouteProjection) tenantLaneTableByInterface;
 
-  canonicalTenantLaneTableByInterface = canonicalRouteProjection.tenantLaneTableByInterface;
+  canonicalTenantLaneTableByInterface =
+    canonicalRouteProjection.laneLaneTableByInterface
+    // canonicalRouteProjection.tenantLaneTableByInterface;
 
   relationEgressInterfaces =
     let
