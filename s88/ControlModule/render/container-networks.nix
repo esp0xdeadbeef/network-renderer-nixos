@@ -312,7 +312,7 @@ let
     in
     if builtins.isAttrs rt && builtins.isString (rt.target or null) then rt.target else null;
 
-  canonicalPolicyRoutesByInterface =
+  canonicalRouteProjection =
     let
       mine =
         if selfRuntimeTarget == null then
@@ -378,16 +378,6 @@ let
             }
           ]
       ) (builtins.filter (r: builtins.isInt (r.tableId or null)) mine);
-    in
-    lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) keyed);
-
-  canonicalTenantLaneTableByInterface =
-    let
-      mine =
-        if selfRuntimeTarget == null then
-          [ ]
-        else
-          builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
 
       advertisedDefaults = builtins.filter (
         r:
@@ -396,14 +386,24 @@ let
         && builtins.isInt (r.tableId or null)
       ) mine;
 
-      tenantIfNames = lib.unique (
-        map (r: r.runtimeIfName) (builtins.filter (r: (r.sourceKind or null) == "tenant") mine)
+      tenantIfNames = builtins.filter (n: builtins.isString n && n != "") (
+        lib.unique (map modelledNameFor (builtins.filter (r: (r.sourceKind or null) == "tenant") mine))
       );
     in
-    if advertisedDefaults == [ ] then
-      { }
-    else
-      lib.genAttrs tenantIfNames (_: (builtins.head advertisedDefaults).tableId);
+    {
+      byInterface = lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) keyed);
+
+      tenantLaneTableByInterface =
+        if advertisedDefaults == [ ] || tenantIfNames == [ ] then
+          { }
+        else
+          lib.genAttrs tenantIfNames (_: (builtins.head advertisedDefaults).tableId);
+    };
+
+  canonicalPolicyRoutesByInterface = canonicalRouteProjection.byInterface;
+  inherit (canonicalRouteProjection) tenantLaneTableByInterface;
+
+  canonicalTenantLaneTableByInterface = canonicalRouteProjection.tenantLaneTableByInterface;
 
   relationEgressInterfaces =
     let
