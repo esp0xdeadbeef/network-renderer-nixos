@@ -227,6 +227,7 @@ let
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
     inherit canonicalPolicyRoutesByInterface modelledTenantPrefixes;
+    inherit canonicalTenantLaneTableByInterface;
     inherit relationEgressInterfaces;
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
     inherit (routeRender)
@@ -379,6 +380,30 @@ let
       ) (builtins.filter (r: builtins.isInt (r.tableId or null)) mine);
     in
     lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) keyed);
+
+  canonicalTenantLaneTableByInterface =
+    let
+      mine =
+        if selfRuntimeTarget == null then
+          [ ]
+        else
+          builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
+
+      advertisedDefaults = builtins.filter (
+        r:
+        (r.dst or null) == "0.0.0.0/0"
+        && ((r.facts or { }).advertisedToClients or false)
+        && builtins.isInt (r.tableId or null)
+      ) mine;
+
+      tenantIfNames = lib.unique (
+        map (r: r.runtimeIfName) (builtins.filter (r: (r.sourceKind or null) == "tenant") mine)
+      );
+    in
+    if advertisedDefaults == [ ] then
+      { }
+    else
+      lib.genAttrs tenantIfNames (_: (builtins.head advertisedDefaults).tableId);
 
   relationEgressInterfaces =
     let

@@ -2,6 +2,7 @@
   lib,
   containerModel,
   canonicalPolicyRoutesByInterface ? { },
+  canonicalTenantLaneTableByInterface ? { },
   modelledTenantPrefixes ? [ ],
 
   relationEgressInterfaces ? [ ],
@@ -246,6 +247,9 @@ let
         let
           iface = interfaces.${ifName};
           interfaceName = renderedInterfaceNames.${ifName};
+
+          canonicalTenantLaneTable = canonicalTenantLaneTableByInterface.${ifName} or null;
+          dropDerivedDefault = route: canonicalTenantLaneTable != null && isDefaultRoute route;
           rawRoutes = (iface.routes or [ ]) ++ (advertisedOnlinkRoutesByInterface.${ifName} or [ ]);
           renderedInterfaceName = renderedInterfaceNames.${ifName};
           keepStaticRoutesInMain =
@@ -295,7 +299,9 @@ let
           ) rawRoutes;
           policyMainRoutes = lib.optionals keepInterfaceRoutesInMain (
             map (route: builtins.removeAttrs route [ "Table" ]) (
-              lib.filter (route: !(isPolicyOnlyRoute route)) (policyRoutingByInterface.routes.${ifName} or [ ])
+              lib.filter (route: !(isPolicyOnlyRoute route) && !(dropDerivedDefault route)) (
+                policyRoutingByInterface.routes.${ifName} or [ ]
+              )
             )
           );
           diagnosticMainRoutes = map (route: builtins.removeAttrs route [ "Table" ]) (
@@ -308,7 +314,8 @@ let
               dst = route.dst or route.Destination or null;
               isHost = builtins.isString dst && (lib.hasSuffix "/32" dst || lib.hasSuffix "/128" dst);
             in
-            !(
+            !(dropDerivedDefault route)
+            && !(
               isHost
               && builtins.any (
                 other:
@@ -432,6 +439,13 @@ let
               );
               routingPolicyRules =
                 (policyRoutingByInterface.rules.${ifName} or [ ])
+                ++ lib.optional (canonicalTenantLaneTable != null) {
+                  Family = "both";
+                  IncomingInterface = interfaceName;
+
+                  Priority = canonicalTenantLaneTable + 20000;
+                  Table = canonicalTenantLaneTable;
+                }
                 ++ lib.optional (localOriginEgressRuleFor ifName interfaceName iface != null) (
                   localOriginEgressRuleFor ifName interfaceName iface
                 );
