@@ -441,6 +441,40 @@ let
         else
           lib.genAttrs tenantIfNames (_: (builtins.head advertisedDefaults).tableId);
 
+      relationIngressTableByInterface =
+        let
+          rels = builtins.filter (r: (r.target or null) == selfRuntimeTarget) (
+            canonicalForwarding.relations or [ ]
+          );
+
+          runtimeToIfName = builtins.listToAttrs (
+            map (ifName: {
+              name = renderedInterfaceNames.${ifName} or "";
+              value = ifName;
+            }) (builtins.attrNames interfaces)
+          );
+
+          tableForEgressRuntime =
+            runtimeInterface:
+            let
+              hits = builtins.filter (
+                x:
+                (x.runtimeIfName or null) == runtimeInterface
+                && (x.dst or null) == "0.0.0.0/0"
+                && builtins.isInt (x.tableId or null)
+              ) mine;
+            in
+            if hits == [ ] then null else (builtins.head hits).tableId;
+
+          entries = builtins.filter (e: builtins.isString e.name && e.name != "" && e.value != null) (
+            map (rel: {
+              name = runtimeToIfName.${rel.fromInterface or ""} or null;
+              value = tableForEgressRuntime (rel.egressRuntimeInterface or null);
+            }) rels
+          );
+        in
+        builtins.listToAttrs entries;
+
       inherit laneLaneTableByInterface;
     };
 
@@ -448,7 +482,8 @@ let
   inherit (canonicalRouteProjection) tenantLaneTableByInterface;
 
   canonicalTenantLaneTableByInterface =
-    canonicalRouteProjection.laneLaneTableByInterface
+    canonicalRouteProjection.relationIngressTableByInterface
+    // canonicalRouteProjection.laneLaneTableByInterface
     // canonicalRouteProjection.tenantLaneTableByInterface;
 
   relationEgressInterfaces =
