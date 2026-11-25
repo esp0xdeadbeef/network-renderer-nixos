@@ -446,6 +446,24 @@ let
                   Priority = canonicalTenantLaneTable + 20000;
                   Table = canonicalTenantLaneTable;
                 }
+                ++
+                  map
+                    (
+                      address:
+                      let
+                        bare = builtins.head (lib.splitString "/" address);
+                        isV6 = lib.hasInfix ":" bare;
+                      in
+                      {
+                        Family = if isV6 then "ipv6" else "ipv4";
+                        From = "${bare}/${if isV6 then "128" else "32"}";
+                        Priority = canonicalTenantLaneTable + 20000;
+                        Table = canonicalTenantLaneTable;
+                      }
+                    )
+                    (
+                      lib.optionals (canonicalTenantLaneTable != null) (map (a: a.Address or "") (iface.addresses or [ ]))
+                    )
                 ++ lib.optional (localOriginEgressRuleFor ifName interfaceName iface != null) (
                   localOriginEgressRuleFor ifName interfaceName iface
                 );
