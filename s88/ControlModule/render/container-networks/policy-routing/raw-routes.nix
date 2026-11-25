@@ -22,6 +22,7 @@
   hasAcceptForwardingRuleForRoute,
   isExternalValidationDelegatedPrefixRoute,
   selectedScopes ? [ ],
+  canonicalRoutingAuthoritative ? false,
 }:
 let
   inherit (routeHelpers)
@@ -96,7 +97,11 @@ let
   explicitForwardTargetDefaultRoutes =
 
     if
-      targetIfName != null && sourceIfName != targetIfName && !(isAccessHostInterface interfaceName)
+
+      !canonicalRoutingAuthoritative
+      && targetIfName != null
+      && sourceIfName != targetIfName
+      && !(isAccessHostInterface interfaceName)
     then
       map
         (

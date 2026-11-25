@@ -150,7 +150,18 @@ let
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
   };
 
+  canonicalRoutingAuthoritative =
+    let
+      mine =
+        if selfRuntimeTarget == null then
+          [ ]
+        else
+          builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
+    in
+    mine != [ ];
+
   policyRouting = import ./container-networks/policy-routing.nix {
+    inherit canonicalRoutingAuthoritative;
     inherit
       lib
       containerModel
