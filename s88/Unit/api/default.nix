@@ -12,23 +12,11 @@ let
 
   canonicalFromCpm =
     cpm:
-    let
-      controlPlaneModel =
-        if builtins.isAttrs cpm && cpm ? control_plane_model then cpm.control_plane_model else cpm;
-
-      digest = builtins.hashString "sha256" (builtins.toJSON controlPlaneModel);
-      input = {
-        kind = "network-control-plane-artifact";
-        artifactIdentity = "cpm-${builtins.substring 0 16 digest}";
-        artifactDigest = digest;
-        control_plane_model = controlPlaneModel;
-      };
-    in
     if realizationModel == null then
       { }
     else
-      (realizationModel.lib.realize {
-        inherit input;
+      (realizationModel.lib.realizeFromCpm {
+        inherit cpm;
         requestScope = {
           kind = "complete-artifact";
           identity = "network-renderer-nixos";
