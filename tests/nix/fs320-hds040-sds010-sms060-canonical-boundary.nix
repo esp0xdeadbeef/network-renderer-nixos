@@ -4,9 +4,6 @@ let
   lib = flake.inputs.nixpkgs.lib;
   realization-model = flake.inputs.network-realization-model;
 
-  # CPM fixture with explicit interface role data.
-  # This simulates a minimal CPM output for a core node with
-  # WAN, LAN, transit, and uplink interfaces.
   cpmFixture = {
     kind = "network-control-plane-artifact";
     artifactIdentity = "fixture-sms060-canonical-boundary";
@@ -101,9 +98,29 @@ let
     };
   };
 
-  # Realize through canonical pipeline
+  cpmSource = flake.inputs.network-control-plane-model.outPath;
+  model = cpmFixture.control_plane_model;
+  canonicalCollections = {
+    canonicalInterfaces = import (cpmSource + "/src/cpm/canonical-interfaces.nix") {
+      inherit lib;
+    } model;
+    canonicalRoutes = import (cpmSource + "/src/cpm/canonical-routes.nix") { inherit lib; } model;
+    canonicalOverlays = import (cpmSource + "/src/cpm/canonical-overlays.nix") { inherit lib; } model;
+    canonicalSites = import (cpmSource + "/src/cpm/canonical-sites.nix") { inherit lib; } model;
+    canonicalRuntimeTargets = import (cpmSource + "/src/cpm/canonical-runtime-targets.nix") {
+      inherit lib;
+    } model;
+    canonicalForwarding = import (cpmSource + "/src/cpm/canonical-forwarding.nix") {
+      inherit lib;
+    } model;
+  };
+
+  artifact = cpmFixture // {
+    control_plane_model = cpmFixture.control_plane_model // canonicalCollections;
+  };
+
   bundle = realization-model.lib.realize {
-    input = cpmFixture;
+    input = artifact;
     requestScope = {
       kind = "complete-artifact";
       identity = "sms060-canonical-test";
@@ -112,74 +129,119 @@ let
     producerRevision = realization-model.rev;
   };
 
-  # Validate through renderer canonical input (realization-model + schema)
   validated = realization-model.lib.validateRendererInput {
     inherit bundle;
     expectedTarget = "nixos";
   };
 
-  cpm = validated.controlPlaneEnvelope;
-  runtimeTarget = cpm.control_plane_model.data.example.site.runtimeTargets.core-1;
+  canonicalTargets = validated.canonical.canonicalRuntimeTargets.targets or [ ];
+  targetEntry = lib.findFirst (entry: (entry.target or null) == "core-1") null canonicalTargets;
+  runtimeTarget = if targetEntry == null then { } else targetEntry.facts or { };
 
-  # Build interface view and role classification
-  common = import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent/common.nix") { inherit lib; };
+  common = import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent/common.nix") {
+    inherit lib;
+  };
   inherit (common) firstAttrsFromPaths boolLikeFromPaths;
 
   interfaces-raw = runtimeTarget.interfaces or { };
 
-  ifaceView = import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent/interfaces.nix") {
-    inherit lib common;
-    interfaces = interfaces-raw;
-  };
+  ifaceView =
+    import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent/interfaces.nix")
+      {
+        inherit lib common;
+        interfaces = interfaces-raw;
+      };
 
   nodeForwarding = firstAttrsFromPaths {
     roots = [ runtimeTarget ];
     paths = [
-      [ "forwarding" ] [ "forwardingIntent" ] [ "routing" ]
-      [ "semantic" "forwarding" ] [ "semanticIntent" "forwarding" ]
+      [ "forwarding" ]
+      [ "forwardingIntent" ]
+      [ "routing" ]
+      [
+        "semantic"
+        "forwarding"
+      ]
+      [
+        "semanticIntent"
+        "forwarding"
+      ]
     ];
   };
 
   nodeEgress = firstAttrsFromPaths {
-    roots = [ runtimeTarget nodeForwarding ];
-    paths = [ [ "egress" ] [ "semantic" "egress" ] [ "semanticIntent" "egress" ] ];
+    roots = [
+      runtimeTarget
+      nodeForwarding
+    ];
+    paths = [
+      [ "egress" ]
+      [
+        "semantic"
+        "egress"
+      ]
+      [
+        "semanticIntent"
+        "egress"
+      ]
+    ];
   };
 
   nodeNat = firstAttrsFromPaths {
     roots = [ runtimeTarget ];
-    paths = [ [ "natIntent" ] [ "nat" ] [ "egress" "natIntent" ] [ "egress" "nat" ] ];
+    paths = [
+      [ "natIntent" ]
+      [ "nat" ]
+      [
+        "egress"
+        "natIntent"
+      ]
+      [
+        "egress"
+        "nat"
+      ]
+    ];
   };
 
   roles = import (repoRoot + "/s88/ControlModule/firewall/lookup/forwarding-intent/roles.nix") {
-    inherit lib common runtimeTarget nodeForwarding nodeEgress nodeNat;
+    inherit
+      lib
+      common
+      runtimeTarget
+      nodeForwarding
+      nodeEgress
+      nodeNat
+      ;
     entries = ifaceView.interfaceEntries;
     inherit (ifaceView) resolveInterfaceTokens;
     wanIfs = [ ];
     lanIfs = [ ];
   };
 
-  # Verification: all named lists correctly resolve
   checkWan = builtins.elem "eth-wan" roles.resolvedWanNames;
   checkLan = builtins.elem "eth-lan" roles.resolvedLanNames;
   checkTransit = builtins.elem "eth-transit" roles.resolvedTransitNames;
   checkUplink = builtins.elem "eth-uplink" roles.resolvedUplinkNames;
   checkContract = roles.explicitRoleContractPresent;
 
-  # SourceKind fallback must NOT have activated
-  # (all roles resolved from explicit named lists, not sourceKind)
-  checkNoSourceKindFallback = roles.resolvedWanNames != [ ]
-    && roles.resolvedLanNames != [ ]
-    && roles.resolvedTransitNames != [ ];
+  checkNoSourceKindFallback =
+    roles.resolvedWanNames != [ ] && roles.resolvedLanNames != [ ] && roles.resolvedTransitNames != [ ];
 
   allPass =
-    bundle.bundleIdentity != null
+    targetEntry != null
+    && bundle.bundleIdentity != null
     && validated.bundleIdentity == bundle.bundleIdentity
-    && checkWan && checkLan && checkTransit && checkUplink
-    && checkContract && checkNoSourceKindFallback;
+    && checkWan
+    && checkLan
+    && checkTransit
+    && checkUplink
+    && checkContract
+    && checkNoSourceKindFallback;
 
   result = {
     ok = allPass;
     checks = {
+      canonicalTargetPublished = targetEntry != null;
       bundleIdentity = bundle.bundleIdentity != null;
       validatedIdentity = validated.bundleIdentity == bundle.bundleIdentity;
       wanResolved = checkWan;
@@ -190,8 +252,10 @@ let
       noSourceKindFallback = checkNoSourceKindFallback;
     };
     failed =
-      if allPass then [ ] else
-      builtins.filter (name: !result.checks.${name}) (builtins.attrNames result.checks);
+      if allPass then
+        [ ]
+      else
+        builtins.filter (name: !result.checks.${name}) (builtins.attrNames result.checks);
     coverage = {
       wanNames = roles.resolvedWanNames;
       lanNames = roles.resolvedLanNames;
