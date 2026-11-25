@@ -145,9 +145,11 @@ in
     host
     bridges
     containers
+    canonicalFromCpm
     ;
 
   renderer = {
+    inherit canonicalFromCpm;
 
     loadControlPlane = selectors.loadStructuredPath;
 

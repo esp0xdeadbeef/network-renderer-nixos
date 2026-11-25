@@ -105,7 +105,11 @@
             compilerOut = artifactCompilerOut;
             forwardingOut = artifactForwardingOut;
 
-            canonicalCollectionsInput = rendererInput.canonicalCollections or { };
+            canonicalCollectionsInput =
+              if rendererInput ? canonicalCollections && builtins.isAttrs rendererInput.canonicalCollections then
+                rendererInput.canonicalCollections
+              else
+                api.canonicalFromCpm effectiveCpm;
           };
           rendered = hostBuild.renderedHost;
           renderedNetdevs = rendered.netdevs or { };
