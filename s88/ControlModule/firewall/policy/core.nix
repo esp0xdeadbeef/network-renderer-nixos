@@ -48,7 +48,12 @@ let
   };
 
   forwarding = import ./core/forwarding.nix {
-    inherit lib forwardingIntent uplinks;
+    inherit
+      lib
+      forwardingIntent
+      uplinks
+      interfaceView
+      ;
     inherit (interfaceSet)
       wanNames
       lanNames

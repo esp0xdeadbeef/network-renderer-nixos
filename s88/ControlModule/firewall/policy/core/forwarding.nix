@@ -1,12 +1,13 @@
-{ lib
-, forwardingIntent
-, uplinks
-, wanNames
-, lanNames
-, forwardEgressNames
-, overlayIngressNames
-, adapterNames
-,
+{
+  lib,
+  forwardingIntent,
+  interfaceView ? { },
+  uplinks,
+  wanNames,
+  lanNames,
+  forwardEgressNames,
+  overlayIngressNames,
+  adapterNames,
 }:
 
 let
@@ -20,7 +21,32 @@ let
     && builtins.isAttrs forwardingIntent
     && (forwardingIntent.authoritativeCoreNat or false);
 
-  uplinkNames = if builtins.isAttrs uplinks then lib.sort builtins.lessThan (builtins.attrNames uplinks) else [ ];
+  interfaceMap =
+    if builtins.isAttrs (interfaceView.interfaceMap or null) then interfaceView.interfaceMap else { };
+
+  resolveName =
+    name:
+    let
+      entry = interfaceMap.${name} or null;
+      resolved = if builtins.isAttrs entry then entry.name or null else null;
+    in
+    if builtins.isString resolved && resolved != "" then resolved else name;
+
+  resolveNames =
+    names:
+    map resolveName (
+      if names == null then
+        [ ]
+      else if builtins.isString names then
+        [ names ]
+      else if builtins.isList names then
+        lib.filter builtins.isString names
+      else
+        [ ]
+    );
+
+  uplinkNames =
+    if builtins.isAttrs uplinks then lib.sort builtins.lessThan (builtins.attrNames uplinks) else [ ];
 
   uplinkHasIpv4 =
     uplinkName:
@@ -28,7 +54,12 @@ let
       uplink = uplinks.${uplinkName};
       ipv4 = if uplink ? ipv4 && builtins.isAttrs uplink.ipv4 then uplink.ipv4 else null;
     in
-    if ipv4 == null then true else if ipv4 ? enable then (ipv4.enable or false) else true;
+    if ipv4 == null then
+      true
+    else if ipv4 ? enable then
+      (ipv4.enable or false)
+    else
+      true;
 
   fallbackNatEnabled = wanNames != [ ] && (uplinkNames == [ ] || lib.any uplinkHasIpv4 uplinkNames);
 in
@@ -48,14 +79,20 @@ in
 
   natInterfaces =
     if useExplicitNat then
-      if forwardingIntent ? coreNat4Interfaces then forwardingIntent.coreNat4Interfaces else forwardingIntent.coreNatInterfaces or [ ]
+      resolveNames (
+        if forwardingIntent ? coreNat4Interfaces then
+          forwardingIntent.coreNat4Interfaces
+        else
+          forwardingIntent.coreNatInterfaces or [ ]
+      )
     else if fallbackNatEnabled then
       wanNames
     else
       [ ];
   nat4SourcePrefixes = if useExplicitNat then forwardingIntent.coreNat4SourcePrefixes or [ ] else [ ];
   nat6Interfaces =
-    if useExplicitNat then forwardingIntent.coreNat6Interfaces or [ ]
+    if useExplicitNat then
+      resolveNames (forwardingIntent.coreNat6Interfaces or [ ])
     else if fallbackNatEnabled then
       wanNames
     else
@@ -63,7 +100,10 @@ in
   nat6SourcePrefixes = if useExplicitNat then forwardingIntent.coreNat6SourcePrefixes or [ ] else [ ];
 
   clampMssInterfaces =
-    if useExplicitNat || useExplicitForwarding then forwardingIntent.coreClampMssInterfaces or [ ] else wanNames;
+    if useExplicitNat || useExplicitForwarding then
+      resolveNames (forwardingIntent.coreClampMssInterfaces or [ ])
+    else
+      wanNames;
 
   coreInputOverlayNames = overlayIngressNames;
   inherit adapterNames;
