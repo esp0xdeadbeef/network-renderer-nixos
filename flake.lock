@@ -402,11 +402,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1795569946,
-        "narHash": "sha256-wSBz25mtt9zSkQsIDfiu5emHfdcuthJk+wv2zinkG4s=",
+        "lastModified": 1795572018,
+        "narHash": "sha256-YAxOl7H4xkrjPFL684GzUmanNrPQoZ/RBBkeXSy2Tns=",
         "owner": "esp0xdeadbeef",
         "repo": "network-labs",
-        "rev": "36fff6ed922e9c1dd71fdcb3b30f8b27190348a2",
+        "rev": "9a32e06f06b634db45d44465231aa36b4ae2a1de",
         "type": "github"
       },
       "original": {
