@@ -322,20 +322,20 @@ let
       modelledNameFor =
         r:
         let
+          rendered = r.runtimeIfName or null;
+          renderedHits =
+            if builtins.isString rendered && rendered != "" then
+              builtins.filter (n: (renderedInterfaceNames.${n} or null) == rendered) interfaceView.interfaceNames
+            else
+              [ ];
           own = r.interface or null;
         in
-        if builtins.isString own && own != "" then
+        if renderedHits != [ ] then
+          builtins.head renderedHits
+        else if builtins.isString own && own != "" then
           own
         else
-          let
-            rendered = r.runtimeIfName or null;
-            hits =
-              if rendered == null then
-                [ ]
-              else
-                builtins.filter (n: (renderedInterfaceNames.${n} or null) == rendered) interfaceView.interfaceNames;
-          in
-          if hits == [ ] then null else builtins.head hits;
+          null;
       factsOf = r: if builtins.isAttrs (r.facts or null) then r.facts else { };
       toRoute =
         r:
