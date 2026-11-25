@@ -563,6 +563,27 @@
         };
     in
     {
+
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        {
+          default = pkgs.mkShell {
+            name = "network-tests";
+            packages = [
+              pkgs.git
+              pkgs.jq
+              pkgs.openssh
+              pkgs.python3
+              pkgs.ripgrep
+              pkgs.zstd
+            ];
+          };
+        }
+      );
+
       lib = api // {
         renderer = api.renderer // {
           inherit hostModule;
