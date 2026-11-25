@@ -7,6 +7,8 @@
   source ? { },
   exampleDir ? null,
   debug ? false,
+
+  canonicalFromCpm ? (_: { }),
 }:
 
 let
@@ -55,7 +57,7 @@ let
 
   controlPlane = renderInputs.controlPlane;
 
-  canonicalCollections = renderInputs.canonicalCollections or { };
+  canonicalCollections = canonicalFromCpm controlPlane;
   resolvedInventory = renderInputs.resolvedInventory;
   metadataSourcePaths = renderInputs.metadataSourcePaths;
 
@@ -95,6 +97,8 @@ let
         inherit hostName;
         cpm = controlPlane;
         source = resolvedInventory;
+
+        inherit canonicalCollections;
       };
     }) deploymentHostNames
   );

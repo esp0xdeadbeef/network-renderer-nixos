@@ -52,11 +52,13 @@
         inherit lib;
         repoRoot = ./.;
         flakeInputs = {
+
           inherit
             nixpkgs
             nixos-network-compiler
             network-control-plane-model
             network-forwarding-model
+            network-realization-model
             ;
         };
       };

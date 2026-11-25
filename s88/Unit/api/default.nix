@@ -8,6 +8,35 @@ let
   selectors = import ../../ControlModule/lookup/host-query.nix { inherit lib; };
   realizationPorts = import ../physical/realization-ports.nix { inherit lib; };
 
+  realizationModel = flakeInputs.network-realization-model or null;
+
+  canonicalFromCpm =
+    cpm:
+    let
+      controlPlaneModel =
+        if builtins.isAttrs cpm && cpm ? control_plane_model then cpm.control_plane_model else cpm;
+
+      digest = builtins.hashString "sha256" (builtins.toJSON controlPlaneModel);
+      input = {
+        kind = "network-control-plane-artifact";
+        artifactIdentity = "cpm-${builtins.substring 0 16 digest}";
+        artifactDigest = digest;
+        control_plane_model = controlPlaneModel;
+      };
+    in
+    if realizationModel == null then
+      { }
+    else
+      (realizationModel.lib.realize {
+        inherit input;
+        requestScope = {
+          kind = "complete-artifact";
+          identity = "network-renderer-nixos";
+        };
+        rootLockIdentity = "network-renderer-nixos-flake-lock";
+        producerRevision = realizationModel.rev or "unknown";
+      }).canonical or { };
+
   renderHostNetworkImpl =
     {
       hostName,
@@ -50,6 +79,7 @@ let
         source
         exampleDir
         debug
+        canonicalFromCpm
         ;
     };
 
@@ -58,6 +88,7 @@ let
     inherit
       lib
       selectors
+      canonicalFromCpm
       ;
     renderHostNetwork = renderHostNetworkImpl;
   };

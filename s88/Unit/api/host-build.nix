@@ -6,6 +6,8 @@
   currentSystem ? if builtins ? currentSystem then builtins.currentSystem else "x86_64-linux",
 
   canonicalCollections ? { },
+
+  canonicalFromCpm ? (_: { }),
 }:
 
 let
@@ -79,11 +81,15 @@ let
         else
           { };
 
+      projectedCanonicalCollections = canonicalFromCpm resolvedControlPlaneOut;
+
       effectiveCanonicalCollections =
         if builtins.isAttrs canonicalCollectionsInput && canonicalCollectionsInput != { } then
           canonicalCollectionsInput
+        else if builtins.isAttrs projectedCanonicalCollections && projectedCanonicalCollections != { } then
+          projectedCanonicalCollections
         else
-          throw "FS-310-HDS-040-SDS-010-SMS-100: buildHostFromControlPlane was called without canonicalCollectionsInput. A renderer maps the validated canonical bundle and may not read the plain control-plane model, so there is no fallback here. Callers: pass `canonicalCollectionsInput = (network-realization-model.realize { ... }).canonical` (the canonical entry points in flake.nix do this), or use the raw-CPM path explicitly and accept that it proves nothing about canonical consumption.";
+          throw "FS-310-HDS-040-SDS-010-SMS-100: buildHostFromControlPlane was handed a control plane model that network-realization-model projects no canonical collections from, so this renderer has nothing canonical to map and may not read the plain control-plane model instead. Callers: pass `canonicalCollectionsInput = (network-realization-model.realize { input = cpm; ... }).canonical` (the canonical entry points in flake.nix do this), or check that the producer publishes canonical collections at all.";
 
       runtimeTargets = trace.emit "host-build:${resolved.selectorValue}:flatten-runtime-targets" (
         flattenRuntimeTargets resolvedControlPlaneOut effectiveCanonicalCollections
