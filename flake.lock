@@ -483,11 +483,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795571867,
-        "narHash": "sha256-PpZ4QpqBcE8kBTjoilhWgBnhIiL9AkNyzRhgFhQsNKE=",
+        "lastModified": 1795621079,
+        "narHash": "sha256-f4igc2c64rmRgojiDwkFG1ufqEwux/wJi+vVNikmDAg=",
         "owner": "esp0xdeadbeef",
         "repo": "network-realization-model",
-        "rev": "1d14f509ee8ea16d636830ab3b87701eea969c8a",
+        "rev": "2e496368dc90fa51067038842c1e9f4cdc5122c6",
         "type": "github"
       },
       "original": {
