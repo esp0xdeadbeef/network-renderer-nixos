@@ -1,31 +1,31 @@
 { lib }:
 
-args@{ cpm
-, source ? { }
-, flakeInputs ? null
-, runtimeTarget ? { }
-, unitKey ? null
-, unitName ? null
-, roleName ? null
-, policyModulePath ? null
-  # Model-derived rules contributed by another renderer module (for example the
-  # DNS service) to this firewall's existing chains. They are appended to the
-  # policy rule model before emission, so the container keeps ONE
-  # `table inet router` instead of a second table merged in as text.
-, extraInputRules ? [ ]
-, extraForwardRules ? [ ]
-, extraOutputRules ? [ ]
-, assumptionFamily ? null
-, preferSiteNode ? false
-, strictEndpointBindings ? false
-, interfaces ? { }
-, wanIfs ? [ ]
-, lanIfs ? [ ]
-, interfaceView ? null
-, forwardingIntent ? null
-, communication ? null
-, endpointMap ? null
-, ...
+args@{
+  cpm,
+  source ? { },
+  flakeInputs ? null,
+  runtimeTarget ? { },
+
+  canonicalCollections ? { },
+  unitKey ? null,
+  unitName ? null,
+  roleName ? null,
+  policyModulePath ? null,
+
+  extraInputRules ? [ ],
+  extraForwardRules ? [ ],
+  extraOutputRules ? [ ],
+  assumptionFamily ? null,
+  preferSiteNode ? false,
+  strictEndpointBindings ? false,
+  interfaces ? { },
+  wanIfs ? [ ],
+  lanIfs ? [ ],
+  interfaceView ? null,
+  forwardingIntent ? null,
+  communication ? null,
+  endpointMap ? null,
+  ...
 }:
 
 let
@@ -69,6 +69,7 @@ let
           cpm
           flakeInputs
           runtimeTarget
+          canonicalCollections
           ;
       };
 

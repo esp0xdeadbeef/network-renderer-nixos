@@ -3,6 +3,8 @@
   canonicalRoutes,
   canonicalForwarding ? { },
 
+  canonicalSites ? { },
+
   canonicalRuntimeTargets ? { },
   pkgs ? null,
   repoPath,
@@ -44,6 +46,7 @@ let
         cpm
         source
         renderedModel
+        canonicalSites
         ;
       uplinks = inputs.uplinks;
     };

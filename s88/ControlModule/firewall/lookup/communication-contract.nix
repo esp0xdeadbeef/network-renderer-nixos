@@ -3,6 +3,7 @@
   cpm,
   flakeInputs ? null,
   runtimeTarget ? { },
+  canonicalCollections ? { },
 }:
 
 let
@@ -77,9 +78,15 @@ let
 
   targetSite = if builtins.isAttrs runtimeTarget then runtimeTarget.site or null else null;
 
+  canonicalSitesSource =
+    if builtins.isAttrs (canonicalCollections.canonicalSites or null) then
+      canonicalCollections.canonicalSites
+    else
+      cpmEnvelope.canonicalSites or { };
+
   canonicalSiteRecord =
     let
-      byEnterprise = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
+      byEnterprise = canonicalSitesSource.byEnterprise or null;
     in
     if
       builtins.isAttrs byEnterprise
@@ -94,7 +101,7 @@ let
 
   soleSiteRecord =
     let
-      byEnterprise = (cpmEnvelope.canonicalSites or { }).byEnterprise or null;
+      byEnterprise = canonicalSitesSource.byEnterprise or null;
     in
     if !(builtins.isAttrs byEnterprise) then
       null

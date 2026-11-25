@@ -4,6 +4,7 @@
   cpm ? null,
   source ? { },
   uplinks ? { },
+  canonicalSites ? { },
   renderedModel,
 }:
 
@@ -92,6 +93,7 @@ let
       cpm
       runtimeTarget
       ;
+    canonicalCollections = { inherit canonicalSites; };
   };
 
   interfaceView = import ../../firewall/lookup/interface-view.nix {
