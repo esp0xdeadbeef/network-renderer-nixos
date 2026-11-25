@@ -445,11 +445,7 @@
           forwarded
           // {
 
-            cpm = import ./s88/Unit/mapping/canonical-structural-view.nix {
-              inherit lib;
-              canonical = validated.canonical;
-              platformBinding = validated.validatedPlatformBinding or null;
-            };
+            cpm = validated.structuralView;
 
             canonicalCollections = validated.canonical or { };
             canonicalBundleIdentity = validated.bundleIdentity;
@@ -474,11 +470,7 @@
             forwarded
             // {
 
-              controlPlaneOut = import ./s88/Unit/mapping/canonical-structural-view.nix {
-                inherit lib;
-                canonical = validated.canonical;
-                platformBinding = validated.validatedPlatformBinding or null;
-              };
+              controlPlaneOut = validated.structuralView;
 
               canonicalCollectionsInput = validated.canonical or { };
             }

@@ -47,15 +47,20 @@ nix_eval_json_or_fail \
             };
           };
         };
+        # The allowed renderer input is the validated bundle canonical collections
+        # (FS-310-HDS-040-SDS-010-SMS-100); the plain control-plane model is not an
+        # input. This case used to hand sites.nix a raw control_plane_model and so
+        # only worked while that fallback read it -- it now supplies the canonical
+        # site tree, which is what the render path passes, and asserts the same
+        # whitelist on the same input.
         sites = import (repoPath + "/s88/ControlModule/render/dry-config-model/sites.nix") {
-          controlPlane = {
-            control_plane_model.data.esp.nixos = {
-              ipv6 = { };
-              routing = { };
-              transit = { };
-              upstreamEmulation.pppoeNixos = sideChannelRow;
-              providerAccess.pppoeNixos = sideChannelRow;
-            };
+          controlPlane = { };
+          canonicalCollections.canonicalSites.byEnterprise.esp.nixos = {
+            ipv6 = { };
+            routing = { };
+            transit = { };
+            upstreamEmulation.pppoeNixos = sideChannelRow;
+            providerAccess.pppoeNixos = sideChannelRow;
           };
         };
         site = sites.esp.nixos;

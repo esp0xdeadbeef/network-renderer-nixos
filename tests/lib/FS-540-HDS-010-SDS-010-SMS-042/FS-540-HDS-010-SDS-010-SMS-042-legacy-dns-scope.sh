@@ -12,19 +12,26 @@ let
   lib = renderer.inputs.nixpkgs.lib;
   # `data.<enterprise>.<site>` IS the site object; runtimeTargets hang off it.
   mkEntry = targets: { runtimeTargets = targets; };
-  diag = model: hostName: import ./s88/ControlModule/render/model-contract-diagnostics.nix {
-    controlPlane = model // { deploymentHosts.${hostName} = { }; };
+  # The renderer receives the realization model structural view: `model` carries the
+  # canonical-derived site tree and `deploymentHosts` the deployment facts. The case
+  # passed a raw `control_plane_model`, which is not a renderer input, so the
+  # diagnostic walked an empty tree and reported nothing.
+  diag = sites: hostName: import ./s88/ControlModule/render/model-contract-diagnostics.nix {
+    controlPlane = {
+      model.data = sites;
+      deploymentHosts.${hostName} = { };
+    };
     inherit hostName lib;
   };
   # A routing selector with no DNS service at all: nothing to be invalid about.
   selectorOnly = diag {
-    control_plane_model.data.e.s = mkEntry {
+    e.s = mkEntry {
       policy = { logicalNode.name = "policy"; services.dns = { }; };
     };
   } "h";
   # A node that actually serves DNS but leaves it inventory-driven.
   inventoryDns = diag {
-    control_plane_model.data.e.s = mkEntry {
+    e.s = mkEntry {
       core = {
         logicalNode.name = "core";
         services.dns = { forwarders = [ "192.0.2.53" ]; };
@@ -33,7 +40,7 @@ let
   } "h";
   # A node the CPM models with recursion: services.dns.roles.recursion.
   modelledRecursion = diag {
-    control_plane_model.data.e.s = mkEntry {
+    e.s = mkEntry {
       core = {
         logicalNode.name = "core";
         services.dns = {
