@@ -496,6 +496,23 @@ let
         in
         builtins.listToAttrs entries;
 
+      singleExitTableByInterface =
+        let
+          allDefaults = builtins.filter (
+            r: (r.dst or null) == "0.0.0.0/0" && builtins.isInt (r.tableId or null)
+          ) mine;
+        in
+        if builtins.length allDefaults != 1 then
+          { }
+        else
+          let
+            only = builtins.head allDefaults;
+            egressIfName = modelledNameFor only;
+          in
+          lib.genAttrs (builtins.filter (n: n != egressIfName) (builtins.attrNames interfaces)) (
+            _: only.tableId
+          );
+
       inherit laneLaneTableByInterface;
     };
 
@@ -503,7 +520,8 @@ let
   inherit (canonicalRouteProjection) tenantLaneTableByInterface;
 
   canonicalTenantLaneTableByInterface =
-    canonicalRouteProjection.relationIngressTableByInterface
+    canonicalRouteProjection.singleExitTableByInterface
+    // canonicalRouteProjection.relationIngressTableByInterface
     // canonicalRouteProjection.laneLaneTableByInterface
     // canonicalRouteProjection.tenantLaneTableByInterface;
 
