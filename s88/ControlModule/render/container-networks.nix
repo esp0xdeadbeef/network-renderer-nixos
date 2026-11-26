@@ -168,7 +168,32 @@ let
     in
     mine != [ ] || coversAnOwnInterface;
 
-  policyRoutingFiltered = policyRoutingRaw;
+  policyRoutingFiltered =
+    if !canonicalRoutingAuthoritative then
+      policyRoutingRaw
+    else
+      policyRoutingRaw
+      // {
+        routes = lib.mapAttrs (
+          ifName: routes:
+          lib.filter (
+            route:
+            let
+              dst = route.dst or route.Destination or null;
+            in
+            !(
+              builtins.isString dst
+              && builtins.any (
+                otherIf:
+                otherIf != ifName
+                && builtins.any (canonicalRoute: (canonicalRoute.dst or null) == dst) (
+                  canonicalModelRoutesByInterface.${otherIf} or [ ]
+                )
+              ) (builtins.attrNames canonicalModelRoutesByInterface)
+            )
+          ) routes
+        ) (policyRoutingRaw.routes or { });
+      };
 
   policyRoutingRaw = import ./container-networks/policy-routing.nix {
     inherit canonicalRoutingAuthoritative;
