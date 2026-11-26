@@ -158,30 +158,15 @@ let
         else
           builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
 
-      ownInterfaceKeys = builtins.attrNames interfaces;
+      ownNames = lib.unique (
+        builtins.attrNames interfaces
+        ++ map (n: renderedInterfaceNames.${n} or n) (builtins.attrNames interfaces)
+      );
       coversAnOwnInterface = builtins.any (
-        r: builtins.elem (modelledNameForRoute r) ownInterfaceKeys
+        r: builtins.elem (r.interface or "") ownNames || builtins.elem (r.runtimeIfName or "") ownNames
       ) canonicalRoutes;
     in
     mine != [ ] || coversAnOwnInterface;
-
-  modelledNameForRoute =
-    r:
-    let
-      rendered = r.runtimeIfName or null;
-      hits =
-        if builtins.isString rendered && rendered != "" then
-          builtins.filter (n: (renderedInterfaceNames.${n} or null) == rendered) interfaceView.interfaceNames
-        else
-          [ ];
-      own = r.interface or null;
-    in
-    if hits != [ ] then
-      builtins.head hits
-    else if builtins.isString own && own != "" then
-      own
-    else
-      "";
 
   policyRoutingFiltered =
     if !canonicalRoutingAuthoritative then
