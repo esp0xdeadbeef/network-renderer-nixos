@@ -162,6 +162,7 @@ let
 
   policyRouting = import ./container-networks/policy-routing.nix {
     inherit canonicalRoutingAuthoritative;
+    inherit canonicalModelRoutesByInterface;
     inherit
       lib
       containerModel
@@ -514,10 +515,53 @@ let
             _: only.tableId
           );
 
+      modelRoutesByInterface =
+        let
+          entries = builtins.concatMap (
+            r:
+            let
+              name = modelledNameFor r;
+              family = r.family or 4;
+            in
+            if name == null then
+              [ ]
+            else
+              [
+                {
+                  _ifName = name;
+                  route = {
+                    dst = r.dst;
+                    metric = r.metric or null;
+                  }
+                  // lib.optionalAttrs (family == 4 && builtins.isString (r.gateway or null)) {
+                    via4 = r.gateway;
+                  }
+                  // lib.optionalAttrs (family == 6 && builtins.isString (r.gateway or null)) {
+                    via6 = r.gateway;
+                  }
+                  //
+                    lib.optionalAttrs
+                      (family == 4 && !(builtins.isString (r.gateway or null)) && builtins.isString (r.via4 or null))
+                      {
+                        via4 = r.via4;
+                      }
+                  //
+                    lib.optionalAttrs
+                      (family == 6 && !(builtins.isString (r.gateway or null)) && builtins.isString (r.via6 or null))
+                      {
+                        via6 = r.via6;
+                      };
+                }
+              ]
+          ) mine;
+        in
+        lib.mapAttrs (_: es: builtins.map (e: e.route) es) (lib.groupBy (e: e._ifName) entries);
+
       inherit laneLaneTableByInterface;
     };
 
   canonicalPolicyRoutesByInterface = canonicalRouteProjection.byInterface;
+  canonicalModelRoutesByInterface = canonicalRouteProjection.modelRoutesByInterface;
   inherit (canonicalRouteProjection) tenantLaneTableByInterface;
 
   canonicalTenantLaneTableByInterface =
