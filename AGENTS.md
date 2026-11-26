@@ -43,7 +43,7 @@ NETWORK_REPO_DIRECT_TEST_OK=1 ./run-all-tests.sh
 ### Fixing rules
 
 **The GAMP says a layout the bundle cannot express is a MODEL limitation, not a
-renderer repair.** `FS-260-HDS-010-SDS-010` (network-codex-agent/GAMP/SDS):
+renderer repair.** `FS-260-HDS-010-SDS-010`:
 "A selector layout that expands one logical role into untraceable host-facing
 interface fanout, or a renderer layout that discards role identity shall **fail as
 a model or target limitation instead of being repaired by scripts**", and
