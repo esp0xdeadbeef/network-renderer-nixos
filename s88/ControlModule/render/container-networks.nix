@@ -568,22 +568,42 @@ let
     let
       routeKey =
         route: "${toString (route.Table or 0)}|${route.Destination or ""}|${toString (route.Metric or 0)}";
-      claimed = route: builtins.isInt (route.Table or null);
+
+      isTable =
+        value: builtins.isInt value || (builtins.isString value && builtins.match "[0-9]+" value != null);
+      claimed = route: isTable (route.Table or null);
       step =
         acc: name:
         let
           unit = allNetworks.${name};
-          networkConfig = (unit.networkConfig or { });
-          routes = networkConfig.routes or [ ];
-          keep = lib.filter (route: !(claimed route) || !(builtins.elem (routeKey route) acc.seen)) routes;
+
+          routes = unit.routes or [ ];
+          ownUnique =
+            builtins.foldl'
+              (
+                state: route:
+                if builtins.elem (routeKey route) state.seen then
+                  state
+                else
+                  {
+                    seen = state.seen ++ [ (routeKey route) ];
+                    routes = state.routes ++ [ route ];
+                  }
+              )
+              {
+                seen = [ ];
+                routes = [ ];
+              }
+              routes;
+          keep = lib.filter (
+            route: !(claimed route) || !(builtins.elem (routeKey route) acc.seen)
+          ) ownUnique.routes;
         in
         {
           seen = acc.seen ++ map routeKey (builtins.filter claimed keep);
           units = acc.units // {
             ${name} = unit // {
-              networkConfig = networkConfig // {
-                routes = keep;
-              };
+              routes = keep;
             };
           };
         };
