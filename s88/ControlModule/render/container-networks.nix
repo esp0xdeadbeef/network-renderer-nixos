@@ -558,13 +558,44 @@ let
     in
     lib.unique (builtins.concatMap (s: collect (s.facts.domains or { })) sites);
 
+  allNetworks =
+    loopback.loopbackUnit
+    // hostBridgeWan.networks
+    // (pppoeVlanBridge.networks or { })
+    // interfaceUnits.interfaceUnits;
+
+  interfaceUnitsWithUniquePolicyRoutes =
+    let
+      routeKey =
+        route: "${toString (route.Table or 0)}|${route.Destination or ""}|${toString (route.Metric or 0)}";
+      claimed = route: builtins.isInt (route.Table or null);
+      step =
+        acc: name:
+        let
+          unit = allNetworks.${name};
+          networkConfig = (unit.networkConfig or { });
+          routes = networkConfig.routes or [ ];
+          keep = lib.filter (route: !(claimed route) || !(builtins.elem (routeKey route) acc.seen)) routes;
+        in
+        {
+          seen = acc.seen ++ map routeKey (builtins.filter claimed keep);
+          units = acc.units // {
+            ${name} = unit // {
+              networkConfig = networkConfig // {
+                routes = keep;
+              };
+            };
+          };
+        };
+    in
+    (builtins.foldl' step {
+      seen = [ ];
+      units = { };
+    } (lib.sort (a: b: a < b) (builtins.attrNames allNetworks))).units;
+
   output = {
     netdevs = pppoeVlanBridge.netdevs or { };
-    networks =
-      loopback.loopbackUnit
-      // hostBridgeWan.networks
-      // (pppoeVlanBridge.networks or { })
-      // interfaceUnits.interfaceUnits;
+    networks = interfaceUnitsWithUniquePolicyRoutes;
     coreLaneInterfaces =
       if classes.isUpstreamSelector then
         lib.filter (
