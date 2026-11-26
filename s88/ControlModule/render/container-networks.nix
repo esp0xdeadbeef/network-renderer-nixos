@@ -520,8 +520,39 @@ let
   canonicalPolicyRoutesByInterface = canonicalRouteProjection.byInterface;
   inherit (canonicalRouteProjection) tenantLaneTableByInterface;
 
+  canonicalEgressTableByInterface =
+    let
+      mine =
+        if selfRuntimeTarget == null then
+          [ ]
+        else
+          builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
+      defaults = builtins.filter (
+        r: (r.dst or null) == "0.0.0.0/0" && builtins.isInt (r.tableId or null)
+      ) mine;
+      nameFor =
+        r:
+        let
+          rendered = r.runtimeIfName or null;
+          hits =
+            if builtins.isString rendered && rendered != "" then
+              builtins.filter (n: (renderedInterfaceNames.${n} or null) == rendered) interfaceView.interfaceNames
+            else
+              [ ];
+        in
+        if hits != [ ] then builtins.head hits else (r.interface or null);
+      entries = builtins.filter (e: e.name != null && builtins.hasAttr e.name interfaces) (
+        map (r: {
+          name = nameFor r;
+          value = r.tableId;
+        }) defaults
+      );
+    in
+    builtins.listToAttrs entries;
+
   canonicalTenantLaneTableByInterface =
-    canonicalRouteProjection.singleExitTableByInterface
+    canonicalEgressTableByInterface
+    // canonicalRouteProjection.singleExitTableByInterface
     // canonicalRouteProjection.relationIngressTableByInterface
     // canonicalRouteProjection.laneLaneTableByInterface
     // canonicalRouteProjection.tenantLaneTableByInterface;
