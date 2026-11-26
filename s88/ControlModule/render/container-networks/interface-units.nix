@@ -2,7 +2,6 @@
   lib,
   containerModel,
   canonicalPolicyRoutesByInterface ? { },
-  canonicalExitTables ? [ ],
   canonicalTenantLaneTableByInterface ? { },
   modelledTenantPrefixes ? [ ],
 
@@ -448,21 +447,6 @@ let
               );
               routingPolicyRules =
                 (policyRoutingByInterface.rules.${ifName} or [ ])
-
-                ++
-                  lib.optional
-                    (
-                      canonicalTenantLaneTable != null
-                      && builtins.length canonicalExitTables == 1
-                      && builtins.any (route: (route.Destination or "") == "0.0.0.0/0") (
-                        canonicalPolicyRoutesByInterface.${ifName} or [ ]
-                      )
-                    )
-                    {
-                      Family = "both";
-                      Priority = 900;
-                      Table = canonicalTenantLaneTable;
-                    }
                 ++ lib.optional (canonicalTenantLaneTable != null) {
                   Family = "both";
                   IncomingInterface = interfaceName;

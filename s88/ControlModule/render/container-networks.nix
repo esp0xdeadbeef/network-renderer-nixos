@@ -238,7 +238,6 @@ let
       ;
     inherit (interfaceView) interfaceNames renderedInterfaceNames;
     inherit canonicalPolicyRoutesByInterface modelledTenantPrefixes;
-    inherit canonicalExitTables;
     inherit canonicalTenantLaneTableByInterface;
     inherit relationEgressInterfaces;
     skipInterfaceNames = builtins.attrNames (pppoeVlanBridge.bridgeInterfaces or { });
@@ -519,20 +518,6 @@ let
     };
 
   canonicalPolicyRoutesByInterface = canonicalRouteProjection.byInterface;
-
-  canonicalExitTables =
-    let
-      mine =
-        if selfRuntimeTarget == null then
-          [ ]
-        else
-          builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
-    in
-    lib.unique (
-      map (r: r.tableId) (
-        builtins.filter (r: (r.dst or null) == "0.0.0.0/0" && builtins.isInt (r.tableId or null)) mine
-      )
-    );
   inherit (canonicalRouteProjection) tenantLaneTableByInterface;
 
   canonicalTenantLaneTableByInterface =
