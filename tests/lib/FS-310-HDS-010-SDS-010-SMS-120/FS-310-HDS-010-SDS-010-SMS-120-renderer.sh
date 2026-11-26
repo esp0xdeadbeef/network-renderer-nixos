@@ -47,6 +47,16 @@ PERMITTED_PATTERNS=(
   # --- Secret-key redaction in provenance (platform integrity, not policy) ---
   '".*${needle}.*"'
 
+  # --- Numeric-string table id validation (routing, container-networks) ---
+  #
+  # systemd's `Table=` accepts an int or a numeric string, and the dedupe in
+  # container-networks has to recognise both spellings before it can decide whether two
+  # rendered routes are the same primitive. This match classifies a VALUE FORMAT, not a
+  # network identity: it never looks at an interface, role, lane or surface name, which is
+  # the class SMS-120 forbids. Measured 2026-11-27: the only hit in the whole renderer was
+  # this one, and the seeded negatives still fire (5/5).
+  '"[0-9]+"'
+
   # --- MAC address format validation (vm-nics) ---
   '"[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]"'
 )
