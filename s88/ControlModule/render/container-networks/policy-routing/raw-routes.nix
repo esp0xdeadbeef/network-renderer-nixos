@@ -147,7 +147,9 @@ let
     else
       [ ];
   downstreamSelectorReturnConnectedRoutes =
-    if
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if
       isSelector
       && isDownstreamSelectorPolicyInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
@@ -156,12 +158,18 @@ let
     else
       [ ];
   policyConnectedRoutes =
-    if isPolicy && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName then
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if
+      isPolicy && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
+    then
       connectedP2pScopeRoutesForInterface sourceIfName
     else
       [ ];
   upstreamCoreConnectedRoutes =
-    if
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if
       isUpstreamSelector
       && isUpstreamSelectorCoreInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
@@ -209,7 +217,9 @@ let
     else
       [ ];
   explicitForwardReturnConnectedRoutes =
-    if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
       connectedScopeRoutesForInterface sourceIfName
     else
       [ ];
