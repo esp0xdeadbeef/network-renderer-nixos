@@ -23,6 +23,7 @@
   mkDynamicWanDhcpV4Config,
   mkDynamicWanIpv6AcceptRAConfig,
   needsIpv6AcceptRA,
+  isDynamicallyAddressed,
   common,
   skipInterfaceNames ? [ ],
 }:
@@ -251,7 +252,7 @@ let
           canonicalTenantLaneTable = canonicalTenantLaneTableByInterface.${ifName} or null;
           dropDerivedDefault = route: canonicalTenantLaneTable != null && isDefaultRoute route;
 
-          dhcpOwnsDefault = (mkDynamicWanNetworkConfig iface).DHCP or "no" != "no" || needsIpv6AcceptRA iface;
+          dhcpOwnsDefault = isDynamicallyAddressed iface;
           dropGatewaylessDefault =
             route:
             dhcpOwnsDefault

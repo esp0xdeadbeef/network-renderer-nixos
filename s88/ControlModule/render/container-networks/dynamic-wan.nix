@@ -187,4 +187,37 @@ in
       { };
 
   needsIpv6AcceptRA = ipv6AcceptRAFor;
+
+  isDynamicallyAddressed =
+    iface:
+    let
+      pppoeOwned = (iface._s88PppoeOwned or false) == true;
+      addresses = iface.addresses or [ ];
+      assignedUplink = assignedUplinkFor iface;
+      contracts = dynamicContractsFor iface;
+      ipv4Contract =
+        if contracts.explicit then contracts.ipv4 else attrsOrEmpty (assignedUplink.ipv4 or null);
+      ipv6Contract =
+        if contracts.explicit then contracts.ipv6 else attrsOrEmpty (assignedUplink.ipv6 or null);
+      ipv4Enabled = ipv4Contract ? enable && (ipv4Contract.enable or false);
+      ipv6Enabled = ipv6Contract ? enable && (ipv6Contract.enable or false);
+    in
+    !pppoeOwned
+    && (
+      (
+        ipv4Enabled
+        && !(lib.any hasIpv4Address addresses)
+        && ((ipv4Contract.dhcp or false) || (ipv4Contract.method or null) == "dhcp")
+      )
+      || (
+        ipv6Enabled
+        && !(lib.any hasIpv6Address addresses)
+        && (
+          (ipv6Contract.dhcp or false)
+          || (ipv6Contract.method or null) == "dhcp"
+          || (ipv6Contract.acceptRA or false)
+          || (ipv6Contract.method or null) == "slaac"
+        )
+      )
+    );
 }

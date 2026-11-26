@@ -247,6 +247,7 @@ let
       delegatedPrefixSourceForRoute
       ;
     inherit (dynamicWan)
+      isDynamicallyAddressed
       mkDynamicWanNetworkConfig
       mkDynamicWanDhcpV4Config
       mkDynamicWanIpv6AcceptRAConfig
