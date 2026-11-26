@@ -251,13 +251,11 @@ let
           canonicalTenantLaneTable = canonicalTenantLaneTableByInterface.${ifName} or null;
           dropDerivedDefault = route: canonicalTenantLaneTable != null && isDefaultRoute route;
 
+          dhcpOwnsDefault = (mkDynamicWanNetworkConfig iface).DHCP or "no" != "no" || needsIpv6AcceptRA iface;
           dropGatewaylessDefault =
             route:
-            (route.Gateway or null) == null
-            && (
-              builtins.isInt (mkDynamicWanDhcpV4Config iface (route.Table or null)).RouteTable or null
-              || builtins.isInt (mkDynamicWanIpv6AcceptRAConfig iface (route.Table or null)).RouteTable or null
-            )
+            dhcpOwnsDefault
+            && (route.Gateway or null) == null
             && ((route.Destination or "") == "0.0.0.0/0" || (route.Destination or "") == "::/0");
           rawRoutes = (iface.routes or [ ]) ++ (advertisedOnlinkRoutesByInterface.${ifName} or [ ]);
           renderedInterfaceName = renderedInterfaceNames.${ifName};
