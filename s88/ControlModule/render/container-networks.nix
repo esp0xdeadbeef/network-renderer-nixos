@@ -566,8 +566,30 @@ let
 
   interfaceUnitsWithUniquePolicyRoutes =
     let
+
+      canonicalOwnerName =
+        dst: table:
+        lib.findFirst (name: name != null) null (
+          map (
+            modelKey:
+            let
+              routes = canonicalPolicyRoutesByInterface.${modelKey} or [ ];
+              matches = builtins.any (
+                route: (route.Destination or null) == dst && (route.Table or null) == table
+              ) routes;
+            in
+            if matches then renderedInterfaceNames.${modelKey} or null else null
+          ) (builtins.attrNames interfaces)
+        );
+
       routeKey =
-        route: "${toString (route.Table or 0)}|${route.Destination or ""}|${toString (route.Metric or 0)}";
+        route:
+        "${toString (route.Table or 0)}|${route.Destination or ""}|${toString (route.Metric or 0)}"
+        + "|${toString (route._s88PolicyOnly or false)}"
+        + "|${toString (route._s88IntentKind or "-")}"
+
+        + "|${toString (route.Gateway or "-")}"
+        + "|${toString (route.PreferredSource or "-")}";
 
       isTable =
         value: builtins.isInt value || (builtins.isString value && builtins.match "[0-9]+" value != null);
@@ -595,9 +617,8 @@ let
                 routes = [ ];
               }
               routes;
-          keep = lib.filter (
-            route: !(claimed route) || !(builtins.elem (routeKey route) acc.seen)
-          ) ownUnique.routes;
+
+          keep = ownUnique.routes;
         in
         {
           seen = acc.seen ++ map routeKey (builtins.filter claimed keep);
