@@ -250,6 +250,15 @@ let
 
           canonicalTenantLaneTable = canonicalTenantLaneTableByInterface.${ifName} or null;
           dropDerivedDefault = route: canonicalTenantLaneTable != null && isDefaultRoute route;
+
+          dhcpOwnsDefault =
+            builtins.isInt (mkDynamicWanDhcpV4Config iface null).RouteTable or null
+            || builtins.isInt (mkDynamicWanIpv6AcceptRAConfig iface null).RouteTable or null;
+          dropGatewaylessDefault =
+            route:
+            dhcpOwnsDefault
+            && (route.Gateway or null) == null
+            && ((route.Destination or "") == "0.0.0.0/0" || (route.Destination or "") == "::/0");
           rawRoutes = (iface.routes or [ ]) ++ (advertisedOnlinkRoutesByInterface.${ifName} or [ ]);
           renderedInterfaceName = renderedInterfaceNames.${ifName};
           keepStaticRoutesInMain =
@@ -432,7 +441,7 @@ let
                         (cls.coreTransit or false) || (cls.coreFacing or false) || (iface.owningRole or null) == "policy";
                     in
                     (keepStaticRoutesInMain || !(isMainTableDefaultRoute route))
-
+                    && !(dropGatewaylessDefault route)
                     && (isPolicyPoint || !(isForeignFabric31 dstHere))
                   ) renderedRoutes
                 )
