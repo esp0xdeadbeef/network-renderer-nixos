@@ -451,7 +451,7 @@ let
                   Family = "both";
                   IncomingInterface = interfaceName;
 
-                  Priority = canonicalTenantLaneTable + 20000;
+                  Priority = 100 + (canonicalTenantLaneTable - 1000);
                   Table = canonicalTenantLaneTable;
                 }
                 ++
@@ -459,7 +459,7 @@ let
                     (destination: {
                       Family = if lib.hasInfix ":" destination then "ipv6" else "ipv4";
                       From = destination;
-                      Priority = canonicalTenantLaneTable + 20000;
+                      Priority = 100 + (canonicalTenantLaneTable - 1000);
                       Table = canonicalTenantLaneTable;
                     })
                     (
