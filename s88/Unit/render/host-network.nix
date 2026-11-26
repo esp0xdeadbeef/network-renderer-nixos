@@ -56,6 +56,7 @@ let
   hostSystemd = trace.emit "host-network:${hostName}:systemd-host-network" (
     import ../../ControlModule/render/systemd-host-network.nix {
       inherit lib hostPlan;
+      inherit repoPath;
     }
   );
 

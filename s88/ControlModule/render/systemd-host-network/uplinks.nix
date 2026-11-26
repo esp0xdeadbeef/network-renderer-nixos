@@ -2,9 +2,12 @@
   lib,
   common,
   vlans,
+  repoPath ? null,
 }:
 
 let
+  trace =
+    if repoPath == null then { emit = _: value: value; } else import "${repoPath}/lib/trace.nix" { };
   inherit (common)
     uplinks
     transitBridges
@@ -192,7 +195,9 @@ in
           uplink ? ipv6
           && builtins.isAttrs uplink.ipv6
           && ((uplink.ipv6.acceptRA or false) || (uplink.ipv6.method or null) == "slaac");
-        isManagementUplink = (uplink.management or false) || (uplink.role or null) == "management";
+        isManagementUplink = trace.emit "classify:uplink:${uplinkName}:management" (
+          (uplink.management or false) || (uplink.role or null) == "management"
+        );
         hostIpv4Dhcp = isManagementUplink && ipv4Dhcp;
         hostIpv6Dhcp = isManagementUplink && ipv6Dhcp;
         hostIpv6AcceptRA = isManagementUplink && ipv6AcceptRA;

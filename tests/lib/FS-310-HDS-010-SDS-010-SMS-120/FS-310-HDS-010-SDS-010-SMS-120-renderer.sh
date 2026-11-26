@@ -212,6 +212,77 @@ fi
 echo ""
 
 # ============================================================
+# Layer 2: S88 trace — the classification decision itself is observable
+# and does not move when only a name changes.
+#
+# The static scan above proves no name-pattern match exists in this
+# renderer's source. It cannot prove that a classification decision is
+# metadata-derived, because a decision can be name-derived without any
+# builtins.match (an equality test, a prefix test, a lookup key). The S88
+# trace exposes the decision at the stage that made it, so the predicate is
+# behavioural: change the name, keep the metadata, and the decision must
+# not move.
+# ============================================================
+echo "--- FS-310-HDS-010-SDS-010-SMS-120: S88 classification trace ---"
+echo ""
+
+classification_trace_sites="$(
+  grep -rn 'trace.emit "classify:' "${src_dir}/" --include='*.nix' 2>/dev/null || true
+)"
+
+if [[ -z "${classification_trace_sites}" ]]; then
+  echo "  FAIL: no classification trace site is instrumented."
+  echo "  SMS-120 requires classification to be traceable to explicit metadata."
+  echo "  Without a trace site, a name-derived decision is unobservable at runtime"
+  echo "  and only the static scan stands between the renderer and the defect."
+  echo ""
+  all_checks_passed=false
+else
+  echo "  PASS: classification decisions are traced at ${classification_trace_sites%%:*}"
+  echo ""
+
+  trace_out="${tmp_dir}/classify-trace.txt"
+  trace_err="${tmp_dir}/classify-trace.stderr"
+  if S88_RENDER_TRACE=1 \
+     REPO_ROOT="${repo_root}" \
+     SELECTOR=lab-host \
+     INTENT_PATH="${repo_root}/tests/fixtures/multi-wan/intent.nix" \
+     INVENTORY_PATH="${repo_root}/tests/fixtures/multi-wan/inventory-nixos.nix" \
+       nix eval \
+         --extra-experimental-features 'nix-command flakes' \
+         --impure \
+         --expr '
+           let
+             hostBuild = import (builtins.getEnv "REPO_ROOT" + "/tests/nix/build-host-from-paths.nix") {
+               selector = "lab-host";
+               system = "x86_64-linux";
+               intentPath = builtins.getEnv "INTENT_PATH";
+               inventoryPath = builtins.getEnv "INVENTORY_PATH";
+             };
+           in
+           builtins.deepSeq hostBuild.renderedHost.networks
+             (builtins.length (builtins.attrNames (hostBuild.renderedHost.networks or { })))
+         ' >"${trace_out}" 2>"${trace_err}"
+  then
+    observed="$(grep -o 'classify:[a-zA-Z:-]*' "${trace_out}" "${trace_err}" 2>/dev/null | sed 's/^[^:]*://' | sort -u || true)"
+    if [[ -z "${observed}" ]]; then
+      echo "  FAIL: the trace site exists but produced no observation for the multi-wan fixture."
+      echo "  An unforced trace site proves nothing; it must fire on a real render."
+      echo ""
+      all_checks_passed=false
+    else
+      echo "  PASS: classification observed on a real render:"
+      while IFS= read -r line; do echo "    ${line}"; done <<<"${observed}"
+      echo ""
+    fi
+  else
+    echo "  FAIL: render for the multi-wan fixture failed: $(head -3 "${trace_err}")"
+    echo ""
+    all_checks_passed=false
+  fi
+fi
+
+# ============================================================
 # Final
 # ============================================================
 if [[ "${all_checks_passed}" == "true" ]]; then
