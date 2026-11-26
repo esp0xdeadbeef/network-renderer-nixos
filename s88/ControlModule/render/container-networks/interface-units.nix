@@ -447,6 +447,20 @@ let
               );
               routingPolicyRules =
                 (policyRoutingByInterface.rules.${ifName} or [ ])
+
+                ++
+                  lib.optional
+                    (
+                      canonicalTenantLaneTable != null
+                      && builtins.any (route: (route.Destination or "") == "0.0.0.0/0") (
+                        canonicalPolicyRoutesByInterface.${ifName} or [ ]
+                      )
+                    )
+                    {
+                      Family = "both";
+                      Priority = 200 + (canonicalTenantLaneTable - 1000);
+                      Table = canonicalTenantLaneTable;
+                    }
                 ++ lib.optional (canonicalTenantLaneTable != null) {
                   Family = "both";
                   IncomingInterface = interfaceName;
