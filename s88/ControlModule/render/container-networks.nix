@@ -447,11 +447,23 @@ let
             canonicalForwarding.relations or [ ]
           );
 
-          runtimeToIfName = builtins.listToAttrs (
-            map (ifName: {
-              name = renderedInterfaceNames.${ifName} or "";
-              value = ifName;
-            }) (builtins.attrNames interfaces)
+          nameToIfName = builtins.listToAttrs (
+            builtins.concatMap (
+              ifName:
+              let
+                rendered = renderedInterfaceNames.${ifName} or null;
+              in
+              [
+                {
+                  name = ifName;
+                  value = ifName;
+                }
+              ]
+              ++ lib.optional (builtins.isString rendered && rendered != "") {
+                name = rendered;
+                value = ifName;
+              }
+            ) (builtins.attrNames interfaces)
           );
 
           tableForEgressRuntime =
@@ -459,7 +471,7 @@ let
             let
               egressIfName =
                 if builtins.isString runtimeInterface && runtimeInterface != "" then
-                  runtimeToIfName.${runtimeInterface} or null
+                  nameToIfName.${runtimeInterface} or null
                 else
                   null;
               hits = builtins.filter (
@@ -475,7 +487,7 @@ let
             map (rel: {
               name =
                 if builtins.isString (rel.fromInterface or null) && (rel.fromInterface or null) != "" then
-                  runtimeToIfName.${rel.fromInterface} or null
+                  nameToIfName.${rel.fromInterface} or null
                 else
                   null;
               value = tableForEgressRuntime (rel.egressRuntimeInterface or null);
