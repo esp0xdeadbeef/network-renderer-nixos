@@ -42,6 +42,22 @@ NETWORK_REPO_DIRECT_TEST_OK=1 ./run-all-tests.sh
 
 ### Fixing rules
 
+**The GAMP says a layout the bundle cannot express is a MODEL limitation, not a
+renderer repair.** `FS-260-HDS-010-SDS-010` (network-codex-agent/GAMP/SDS):
+"A selector layout that expands one logical role into untraceable host-facing
+interface fanout, or a renderer layout that discards role identity shall **fail as
+a model or target limitation instead of being repaired by scripts**", and
+"generated relation labels, comments, role adjacency, and runtime interface pairs
+may trace a realization but **shall not authorize forwarding**".
+
+In practice: do not derive a policy table, an ingress rule or a lane assignment in
+this repository from relation records, `backingRef.lane`, topology, or a name that
+happens to look right. If the canonical bundle does not let a route or rule be
+mapped, fail closed with a named diagnostic and fix the producer
+(`network-control-plane-model` / `network-realization-{model,schema}`), which is
+where the occurrence and the runtime device name belong. Every renderer patch in
+this area that "made the HAT work" by choosing a table has had to be reverted.
+
 1. Fix the root cause in the layer that owns the behaviour. A red job is a
    defect in this repository — never "pre-existing", "environmental", "a
    flake", or "not mine".
