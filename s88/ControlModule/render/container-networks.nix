@@ -457,7 +457,11 @@ let
           tableForEgressRuntime =
             runtimeInterface:
             let
-              egressIfName = runtimeToIfName.${runtimeInterface} or null;
+              egressIfName =
+                if builtins.isString runtimeInterface && runtimeInterface != "" then
+                  runtimeToIfName.${runtimeInterface} or null
+                else
+                  null;
               hits = builtins.filter (
                 x:
                 (egressIfName == null || modelledNameFor x == egressIfName)
@@ -469,7 +473,11 @@ let
 
           entries = builtins.filter (e: builtins.isString e.name && e.name != "" && e.value != null) (
             map (rel: {
-              name = runtimeToIfName.${rel.fromInterface or ""} or null;
+              name =
+                if builtins.isString (rel.fromInterface or null) && (rel.fromInterface or null) != "" then
+                  runtimeToIfName.${rel.fromInterface} or null
+                else
+                  null;
               value = tableForEgressRuntime (rel.egressRuntimeInterface or null);
             }) rels
           );
