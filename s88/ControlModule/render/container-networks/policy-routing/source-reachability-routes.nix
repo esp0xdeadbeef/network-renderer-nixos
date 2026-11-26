@@ -9,16 +9,26 @@ let
   stripPrefixLength =
     prefix: if builtins.isString prefix then lib.head (lib.splitString "/" prefix) else null;
 
-  isHostPrefix =
+  familyOf =
     source:
     let
       prefix = source.prefix or "";
     in
+    if lib.hasInfix ":" prefix then
+      6
+    else if lib.hasInfix "." prefix then
+      4
+    else
+      (source.family or null);
+
+  isHostPrefix =
+    source:
+    let
+      prefix = source.prefix or "";
+      family = familyOf source;
+    in
     builtins.isString prefix
-    && (
-      ((source.family or 4) == 4 && lib.hasSuffix "/32" prefix)
-      || ((source.family or 4) == 6 && lib.hasSuffix "/128" prefix)
-    );
+    && ((family == 4 && lib.hasSuffix "/32" prefix) || (family == 6 && lib.hasSuffix "/128" prefix));
 
   containerLocalFabricAddresses = lib.unique (
     builtins.filter (addr: builtins.isString addr && addr != "") (
@@ -59,7 +69,7 @@ in
     ifName: source:
     let
       iface = interfaces.${ifName};
-      family = source.family or 4;
+      family = familyOf source;
       gateway =
         if family == 6 then
           peers.ipv6PeerFor127 (peers.addressForFamily 6 iface)
