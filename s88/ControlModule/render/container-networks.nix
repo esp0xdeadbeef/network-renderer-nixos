@@ -448,70 +448,50 @@ let
             canonicalForwarding.relations or [ ]
           );
 
-          keyFor =
-            name:
-            lib.findFirst (k: k != null) null [
-              (if builtins.hasAttr name interfaces then name else null)
-              (
-                let
-                  hits = builtins.filter (k: (renderedInterfaceNames.${k} or null) == name) (
-                    builtins.attrNames interfaces
-                  );
-                in
-                if hits == [ ] then null else builtins.head hits
-              )
-              (
-                let
-                  hits = builtins.filter (
-                    k: ((interfaces.${k}.runtimeInterfaceAudit or { }).logicalInterfaceName or null) == name
-                  ) (builtins.attrNames interfaces);
-                in
-                if hits == [ ] then null else builtins.head hits
-              )
-            ];
+          nameToIfName = builtins.listToAttrs (
+            builtins.concatMap (
+              ifName:
+              let
+                rendered = renderedInterfaceNames.${ifName} or null;
+              in
+              [
+                {
+                  name = ifName;
+                  value = ifName;
+                }
+              ]
+              ++ lib.optional (builtins.isString rendered && rendered != "") {
+                name = rendered;
+                value = ifName;
+              }
+            ) (builtins.attrNames interfaces)
+          );
 
-          logicalOf =
-            rel: side:
+          tableForEgressRuntime =
+            runtimeInterface:
             let
-              facts = (rel.facts or { });
-              endpoint = facts.${side} or { };
-            in
-            if builtins.isString (endpoint.logicalInterface or null) then endpoint.logicalInterface else null;
-
-          resolve =
-            rel: side: runtimeName:
-            let
-              logical = logicalOf rel side;
-              fromLogical = if logical == null then null else keyFor logical;
-            in
-            if fromLogical != null then
-              fromLogical
-            else if builtins.isString runtimeName then
-              keyFor runtimeName
-            else
-              null;
-
-          tableForEgress =
-            rel:
-            let
-              egressKey = resolve rel "destination" (rel.egressRuntimeInterface or null);
-              hits =
-                if egressKey == null then
-                  [ ]
+              egressIfName =
+                if builtins.isString runtimeInterface && runtimeInterface != "" then
+                  nameToIfName.${runtimeInterface} or null
                 else
-                  builtins.filter (
-                    x:
-                    (modelledNameFor x == egressKey)
-                    && (x.dst or null) == "0.0.0.0/0"
-                    && builtins.isInt (x.tableId or null)
-                  ) mine;
+                  null;
+              hits = builtins.filter (
+                x:
+                (egressIfName == null || modelledNameFor x == egressIfName)
+                && (x.dst or null) == "0.0.0.0/0"
+                && builtins.isInt (x.tableId or null)
+              ) mine;
             in
-            if hits == [ ] then null else (builtins.head hits).tableId;
+            if hits == [ ] || egressIfName == null then null else (builtins.head hits).tableId;
 
-          entries = builtins.filter (e: e.name != null && e.value != null) (
+          entries = builtins.filter (e: builtins.isString e.name && e.name != "" && e.value != null) (
             map (rel: {
-              name = resolve rel "source" (rel.fromInterface or null);
-              value = tableForEgress rel;
+              name =
+                if builtins.isString (rel.fromInterface or null) && (rel.fromInterface or null) != "" then
+                  nameToIfName.${rel.fromInterface} or null
+                else
+                  null;
+              value = tableForEgressRuntime (rel.egressRuntimeInterface or null);
             }) rels
           );
         in
