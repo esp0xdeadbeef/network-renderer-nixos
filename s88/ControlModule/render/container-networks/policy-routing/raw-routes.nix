@@ -23,16 +23,8 @@
   isExternalValidationDelegatedPrefixRoute,
   selectedScopes ? [ ],
   canonicalRoutingAuthoritative ? false,
-  canonicalModelRoutesByInterface ? { },
 }:
 let
-
-  modelRoutesFor =
-    ifName:
-    if canonicalRoutingAuthoritative then
-      (canonicalModelRoutesByInterface.${ifName} or [ ])
-    else
-      (interfaces.${ifName}.routes or [ ]);
   inherit (routeHelpers)
     connectedP2pRoutesForInterface
     connectedP2pScopeRoutesForInterface
@@ -63,7 +55,7 @@ let
     else
       map (route: route.dst) (
         lib.filter (route: isServiceDnsReachabilityRoute route && builtins.isString (route.dst or null)) (
-          modelRoutesFor targetIfName
+          interfaces.${targetIfName}.routes or [ ]
         )
       );
   explicitNonDefaultRoutes = lib.filter (
@@ -73,7 +65,7 @@ let
     && !(isPolicyOnlyRoute route)
     && !(isServiceDnsReachabilityRoute route)
     && !(builtins.elem (route.dst or null) targetServiceDnsDestinations)
-  ) (modelRoutesFor sourceIfName);
+  ) (interfaces.${sourceIfName}.routes or [ ]);
   explicitAcceptedNonDefaultRoutes = lib.filter (
     route: hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
   ) explicitNonDefaultRoutes;
@@ -131,7 +123,7 @@ let
             )
             (
 
-              (modelRoutesFor sourceIfName) ++ (modelRoutesFor targetIfName)
+              (interfaces.${sourceIfName}.routes or [ ]) ++ (interfaces.${targetIfName}.routes or [ ])
             )
         )
     else
@@ -148,7 +140,7 @@ let
             builtins.isAttrs route
             && isDefaultRoute route
             && hasAcceptForwardingRuleForRoute interfaceName renderedInterfaceNames.${name} route
-          ) (modelRoutesFor name)
+          ) (interfaces.${name}.routes or [ ])
         else
           [ ]
       ) interfaceNames
@@ -235,7 +227,7 @@ let
     if
       isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName && sourceIfName == targetIfName
     then
-      (lib.filter builtins.isAttrs (modelRoutesFor sourceIfName))
+      (lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ]))
       ++ upstreamCoreReturnRoutes
       ++ upstreamCoreConnectedRoutes
     else if
@@ -243,14 +235,15 @@ let
       && isUpstreamSelectorPolicyInterface interfaceName
       && sourceIfName == targetIfName
     then
-      (lib.filter builtins.isAttrs (modelRoutesFor sourceIfName)) ++ upstreamPolicyCoreConnectedRoutes
+      (lib.filter builtins.isAttrs (interfaces.${sourceIfName}.routes or [ ]))
+      ++ upstreamPolicyCoreConnectedRoutes
     else if isUpstreamSelector && isUpstreamSelectorCoreInterface interfaceName then
       (returnRoutes.forUpstreamCore interfaceName sourceIfName)
       ++ explicitAcceptedNonDefaultRoutes
       ++ explicitForwardTargetDefaultRoutes
       ++ upstreamCoreConnectedRoutes
     else
-      (modelRoutesFor sourceIfName)
+      (interfaces.${sourceIfName}.routes or [ ])
       ++ (returnRoutes.forUpstreamCore interfaceName sourceIfName)
       ++ explicitForwardTargetDefaultRoutes
       ++ policyDownstreamDefaultRoutes
@@ -336,7 +329,7 @@ let
           && isDefaultRoute route
           && routeMatchesInterfaceLane interfaceName route
           && hasAcceptForwardingRuleForRoute renderedInterfaceNames.${sourceIfName} interfaceName route
-        ) (modelRoutesFor sourceIfName)
+        ) (interfaces.${sourceIfName}.routes or [ ])
       )
     else
       [ ];
@@ -364,7 +357,7 @@ let
       && isPolicyDownstreamInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
       && builtins.any (route: builtins.isAttrs route && isDefaultRoute route) (
-        modelRoutesFor sourceIfName
+        interfaces.${sourceIfName}.routes or [ ]
       )
     then
       acceptedOutputRoutes

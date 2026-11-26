@@ -5,7 +5,6 @@
   forwardingIntent ? null,
   firewallRuleset ? null,
   canonicalRoutingAuthoritative ? false,
-  canonicalModelRoutesByInterface ? { },
   interfaces,
   interfaceNames,
   renderedInterfaceNames,
@@ -129,7 +128,7 @@ let
       ;
   };
   rawRoutesForPolicyTable = import ./policy-routing/raw-routes.nix {
-    inherit canonicalRoutingAuthoritative canonicalModelRoutesByInterface;
+    inherit canonicalRoutingAuthoritative;
     inherit
       lib
       interfaces
