@@ -342,9 +342,28 @@ let
             else
               [ ];
           own = r.interface or null;
+
+          cpmNamesOf =
+            n:
+            let
+              audit = (interfaces.${n}.runtimeInterfaceAudit or { });
+              identity = (audit.cpmIdentity or { });
+            in
+            builtins.filter builtins.isString [
+              (identity.renderedIfName or null)
+              (identity.runtimeIfName or null)
+              (identity.ifName or null)
+            ];
+          cpmHits =
+            if builtins.isString rendered && rendered != "" then
+              builtins.filter (n: builtins.elem rendered (cpmNamesOf n)) interfaceView.interfaceNames
+            else
+              [ ];
         in
         if renderedHits != [ ] then
           builtins.head renderedHits
+        else if cpmHits != [ ] then
+          builtins.head cpmHits
         else if builtins.isString own && own != "" then
           own
         else
