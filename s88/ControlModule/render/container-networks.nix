@@ -613,13 +613,7 @@ let
     lib.unique (builtins.concatMap (s: collect (s.facts.domains or { })) sites);
 
   output = {
-    netdevs = lib.warn (
-      "HATDBG auth=${toString canonicalRoutingAuthoritative} keys=${builtins.concatStringsSep "," (builtins.attrNames interfaces)} rendered=${
-        builtins.concatStringsSep "," (
-          map (n: renderedInterfaceNames.${n} or "?") (builtins.attrNames interfaces)
-        )
-      }"
-    ) (pppoeVlanBridge.netdevs or { });
+    netdevs = pppoeVlanBridge.netdevs or { };
     networks =
       loopback.loopbackUnit
       // hostBridgeWan.networks
