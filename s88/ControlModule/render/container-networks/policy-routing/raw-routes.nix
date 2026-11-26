@@ -108,8 +108,11 @@ let
           route:
           route
           // lib.optionalAttrs (isDefaultRoute route) {
-            metric = route.metric or 50;
+
             _s88ForwardTargetDefault = true;
+          }
+          // lib.optionalAttrs (isDefaultRoute route && builtins.isInt (route.metric or null)) {
+            inherit (route) metric;
           }
         )
         (
