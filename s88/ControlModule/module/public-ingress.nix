@@ -78,6 +78,7 @@ let
   trBin = if pkgs != null then "${pkgs.coreutils}/bin/tr" else "tr";
   ipBin = if pkgs != null then "${pkgs.iproute2}/bin/ip" else "ip";
   containerForwardModules = containerForwards runtimeForwards;
+
   bridgeNetworkName = publicIngressFacts.bridgeNetworkName or "30-${bridgeInterface}";
   routeModule = hostRoutes { inherit bridgeNetworkName serviceIngresses; };
   serviceDportsFor =
