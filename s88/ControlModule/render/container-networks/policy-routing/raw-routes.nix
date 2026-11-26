@@ -129,7 +129,9 @@ let
     else
       [ ];
   policyDownstreamDefaultRoutes =
-    if isPolicy && isPolicyDownstreamInterface interfaceName then
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if isPolicy && isPolicyDownstreamInterface interfaceName then
       lib.concatMap (
         name:
         if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name} then
@@ -168,7 +170,9 @@ let
     else
       [ ];
   downstreamSelectorTenantReturnRoutes =
-    if
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if
       isSelector
       && isDownstreamSelectorPolicyInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
@@ -177,7 +181,9 @@ let
     else
       [ ];
   downstreamSelectorAccessTableTenantReturnRoutes =
-    if
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if
       isSelector
       && isDownstreamSelectorAccessInterface interfaceName
       && isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName}
@@ -191,7 +197,9 @@ let
     else
       [ ];
   policyUpstreamReturnRoutes =
-    if isPolicy && isPolicyUpstreamInterface interfaceName then
+    if canonicalRoutingAuthoritative then
+      [ ]
+    else if isPolicy && isPolicyUpstreamInterface interfaceName then
       returnRoutes.forTenantInterface sourceIfName
 
       ++ returnRoutes.forScopesViaInterface {
