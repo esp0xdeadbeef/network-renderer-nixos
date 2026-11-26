@@ -10,8 +10,8 @@ example_root="${repo_root}/tests/fixtures/s-router-overlay-dns-lane-policy"
 
 # FS-370: "every source prefix that may leave a site" binds to the exit that may
 # carry it, realized "as exactly one preferred-source default per address family
-# on the modeled deterministic route to the selected exit". FS-370-HDS-010-
-# SDS-010-SMS-120 is the NixOS renderer item for materializing those per-lane
+# on the modeled deterministic route to the selected exit".
+# FS-370-HDS-010-SDS-010-SMS-120 is the NixOS renderer item for materializing those per-lane
 # routes/rules; the control plane publishes the binding
 # (FS-370-HDS-010-SDS-010-SMS-050 `candidateEgress.backingRef.lane`), so the
 # renderer consumes it and never re-derives it (FS-171).
