@@ -457,14 +457,15 @@ let
           tableForEgressRuntime =
             runtimeInterface:
             let
+              egressIfName = runtimeToIfName.${runtimeInterface} or null;
               hits = builtins.filter (
                 x:
-                (x.runtimeIfName or null) == runtimeInterface
+                (egressIfName == null || modelledNameFor x == egressIfName)
                 && (x.dst or null) == "0.0.0.0/0"
                 && builtins.isInt (x.tableId or null)
               ) mine;
             in
-            if hits == [ ] then null else (builtins.head hits).tableId;
+            if hits == [ ] || egressIfName == null then null else (builtins.head hits).tableId;
 
           entries = builtins.filter (e: builtins.isString e.name && e.name != "" && e.value != null) (
             map (rel: {
