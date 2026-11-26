@@ -157,45 +157,10 @@ let
           [ ]
         else
           builtins.filter (r: (r.target or null) == selfRuntimeTarget) canonicalRoutes;
-
-      ownNames = lib.unique (
-        builtins.attrNames interfaces
-        ++ map (n: renderedInterfaceNames.${n} or n) (builtins.attrNames interfaces)
-      );
-      coversAnOwnInterface = builtins.any (
-        r: builtins.elem (r.interface or "") ownNames || builtins.elem (r.runtimeIfName or "") ownNames
-      ) canonicalRoutes;
     in
-    mine != [ ] || coversAnOwnInterface;
+    mine != [ ];
 
-  policyRoutingFiltered =
-    if !canonicalRoutingAuthoritative then
-      policyRoutingRaw
-    else
-      policyRoutingRaw
-      // {
-        routes = lib.mapAttrs (
-          ifName: routes:
-          lib.filter (
-            route:
-            let
-              dst = route.dst or route.Destination or null;
-            in
-            !(
-              builtins.isString dst
-              && builtins.any (
-                otherIf:
-                otherIf != ifName
-                && builtins.any (canonicalRoute: (canonicalRoute.dst or null) == dst) (
-                  canonicalModelRoutesByInterface.${otherIf} or [ ]
-                )
-              ) (builtins.attrNames canonicalModelRoutesByInterface)
-            )
-          ) routes
-        ) (policyRoutingRaw.routes or { });
-      };
-
-  policyRoutingRaw = import ./container-networks/policy-routing.nix {
+  policyRouting = import ./container-networks/policy-routing.nix {
     inherit canonicalRoutingAuthoritative;
     inherit
       lib
@@ -244,7 +209,7 @@ let
       firewallRuleset
       ;
     nodeName = containerModel.unitName or containerModel.containerName or "unknown";
-    policyRoutingByInterface = policyRoutingFiltered.policyRoutingByInterface;
+    policyRoutingByInterface = policyRouting.policyRoutingByInterface;
     isExpectedPolicyInterface = classes.isDownstreamSelectorPolicyInterface;
     isExpectedAccessInterface = classes.isDownstreamSelectorAccessInterface;
   };
@@ -289,7 +254,7 @@ let
       needsIpv6AcceptRA
       ;
     inherit (advertisements) advertisedOnlinkRoutesByInterface;
-    inherit (policyRoutingFiltered) policyRoutingByInterface modeledScopedDestinationsByLane;
+    inherit (policyRouting) policyRoutingByInterface modeledScopedDestinationsByLane;
     inherit (classes) keepInterfaceRoutesInMain isUpstreamSelectorCoreInterface isAccessGateway;
   };
 
@@ -614,9 +579,7 @@ let
     ecmpMembers =
       let
         allRoutes = lib.concatLists (
-          lib.mapAttrsToList (_: routes: listOrEmpty routes) (
-            policyRoutingFiltered.rawRoutesByInterface or { }
-          )
+          lib.mapAttrsToList (_: routes: listOrEmpty routes) (policyRouting.rawRoutesByInterface or { })
         );
         multipathRoutes = lib.filter (
           route:
@@ -715,7 +678,7 @@ let
     inherit dynamicSourceForwardRules;
     inherit dynamicDestinationForwardRules;
     inherit firewallTableName;
-    dynamicPolicySourceRules = policyRoutingFiltered.policyRoutingByInterface.dynamicSourceRules or [ ];
+    dynamicPolicySourceRules = policyRouting.policyRoutingByInterface.dynamicSourceRules or [ ];
   };
 in
 builtins.seq fs370MaterializationValidation output

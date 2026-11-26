@@ -129,9 +129,7 @@ let
     else
       [ ];
   policyDownstreamDefaultRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if isPolicy && isPolicyDownstreamInterface interfaceName then
+    if isPolicy && isPolicyDownstreamInterface interfaceName then
       lib.concatMap (
         name:
         if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${name} then
@@ -147,9 +145,7 @@ let
     else
       [ ];
   downstreamSelectorReturnConnectedRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if
+    if
       isSelector
       && isDownstreamSelectorPolicyInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
@@ -158,18 +154,12 @@ let
     else
       [ ];
   policyConnectedRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if
-      isPolicy && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
-    then
+    if isPolicy && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName then
       connectedP2pScopeRoutesForInterface sourceIfName
     else
       [ ];
   upstreamCoreConnectedRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if
+    if
       isUpstreamSelector
       && isUpstreamSelectorCoreInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
@@ -178,9 +168,7 @@ let
     else
       [ ];
   downstreamSelectorTenantReturnRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if
+    if
       isSelector
       && isDownstreamSelectorPolicyInterface interfaceName
       && hasAcceptForwardingRule renderedInterfaceNames.${sourceIfName} interfaceName
@@ -189,9 +177,7 @@ let
     else
       [ ];
   downstreamSelectorAccessTableTenantReturnRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if
+    if
       isSelector
       && isDownstreamSelectorAccessInterface interfaceName
       && isDownstreamSelectorPolicyInterface renderedInterfaceNames.${sourceIfName}
@@ -205,9 +191,7 @@ let
     else
       [ ];
   policyUpstreamReturnRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if isPolicy && isPolicyUpstreamInterface interfaceName then
+    if isPolicy && isPolicyUpstreamInterface interfaceName then
       returnRoutes.forTenantInterface sourceIfName
 
       ++ returnRoutes.forScopesViaInterface {
@@ -217,9 +201,7 @@ let
     else
       [ ];
   explicitForwardReturnConnectedRoutes =
-    if canonicalRoutingAuthoritative then
-      [ ]
-    else if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
+    if hasAcceptForwardingRule interfaceName renderedInterfaceNames.${sourceIfName} then
       connectedScopeRoutesForInterface sourceIfName
     else
       [ ];
