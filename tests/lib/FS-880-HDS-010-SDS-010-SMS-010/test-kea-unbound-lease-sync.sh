@@ -153,8 +153,8 @@ grep -F 'fqdn="$hostname.$NAMESPACE"' "${repo_root}/s88/ControlModule/access/ren
 # until built, so the binaries below would not exist. Build them instead.
 # `nix build --print-out-paths` can emit several outputs (e.g. unbound and
 # its -man output), so select the one that actually carries the binary.
-kea_out="$(nix build --no-link --print-out-paths nixpkgs#kea | while read -r p; do [ -x "$p/bin/kea-dhcp4" ] && { echo "$p"; break; }; done)"
-unbound_out="$(nix build --no-link --print-out-paths nixpkgs#unbound | while read -r p; do [ -x "$p/bin/unbound-control" ] && { echo "$p"; break; }; done)"
+kea_out="$(nix build --inputs-from "${repo_root}" --no-link --print-out-paths nixpkgs#kea | while read -r p; do [ -x "$p/bin/kea-dhcp4" ] && { echo "$p"; break; }; done)"
+unbound_out="$(nix build --inputs-from "${repo_root}" --no-link --print-out-paths nixpkgs#unbound | while read -r p; do [ -x "$p/bin/unbound-control" ] && { echo "$p"; break; }; done)"
 unbound_control="${unbound_out}/bin/unbound-control"
 
 [[ -x "$unbound_control" ]] || fail "FAIL kea-unbound-lease-sync: missing unbound-control ${unbound_control}"
