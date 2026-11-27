@@ -55,9 +55,13 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
         translationMode = "none";
       };
     };
+    # `model-contract-diagnostics.nix` reads `controlPlane.model` -- the shape the module
+    # declares, and deliberately not the producer envelope (RR_RAW_CPM_INPUT). The fixture
+    # handed it `control_plane_model`, which the module never read, so it diagnosed zero sites
+    # and the warning assertions could only ever fail.
     mkControlPlane = complete: {
       deploymentHosts.test-host = { };
-      control_plane_model.data.enterprise.site = {
+      model.data.enterprise.site = {
         communicationContract.trafficTypes = [{
           name = "service";
           match = [{ proto = "udp"; family = "any"; }];
