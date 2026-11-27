@@ -7,11 +7,27 @@ let
   cpmPath = builtins.getEnv "CPM_PATH";
   cpm = if cpmPath == "" then { } else builtins.fromJSON (builtins.readFile cpmPath);
 
+  artifact = {
+    kind = "network-control-plane-artifact";
+    artifactIdentity = "policy-forward-default-paths";
+    artifactDigest = builtins.hashString "sha256" (builtins.toJSON cpm.control_plane_model);
+    inherit (cpm) control_plane_model;
+  };
+  bundle = flake.inputs.network-realization-model.lib.realize {
+    input = artifact;
+    requestScope = {
+      kind = "complete-artifact";
+      identity = "policy-forward-default-paths";
+    };
+    rootLockIdentity = "policy-forward-default-paths";
+    producerRevision = "policy-forward-default-paths";
+  };
   containers = flake.lib.containers.buildForBox {
     inherit boxName system;
     intentPath = builtins.getEnv "INTENT_PATH";
     inventoryPath = builtins.getEnv "INVENTORY_PATH";
     inherit cpm;
+    canonicalCollections = bundle.canonical or { };
   };
 
   isDefault =
