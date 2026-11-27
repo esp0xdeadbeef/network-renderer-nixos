@@ -16,9 +16,12 @@ let
       canonicalSites.byEnterprise
     else
       null;
+
   controlPlaneModel =
     if cpm ? model && builtins.isAttrs cpm.model then
       cpm.model
+    else if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
+      cpm.control_plane_model
     else if builtins.isAttrs cpm then
       cpm
     else
