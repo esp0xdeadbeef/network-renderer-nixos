@@ -58,8 +58,7 @@ outA="$(run_emitter '
     };
   in
     { names = map (n: r.netdevs.${n}.netdevConfig.Name or null) (builtins.attrNames r.netdevs); }
-' 2>&1)" || fail "P1 the emitter could not be evaluated
-${outA}"
+')" || fail "P1 the emitter could not be evaluated"
 
 bridgesA="$(jq -r '[.names[] | select(. != null) | select(test("^br-"))] | sort | join(",")' <<<"${outA}")"
 [[ "${bridgesA}" == "br-wan-a,br-wan-b" ]] \
@@ -84,8 +83,7 @@ outB="$(run_emitter '
     };
   in
     { names = map (n: r.netdevs.${n}.netdevConfig.Name or null) (builtins.attrNames r.netdevs); }
-' 2>&1)" || fail "P1 the emitter could not be evaluated for the shared-bridge fixture
-${outB}"
+')" || fail "P1 the emitter could not be evaluated for the shared-bridge fixture"
 
 sameCount="$(jq -r '[.names[] | select(. == "br-wan-same")] | length' <<<"${outB}")"
 [[ "${sameCount}" == "1" ]] \
@@ -104,8 +102,7 @@ outC="$(run_emitter '
     };
   in
     { count = builtins.length (builtins.attrNames r.netdevs); }
-' 2>&1)" || fail "P1 the emitter could not be evaluated for the non-PPPoE fixture
-${outC}"
+')" || fail "P1 the emitter could not be evaluated for the non-PPPoE fixture"
 
 netdevCount="$(jq -r '.count' <<<"${outC}")"
 [[ "${netdevCount}" == "0" ]] \
