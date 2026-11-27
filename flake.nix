@@ -5,6 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     nixos-network-compiler.url = "github:esp0xdeadbeef/nixos-network-compiler";
+    nixos-network-compiler.inputs.nixpkgs.follows = "nixpkgs";
     nixos-network-compiler.inputs.network-labs.follows = "network-labs";
 
     network-control-plane-model.url = "github:esp0xdeadbeef/network-control-plane-model";
@@ -27,6 +28,7 @@
     network-realization-model.inputs.nixpkgs.follows = "nixpkgs";
 
     network-labs.url = "github:esp0xdeadbeef/network-labs";
+    network-labs.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
