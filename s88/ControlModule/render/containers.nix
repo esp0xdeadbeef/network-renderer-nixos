@@ -48,7 +48,6 @@ let
   );
 in
 
-if builtins.isAttrs rendered && rendered == { } then
-  rendered
-else
-  builtins.seq _canonicalCollectionsPresent rendered
+builtins.seq _canonicalCollectionsPresent (
+  if builtins.isAttrs rendered && rendered == { } then rendered else rendered
+)
