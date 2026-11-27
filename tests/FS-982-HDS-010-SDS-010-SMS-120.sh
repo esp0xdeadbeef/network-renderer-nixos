@@ -10,9 +10,14 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
     repoRoot = builtins.getEnv "REPO_ROOT";
     flake = builtins.getFlake ("path:" + repoRoot);
     lib = flake.inputs.nixpkgs.lib;
-    render = cpm: hostName: renderedNetworks:
+    # CANONICAL INPUT ONLY (RR_RAW_CPM_INPUT, FS-310-HDS-040-SDS-010-SMS-100): the module
+    # maps the validated bundle '"'"'s `canonicalSites`, never the producer model. The fixture
+    # therefore builds the site tree it wants and hands it over as canonical content.
+    render = data: hostName: renderedNetworks:
       import (repoRoot + "/s88/ControlModule/render/host-management.nix") {
-        inherit lib cpm hostName renderedNetworks;
+        inherit lib hostName renderedNetworks;
+        cpm = { };
+        canonicalCollections = { canonicalSites = { byEnterprise = data; }; };
       };
     runtimeTarget = deploymentHost: logicalInterface: linkName: {
       kind = "host-management-runtime-target";
@@ -29,7 +34,7 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
         defaultRoute = false;
       };
     };
-    completeCpm.control_plane_model.data.fixture.fixture-site.hostManagement = {
+    completeSite.hostManagement = {
       validated = true;
       diagnostics = [ ];
       requirement = {
@@ -40,18 +45,17 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
       };
       runtimeTarget = runtimeTarget "fixture-host" "logical-management-a" "fixture-platform-link";
     };
-    complete = render completeCpm "fixture-host" {
+    complete = render { fixture = { fixture-site = completeSite; }; } "fixture-host" {
       "30-fixture-platform-link" = {
         matchConfig.Name = "fixture-platform-link";
         networkConfig.DHCP = "no";
       };
     };
-    renamedCpm.control_plane_model.data.fixture.fixture-site.hostManagement =
-      completeCpm.control_plane_model.data.fixture.fixture-site.hostManagement // {
-        runtimeTarget = runtimeTarget "renamed-host" "renamed-logical-surface" "renamed-platform-link";
-      };
-    renamed = render renamedCpm "renamed-host" { };
-    missingCpm.control_plane_model.data.fixture.fixture-site.hostManagement = {
+    renamedSite.hostManagement = completeSite.hostManagement // {
+      runtimeTarget = runtimeTarget "renamed-host" "renamed-logical-surface" "renamed-platform-link";
+    };
+    renamed = render { fixture = { fixture-site = renamedSite; }; } "renamed-host" { };
+    missingSite.hostManagement = {
       validated = false;
       runtimeTarget = null;
       requirement.required = true;
@@ -63,8 +67,8 @@ REPO_ROOT="${repo_root}" nix eval --impure --raw --expr '
         message = "Required host management has no explicit deployment-host binding";
       } ];
     };
-    missing = render missingCpm "fixture-host" { };
-    duplicate = render completeCpm "fixture-host" {
+    missing = render { fixture = { fixture-site = missingSite; }; } "fixture-host" { };
+    duplicate = render { fixture = { fixture-site = completeSite; }; } "fixture-host" {
       first.matchConfig.Name = "fixture-platform-link";
       second.matchConfig.Name = "fixture-platform-link";
     };

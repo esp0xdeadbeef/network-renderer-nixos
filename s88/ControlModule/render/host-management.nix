@@ -17,22 +17,7 @@ let
     else
       null;
 
-  controlPlaneModel =
-    if cpm ? model && builtins.isAttrs cpm.model then
-      cpm.model
-    else if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
-      cpm.control_plane_model
-    else if builtins.isAttrs cpm then
-      cpm
-    else
-      { };
-  data =
-    if fromCanonical != null then
-      fromCanonical
-    else if builtins.isAttrs (controlPlaneModel.data or null) then
-      controlPlaneModel.data
-    else
-      { };
+  data = if fromCanonical != null then fromCanonical else { };
   siteEntries = lib.concatMap (
     enterpriseName:
     let
