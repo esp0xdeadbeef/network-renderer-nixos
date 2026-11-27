@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-170-HDS-010-SDS-010
+# GAMP-ID: FS-170-HDS-010-SDS-010-SMS-020
+#
+# Modeled deny preservation: the renderer may not emit a broad drop that the CPM did not
+# model, and here the container-rendered policy rules are compared with the CPM records.
 # Verifies CPM modeled deny decisions and renderer nftables output stay in
 # parity for the s-router policy fixture.
 set -euo pipefail

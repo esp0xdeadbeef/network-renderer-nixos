@@ -73,10 +73,31 @@ let
   cpmEnvelope =
     if builtins.isAttrs cpm && builtins.isAttrs (cpm.model or null) then cpm.model else cpm;
 
-  targetEnterprise =
-    if builtins.isAttrs runtimeTarget then runtimeTarget.enterprise or null else null;
+  logicalNodeOf =
+    if builtins.isAttrs runtimeTarget && builtins.isAttrs (runtimeTarget.logicalNode or null) then
+      runtimeTarget.logicalNode
+    else
+      { };
 
-  targetSite = if builtins.isAttrs runtimeTarget then runtimeTarget.site or null else null;
+  targetEnterprise =
+    if !(builtins.isAttrs runtimeTarget) then
+      null
+    else if builtins.isString (runtimeTarget.enterprise or null) then
+      runtimeTarget.enterprise
+    else if builtins.isString (logicalNodeOf.enterprise or null) then
+      logicalNodeOf.enterprise
+    else
+      null;
+
+  targetSite =
+    if !(builtins.isAttrs runtimeTarget) then
+      null
+    else if builtins.isString (runtimeTarget.site or null) then
+      runtimeTarget.site
+    else if builtins.isString (logicalNodeOf.site or null) then
+      logicalNodeOf.site
+    else
+      null;
 
   canonicalSitesSource =
     if builtins.isAttrs (canonicalCollections.canonicalSites or null) then

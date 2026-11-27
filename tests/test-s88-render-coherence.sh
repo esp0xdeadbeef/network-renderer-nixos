@@ -101,6 +101,22 @@ if ! env REPO_ROOT="${repo_root}" FIXTURE="${fixture}" HOST_NAME="${host_name}" 
         inventoryPath = example + "/inventory-nixos.nix";
       };
 
+      # Every facade maps the VALIDATED bundle, so the fixture artifact is realized once and
+      # the collections handed to each level (FS-310-HDS-040-SDS-010-SMS-100). Without them
+      # each facade refuses by name instead of comparing chains.
+      realize = artifact: (flake.inputs.network-realization-model.lib.realize {
+        input = {
+          kind = "network-control-plane-artifact";
+          artifactIdentity = "s88-render-coherence";
+          artifactDigest = builtins.hashString "sha256" (builtins.toJSON artifact.control_plane_model);
+          inherit (artifact) control_plane_model;
+        };
+        requestScope = { kind = "complete-artifact"; identity = "s88-render-coherence"; };
+        rootLockIdentity = "s88-render-coherence";
+        producerRevision = "s88-render-coherence";
+      }).canonical or { };
+      canonicalCollections = realize cpm;
+
       # Compare structure and data exactly; functions by name. A facade that
       # drops a module must not compare equal to one that keeps it.
       strip = v:
@@ -122,7 +138,7 @@ if ! env REPO_ROOT="${repo_root}" FIXTURE="${fixture}" HOST_NAME="${host_name}" 
           api = import (repoRoot + "/s88/" + level + "/api/default.nix") { inherit lib; };
         in
         builtins.toJSON (strip (api.renderer.renderHostNetwork {
-          inherit hostName cpm;
+          inherit hostName cpm canonicalCollections;
         }));
 
       rendered = builtins.listToAttrs (map (level: { name = level; value = renderAt level; }) facades);
@@ -132,14 +148,30 @@ if ! env REPO_ROOT="${repo_root}" FIXTURE="${fixture}" HOST_NAME="${host_name}" 
         let
           api = import (repoRoot + "/s88/" + level + "/api/default.nix") { inherit lib; };
         in
-        builtins.attrNames (api.renderer.renderHostNetwork { inherit hostName cpm; });
+        builtins.attrNames (api.renderer.renderHostNetwork { inherit hostName cpm canonicalCollections; });
 
-      # E3: remove the plain upstream envelope and see what happens.
-      strippedCpm = removeAttrs cpm [ "control_plane_model" "controlPlaneModel" ];
-      envelopeRemoval =
+      # E3: the fail-closed contract is about CANONICAL content. Remove it and the render must
+      # refuse (FS-310-HDS-010-SDS-010-SMS-110). E3b removes the plain upstream envelope
+      # instead: with the canonical collections present that must still render, because the
+      # bundle -- not the envelope -- is the semantic input (SMS-100).
+      strippedCanonical = removeAttrs canonicalCollections [
+        "canonicalRoutes"
+        "canonicalInterfaces"
+        "canonicalSites"
+        "canonicalRuntimeTargets"
+      ];
+      canonicalRemoval =
         builtins.tryEval (builtins.deepSeq
           ((import (repoRoot + "/s88/Unit/api/default.nix") { inherit lib; })
-            .renderer.renderHostNetwork { inherit hostName; cpm = strippedCpm; }) true);
+            .renderer.renderHostNetwork {
+              inherit hostName cpm;
+              canonicalCollections = strippedCanonical;
+            }) true);
+      strippedCpm = removeAttrs cpm [ "control_plane_model" "controlPlaneModel" ];
+      envelopeRemoval =
+        builtins.tryEval (builtins.toJSON (strip
+          ((import (repoRoot + "/s88/Unit/api/default.nix") { inherit lib; })
+            .renderer.renderHostNetwork { inherit hostName canonicalCollections; cpm = strippedCpm; })));
     in
     rec
     {
@@ -147,7 +179,8 @@ if ! env REPO_ROOT="${repo_root}" FIXTURE="${fixture}" HOST_NAME="${host_name}" 
       differing = builtins.filter (level: rendered.${level} != baseline) facades;
       equalLengths = builtins.mapAttrs (_: json: builtins.stringLength json) rendered;
       attrs = builtins.listToAttrs (map (level: { name = level; value = topLevelAttrs level; }) facades);
-      envelopeRemovalSucceeds = envelopeRemoval.success && envelopeRemoval.value;
+      canonicalRemovalFailsClosed = !(canonicalRemoval.success && canonicalRemoval.value);
+      envelopeRemovalRenders = envelopeRemoval.success && envelopeRemoval.value == baseline;
 
       # Seeded negative: the comparison must be able to tell two renders apart,
       # including a difference that is only the presence or absence of a function.
@@ -206,8 +239,8 @@ fi
 # ---------------------------------------------------------------------------
 # E3 -- removing the plain envelope must fail closed, not render something else.
 # ---------------------------------------------------------------------------
-if [[ "$(_jq -r '.envelopeRemovalSucceeds' "${result_json}")" == "true" ]]; then
-  report_issue "S88-E3" "the render succeeds when the plain upstream envelope is removed" \
+if [[ "$(_jq -r '.canonicalRemovalFailsClosed' "${result_json}")" != "true" ]]; then
+  report_issue "S88-E3" "the render succeeds when the canonical collections are removed" \
     "the renderer is supposed to take network semantics from the canonical content and to
        fail when that content is missing. Here it produced an artifact anyway, so 'the
        canonical field is absent' and 'the canonical field is present with the same value'
@@ -218,7 +251,22 @@ if [[ "$(_jq -r '.envelopeRemovalSucceeds' "${result_json}")" == "true" ]]; then
        missing/partial canonical input must fail') and FS-310-HDS-010-SDS-010-SMS-100
        ('Canonical-only consumption'), plus README.md -> Not Allowed."
 else
-  echo "PASS E3: removing the plain upstream envelope fails closed"
+  echo "PASS E3: removing the canonical collections fails closed"
+fi
+
+# ---------------------------------------------------------------------------
+# E3b -- the plain upstream envelope is NOT the semantic input. Removing it must
+# leave the render byte-identical, which is what canonical-only consumption means.
+# ---------------------------------------------------------------------------
+if [[ "$(_jq -r '.envelopeRemovalRenders' "${result_json}")" != "true" ]]; then
+  report_issue "S88-E3b" "the render changes when the plain upstream envelope is removed" \
+    "the bundle is the semantic input, so dropping the producer envelope must not change the
+       artifact. A difference here means something still reads the envelope: the render is not
+       canonical-only, and the two paths can disagree in production while a fixture sees one
+       of them." \
+    "README.md -> Spec Chain FS-310-HDS-010-SDS-010-SMS-100 ('Canonical-only consumption')"
+else
+  echo "PASS E3b: removing the plain upstream envelope leaves the render identical"
 fi
 
 # ---------------------------------------------------------------------------

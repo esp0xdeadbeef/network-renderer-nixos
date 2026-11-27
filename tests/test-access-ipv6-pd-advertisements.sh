@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# GAMP-ID: FS-800-HDS-030-SDS-020-SMS-040 (access IPv6-PD downstream delegation)
+# GAMP-ID: FS-800-HDS-030-SDS-020-SMS-040
+#
+# Access IPv6-PD downstream delegation.
 #
 # CROSS-REPO DEPENDENCY (known red at upstream HEAD, green at the pinned lock):
 # this fixture models per-access uplink p2p links
