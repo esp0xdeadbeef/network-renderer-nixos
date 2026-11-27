@@ -75,8 +75,18 @@ INVENTORY_PATH="${example_root}/inventory-nixos.nix" \
             };
           };
         };
+        # A fixture states the canonical content itself: the four collections are present
+        # and empty because this synthetic model has no router runtime units. Present
+        # because the module refuses to map what the bundle does not carry
+        # (FS-310-HDS-040-SDS-010-SMS-100).
+        canonicalCollections = {
+          canonicalRoutes = [ ];
+          canonicalSites = { };
+          canonicalForwarding = { };
+          canonicalRuntimeTargets = { };
+        };
         module = flake.lib.renderer.hostModule {
-          inherit lib system;
+          inherit lib system canonicalCollections;
           hostName = "s-router-test-clients";
           cpm = cpmWithArtifacts;
           selectorFile = "tests/test-host-build-artifact-module.sh";

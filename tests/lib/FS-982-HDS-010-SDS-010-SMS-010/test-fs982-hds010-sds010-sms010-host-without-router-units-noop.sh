@@ -39,7 +39,18 @@ nix_eval_true_or_fail "FS-982 host with no router runtime units renders no route
             realization = control_plane_model.realization;
             render = control_plane_model.render;
           };
+          # A fixture states the canonical content itself. This one models a deployment
+          # host with no router runtime units, so the four collections are present and
+          # empty -- present because the module refuses to map what the bundle does not
+          # carry (FS-310-HDS-040-SDS-010-SMS-100), empty because that is the model.
+          canonicalCollections = {
+            canonicalRoutes = [ ];
+            canonicalSites = { };
+            canonicalForwarding = { };
+            canonicalRuntimeTargets = { };
+          };
           module = flake.lib.renderer.hostModule {
+            inherit canonicalCollections;
             inherit lib system;
             hostName = "s-router-test-clients";
             cpm = cpm;
