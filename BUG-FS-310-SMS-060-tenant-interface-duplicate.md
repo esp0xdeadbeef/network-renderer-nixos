@@ -28,7 +28,7 @@ FAIL FS-310-HDS-020-SDS-010-SMS-060: one route authority became two target primi
 - It does NOT name it on `tenant-admin`.
 - So the `ens3` occurrence is faithful and the `tenant-admin` one is not: the
   renderer is installing a route on an interface whose canonical records do not
-  include it. That is the SMS-060 failure condition verbatim -- "Exact duplicates
+  include it. That is the FS-310-HDS-020-SDS-010-SMS-060 failure condition verbatim -- "Exact duplicates
   become repeated target routes instead of one primitive".
 - `dropDerivedCopies` (fixed in d1d7aca2 to collect canonical keys across the
   whole TARGET, not just the current interface) is not the whole story: the
@@ -45,7 +45,7 @@ Two candidate repairs, and they are a routing-semantics decision:
    which would make the current render correct).
 
 (1) changes which routes every access container installs, so it wants the row
-owner's read of SMS-060, not a guess made while clearing a red test.
+owner's read of FS-310-HDS-020-SDS-010-SMS-060, not a guess made while clearing a red test.
 
 ## Not the same as
 
