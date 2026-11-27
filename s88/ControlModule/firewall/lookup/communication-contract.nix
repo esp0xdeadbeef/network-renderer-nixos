@@ -45,6 +45,13 @@ let
       cpm ? model && builtins.isAttrs cpm.model && cpm.model ? data && builtins.isAttrs cpm.model.data
     then
       cpm.model.data
+    else if
+      cpm ? control_plane_model
+      && builtins.isAttrs cpm.control_plane_model
+      && cpm.control_plane_model ? data
+      && builtins.isAttrs cpm.control_plane_model.data
+    then
+      cpm.control_plane_model.data
     else if cpm ? data && builtins.isAttrs cpm.data then
       cpm.data
     else

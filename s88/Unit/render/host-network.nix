@@ -17,7 +17,16 @@ let
 
   renderSites =
     let
-      data = if cpm ? model && builtins.isAttrs cpm.model then cpm.model.data or { } else { };
+
+      data =
+        if cpm ? model && builtins.isAttrs cpm.model then
+          cpm.model.data or { }
+        else if cpm ? control_plane_model && builtins.isAttrs cpm.control_plane_model then
+          cpm.control_plane_model.data or { }
+        else if cpm ? data && builtins.isAttrs cpm.data then
+          cpm.data
+        else
+          { };
     in
     if !builtins.isAttrs data then
       { }

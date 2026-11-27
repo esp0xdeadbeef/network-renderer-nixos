@@ -14,7 +14,7 @@ let
 
   sitesData =
     let
-      model = if builtins.isAttrs cpm then (cpm.model or cpm) else { };
+      model = if builtins.isAttrs cpm then (cpm.model or cpm.control_plane_model or cpm) else { };
       byEnterprise = (model.canonicalSites or { }).byEnterprise or null;
     in
     if builtins.isAttrs byEnterprise then
