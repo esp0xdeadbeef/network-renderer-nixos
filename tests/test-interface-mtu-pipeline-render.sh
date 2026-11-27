@@ -63,6 +63,10 @@ nix_eval_json_or_fail \
             repoPath
             hostPlan
             ;
+          # The module maps the canonical collections of the VALIDATED bundle; without them it
+          # refuses to render (FS-310-HDS-040-SDS-010-SMS-100), which is the point of the
+          # guard. `build-host-from-paths.nix` exposes the bundle it already realized.
+          canonicalCollections = hostBuild.canonicalCollections;
           cpm = hostBuild.controlPlaneOut;
           source = hostBuild.globalInventory;
           debugEnabled = true;

@@ -44,4 +44,9 @@ let
     disabled = args.disabled or { };
   };
 in
+
 hostBuild
+// {
+  inherit bundle;
+  canonicalCollections = bundle.canonical or { };
+}
