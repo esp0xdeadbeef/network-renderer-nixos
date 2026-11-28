@@ -352,20 +352,24 @@ let
       factsOf = r: if builtins.isAttrs (r.facts or null) then r.facts else { };
       toRoute =
         r:
-        {
-          Destination = r.dst;
-          Table = r.tableId;
+        let
 
-          Gateway =
-            if builtins.isString (r.gateway or null) then
+          gateway =
+            if builtins.isString (r.gateway or null) && r.gateway != "" then
               r.gateway
-            else if builtins.isString (r.via4 or null) then
+            else if builtins.isString (r.via4 or null) && r.via4 != "" then
               r.via4
-            else if builtins.isString (r.via6 or null) then
+            else if builtins.isString (r.via6 or null) && r.via6 != "" then
               r.via6
             else
               null;
-
+        in
+        {
+          Destination = r.dst;
+          Table = r.tableId;
+        }
+        // lib.optionalAttrs (gateway != null) {
+          Gateway = gateway;
           GatewayOnLink = builtins.isString (r.preferredSource or null) && r.preferredSource != "";
         }
         // lib.optionalAttrs (builtins.isInt (r.metric or null)) { Metric = r.metric; }
