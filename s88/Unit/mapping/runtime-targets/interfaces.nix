@@ -8,10 +8,18 @@ let
     inherit lib runtimeContext common;
   };
   hostBridge = import ./interfaces/host-bridge.nix { inherit lib common; };
-  policyRoutingSources = import ./interfaces/policy-routing-sources.nix { inherit lib common; };
-  networkBehavior = import ./interfaces/network-behavior.nix { inherit lib common; };
+
+  policyRoutingSources = import ./interfaces/policy-routing-sources.nix { inherit lib; };
+  networkBehavior = import ./interfaces/network-behavior.nix { inherit lib; };
   normalize = import ./interfaces/normalize.nix {
-    inherit lib runtimeContext forwarding common renderedNames hostBridge;
+    inherit
+      lib
+      runtimeContext
+      forwarding
+      common
+      renderedNames
+      hostBridge
+      ;
   };
 in
 {

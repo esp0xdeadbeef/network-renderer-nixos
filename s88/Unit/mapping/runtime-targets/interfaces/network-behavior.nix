@@ -1,22 +1,17 @@
-{ lib, common }:
+{ lib }:
 
-interfaces:
-let
-  names = common.sortedAttrNames interfaces;
-  classFor =
-    name:
-    let ifaceClass = interfaces.${name}.interfaceClass or { };
-    in if builtins.isAttrs ifaceClass then ifaceClass else { };
-  hasClass = flag: name: (classFor name).${flag} or false;
-  hasSourceKind =
-    kind: name:
-    (interfaces.${name}.sourceKind or null) == kind;
-  isSelector = lib.any (hasClass "edgeFacing") names && lib.any (hasClass "fabricFacing") names;
-  isUpstreamSelector = lib.any (hasClass "coreFacing") names && lib.any (hasClass "exitFacing") names;
-  isPolicy = lib.any (hasClass "fabricFacing") names && lib.any (hasClass "exitFacing") names;
-  isAccessGateway = lib.any (hasClass "edgeFacing") names && lib.any (hasSourceKind "tenant") names;
-in
 {
-  inherit isSelector isUpstreamSelector isPolicy isAccessGateway;
-  keepInterfaceRoutesInMain = !(isSelector || isUpstreamSelector || isPolicy || isAccessGateway);
-}
+  runtimeTarget,
+  unitName ? "<unknown>",
+}:
+let
+  fact =
+    if builtins.isAttrs runtimeTarget && builtins.isAttrs (runtimeTarget.networkBehavior or null) then
+      runtimeTarget.networkBehavior
+    else
+      null;
+in
+if fact != null then
+  fact
+else
+  throw "FS-310-HDS-020-SDS-010-SMS-060: the model supplies no 'networkBehavior' for runtime target '${unitName}'. This renderer will not decide a target's role from interface topology, and it will not default the role: a wrong role puts interface routes in the main table or keeps them out of it, and either answer changes which table a packet uses. The control-plane model publishes this record on every runtime target (policy-routing-facts.nix); the bundle must carry it through."
