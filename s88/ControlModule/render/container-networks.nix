@@ -409,24 +409,58 @@ let
         && builtins.isString ((r.facts or { }).lane.access or null)
       ) mine;
 
+      laneOwnedDefaults = builtins.filter (
+        r: ((r.facts or { }).lane.kind or null) == "access-uplink"
+      ) laneDefaults;
+
       laneTableFor =
         lane:
         let
-          hits = builtins.filter (x: ((x.facts or { }).lane.access or null) == lane) laneDefaults;
+          candidatesFor =
+            pool:
+            builtins.filter (
+              x:
+              ((x.facts or { }).lane.access or null) == (lane.access or null)
+              && (
+                !(builtins.isString (lane.uplink or null)) || ((x.facts or { }).lane.uplink or null) == lane.uplink
+              )
+            ) pool;
+          owned = candidatesFor laneOwnedDefaults;
+          any_ = candidatesFor laneDefaults;
+          ownedTables = lib.unique (map (x: x.tableId) owned);
         in
-        if hits == [ ] then null else (builtins.head hits).tableId;
-
+        if builtins.length ownedTables == 1 then
+          builtins.head ownedTables
+        else if any_ == [ ] then
+          null
+        else
+          (builtins.head any_).tableId;
       laneLaneTableByInterface =
         let
           entries = builtins.filter (e: e.value != null) (
             map (
               ifName:
               let
-                lane = ((interfaces.${ifName}.backingRef or { }).lane or { }).access or null;
+                laneRef = (interfaces.${ifName}.backingRef or { }).lane or { };
+                laneAccess = laneRef.access or null;
+                laneUplink =
+                  if builtins.isString (laneRef.uplink or null) then
+                    laneRef.uplink
+                  else if builtins.isList (laneRef.uplinks or null) && builtins.length laneRef.uplinks == 1 then
+                    builtins.head laneRef.uplinks
+                  else
+                    null;
               in
               {
                 name = ifName;
-                value = if builtins.isString lane && lane != "" then laneTableFor lane else null;
+                value =
+                  if builtins.isString laneAccess && laneAccess != "" then
+                    laneTableFor {
+                      access = laneAccess;
+                      uplink = laneUplink;
+                    }
+                  else
+                    null;
               }
             ) (builtins.attrNames interfaces)
           );
