@@ -153,7 +153,7 @@ if ! env REPO_ROOT="${repo_root}" FIXTURE="${fixture}" HOST_NAME="${host_name}" 
       # E3: the fail-closed contract is about CANONICAL content. Remove it and the render must
       # refuse (FS-310-HDS-010-SDS-010-SMS-110). E3b removes the plain upstream envelope
       # instead: with the canonical collections present that must still render, because the
-      # bundle -- not the envelope -- is the semantic input (SMS-100).
+      # bundle -- not the envelope -- is the semantic input (FS-310-HDS-040-SDS-010-SMS-100).
       strippedCanonical = removeAttrs canonicalCollections [
         "canonicalRoutes"
         "canonicalInterfaces"

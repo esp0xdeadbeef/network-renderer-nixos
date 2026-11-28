@@ -9,5 +9,5 @@
 09eef79a3f7a934be4646e6a7346cc694325f851c9dd6eefd8740d6244f5141d  tests/test-s88-code-traceability.sh
 736ac9398d308190e52ac7fd7cde838f9aa55a3b3197b89a51493af94626f4d2  tests/test-s88-import-graph-coherence.sh
 f9e34bef9c24252fd9080d85a5895affab3ae57d98e898f6bd4d24ddfa83fc3c  tests/test-s88-no-silent-repair.sh
-0b3cf7fac6d0e628ea0368a816f8e52d28a8759e64b94e44252eff3a1c88d60b  tests/test-s88-render-coherence.sh
+3e16efb1f2e335f3c3f9ca3d9b162593727e4be23a0ff41925e65faa0a003077  tests/test-s88-render-coherence.sh
 a5c7a4bde08305aca2c7e31c242d58024a871c26f8c71f705c7bc68efe7fe596  tests/test-s88-test-integrity.sh
