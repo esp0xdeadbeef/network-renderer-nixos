@@ -92,8 +92,8 @@ let
       while ${familyCommand.binary} rule del${fromArg}${toArg}${iifArg} priority ${priority} 2>/dev/null; do
         true
       done
-      # `ip rule add` is not idempotent; treat EEXIST as success so shared
-      # prefixes across rules do not fail the unit and hit the start limit.
+
+
       err="$(${familyCommand.binary} rule add${fromArg}${toArg}${iifArg}${table} priority ${priority} 2>&1)" || {
         printf '%s\n' "$err" | ${pkgs.gnugrep}/bin/grep -q "File exists" || { printf '%s\n' "$err" >&2; exit 1; }
       }
@@ -104,10 +104,19 @@ let
       route:
       let
         serviceName = "s88-${route.name}";
+
         routeScript = pkgs.writeShellScript serviceName ''
-          set -eu
-          ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg route.interfaceName} >/dev/null 2>&1
-          ${routeCommand route}
+          set -u
+          attempt=0
+          while [ "$attempt" -lt 60 ]; do
+            if ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg route.interfaceName} >/dev/null 2>&1; then
+              ${routeCommand route} && exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 1
+          done
+          echo "s88-${route.name}: ${lib.escapeShellArg route.interfaceName} never carried the route; giving up after 60 attempts" >&2
+          exit 0
         '';
       in
       {
@@ -116,6 +125,8 @@ let
           description = "Install explicit route on provider-created interface ${route.interfaceName}";
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
+
+          wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
