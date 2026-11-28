@@ -569,6 +569,43 @@ let
     in
     builtins.filter (r: isModelledDestination r || !(canonicalFor ? ${keyOf r})) routes;
 
+  dynamicLinkTableRoutes = lib.concatLists (
+    map (
+      ifName:
+      let
+        iface = interfaces.${ifName};
+        interfaceName = renderedInterfaceNames.${ifName};
+        dynamicAddressing =
+          (iface.ipv4.method or null) == "dhcp"
+          || builtins.elem (iface.ipv6.method or null) [
+            "dhcpv6"
+            "slaac"
+          ]
+          || isPppoeSessionInterface iface;
+        routes = lib.filter (
+          route:
+          builtins.isAttrs route
+          && builtins.isString (route.Destination or null)
+          && builtins.isInt (route.Table or null)
+          && route.Table != 254
+          && !(route ? Gateway)
+        ) (canonicalPolicyRoutesByInterface.${ifName} or [ ]);
+      in
+      if !dynamicAddressing then
+        [ ]
+      else
+        lib.imap0 (index: route: {
+          name = "dynamic-link-route-${interfaceName}-${builtins.toString index}";
+          inherit interfaceName;
+          destination = route.Destination;
+          gateway = route.Gateway or null;
+          scope = route.Scope or null;
+          table = route.Table or null;
+          metric = route.Metric or null;
+        }) routes
+    ) interfaceNames
+  );
+
 in
 {
   inherit interfaceUnits;
@@ -584,6 +621,8 @@ in
   );
 
   inherit dynamicDelegatedRoutes;
-  staticProviderRoutes = lib.filter (route: route != null) staticProviderRoutes;
+  staticProviderRoutes = lib.filter (route: route != null) (
+    staticProviderRoutes ++ dynamicLinkTableRoutes
+  );
   staticProviderPolicyRules = lib.filter (rule: rule != null) staticProviderPolicyRules;
 }
