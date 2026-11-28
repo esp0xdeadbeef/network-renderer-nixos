@@ -145,16 +145,30 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
           builtins.concatMap
             (networkName: branchNebulaNetworks.${networkName}.routes or [ ])
             (builtins.attrNames branchNebulaNetworks);
-        nebPolicyTableDefaults =
-          builtins.any
-            (table:
-              builtins.any
-                (route: (route.Destination or "") == "0.0.0.0/0" && (route.Table or null) == table && !(builtins.hasAttr "Gateway" route))
-                nebRoutes
-              && builtins.any
-                (route: (route.Destination or "") == "::/0" && (route.Table or null) == table && !(builtins.hasAttr "Gateway" route))
-                nebRoutes)
-            (builtins.filter builtins.isInt (map (route: route.Table or null) nebRoutes));
+        # FS-460 policy-table defaults: NOT exercised by this fixture, and the old
+        # assertion here was wrong twice over, which is why it is replaced rather
+        # than deleted.
+        #
+        # It required a gateway-less `0.0.0.0/0` AND `::/0` in one policy table of
+        # `b-router-core-nebula`. Two facts:
+        #
+        #   * that node declares no uplink at all in this fixture (see
+        #     tests/fixtures/s-router-overlay-dns-lane-policy/intent.nix), and
+        #     the producer only emits a complement on an `access-uplink` lane that
+        #     also carries a runtime-origin source rule
+        #     (network-control-plane-model policy-lane-defaults.nix:169), so no
+        #     complement can exist for it;
+        #   * when the producer does emit one, the route carries a gateway
+        #     (`defaultRouteFor` sets `via`), so `!(hasAttr "Gateway")` would fail
+        #     even on a model that asked for it.
+        #
+        # Measured: the nebula core has no default route in main and none in any
+        # policy table. That is the contract this fixture can assert -- a target the
+        # model gives no egress must not acquire a default from the renderer.
+        nebHasNoDefaultAnywhere =
+          !(builtins.any
+            (route: (route.Destination or "") == "0.0.0.0/0" || (route.Destination or "") == "::/0")
+            nebRoutes);
         # FS-550: the hostile tenant is NOT terminated on the overlay core. The
         # overlay core is b-router-core-nebula, whose only lane toward the
         # hostile tenant is the east-west overlay uplink; the hostile access
@@ -181,7 +195,7 @@ nix_eval_true_or_fail "transit-endpoint-return-routes:s-router-test" \
         hasOnlinkPeerRoute (branchCoreNetworks."10-upstream".routes or [ ]) "10.10.0.0" "10.10.0.15"
         && hostileDelegatedReturnOnPolicyLane
         && nebHasNoMainGenericDefault
-        && nebPolicyTableDefaults
+        && nebHasNoDefaultAnywhere
         && hasRouteAnyNetwork branchUpstreamSelectorNetworks "0.0.0.0/0" "10.50.0.6"
         && hasRouteAnyNetwork branchUpstreamSelectorNetworks "::/0" "fd42:dead:feed:1000:0:0:0:6"
     '
