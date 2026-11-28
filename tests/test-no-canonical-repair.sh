@@ -65,6 +65,44 @@ render() {
       })' 2>&1 || true
 }
 
+# CASE 3 asks a different question -- "does the render succeed" -- and a success
+# verdict may not be taken from merged streams. `nix eval` writes
+#
+#     warning: you don't have Internet access; disabling some network-dependent features
+#
+# to stderr on every offline runner, so `2>&1` put a diagnostic line in front of the
+# artifact and CASE 3 read that as a failed render. Measured in run 46084235343:
+#
+#     FAIL CASE 3: with all four canonical collections present the render still failed
+#       got: warning: you don't have Internet access; ... [] 
+#
+# stdout is the artifact; stderr is diagnostics. CASE 1 and CASE 2 read a THROW, which
+# arrives on stderr, so those keep the merged form and this one does not.
+render_stdout() {
+  local collections_json="$1" err rc=0
+  err="$(mktemp)"
+  COLLECTIONS="${collections_json}" REPO="${repo_root}" \
+    nix eval --impure --json --expr '
+      let
+        repoRoot = builtins.getEnv "REPO";
+        flake = builtins.getFlake ("path:" + repoRoot);
+        lib = flake.inputs.nixpkgs.lib;
+        collections = builtins.fromJSON (builtins.getEnv "COLLECTIONS");
+      in
+      builtins.attrNames (import (repoRoot + "/s88/ControlModule/render/containers.nix") {
+        inherit lib;
+        repoPath = repoRoot;
+        models = { };
+        canonicalCollections = collections;
+      })' 2>"${err}" || rc=$?
+  if ((rc != 0)); then
+    sed 's/^/  stderr: /' "${err}" >&2
+    rm -f "${err}"
+    return "${rc}"
+  fi
+  rm -f "${err}"
+}
+
 all_present='{"canonicalRoutes":[],"canonicalSites":{},"canonicalForwarding":{},"canonicalRuntimeTargets":{}}'
 
 # ---------------------------------------------------------------------------
@@ -127,12 +165,17 @@ done
 # succeeds. This is what makes CASE 1 and CASE 2 evidence of a check rather than
 # of a module that never evaluates.
 # ---------------------------------------------------------------------------
-present_out="$(render "${all_present}")"
-if [[ "${present_out}" != "["* ]]; then
+if ! present_out="$(render_stdout "${all_present}")"; then
   issues=$((issues + 1))
   {
     echo "FAIL CASE 3: with all four canonical collections present the render still failed"
-    echo "  got: ${present_out}"
+    echo "  stdout: ${present_out}"
+  } >&2
+elif [[ "${present_out}" != "["* ]]; then
+  issues=$((issues + 1))
+  {
+    echo "FAIL CASE 3: the render produced an artifact that is not an attribute-name list"
+    echo "  stdout: ${present_out}"
   } >&2
 else
   echo "PASS CASE 3: with all four canonical collections present the same render succeeds (the check can pass)"
