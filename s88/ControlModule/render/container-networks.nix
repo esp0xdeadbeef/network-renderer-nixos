@@ -372,6 +372,10 @@ let
           Gateway = gateway;
           GatewayOnLink = builtins.isString (r.preferredSource or null) && r.preferredSource != "";
         }
+        // lib.optionalAttrs (gateway == null) {
+
+          Scope = "link";
+        }
         // lib.optionalAttrs (builtins.isInt (r.metric or null)) { Metric = r.metric; }
         // lib.optionalAttrs (builtins.isString (r.preferredSource or null) && r.preferredSource != "") {
           PreferredSource = r.preferredSource;
