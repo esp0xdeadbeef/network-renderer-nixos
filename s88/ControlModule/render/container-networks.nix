@@ -372,7 +372,7 @@ let
           Gateway = gateway;
           GatewayOnLink = builtins.isString (r.preferredSource or null) && r.preferredSource != "";
         }
-        // lib.optionalAttrs (gateway == null) {
+        // lib.optionalAttrs (gateway == null && !(builtins.isString r.dst && lib.hasInfix ":" r.dst)) {
 
           Scope = "link";
         }
