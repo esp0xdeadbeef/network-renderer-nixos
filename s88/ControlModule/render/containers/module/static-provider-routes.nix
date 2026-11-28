@@ -117,16 +117,18 @@ let
 
 
 
-          attempt=0
-          while [ "$attempt" -lt 300 ]; do
+          waited=0
+          while :; do
             if ${pkgs.iproute2}/bin/ip -${routeFamily} addr show dev ${lib.escapeShellArg route.interfaceName} 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q 'inet'; then
               ${routeCommand route} && exit 0
+              echo "s88-${route.name}: route replace failed on an addressed ${lib.escapeShellArg route.interfaceName}; retrying" >&2
             fi
-            attempt=$((attempt + 1))
-            sleep 1
+            if [ $((waited % 60)) -eq 0 ]; then
+              echo "s88-${route.name}: waiting for an address on ${lib.escapeShellArg route.interfaceName} ($waited s)" >&2
+            fi
+            waited=$((waited + 2))
+            sleep 2
           done
-          echo "s88-${route.name}: ${lib.escapeShellArg route.interfaceName} never carried an address; giving up after 300 attempts" >&2
-          exit 0
         '';
       in
       {
@@ -138,8 +140,10 @@ let
 
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
+
+            Type = "simple";
+            Restart = "on-failure";
+            RestartSec = 10;
             ExecStart = routeScript;
           };
         };
