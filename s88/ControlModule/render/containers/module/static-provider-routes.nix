@@ -105,17 +105,27 @@ let
       let
         serviceName = "s88-${route.name}";
 
+        routeFamily = if lib.hasInfix ":" route.destination then "6" else "4";
         routeScript = pkgs.writeShellScript serviceName ''
           set -u
+
+
+
+
+
+
+
+
+
           attempt=0
-          while [ "$attempt" -lt 60 ]; do
-            if ${pkgs.iproute2}/bin/ip link show dev ${lib.escapeShellArg route.interfaceName} >/dev/null 2>&1; then
+          while [ "$attempt" -lt 300 ]; do
+            if ${pkgs.iproute2}/bin/ip -${routeFamily} addr show dev ${lib.escapeShellArg route.interfaceName} 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q 'inet'; then
               ${routeCommand route} && exit 0
             fi
             attempt=$((attempt + 1))
             sleep 1
           done
-          echo "s88-${route.name}: ${lib.escapeShellArg route.interfaceName} never carried the route; giving up after 60 attempts" >&2
+          echo "s88-${route.name}: ${lib.escapeShellArg route.interfaceName} never carried an address; giving up after 300 attempts" >&2
           exit 0
         '';
       in
